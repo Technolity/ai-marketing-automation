@@ -391,6 +391,14 @@ export default function OSWizard() {
                 }
             );
 
+            // Set session source for Results page
+            localStorage.setItem('ted_has_active_session', 'true');
+            localStorage.setItem('ted_results_source', JSON.stringify({
+                type: 'loaded',
+                name: sessionData.session_name,
+                id: sessionData.id
+            }));
+
             toast.success(`Loaded session: ${sessionData.session_name}`);
             setShowSavedSessions(false);
         } catch (error) {
@@ -452,6 +460,10 @@ export default function OSWizard() {
 
             // Clear storage
             await saveProgressToStorage([], {}, {}, { currentStep: 1, isComplete: false });
+
+            // Clear session tracking for Results page
+            localStorage.removeItem('ted_has_active_session');
+            localStorage.removeItem('ted_results_source');
 
             // Clear slide_results from database so Results page shows empty
             if (session) {
@@ -640,6 +652,14 @@ export default function OSWizard() {
 
             setGeneratedContent(data.result);
             setIsReviewMode(true);
+
+            // Set active session flag for Results page
+            localStorage.setItem('ted_has_active_session', 'true');
+            localStorage.setItem('ted_results_source', JSON.stringify({
+                type: 'current',
+                name: 'Current Session'
+            }));
+
             toast.success("All content generated successfully!");
         } catch (error) {
             console.error(error);

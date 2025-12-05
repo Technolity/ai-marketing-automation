@@ -5,7 +5,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { motion } from "framer-motion";
 import {
   Download, Rocket, Image as ImageIcon,
-  CheckCircle, Loader2, FileJson, Save, ArrowLeft
+  CheckCircle, Loader2, FileJson, Save, ArrowLeft, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,8 +55,6 @@ const formatFieldName = (key) => {
 
 // Helper function to format a single value with proper structure
 const formatSingleValue = (value, indent = 0) => {
-  const indentStr = '  '.repeat(indent);
-
   if (value === null || value === undefined || value === '') {
     return '';
   }
@@ -72,12 +70,10 @@ const formatSingleValue = (value, indent = 0) => {
   if (Array.isArray(value)) {
     if (value.length === 0) return '';
 
-    // Array of strings
     if (typeof value[0] === 'string') {
-      return value.map((item, idx) => `• ${item}`).join('\n');
+      return value.map((item) => `• ${item}`).join('\n');
     }
 
-    // Array of objects (like emails, steps, etc.)
     return value.map((item, idx) => {
       if (typeof item === 'object' && item !== null) {
         const title = item.title || item.name || item.subject || item.headline || `Item ${idx + 1}`;
@@ -97,7 +93,6 @@ const formatSingleValue = (value, indent = 0) => {
     }).join('\n\n');
   }
 
-  // Object
   if (typeof value === 'object') {
     const entries = Object.entries(value)
       .filter(([k, v]) => v !== null && v !== undefined && v !== '')
@@ -125,10 +120,8 @@ const formatContentForDisplay = (jsonContent) => {
 
   const sections = [];
 
-  // Handle top-level wrapper (e.g., { idealClient: {...} })
   Object.entries(jsonContent).forEach(([topKey, topValue]) => {
     if (typeof topValue === 'object' && !Array.isArray(topValue) && topValue !== null) {
-      // Drill into nested object and create sections for each key
       Object.entries(topValue).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== '') {
           sections.push({
@@ -138,7 +131,6 @@ const formatContentForDisplay = (jsonContent) => {
         }
       });
     } else if (topValue !== null && topValue !== undefined && topValue !== '') {
-      // Direct key-value pair
       sections.push({
         key: formatFieldName(topKey),
         value: formatSingleValue(topValue)
@@ -158,6 +150,7 @@ export default function ResultsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [sessionName, setSessionName] = useState("");
+  const [sessionSource, setSessionSource] = useState(null); // Track where results came from
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -168,7 +161,18 @@ export default function ResultsPage() {
           return;
         }
 
-        // Check if we're viewing a saved session
+        // Check localStorage for session source
+        const storedSource = localStorage.getItem('ted_results_source');
+        if (storedSource) {
+          try {
+            const source = JSON.parse(storedSource);
+            setSessionSource(source);
+          } catch (e) {
+            console.error('Error parsing session source:', e);
+          }
+        }
+
+        // Check if we're viewing a saved session via URL
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
 
@@ -183,11 +187,26 @@ export default function ResultsPage() {
 
           if (sessionError) throw sessionError;
 
-          if (sessionData) {
+          if (sessionData && sessionData.results_data) {
             setResults(sessionData.results_data);
+            setSessionSource({
+              type: 'loaded',
+              name: sessionData.session_name,
+              id: sessionId
+            });
             setIsLoading(false);
             return;
           }
+        }
+
+        // Check if there are any results to show
+        const hasActiveSession = localStorage.getItem('ted_has_active_session');
+
+        if (!hasActiveSession || hasActiveSession !== 'true') {
+          // No active session - show empty
+          setResults({});
+          setIsLoading(false);
+          return;
         }
 
         // Fetch all approved slide results (current session)
@@ -231,14 +250,12 @@ export default function ResultsPage() {
 
   const handlePushToGHL = async () => {
     toast.info("Pushing to GoHighLevel... (feature coming soon)");
-    // TODO: Implement GHL push functionality
   };
 
   const handleGenerateImages = async () => {
     setIsGeneratingImages(true);
     try {
       toast.info("Generating ad images... (feature coming soon)");
-      // TODO: Implement OpenAI image generation
       await new Promise(resolve => setTimeout(resolve, 2000));
       toast.success("Images generated!");
     } catch (error) {
@@ -262,15 +279,14 @@ export default function ResultsPage() {
         return;
       }
 
-      // Save the complete results as a saved session
       const { error } = await supabase
         .from('saved_sessions')
         .insert({
           user_id: user.id,
           session_name: sessionName.trim(),
-          onboarding_data: {},  // Required field - empty object for results-only saves
+          onboarding_data: {},
           results_data: results,
-          generated_content: results,  // Store generated content
+          generated_content: results,
           status: 'completed'
         });
 
@@ -311,6 +327,16 @@ export default function ResultsPage() {
               <ArrowLeft className="w-4 h-4" /> Back to Dashboard
             </button>
 
+            {/* Session Source Banner */}
+            {sessionSource && sessionSource.type === 'loaded' && (
+              <div className="mb-4 p-4 bg-cyan/10 border border-cyan/30 rounded-lg flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-cyan" />
+                <p className="text-cyan">
+                  Results from previous session: <strong>{sessionSource.name}</strong>
+                </p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
@@ -319,26 +345,28 @@ export default function ResultsPage() {
                 <p className="text-gray-400">All your AI-generated content in one place</p>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowSaveDialog(true)}
-                  className="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-green-900/20"
-                >
-                  <Save className="w-5 h-5" /> Save Data
-                </button>
-                <button
-                  onClick={handleExportJSON}
-                  className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] border border-[#2a2a2d] rounded-lg font-semibold flex items-center gap-2 transition-all"
-                >
-                  <FileJson className="w-5 h-5" /> Export JSON
-                </button>
-                <button
-                  onClick={handlePushToGHL}
-                  className="px-6 py-3 bg-cyan rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20 text-black"
-                >
-                  <Rocket className="w-5 h-5" /> Push to GHL
-                </button>
-              </div>
+              {Object.keys(results).length > 0 && (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowSaveDialog(true)}
+                    className="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-green-900/20"
+                  >
+                    <Save className="w-5 h-5" /> Save Data
+                  </button>
+                  <button
+                    onClick={handleExportJSON}
+                    className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] border border-[#2a2a2d] rounded-lg font-semibold flex items-center gap-2 transition-all"
+                  >
+                    <FileJson className="w-5 h-5" /> Export JSON
+                  </button>
+                  <button
+                    onClick={handlePushToGHL}
+                    className="px-6 py-3 bg-cyan rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20 text-black"
+                  >
+                    <Rocket className="w-5 h-5" /> Push to GHL
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </motion.div>
@@ -346,7 +374,6 @@ export default function ResultsPage() {
         {/* Results Content */}
         <div className="space-y-6">
           {Object.entries(results).map(([contentKey, content], idx) => {
-            // Determine the title - use CONTENT_TITLES for generated keys, STEP_TITLES for numeric IDs
             const title = CONTENT_TITLES[contentKey] || STEP_TITLES[contentKey] || formatFieldName(contentKey);
 
             return (
@@ -383,8 +410,14 @@ export default function ResultsPage() {
         </div>
 
         {Object.keys(results).length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-400 text-lg mb-4">No results yet. Complete the wizard to see your content here.</p>
+          <div className="text-center py-20">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[#1b1b1d] flex items-center justify-center">
+              <FileJson className="w-10 h-10 text-gray-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-300 mb-2">No Results Yet</h2>
+            <p className="text-gray-500 mb-6 max-w-md mx-auto">
+              Complete the wizard to generate your marketing content, or load a previously saved session.
+            </p>
             <button
               onClick={() => router.push("/dashboard")}
               className="px-6 py-3 bg-cyan hover:brightness-110 rounded-lg font-semibold transition-all text-black"

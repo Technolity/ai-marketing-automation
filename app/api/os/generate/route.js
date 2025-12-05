@@ -22,7 +22,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// All prompts mapped by key for generation
+// All prompts mapped by key for final generation
 const osPrompts = {
   1: idealClientPrompt,
   2: messagePrompt,
@@ -40,20 +40,168 @@ const osPrompts = {
   14: contentPillarsPrompt
 };
 
-// Map steps to prompts - for existing business clients looking to grow
-const STEP_TO_PROMPT = {
-  1: { key: 1, name: "Ideal Client Profile" },
-  2: { key: 2, name: "Million-Dollar Message" },
-  3: { key: 3, name: "Signature Story" },
-  4: { key: 4, name: "8-Week Program Design" },
-  5: { key: 5, name: "Sales Scripts" },
-  6: { key: 6, name: "Lead Magnet Ideas" },
-  7: { key: 7, name: "VSL Script" },
-  8: { key: 8, name: "Email Sequence" },
-  9: { key: 9, name: "Facebook Ads" },
-  10: { key: 10, name: "Funnel Copy" },
-  11: { key: 11, name: "Content Ideas" },
-  12: { key: 12, name: "12-Month Program" }
+// CORRECTED: Map each step to what content CAN be properly generated with available data
+// Step preview generates content relevant to data gathered SO FAR
+const STEP_TO_PREVIEW = {
+  // Step 1: Only know niche/topic
+  1: {
+    promptFn: (data) => `Based on this business niche/topic:
+    Topic: ${data.topicArea || 'not specified'}
+    
+    Create a brief Niche Positioning analysis in JSON:
+    {
+      "nichePositioning": {
+        "niche": "The specific niche",
+        "marketSize": "Estimated market size/demand",
+        "uniqueAngle": "Potential unique positioning angle",
+        "topCompetitors": ["Competitor 1", "Competitor 2"],
+        "opportunityScore": "1-10 rating with brief explanation"
+      }
+    }`,
+    name: "Niche Positioning"
+  },
+
+  // Step 2: Know niche + ideal client description
+  2: {
+    promptFn: (data) => `Based on this business info:
+    Topic: ${data.topicArea || 'not specified'}
+    Ideal Client: ${data.idealClient || 'not specified'}
+    
+    Create a Target Market Summary in JSON:
+    {
+      "targetMarket": {
+        "primaryAudience": "Who exactly they serve",
+        "demographics": "Key demographic traits",
+        "psychographics": "Mindset, values, beliefs",
+        "buyingPower": "Estimated investment capacity",
+        "whereToFindThem": ["Platform 1", "Platform 2", "Platform 3"]
+      }
+    }`,
+    name: "Target Market Summary"
+  },
+
+  // Step 3: NOW have pain points! Generate Ideal Client Profile
+  3: {
+    key: 1,
+    name: "Ideal Client Profile"
+  },
+
+  // Step 4: Have transformation - Generate Million Dollar Message
+  4: {
+    key: 2,
+    name: "Million-Dollar Message"
+  },
+
+  // Step 5: Have unique mechanism - Generate 8-Week Program outline
+  5: {
+    key: 4,
+    name: "8-Week Program Preview"
+  },
+
+  // Step 6: Have story - Generate Signature Story
+  6: {
+    key: 3,
+    name: "Signature Story"
+  },
+
+  // Step 7: Have outcomes - Generate Sales Scripts preview
+  7: {
+    promptFn: (data) => `Based on this coaching/consulting business:
+    Topic: ${data.topicArea || ''}
+    Client: ${data.idealClient || ''}
+    Problem: ${data.problem || ''}
+    Transformation: ${data.transformation || ''}
+    Unique Mechanism: ${data.uniqueMechanism || ''}
+    Main Outcome: ${data.mainOutcome || ''}
+    
+    Create a Sales Framework Preview in JSON:
+    {
+      "salesFramework": {
+        "openingHook": "Attention-grabbing opener",
+        "buildRapport": "Questions to build connection",
+        "uncoverPain": "Questions to reveal pain points",
+        "presentSolution": "How to position your offer",
+        "handleObjections": ["Objection 1 -> Response", "Objection 2 -> Response"],
+        "closeStrong": "Closing technique"
+      }
+    }`,
+    name: "Sales Framework Preview"
+  },
+
+  // Step 8: Have pricing - Generate Offer Pricing Strategy
+  8: {
+    promptFn: (data) => `Based on this coaching/consulting business:
+    Topic: ${data.topicArea || ''}
+    Transformation: ${data.transformation || ''}
+    Main Outcome: ${data.mainOutcome || ''}
+    Price Point: ${data.pricing || ''}
+    
+    Create an Offer Pricing Strategy in JSON:
+    {
+      "pricingStrategy": {
+        "recommendedPrice": "Optimal price with justification",
+        "valueStack": ["Value item 1", "Value item 2", "Value item 3"],
+        "pricingTiers": {
+          "basic": { "price": "$X", "includes": ["..."] },
+          "premium": { "price": "$Y", "includes": ["..."] },
+          "vip": { "price": "$Z", "includes": ["..."] }
+        },
+        "guaranteeType": "Risk reversal strategy",
+        "paymentOptions": ["Full pay", "Payment plan option"]
+      }
+    }`,
+    name: "Offer Pricing Strategy"
+  },
+
+  // Step 9: Have communication style - Generate Lead Magnet Ideas
+  9: {
+    key: 6,
+    name: "Lead Magnet Ideas"
+  },
+
+  // Step 10: Have platforms - Generate Ads Preview
+  10: {
+    key: 9,
+    name: "Facebook Ads Preview"
+  },
+
+  // Step 11: Have dream client - Generate Email Preview
+  11: {
+    promptFn: (data) => `Based on this business:
+    Topic: ${data.topicArea || ''}
+    Client: ${data.idealClient || ''}
+    Dream Client: ${data.dreamClient || ''}
+    Problem: ${data.problem || ''}
+    Transformation: ${data.transformation || ''}
+    
+    Create a 3-Email Preview Sequence in JSON:
+    {
+      "emailPreview": {
+        "email1": {
+          "subject": "Subject line",
+          "hook": "Opening hook",
+          "mainPoint": "Core message",
+          "cta": "Call to action"
+        },
+        "email2": {
+          "subject": "Subject line",
+          "hook": "Opening hook", 
+          "mainPoint": "Core message",
+          "cta": "Call to action"
+        },
+        "email3": {
+          "subject": "Subject line",
+          "hook": "Opening hook",
+          "mainPoint": "Core message",
+          "cta": "Call to action"
+        }
+      }
+    }`,
+    name: "Email Sequence Preview"
+  },
+
+  // Step 12: All data available - final generation happens via 'all'
+  12: null
 };
 
 // Content titles for display
@@ -90,17 +238,18 @@ export async function POST(req) {
 
     const { step, data, completedSteps } = await req.json();
 
-    // Handle preview mode - generate content based on what user just answered
+    // Handle preview mode - generate content based on completed steps
     if (step === 'preview') {
       const stepsCompleted = completedSteps || 1;
-      const previewInfo = STEP_TO_PROMPT[stepsCompleted];
+      const previewConfig = STEP_TO_PREVIEW[stepsCompleted];
 
-      if (!previewInfo || !osPrompts[previewInfo.key]) {
+      // No preview for step 12 (full generation happens)
+      if (!previewConfig) {
         return NextResponse.json({
           result: {
             preview: {
-              title: "Content Preview",
-              message: "Answer more questions to unlock content generation.",
+              title: "Ready for Full Generation",
+              message: "All questions answered! Click 'Generate All Content' to create your complete marketing system.",
               unlocked: false
             }
           }
@@ -108,25 +257,40 @@ export async function POST(req) {
       }
 
       try {
-        const prompt = osPrompts[previewInfo.key](data);
+        let prompt;
+        let systemPrompt = "You are a world-class business growth strategist. Return strictly valid JSON. Keep responses concise but valuable.";
+
+        // Check if this step has a custom prompt function or uses a preset prompt
+        if (previewConfig.promptFn) {
+          prompt = previewConfig.promptFn(data);
+        } else if (previewConfig.key && osPrompts[previewConfig.key]) {
+          prompt = osPrompts[previewConfig.key](data);
+        } else {
+          return NextResponse.json({
+            result: {
+              preview: {
+                title: "Preview Unavailable",
+                message: "Continue to unlock content generation.",
+                unlocked: false
+              }
+            }
+          });
+        }
 
         const completion = await openai.chat.completions.create({
           messages: [
-            {
-              role: "system",
-              content: "You are a world-class business growth strategist helping established businesses scale. Return strictly valid JSON. This is a preview so keep responses concise but valuable."
-            },
+            { role: "system", content: systemPrompt },
             { role: "user", content: prompt }
           ],
           model: "gpt-4-turbo-preview",
           response_format: { type: "json_object" },
-          max_tokens: 1500,
+          max_tokens: 2000,
         });
 
         const result = JSON.parse(completion.choices[0].message.content);
         return NextResponse.json({
           result: {
-            title: previewInfo.name,
+            title: previewConfig.name,
             content: result,
             stepsCompleted: stepsCompleted,
             unlocked: true
@@ -137,7 +301,7 @@ export async function POST(req) {
         return NextResponse.json({
           result: {
             preview: {
-              title: previewInfo.name,
+              title: previewConfig.name,
               message: "Preview generation in progress...",
               unlocked: false
             }
@@ -203,44 +367,10 @@ export async function POST(req) {
       return NextResponse.json({ result: results });
     }
 
-    // Handle individual step generation
-    await supabaseAdmin
-      .from('intake_answers')
-      .insert({
-        user_id: user.id,
-        slide_id: step,
-        answers: data
-      });
-
-    const prompt = osPrompts[step](data);
-
-    const completion = await openai.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "You are a world-class business growth strategist helping established businesses scale. Return strictly valid JSON with detailed, actionable content."
-        },
-        { role: "user", content: prompt }
-      ],
-      model: "gpt-4-turbo-preview",
-      response_format: { type: "json_object" },
-    });
-
-    const result = JSON.parse(completion.choices[0].message.content);
-
-    await supabaseAdmin
-      .from('slide_results')
-      .insert({
-        user_id: user.id,
-        slide_id: step,
-        ai_output: result,
-        approved: false
-      });
-
-    return NextResponse.json({ result });
+    return NextResponse.json({ error: 'Invalid step' }, { status: 400 });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Generate API error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
