@@ -2,6 +2,7 @@
 "use client";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { ArrowRight, Zap, Target, Rocket } from "lucide-react";
 
 export default function Home() {
   return (
@@ -31,7 +32,7 @@ export default function Home() {
           and complete funnels—ready to deploy in GoHighLevel.
         </p>
 
-        <Link href="/intake">
+        <Link href="/auth/signup">
           <motion.button
             whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(225, 29, 72, 0.5)" }}
             whileTap={{ scale: 0.98 }}
@@ -52,9 +53,9 @@ export default function Home() {
         className="mt-32 grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl w-full px-4"
       >
         {[
-          { icon: "⚡", title: "Instant Generation", desc: "Complete funnels in minutes, not weeks" },
-          { icon: "🎯", title: "AI-Powered Copy", desc: "VSL scripts, emails, and ads written for you" },
-          { icon: "🚀", title: "Deploy to GHL", desc: "Push directly to GoHighLevel with one click" }
+          { icon: <Zap className="w-6 h-6 text-yellow-500" />, title: "Instant Generation", desc: "Complete funnels in minutes, not weeks" },
+          { icon: <Target className="w-6 h-6 text-red-500" />, title: "AI-Powered Copy", desc: "VSL scripts, emails, and ads written for you" },
+          { icon: <Rocket className="w-6 h-6 text-blue-500" />, title: "Deploy to GHL", desc: "Push directly to GoHighLevel with one click" }
         ].map((feature, i) => (
           <div key={i} className="glass-card p-10 rounded-2xl hover:border-accentRed/50 transition-all duration-300 group hover:-translate-y-2">
             <div className="text-6xl mb-6 group-hover:scale-110 transition-transform duration-300">{feature.icon}</div>

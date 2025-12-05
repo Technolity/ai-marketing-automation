@@ -17,7 +17,7 @@ export default function GHLPushButton({ data }) {
       });
 
       if (!res.ok) throw new Error('Push failed');
-      
+
       const result = await res.json();
       toast.success("Successfully pushed to GoHighLevel!");
     } catch (err) {

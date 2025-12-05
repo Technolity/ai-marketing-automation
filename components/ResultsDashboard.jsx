@@ -4,6 +4,9 @@ import ContentBlock from "./ContentBlock";
 import ExportButton from "./ExportButton";
 import GHLPushButton from "./GHLPushButton";
 import { useRouter } from "next/navigation";
+import {
+  Copy, RefreshCw, MessageSquare, Target, Diamond, Zap, FileText, Mail, Megaphone, Layout, Gift
+} from "lucide-react";
 
 export default function ResultsDashboard({ results }) {
   const router = useRouter();
@@ -24,15 +27,15 @@ export default function ResultsDashboard({ results }) {
           Your Marketing System for <span className="text-accentRed">{results.businessName}</span>
         </h1>
         <p className="text-gray-400 text-lg">{results.productName}</p>
-        
+
         <div className="flex gap-4 mt-6">
-          <ExportButton data={results} filename={`${results.businessName}-marketing`} />
+          <ExportButton data={results} filename={`${results.businessName} -marketing`} />
           <GHLPushButton data={results} />
           <button
             onClick={() => router.push("/intake")}
             className="bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg font-semibold"
           >
-            🔄 New Generation
+            <RefreshCw className="w-4 h-4" /> New Generation
           </button>
         </div>
       </div>
@@ -43,25 +46,25 @@ export default function ResultsDashboard({ results }) {
         <ContentBlock
           title="Tagline"
           content={results.brandMessaging?.tagline}
-          icon="💬"
+          icon={<MessageSquare className="w-5 h-5 text-blue-400" />}
           color="border-blue-500"
         />
         <ContentBlock
           title="Mission Statement"
           content={results.brandMessaging?.missionStatement}
-          icon="🎯"
+          icon={<Target className="w-5 h-5 text-red-400" />}
           color="border-blue-500"
         />
         <ContentBlock
           title="Value Proposition"
           content={results.brandMessaging?.valueProposition}
-          icon="💎"
+          icon={<Diamond className="w-5 h-5 text-purple-400" />}
           color="border-blue-500"
         />
         <ContentBlock
           title="Unique Mechanism"
           content={results.brandMessaging?.uniqueMechanism}
-          icon="⚡"
+          icon={<Zap className="w-5 h-5 text-yellow-400" />}
           color="border-blue-500"
         />
       </div>
@@ -74,7 +77,7 @@ export default function ResultsDashboard({ results }) {
             key={key}
             title={key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
             content={value}
-            icon="📝"
+            icon={<FileText className="w-5 h-5 text-green-400" />}
             color="border-purple-500"
           />
         ))}
@@ -86,9 +89,9 @@ export default function ResultsDashboard({ results }) {
         {results.emailSequence?.map((email, i) => (
           <ContentBlock
             key={i}
-            title={`Day ${email.day}: ${email.subject}`}
+            title={`Day ${email.day}: ${email.subject} `}
             content={email.body}
-            icon="✉️"
+            icon={<Mail className="w-5 h-5 text-orange-400" />}
             color="border-green-500"
           />
         ))}
@@ -101,8 +104,8 @@ export default function ResultsDashboard({ results }) {
           <ContentBlock
             key={i}
             title={ad.adName}
-            content={`Headline: ${ad.headline}\n\n${ad.primaryText}\n\nCTA: ${ad.cta}`}
-            icon="📢"
+            content={`Headline: ${ad.headline} \n\n${ad.primaryText} \n\nCTA: ${ad.cta} `}
+            icon={<Megaphone className="w-5 h-5 text-pink-400" />}
             color="border-pink-500"
           />
         ))}
@@ -113,8 +116,8 @@ export default function ResultsDashboard({ results }) {
         <h2 className="text-3xl font-bold">🌐 Landing Page Copy</h2>
         <ContentBlock
           title="Hero Section"
-          content={`${results.landingPageCopy?.hero?.headline}\n\n${results.landingPageCopy?.hero?.subheadline}\n\nCTA: ${results.landingPageCopy?.hero?.cta}`}
-          icon="🎯"
+          content={`${results.landingPageCopy?.hero?.headline} \n\n${results.landingPageCopy?.hero?.subheadline} \n\nCTA: ${results.landingPageCopy?.hero?.cta} `}
+          icon={<Target className="w-5 h-5 text-indigo-400" />}
           color="border-yellow-500"
         />
         <ContentBlock
@@ -122,9 +125,9 @@ export default function ResultsDashboard({ results }) {
           content={[
             ...results.landingPageCopy?.offer?.modules || [],
             ...results.landingPageCopy?.offer?.bonuses || [],
-            `Price: ${results.landingPageCopy?.offer?.price}`
+            `Price: ${results.landingPageCopy?.offer?.price} `
           ]}
-          icon="🎁"
+          icon={<Gift className="w-5 h-5 text-teal-400" />}
           color="border-yellow-500"
         />
       </div>

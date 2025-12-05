@@ -1,81 +1,207 @@
 // app/auth/signup/page.jsx
 "use client";
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
+import { User, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 
 export default function Signup() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const supabase = createClientComponentClient();
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    password: ""
+  });
 
-  const handleSignup = async (e) => {
+  const handleNext = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    if (step < 3) {
+      setStep(step + 1);
+    } else {
+      await handleSignup();
+    }
+  };
 
+  const handleSignup = async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
-        password
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/verify`,
+        },
       });
 
       if (error) throw error;
 
-      toast.success("Account created! Check your email to verify.");
+      toast.success("Account created! Please check your email to verify.");
       router.push("/auth/login");
     } catch (error) {
-      toast.error(error.message || "Signup failed");
+      if (error.message.includes("already registered") || error.message.includes("User already exists")) {
+        toast.error("Account already exists. Please log in.");
+      } else {
+        toast.error(error.message || "Signup failed");
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const slideVariants = {
+    enter: (direction) => ({
+      x: direction > 0 ? 1000 : -1000,
+      opacity: 0
+    }),
+    center: {
+      zIndex: 1,
+      x: 0,
+      opacity: 1
+    },
+    exit: (direction) => ({
+      zIndex: 0,
+      x: direction < 0 ? 1000 : -1000,
+      opacity: 0
+    })
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 bg-dark">
-      <div className="max-w-md w-full bg-grayDark p-8 rounded-xl border border-gray-800">
-        <h1 className="text-3xl font-bold mb-6">Create Account</h1>
-        
-        <form onSubmit={handleSignup} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-dark border border-gray-700 rounded-lg p-3 focus:border-accentRed focus:outline-none"
-              required
-            />
+    <div className="min-h-screen flex items-center justify-center px-6 bg-[#0e0e0f] relative overflow-hidden">
+      {/* Background Glows */}
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-600/10 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-900/10 rounded-full blur-[150px] pointer-events-none" />
+
+      <div className="max-w-md w-full relative z-10">
+        <div className="mb-8 text-center">
+          <div className="w-12 h-12 bg-gradient-to-br from-red-600 to-red-800 rounded-xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-red-900/20">
+            <span className="font-bold text-white text-xl">S</span>
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-dark border border-gray-700 rounded-lg p-3 focus:border-accentRed focus:outline-none"
-              minLength={6}
-              required
-            />
+          <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
+          <p className="text-gray-400">Step {step} of 3</p>
+        </div>
+
+        <div className="bg-[#1b1b1d] p-8 rounded-2xl border border-[#2a2a2d] shadow-2xl backdrop-blur-xl">
+          <form onSubmit={handleNext}>
+            <AnimatePresence mode="wait" initial={false}>
+              {step === 1 && (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4"
+                >
+                  <label className="block text-sm font-medium text-gray-300">What's your name?</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input
+                      type="text"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-red-500 focus:outline-none transition-all"
+                      placeholder="John Doe"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                </motion.div>
+              )}
+
+              {step === 2 && (
+                <motion.div
+                  key="step2"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4"
+                >
+                  <label className="block text-sm font-medium text-gray-300">What's your email?</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-red-500 focus:outline-none transition-all"
+                      placeholder="john@example.com"
+                      required
+                      autoFocus
+                    />
+                  </div>
+                </motion.div>
+              )}
+
+              {step === 3 && (
+                <motion.div
+                  key="step3"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4"
+                >
+                  <label className="block text-sm font-medium text-gray-300">Create a password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-red-500 focus:outline-none transition-all"
+                      placeholder="••••••••"
+                      minLength={6}
+                      required
+                      autoFocus
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="flex gap-3 mt-8">
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setStep(step - 1)}
+                  className="px-6 py-4 rounded-xl font-semibold text-gray-400 hover:text-white hover:bg-[#2a2a2d] transition-all"
+                >
+                  Back
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-gradient-to-r from-red-600 to-red-800 hover:brightness-110 disabled:opacity-50 py-4 rounded-xl font-bold text-lg shadow-lg shadow-red-900/20 transition-all flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" /> Creating Account...
+                  </>
+                ) : (
+                  <>
+                    {step === 3 ? "Create Account" : "Continue"} <ArrowRight className="w-5 h-5" />
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-gray-400">
+              Already have an account?{" "}
+              <a href="/auth/login" className="text-red-500 hover:text-red-400 font-medium transition-colors">
+                Login
+              </a>
+            </p>
           </div>
-          
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-accentRed hover:bg-red-700 disabled:bg-gray-600 py-3 rounded-lg font-semibold"
-          >
-            {loading ? "Creating account..." : "Sign Up"}
-          </button>
-        </form>
-        
-        <p className="mt-6 text-center text-gray-400">
-          Already have an account?{" "}
-          <a href="/auth/login" className="text-accentRed hover:underline">
-            Login
-          </a>
-        </p>
+        </div>
       </div>
     </div>
   );
