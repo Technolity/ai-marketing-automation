@@ -4,8 +4,8 @@ import { Toaster } from "sonner";
 import AppNavbar from "@/components/AppNavbar";
 
 export const metadata = {
-  title: "AI Marketing Automation | Build Funnels in Minutes",
-  description: "AI-powered platform that generates complete marketing funnels, VSL scripts, and campaigns",
+  title: "TedOS | Your Business Built For You",
+  description: "God-tier AI system that builds your entire business in 12 minutes. VSL scripts, email sequences, ad campaigns, and complete funnels—deployed instantly.",
 };
 
 export default function RootLayout({ children }) {

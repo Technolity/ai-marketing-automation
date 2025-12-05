@@ -51,8 +51,8 @@ export default function ProfileDropdown() {
                 onClick={() => setIsOpen(!isOpen)}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-[#1b1b1d] transition-colors"
             >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center">
-                    <User className="w-4 h-4 text-white" />
+                <div className="w-8 h-8 rounded-full bg-cyan flex items-center justify-center">
+                    <User className="w-4 h-4 text-black" />
                 </div>
                 <span className="text-sm font-medium hidden md:block">{displayName}</span>
                 <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />

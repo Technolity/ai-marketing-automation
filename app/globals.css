@@ -29,7 +29,7 @@ body {
 }
 
 .input-glow:focus {
-  @apply border-accentRed ring-1 ring-accentRed/50 shadow-glow-sm;
+  @apply border-cyan ring-1 ring-cyan/50 shadow-glow-sm;
 }
 
 button {
@@ -46,11 +46,11 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-accentRed rounded-full;
+  @apply bg-cyan rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-red-700;
+  @apply bg-cyan brightness-125;
 }
 
 /* Smooth animations */

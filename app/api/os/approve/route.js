@@ -19,21 +19,45 @@ export async function POST(req) {
 
     const { step, content } = await req.json();
 
-    const { error } = await supabaseAdmin
+    // First check if a record exists
+    const { data: existingRecord } = await supabaseAdmin
       .from('slide_results')
-      .update({
-        approved: true,
-        ai_output: content
-      })
+      .select('id')
       .eq('user_id', user.id)
-      .eq('slide_id', step);
+      .eq('slide_id', step)
+      .single();
 
-    if (error) throw error;
+    if (existingRecord) {
+      // Update existing record
+      const { error } = await supabaseAdmin
+        .from('slide_results')
+        .update({
+          approved: true,
+          ai_output: content,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('slide_id', step);
+
+      if (error) throw error;
+    } else {
+      // Insert new record
+      const { error } = await supabaseAdmin
+        .from('slide_results')
+        .insert({
+          user_id: user.id,
+          slide_id: step,
+          ai_output: content,
+          approved: true
+        });
+
+      if (error) throw error;
+    }
 
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Approve Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -31,7 +31,7 @@ export default function GHLPushButton({ data }) {
     <button
       onClick={handlePush}
       disabled={pushing}
-      className="flex items-center gap-2 bg-accentRed hover:bg-red-700 disabled:bg-gray-600 px-6 py-3 rounded-lg font-semibold transition-all"
+      className="flex items-center gap-2 bg-cyan hover:brightness-110 disabled:bg-gray-600 px-6 py-3 rounded-lg font-semibold transition-all text-black"
     >
       <Send size={20} />
       {pushing ? "Pushing..." : "Push to GoHighLevel"}

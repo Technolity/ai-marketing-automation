@@ -76,15 +76,15 @@ export default function Signup() {
   return (
     <div className="min-h-screen flex items-center justify-center px-6 bg-[#0e0e0f] relative overflow-hidden">
       {/* Background Glows */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-600/10 rounded-full blur-[150px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-900/10 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan/10 rounded-full blur-[150px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan/10 rounded-full blur-[150px] pointer-events-none" />
 
       <div className="max-w-md w-full relative z-10">
         <div className="mb-8 text-center">
-          <div className="w-12 h-12 bg-gradient-to-br from-red-600 to-red-800 rounded-xl mx-auto flex items-center justify-center mb-4 shadow-lg shadow-red-900/20">
-            <span className="font-bold text-white text-xl">S</span>
+          <div className="w-12 h-12 bg-cyan rounded-xl mx-auto flex items-center justify-center mb-4 shadow-glow-lg">
+            <span className="font-bold text-black text-xl">T</span>
           </div>
-          <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
+          <h1 className="text-3xl font-bold text-cyan text-glow mb-2">Initialize TedOS</h1>
           <p className="text-gray-400">Step {step} of 3</p>
         </div>
 
@@ -106,7 +106,7 @@ export default function Signup() {
                       type="text"
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-red-500 focus:outline-none transition-all"
+                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-cyan focus:outline-none transition-all"
                       placeholder="John Doe"
                       required
                       autoFocus
@@ -130,7 +130,7 @@ export default function Signup() {
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-red-500 focus:outline-none transition-all"
+                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-cyan focus:outline-none transition-all"
                       placeholder="john@example.com"
                       required
                       autoFocus
@@ -154,7 +154,7 @@ export default function Signup() {
                       type="password"
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-red-500 focus:outline-none transition-all"
+                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-cyan focus:outline-none transition-all"
                       placeholder="••••••••"
                       minLength={6}
                       required
@@ -178,7 +178,7 @@ export default function Signup() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-gradient-to-r from-red-600 to-red-800 hover:brightness-110 disabled:opacity-50 py-4 rounded-xl font-bold text-lg shadow-lg shadow-red-900/20 transition-all flex items-center justify-center gap-2"
+                className="flex-1 bg-cyan hover:brightness-110 disabled:opacity-50 py-4 rounded-xl font-bold text-lg shadow-glow-lg hover:shadow-glow-xl transition-all flex items-center justify-center gap-2 text-black"
               >
                 {loading ? (
                   <>
@@ -196,7 +196,7 @@ export default function Signup() {
           <div className="mt-6 text-center">
             <p className="text-gray-400">
               Already have an account?{" "}
-              <a href="/auth/login" className="text-red-500 hover:text-red-400 font-medium transition-colors">
+              <a href="/auth/login" className="text-cyan hover:text-cyan font-medium transition-colors">
                 Login
               </a>
             </p>

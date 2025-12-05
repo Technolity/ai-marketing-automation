@@ -2,12 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-// Initialize OpenAI
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Initialize Supabase Admin (for verifying user if needed, though we trust the token here)
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -21,52 +19,62 @@ const supabaseAdmin = createClient(
 
 export async function POST(req) {
     try {
-        // Get token from Authorization header
         const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Validate token
         const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
         if (authError || !user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { fieldLabel, sectionTitle, userContext, currentInput } = await req.json();
+        const { fieldLabel, sectionTitle, userContext, userInput } = await req.json();
 
-        const systemPrompt = `You are a helpful marketing assistant who speaks in simple, plain language - like explaining to a 5-year-old.
+        const systemPrompt = `You are a marketing expert helping someone fill out their business profile.
 
 Context:
-- User is working on: "${sectionTitle}"
-- The specific field they need help with: "${fieldLabel}"
-- What they've entered so far: ${JSON.stringify(userContext)}
+- Section: "${sectionTitle}"
+- Field: "${fieldLabel}"
+- User's current input/keyword: "${userInput || 'none provided'}"
+- Previous answers: ${JSON.stringify(userContext)}
 
-Instructions:
-- Provide a simple, direct answer for the "${fieldLabel}" field
-- Use plain language, avoid jargon and complex terms
-- Keep it brief (1-2 sentences or a short phrase)
-- Make it specific and actionable
-- DO NOT include phrases like "Here's an example" or "You could say" - just give the answer directly
-- Base your answer on their previous context when possible
-`;
+Generate exactly 5 different polished, professional answers for this field.
+Each answer should be:
+1. Complete and ready to use
+2. Specific and detailed (not generic)
+3. Different in approach or angle from the others
+4. Based on marketing best practices
+
+If the user provided a keyword or partial input, use it as a starting point and expand on it.
+If no input provided, infer from their previous answers.
+
+Return ONLY valid JSON in this format:
+{
+  "suggestions": [
+    "First polished answer here",
+    "Second polished answer here",
+    "Third polished answer here",
+    "Fourth polished answer here",
+    "Fifth polished answer here"
+  ]
+}`;
 
         const completion = await openai.chat.completions.create({
             messages: [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: "Please provide the answer." }
+                { role: "user", content: "Generate 5 suggestions now." }
             ],
             model: "gpt-4-turbo-preview",
+            response_format: { type: "json_object" },
         });
 
-        const suggestion = completion.choices[0].message.content.trim();
-
-        return NextResponse.json({ suggestion });
+        const result = JSON.parse(completion.choices[0].message.content);
+        return NextResponse.json({ suggestions: result.suggestions });
 
     } catch (error) {
         console.error('Error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+

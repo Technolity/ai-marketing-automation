@@ -4,126 +4,89 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Loader2, CheckCircle, Lock, RefreshCw, ArrowRight, Sparkles,
-    Target, MessageSquare, BookOpen, DollarSign, Phone, Magnet,
-    Video, Mail, Megaphone, Layout, ChevronLeft, Menu, X, Info
+    ChevronLeft, Menu, X, Info, History, Eye, Trash2, Save, FolderOpen, RotateCcw,
+    ChevronDown, Settings
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { STEPS, STEP_INPUTS, STEP_INFO } from "@/lib/os-wizard-data";
 
-// Steps configuration with Icons and Dependencies
-const STEPS = [
-    { id: 1, title: "Ideal Client Builder", description: "Define who you serve and their deepest pain points.", icon: Target, dependencies: [] },
-    { id: 2, title: "Million-Dollar Message", description: "Craft your one-liner, tagline, and core message.", icon: MessageSquare, dependencies: [1] },
-    { id: 3, title: "Signature Story Creator", description: "Structure your origin story for different formats.", icon: BookOpen, dependencies: [1] },
-    { id: 4, title: "High-Ticket Offer Builder", description: "Outline your program, deliverables, and pricing.", icon: DollarSign, dependencies: [1, 2] },
-    { id: 5, title: "Personalized Sales Scripts", description: "Generate scripts for setting and closing deals.", icon: Phone, dependencies: [4] },
-    { id: 6, title: "Lead Magnet Generator", description: "Create ideas for high-value free resources.", icon: Magnet, dependencies: [1, 2] },
-    { id: 7, title: "VSL Builder", description: "Script your Book-a-Call video sales letter.", icon: Video, dependencies: [4] },
-    { id: 8, title: "15-Day Email Sequence", description: "Nurture leads and drive them to book calls.", icon: Mail, dependencies: [4, 6] },
-    { id: 9, title: "Ad Copy & Creative", description: "Hooks, angles, and headlines for paid ads.", icon: Megaphone, dependencies: [4] },
-    { id: 10, title: "Funnel Copy", description: "Copy for your opt-in, VSL, and booking pages.", icon: Layout, dependencies: [4, 7] },
-];
+// Helper function to format field names into readable titles
+const formatFieldName = (key) => {
+    return key
+        .replace(/_/g, ' ')
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, str => str.toUpperCase())
+        .trim();
+};
 
-// Helper function to format JSON content into human-readable format
-const formatContentForDisplay = (jsonContent) => {
-    if (!jsonContent || typeof jsonContent !== 'object') {
-        return jsonContent;
+// Helper function to recursively format nested objects/arrays
+const formatValue = (value, depth = 0) => {
+    if (value === null || value === undefined) {
+        return '';
     }
 
-    return Object.entries(jsonContent).map(([key, value]) => {
-        const formattedKey = key
-            .replace(/_/g, ' ')
-            .replace(/([A-Z])/g, ' $1')
-            .replace(/^./, str => str.toUpperCase())
-            .trim();
-
-        let formattedValue;
-        if (Array.isArray(value)) {
-            formattedValue = value.map((item, idx) => `${idx + 1}. ${item}`).join('\n');
-        } else if (typeof value === 'object' && value !== null) {
-            formattedValue = JSON.stringify(value, null, 2);
-        } else {
-            formattedValue = value;
+    if (Array.isArray(value)) {
+        // Handle array of objects (like email sequence, program modules)
+        if (value.length > 0 && typeof value[0] === 'object') {
+            return value.map((item, idx) => {
+                const itemContent = Object.entries(item).map(([k, v]) => {
+                    return `${formatFieldName(k)}: ${formatValue(v, depth + 1)}`;
+                }).join('\n');
+                return `${idx + 1}.\n${itemContent}`;
+            }).join('\n\n');
         }
+        // Handle array of strings
+        return value.map((item, idx) => `${idx + 1}. ${item}`).join('\n');
+    }
 
-        return { key: formattedKey, value: formattedValue };
+    if (typeof value === 'object') {
+        // Recursively format nested objects
+        return Object.entries(value).map(([k, v]) => {
+            const formattedKey = formatFieldName(k);
+            const formattedValue = formatValue(v, depth + 1);
+            if (depth === 0) {
+                return `${formattedKey}:\n${formattedValue}`;
+            }
+            return `  ${formattedKey}: ${formattedValue}`;
+        }).join('\n\n');
+    }
+
+    return String(value);
+};
+
+// Helper function to format JSON content into human-readable sections
+const formatContentForDisplay = (jsonContent) => {
+    if (!jsonContent || typeof jsonContent !== 'object') {
+        return [];
+    }
+
+    const sections = [];
+
+    // Flatten the top-level structure (e.g., idealClient, message, etc.)
+    Object.entries(jsonContent).forEach(([topKey, topValue]) => {
+        if (typeof topValue === 'object' && !Array.isArray(topValue)) {
+            // This is a nested object like { idealClient: {...} }
+            Object.entries(topValue).forEach(([key, value]) => {
+                sections.push({
+                    key: formatFieldName(key),
+                    value: formatValue(value)
+                });
+            });
+        } else {
+            // This is a direct key-value pair
+            sections.push({
+                key: formatFieldName(topKey),
+                value: formatValue(topValue)
+            });
+        }
     });
+
+    return sections;
 };
 
-// Input fields configuration for each step
-const STEP_INPUTS = {
-    1: [
-        { name: "whoTheyServe", label: "Who do you serve?", type: "text", placeholder: "e.g. Corporate women, Real estate agents", info: "Be specific about your target audience" },
-        { name: "demographics", label: "Demographics", type: "text", placeholder: "Age, location, income level...", info: "Helps AI understand your market better" },
-        { name: "corePains", label: "Core Pains (Top 3)", type: "textarea", placeholder: "What keeps them up at night?", info: "Focus on their biggest struggles" },
-        { name: "desiredOutcomes", label: "Desired Outcomes", type: "textarea", placeholder: "What do they want most?", info: "What transformation are they seeking?" },
-        { name: "category", label: "Market Category", type: "text", placeholder: "Health, Wealth, Relationships...", info: "Primary market vertical" },
-        { name: "nichePositioning", label: "Niche Positioning", type: "text", placeholder: "How are you different?", info: "Your unique angle in the market" }
-    ],
-    2: [
-        { name: "result", label: "What result do you give?", type: "text", info: "The main transformation you provide" },
-        { name: "forWhom", label: "For whom?", type: "text", info: "Your specific target audience" },
-        { name: "uniqueAngle", label: "Unique Angle / Mechanism", type: "text", info: "What makes your approach special" },
-        { name: "timeFrame", label: "Time Frame / Differentiation", type: "text", info: "How quickly can they expect results" }
-    ],
-    3: [
-        { name: "originStory", label: "Origin Story Raw Notes", type: "textarea", rows: 6, info: "Your journey and what led you here" },
-        { name: "turningPoint", label: "The Turning Point", type: "textarea", info: "The moment everything changed" },
-        { name: "bigResult", label: "The Big Result / Epiphany", type: "textarea", info: "What breakthrough did you achieve" },
-        { name: "lessons", label: "Key Lessons / Framework", type: "textarea", info: "What you learned that you now teach" }
-    ],
-    4: [
-        { name: "whoFor", label: "Who is the program for?", type: "text", info: "Ideal client for this offer" },
-        { name: "modules", label: "Modules / Components", type: "textarea", rows: 4, info: "What's included in your program" },
-        { name: "delivery", label: "Delivery Format", type: "text", placeholder: "1-on-1, Group, Course...", info: "How is it delivered" },
-        { name: "duration", label: "Duration", type: "text", info: "How long is the program" },
-        { name: "price", label: "Price & Payment Plans", type: "text", info: "Investment options" },
-        { name: "guarantee", label: "Guarantees & Bonuses", type: "textarea", info: "Risk reversal and extras" }
-    ],
-    5: [
-        { name: "salesProcess", label: "Sales Process", type: "text", placeholder: "DM -> Call, Webinar -> Call...", info: "Your sales funnel flow" },
-        { name: "objections", label: "Common Objections", type: "textarea", info: "What pushback do you get" },
-        { name: "tone", label: "Sales Tone", type: "text", placeholder: "Consultative, Direct, Empathetic...", info: "Your selling style" }
-    ],
-    6: [
-        { name: "topic", label: "Lead Magnet Topic", type: "text", info: "What will the free resource be about" },
-        { name: "painSolved", label: "Core Pain Solved", type: "text", info: "The quick win you provide" },
-        { name: "outcome", label: "Desired Outcome", type: "text", info: "What will they achieve from it" }
-    ],
-    7: [
-        { name: "promise", label: "Main Promise", type: "text", info: "The big claim of your VSL" },
-        { name: "transformation", label: "Core Transformation", type: "textarea", info: "Before and after state" },
-        { name: "proof", label: "Proof / Case Studies", type: "textarea", info: "Evidence it works" },
-        { name: "cta", label: "Call to Action", type: "text", info: "What should they do next" }
-    ],
-    8: [
-        { name: "timeline", label: "Timeline", type: "text", defaultValue: "15 Days", info: "Duration of sequence" },
-        { name: "primaryCta", label: "Primary CTA", type: "text", info: "Main action you want" },
-        { name: "themes", label: "Story Themes / Angles", type: "textarea", info: "Topics to cover in emails" }
-    ],
-    9: [
-        { name: "platforms", label: "Platforms", type: "text", placeholder: "FB, IG, TikTok...", info: "Where you'll run ads" },
-        { name: "bigIdea", label: "Big Idea / Angle", type: "textarea", info: "Your hook for the ads" }
-    ],
-    10: [
-        { name: "mainCta", label: "Main CTA", type: "text", info: "Primary call to action" },
-        { name: "funnelType", label: "Funnel Type", type: "text", placeholder: "Book a Call, Webinar, Low Ticket...", info: "Type of funnel you're building" }
-    ]
-};
 
-// Section info for each step
-const STEP_INFO = {
-    1: "Understanding your ideal client is the foundation of all marketing. The AI will use this to create targeted messaging.",
-    2: "Your million-dollar message is your positioning statement. It tells people exactly what you do and who you serve in one sentence.",
-    3: "Your signature story builds trust and connection. It shows your journey and why you're qualified to help.",
-    4: "Your high-ticket offer is the core of your business. This defines what you sell and how you deliver value.",
-    5: "Sales scripts help you convert prospects into clients. The AI will create conversation frameworks for different scenarios.",
-    6: "A lead magnet attracts your ideal clients. It solves one specific problem and leads them to your main offer.",
-    7: "A VSL (Video Sales Letter) sells your program on autopilot. It tells your story and makes the offer without you being live.",
-    8: "Email sequences nurture leads over time. They build trust and guide people toward booking a call or buying.",
-    9: "Ad copy grabs attention and drives clicks. The AI will create hooks based on your ideal client's pain points.",
-    10: "Funnel copy converts visitors into leads and customers. This includes all the pages in your marketing funnel."
-};
+
 
 export default function OSWizard() {
     const supabase = createClientComponentClient();
@@ -144,21 +107,147 @@ export default function OSWizard() {
     const [generatedContent, setGeneratedContent] = useState(null);
     const [isReviewMode, setIsReviewMode] = useState(false);
     const [aiAssisting, setAiAssisting] = useState(null); // Track which field is being AI-assisted
+    const [showHelpFor, setShowHelpFor] = useState(null); // Track which field's help is showing
+    const [showSavedSessions, setShowSavedSessions] = useState(false); // Track saved sessions view
+    const [savedSessions, setSavedSessions] = useState([]);
+    const [loadingSessions, setLoadingSessions] = useState(false);
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [sessionName, setSessionName] = useState("");
+    const [isSavingSession, setIsSavingSession] = useState(false);
 
     const [isLoading, setIsLoading] = useState(true);
 
-    // Auth protection
+    // AI Suggestions Modal
+    const [showSuggestionsModal, setShowSuggestionsModal] = useState(false);
+    const [aiSuggestions, setAiSuggestions] = useState([]);
+    const [currentFieldForSuggestion, setCurrentFieldForSuggestion] = useState(null);
+
+    // Content Preview Modal
+    const [showContentPreview, setShowContentPreview] = useState(false);
+    const [previewContent, setPreviewContent] = useState(null);
+    const [generatingPreview, setGeneratingPreview] = useState(false);
+
+    // Edit Mode (Changed my mind)
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [editingStep, setEditingStep] = useState(null);
+    const [savedContent, setSavedContent] = useState({}); // Stores generated content per step
+    const [isUpdatingCascade, setIsUpdatingCascade] = useState(false);
+
+    // Processing Animation
+    const [showProcessingAnimation, setShowProcessingAnimation] = useState(false);
+    const [processingMessage, setProcessingMessage] = useState('');
+    const processingMessages = [
+        'Analyzing your business...',
+        'Identifying your ideal clients...',
+        'Crafting your million-dollar message...',
+        'Building your signature story...',
+        'Designing your high-ticket offer...',
+        'Creating sales scripts...',
+        'Generating lead magnets...',
+        'Writing your VSL script...',
+        'Composing email sequences...',
+        'Crafting ad copy...',
+        'Building your funnel...',
+        'Generating content ideas...',
+        'Creating your YouTube show...',
+        'Finalizing your marketing system...'
+    ];
+
+    // Manage Data Dropdown
+    const [showManageDataDropdown, setShowManageDataDropdown] = useState(false);
+
+    // Load saved progress on mount
     useEffect(() => {
-        const checkAuth = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                router.push("/auth/login");
-            } else {
+        const loadProgress = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    router.push("/auth/login");
+                    return;
+                }
+
+                // First, check localStorage for saved progress
+                const localProgress = localStorage.getItem(`wizard_progress_${session.user.id}`);
+                if (localProgress) {
+                    const parsed = JSON.parse(localProgress);
+                    setCompletedSteps(parsed.completedSteps || []);
+                    setStepData(parsed.answers || {});
+                    setSavedContent(parsed.generatedContent || {});
+
+                    if (parsed.completedSteps && parsed.completedSteps.length > 0) {
+                        toast.success(`Welcome back! You've completed ${parsed.completedSteps.length} steps.`);
+                    }
+                }
+
+                // Also try Supabase (if table exists)
+                try {
+                    const res = await fetch("/api/os/progress", {
+                        headers: {
+                            "Authorization": `Bearer ${session.access_token}`
+                        }
+                    });
+
+                    const data = await res.json();
+
+                    if (data.exists && !data.useLocalStorage) {
+                        setCompletedSteps(data.completedSteps || []);
+                        setStepData(data.answers || {});
+                        setSavedContent(data.generatedContent || {});
+
+                        if (data.completedSteps && data.completedSteps.length > 0 && !localProgress) {
+                            toast.success(`Welcome back! You've completed ${data.completedSteps.length} steps.`);
+                        }
+                    }
+                } catch (apiError) {
+                    console.log('Using localStorage for progress storage');
+                }
+
+                setIsLoading(false);
+            } catch (error) {
+                console.error('Load progress error:', error);
                 setIsLoading(false);
             }
         };
-        checkAuth();
+
+        loadProgress();
     }, [supabase, router]);
+
+    // Save progress to both localStorage and API
+    const saveProgressToStorage = async (newCompletedSteps, newAnswers, newContent, overrides = {}) => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const progressData = {
+                currentStep,
+                completedSteps: newCompletedSteps,
+                answers: newAnswers,
+                generatedContent: newContent,
+                isComplete: newCompletedSteps.length >= 12,
+                updatedAt: new Date().toISOString(),
+                ...overrides
+            };
+
+            // Always save to localStorage (guaranteed to work)
+            localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+
+            // Also try to save to Supabase API
+            try {
+                await fetch("/api/os/progress", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify(progressData)
+                });
+            } catch (apiError) {
+                console.log('Saved to localStorage (API unavailable)');
+            }
+        } catch (error) {
+            console.error('Save progress error:', error);
+        }
+    };
 
     // Check if a step is unlocked based on dependencies
     const isStepUnlocked = (stepId) => {
@@ -185,9 +274,24 @@ export default function OSWizard() {
 
         setCurrentStep(stepId);
         setViewMode('step');
-        setCurrentInput({});
         setGeneratedContent(null);
         setIsReviewMode(false);
+
+        // Load saved answers if step was completed
+        if (status === 'completed') {
+            const stepInputs = STEP_INPUTS[stepId];
+            if (stepInputs) {
+                const loadedInput = {};
+                stepInputs.forEach(input => {
+                    if (stepData[input.name]) {
+                        loadedInput[input.name] = stepData[input.name];
+                    }
+                });
+                setCurrentInput(loadedInput);
+            }
+        } else {
+            setCurrentInput({});
+        }
     };
 
     // Handle back to dashboard
@@ -197,15 +301,187 @@ export default function OSWizard() {
         setCurrentInput({});
         setGeneratedContent(null);
         setIsReviewMode(false);
+        setIsEditMode(false);
+        setEditingStep(null);
     };
+
+    // Fetch saved sessions
+    const fetchSavedSessions = async () => {
+        setLoadingSessions(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const res = await fetch("/api/os/sessions", {
+                headers: {
+                    "Authorization": `Bearer ${session.access_token}`
+                }
+            });
+            const data = await res.json();
+            setSavedSessions(data.sessions || []);
+        } catch (error) {
+            console.error('Fetch sessions error:', error);
+            toast.error("Failed to load saved sessions");
+        } finally {
+            setLoadingSessions(false);
+        }
+    };
+
+    // Save current session
+    const handleSaveSession = async () => {
+        if (!sessionName.trim()) {
+            toast.error("Please enter a session name");
+            return;
+        }
+
+        setIsSavingSession(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const res = await fetch("/api/os/sessions", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                    sessionName,
+                    currentStep,
+                    completedSteps,
+                    answers: stepData,
+                    generatedContent: savedContent,
+                    isComplete: completedSteps.length >= 12
+                })
+            });
+
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            toast.success("Session saved successfully!");
+            setShowSaveModal(false);
+            setSessionName("");
+            fetchSavedSessions(); // Refresh list
+        } catch (error) {
+            console.error('Save session error:', error);
+            toast.error("Failed to save session");
+        } finally {
+            setIsSavingSession(false);
+        }
+    };
+
+    // Load a saved session
+    const handleLoadSession = async (sessionData) => {
+        try {
+            // Update state
+            setCompletedSteps(sessionData.completed_steps || []);
+            setStepData(sessionData.answers || {});
+            setSavedContent(sessionData.generated_content || {});
+            setCurrentStep(null); // Go to dashboard
+            setViewMode('dashboard');
+
+            // Save to local storage and sync with main progress
+            await saveProgressToStorage(
+                sessionData.completed_steps || [],
+                sessionData.answers || {},
+                sessionData.generated_content || {},
+                {
+                    currentStep: sessionData.current_step || 1,
+                    isComplete: sessionData.is_complete || false
+                }
+            );
+
+            toast.success(`Loaded session: ${sessionData.session_name}`);
+            setShowSavedSessions(false);
+        } catch (error) {
+            console.error('Load session error:', error);
+            toast.error("Failed to load session");
+        }
+    };
+
+    // Delete a saved session (soft delete - data kept for admin)
+    const handleDeleteSession = async (sessionId) => {
+        if (!confirm("⚠️ This will delete the whole data of this session for you.\n\nThis action cannot be undone. Are you sure you want to continue?")) return;
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            const res = await fetch(`/api/os/sessions?id=${sessionId}`, {
+                method: "DELETE",
+                headers: {
+                    "Authorization": `Bearer ${session.access_token}`
+                }
+            });
+
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            toast.success("Session deleted successfully");
+            fetchSavedSessions(); // Refresh list
+
+            // Clear current state if deleted session was loaded
+            setCompletedSteps([]);
+            setStepData({});
+            setSavedContent({});
+            setCurrentInput({});
+
+        } catch (error) {
+            console.error('Delete session error:', error);
+            toast.error("Failed to delete session");
+        }
+    };
+
+
+    // Reset / New Business - clears all progress and results
+    const handleReset = async () => {
+        if (!confirm("Are you sure? This will clear all current progress and generated content. Make sure you saved your session first!")) return;
+
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+
+            // Clear state
+            setCompletedSteps([]);
+            setStepData({});
+            setSavedContent({});
+            setCurrentStep(null);
+            setViewMode('dashboard');
+            setIsEditMode(false);
+            setEditingStep(null);
+            setCurrentInput({});
+
+            // Clear storage
+            await saveProgressToStorage([], {}, {}, { currentStep: 1, isComplete: false });
+
+            // Clear slide_results from database so Results page shows empty
+            if (session) {
+                await fetch('/api/os/reset', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+            }
+
+            toast.success("Reset complete. Ready for new business!");
+        } catch (error) {
+            console.error('Reset error:', error);
+            toast.error("Failed to reset");
+        }
+    };
+
+
+
 
     const handleInputChange = (field, value) => {
         setCurrentInput(prev => ({ ...prev, [field]: value }));
     };
 
-    // AI Assist for individual fields
+    // AI Assist for individual fields - now shows 5 suggestions
     const handleAiAssist = async (fieldName, fieldLabel) => {
         setAiAssisting(fieldName);
+        setCurrentFieldForSuggestion(fieldName);
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
@@ -222,38 +498,98 @@ export default function OSWizard() {
                 body: JSON.stringify({
                     fieldLabel,
                     sectionTitle: STEPS[currentStep - 1].title,
-                    userContext: { ...currentInput, ...stepData }
+                    userContext: { ...currentInput, ...stepData },
+                    userInput: currentInput[fieldName] || ""
                 }),
             });
 
             const data = await res.json();
             if (data.error) throw new Error(data.error);
 
-            handleInputChange(fieldName, data.suggestion);
-            toast.success("AI suggestion added!");
+            setAiSuggestions(data.suggestions || []);
+            setShowSuggestionsModal(true);
         } catch (error) {
             console.error(error);
-            toast.error("Failed to get AI suggestion.");
+            toast.error("Failed to get AI suggestions.");
         } finally {
             setAiAssisting(null);
         }
     };
 
+    // Select a suggestion from the modal
+    const handleSelectSuggestion = (suggestion) => {
+        if (currentFieldForSuggestion) {
+            handleInputChange(currentFieldForSuggestion, suggestion);
+            toast.success("Suggestion selected!");
+        }
+        setShowSuggestionsModal(false);
+        setAiSuggestions([]);
+        setCurrentFieldForSuggestion(null);
+    };
+
+    // Generate content preview based on current answers
+    const generateContentPreview = async () => {
+        setGeneratingPreview(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            // Determine what can be generated based on completed steps
+            const allData = { ...stepData, ...currentInput };
+
+            const res = await fetch("/api/os/generate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                    step: 'preview',
+                    data: allData,
+                    completedSteps: completedSteps.length + 1
+                }),
+            });
+
+            const data = await res.json();
+            if (!data.error) {
+                setPreviewContent(data.result);
+                setShowContentPreview(true);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setGeneratingPreview(false);
+        }
+    };
+
     const handleGenerate = async () => {
         setIsGenerating(true);
+        setShowProcessingAnimation(true);
+
+        // Start cycling through processing messages
+        let messageIndex = 0;
+        setProcessingMessage(processingMessages[0]);
+        const messageInterval = setInterval(() => {
+            messageIndex = (messageIndex + 1) % processingMessages.length;
+            setProcessingMessage(processingMessages[messageIndex]);
+        }, 2000);
+
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 toast.error("You must be logged in to generate content.");
                 setIsGenerating(false);
+                setShowProcessingAnimation(false);
+                clearInterval(messageInterval);
                 return;
             }
 
+            // On step 12, generate ALL artifacts
             const payload = {
-                step: currentStep,
+                step: 'all',
                 data: {
-                    ...currentInput,
-                    ...stepData
+                    ...stepData,
+                    ...currentInput
                 }
             };
 
@@ -269,14 +605,180 @@ export default function OSWizard() {
             const data = await res.json();
             if (data.error) throw new Error(data.error);
 
+            clearInterval(messageInterval);
+            setProcessingMessage('Your marketing system is ready! 🚀');
+
+            // Brief delay to show success message
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
             setGeneratedContent(data.result);
             setIsReviewMode(true);
-            toast.success("Content generated successfully!");
+            toast.success("All content generated successfully!");
         } catch (error) {
             console.error(error);
             toast.error("Failed to generate content. Please try again.");
+            clearInterval(messageInterval);
         } finally {
             setIsGenerating(false);
+            setShowProcessingAnimation(false);
+        }
+    };
+
+    // Navigate to next step and save current input
+    const handleNextStep = async () => {
+        // Save current input to stepData
+        const updatedData = {
+            ...stepData,
+            ...currentInput
+        };
+        setStepData(updatedData);
+        const newCompletedSteps = [...new Set([...completedSteps, currentStep])];
+        setCompletedSteps(newCompletedSteps);
+
+        toast.success(`Step ${currentStep} saved!`);
+
+        // Generate content preview
+        setGeneratingPreview(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                const res = await fetch("/api/os/generate", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${session.access_token}`
+                    },
+                    body: JSON.stringify({
+                        step: 'preview',
+                        data: updatedData,
+                        completedSteps: newCompletedSteps.length
+                    }),
+                });
+
+                const data = await res.json();
+                if (!data.error && data.result) {
+                    setPreviewContent(data.result);
+
+                    // Save the preview content for this step
+                    const newSavedContent = {
+                        ...savedContent,
+                        [`step${currentStep}`]: data.result
+                    };
+                    setSavedContent(newSavedContent);
+
+                    setShowContentPreview(true);
+
+                    // Calculate next step (clamp to max steps)
+                    const nextStep = currentStep < STEPS.length ? currentStep + 1 : currentStep;
+
+                    // Save progress to localStorage and Supabase
+                    await saveProgressToStorage(
+                        newCompletedSteps,
+                        updatedData,
+                        newSavedContent,
+                        { currentStep: nextStep }
+                    );
+                }
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setGeneratingPreview(false);
+        }
+
+        if (currentStep < STEPS.length) {
+            setCurrentStep(currentStep + 1);
+            setCurrentInput({});
+        }
+    };
+
+    // Handle "Changed my mind" - enter edit mode for a completed step
+    const handleChangedMyMind = (stepId) => {
+        setIsEditMode(true);
+        setEditingStep(stepId);
+        setCurrentStep(stepId);
+
+        // Load saved answers for this step
+        const stepInputs = STEP_INPUTS[stepId];
+        if (stepInputs) {
+            const loadedInput = {};
+            stepInputs.forEach(input => {
+                if (stepData[input.name]) {
+                    loadedInput[input.name] = stepData[input.name];
+                }
+            });
+            setCurrentInput(loadedInput);
+        }
+
+        setViewMode('step');
+        toast.info("Edit your answer. Changes will update all related content.");
+    };
+
+    // Handle cascade update after editing a previous step
+    const handleCascadeUpdate = async () => {
+        setIsUpdatingCascade(true);
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
+
+            // Update the answers with edited content
+            const updatedData = {
+                ...stepData,
+                ...currentInput
+            };
+            setStepData(updatedData);
+
+            // Find steps that need to be regenerated (all steps after the edited one)
+            const affectedSteps = completedSteps.filter(s => s > editingStep);
+
+            // For now, regenerate the preview for the current step
+            const res = await fetch("/api/os/generate", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({
+                    step: 'preview',
+                    data: updatedData,
+                    completedSteps: editingStep
+                }),
+            });
+
+            const data = await res.json();
+
+            // Update saved content
+            const newSavedContent = {
+                ...savedContent,
+                [`step${editingStep}`]: data.result
+            };
+
+            // Clear affected steps' content so they regenerate
+            affectedSteps.forEach(step => {
+                delete newSavedContent[`step${step}`];
+            });
+
+            setSavedContent(newSavedContent);
+
+            // Save to localStorage and Supabase
+            const resumeStep = Math.min(completedSteps.length + 1, STEPS.length);
+            await saveProgressToStorage(
+                completedSteps,
+                updatedData,
+                newSavedContent,
+                { currentStep: resumeStep }
+            );
+
+            toast.success("Answer updated! Related content will regenerate.");
+            setIsEditMode(false);
+            setEditingStep(null);
+            handleBackToDashboard();
+
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to update. Please try again.");
+        } finally {
+            setIsUpdatingCascade(false);
         }
     };
 
@@ -294,33 +796,135 @@ export default function OSWizard() {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${session.access_token}`
                 },
-                body: JSON.stringify({ step: currentStep, content: generatedContent }),
+                body: JSON.stringify({ step: 'all', content: generatedContent }),
             });
 
-            setStepData(prev => ({
-                ...prev,
-                [`step${currentStep}`]: generatedContent
-            }));
+            // Save final progress
+            await saveProgressToStorage(
+                completedSteps,
+                stepData,
+                { ...savedContent, final: generatedContent },
+                { currentStep: 12, isComplete: true }
+            );
 
-            setCompletedSteps(prev => [...new Set([...prev, currentStep])]);
-
-            toast.success(`Step ${currentStep} completed!`);
-
-            // Go back to dashboard
-            handleBackToDashboard();
-
-            if (currentStep === STEPS.length) {
-                toast.success("All steps completed! Check results page.");
-            }
+            toast.success("All content saved! Redirecting to results...");
+            router.push("/results");
         } catch (error) {
-            toast.error("Failed to save approval.");
+            toast.error("Failed to save. Please try again.");
         }
     };
 
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center bg-[#0e0e0f]">
-                <Loader2 className="w-10 h-10 text-red-600 animate-spin" />
+                <Loader2 className="w-10 h-10 text-cyan animate-spin" />
+            </div>
+        );
+    }
+
+    // Processing Animation Overlay
+    if (showProcessingAnimation) {
+        return (
+            <div className="fixed inset-0 z-50 bg-[#0e0e0f] flex items-center justify-center">
+                <div className="text-center max-w-2xl px-8">
+                    {/* Animated Logo/Icon */}
+                    <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="mb-8"
+                    >
+                        <div className="w-32 h-32 mx-auto relative">
+                            {/* Outer ring */}
+                            <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                                className="absolute inset-0 rounded-full border-4 border-cyan/30"
+                            />
+                            {/* Middle ring */}
+                            <motion.div
+                                animate={{ rotate: -360 }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                                className="absolute inset-3 rounded-full border-4 border-t-cyan border-r-transparent border-b-cyan border-l-transparent"
+                            />
+                            {/* Inner glow */}
+                            <motion.div
+                                animate={{ scale: [1, 1.2, 1] }}
+                                transition={{ duration: 1.5, repeat: Infinity }}
+                                className="absolute inset-6 rounded-full bg-gradient-to-br from-cyan/40 to-blue-500/40 blur-sm"
+                            />
+                            {/* Center icon */}
+                            <div className="absolute inset-8 flex items-center justify-center">
+                                <Sparkles className="w-10 h-10 text-cyan" />
+                            </div>
+                        </div>
+                    </motion.div>
+
+                    {/* Processing Title */}
+                    <motion.h1
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ delay: 0.2 }}
+                        className="text-3xl md:text-4xl font-bold text-white mb-4"
+                    >
+                        Processing Your Business
+                    </motion.h1>
+
+                    {/* Dynamic Message */}
+                    <motion.div
+                        key={processingMessage}
+                        initial={{ y: 10, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -10, opacity: 0 }}
+                        className="h-8 mb-8"
+                    >
+                        <p className="text-cyan text-lg font-medium">{processingMessage}</p>
+                    </motion.div>
+
+                    {/* Progress indicator */}
+                    <div className="w-full max-w-md mx-auto mb-6">
+                        <div className="h-1 bg-[#1b1b1d] rounded-full overflow-hidden">
+                            <motion.div
+                                animate={{ x: ["-100%", "100%"] }}
+                                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                                className="h-full w-1/3 bg-gradient-to-r from-transparent via-cyan to-transparent"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Subtitle */}
+                    <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.5 }}
+                        className="text-gray-400 text-sm"
+                    >
+                        Building your complete marketing system. This may take a few moments...
+                    </motion.p>
+
+                    {/* Floating particles effect */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                        {[...Array(12)].map((_, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{
+                                    x: Math.random() * 100 + "%",
+                                    y: "110%",
+                                    opacity: 0.3
+                                }}
+                                animate={{
+                                    y: "-10%",
+                                    opacity: [0.3, 0.8, 0.3]
+                                }}
+                                transition={{
+                                    duration: 3 + Math.random() * 2,
+                                    repeat: Infinity,
+                                    delay: Math.random() * 2
+                                }}
+                                className="absolute w-1 h-1 bg-cyan rounded-full"
+                            />
+                        ))}
+                    </div>
+                </div>
             </div>
         );
     }
@@ -339,7 +943,7 @@ export default function OSWizard() {
                             Mission Control
                         </h1>
                         <p className="text-gray-400 text-lg">
-                            Complete all 10 steps to build your complete marketing system
+                            Complete all 12 questions to generate your complete marketing system
                         </p>
                         <div className="mt-4 flex items-center justify-center gap-6 text-sm">
                             <div className="flex items-center gap-2">
@@ -347,7 +951,7 @@ export default function OSWizard() {
                                 <span className="text-gray-400">Completed ({completedSteps.length})</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                                <div className="w-3 h-3 rounded-full bg-cyan"></div>
                                 <span className="text-gray-400">Unlocked</span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -355,7 +959,218 @@ export default function OSWizard() {
                                 <span className="text-gray-400">Locked</span>
                             </div>
                         </div>
+
+                        <div className="mt-8 flex justify-center gap-4">
+                            <button
+                                onClick={() => router.push("/results")}
+                                className="px-6 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20"
+                            >
+                                <Eye className="w-5 h-5" /> View Current Results
+                            </button>
+
+                            {/* Manage Data Dropdown */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowManageDataDropdown(!showManageDataDropdown)}
+                                    className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#252528] border border-[#2a2a2d] rounded-lg font-semibold flex items-center gap-2 transition-all"
+                                >
+                                    <Settings className="w-5 h-5 text-cyan" />
+                                    Manage Data
+                                    <ChevronDown className={`w-4 h-4 transition-transform ${showManageDataDropdown ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {showManageDataDropdown && (
+                                    <div className="absolute right-0 top-full mt-2 w-56 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg shadow-xl z-50 overflow-hidden">
+                                        <button
+                                            onClick={() => {
+                                                handleReset();
+                                                setShowManageDataDropdown(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:bg-red-600/10 hover:text-red-400 transition-all"
+                                        >
+                                            <RotateCcw className="w-4 h-4" />
+                                            Reset / New Business
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowSaveModal(true);
+                                                setShowManageDataDropdown(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:bg-green-600/10 hover:text-green-400 transition-all"
+                                        >
+                                            <Save className="w-4 h-4" />
+                                            Save Session
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowSavedSessions(!showSavedSessions);
+                                                if (!showSavedSessions) fetchSavedSessions();
+                                                setShowManageDataDropdown(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:bg-cyan/10 hover:text-cyan transition-all"
+                                        >
+                                            <FolderOpen className="w-4 h-4" />
+                                            Load Saved Session
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </motion.div>
+
+                    {/* Save Session Modal */}
+                    <AnimatePresence>
+                        {showSaveModal && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ scale: 0.95 }}
+                                    animate={{ scale: 1 }}
+                                    exit={{ scale: 0.95 }}
+                                    className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-2xl p-6 w-full max-w-md"
+                                >
+                                    <h3 className="text-xl font-bold mb-4">Save Current Session</h3>
+                                    <p className="text-gray-400 mb-4">Give your session a name to easily identify it later.</p>
+
+                                    <input
+                                        type="text"
+                                        value={sessionName}
+                                        onChange={(e) => setSessionName(e.target.value)}
+                                        placeholder="e.g., Fitness Coach Marketing Plan"
+                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan mb-6"
+                                    />
+
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => setShowSaveModal(false)}
+                                            className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-all"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleSaveSession}
+                                            disabled={isSavingSession}
+                                            className="flex-1 px-4 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {isSavingSession ? (
+                                                <>
+                                                    <Loader2 className="w-5 h-5 animate-spin" /> Saving...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-5 h-5" /> Save
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Saved Sessions List */}
+                    {
+                        showSavedSessions && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="mb-8"
+                            >
+                                <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-6">
+                                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                                        <FolderOpen className="w-5 h-5 text-cyan" />
+                                        Saved Sessions
+                                    </h3>
+
+                                    {loadingSessions ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <Loader2 className="w-6 h-6 text-cyan animate-spin" />
+                                        </div>
+                                    ) : savedSessions.length === 0 ? (
+                                        <p className="text-gray-400 text-center py-8">
+                                            No saved sessions yet. Save your current progress to see it here.
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-3 max-h-96 overflow-y-auto">
+                                            {savedSessions.map((session) => {
+                                                const stepsCompleted = session.completed_steps?.length || 0;
+                                                const totalSteps = 12;
+                                                const progressPercent = (stepsCompleted / totalSteps) * 100;
+                                                const isAllComplete = stepsCompleted >= totalSteps;
+                                                const businessName = session.answers?.businessName || session.answers?.business_name || '';
+
+                                                return (
+                                                    <div
+                                                        key={session.id}
+                                                        className="p-4 bg-[#0e0e0f] rounded-lg border border-[#2a2a2d] hover:border-cyan/50 transition-all"
+                                                    >
+                                                        <div className="flex items-start justify-between mb-3">
+                                                            <div className="flex-1">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <h4 className="font-semibold text-white">{session.session_name}</h4>
+                                                                    {isAllComplete && (
+                                                                        <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full flex items-center gap-1">
+                                                                            <CheckCircle className="w-3 h-3" /> Complete
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {businessName && (
+                                                                    <p className="text-sm text-cyan mb-1">{businessName}</p>
+                                                                )}
+                                                                <p className="text-xs text-gray-500">
+                                                                    {new Date(session.updated_at || session.created_at).toLocaleDateString('en-US', {
+                                                                        month: 'short',
+                                                                        day: 'numeric',
+                                                                        year: 'numeric',
+                                                                        hour: '2-digit',
+                                                                        minute: '2-digit'
+                                                                    })}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => handleLoadSession(session)}
+                                                                    className="px-4 py-2 bg-cyan hover:brightness-110 text-black rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                                                                >
+                                                                    <FolderOpen className="w-4 h-4" /> Load
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteSession(session.id)}
+                                                                    className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-500 rounded-lg text-sm font-medium transition-all"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Progress Bar */}
+                                                        <div className="space-y-1">
+                                                            <div className="flex justify-between text-xs">
+                                                                <span className="text-gray-400">Progress</span>
+                                                                <span className={isAllComplete ? 'text-green-400 font-medium' : 'text-gray-400'}>
+                                                                    {stepsCompleted}/{totalSteps} sections
+                                                                </span>
+                                                            </div>
+                                                            <div className="h-2 bg-[#2a2a2d] rounded-full overflow-hidden">
+                                                                <div
+                                                                    className={`h-full rounded-full transition-all ${isAllComplete ? 'bg-green-500' : 'bg-cyan'}`}
+                                                                    style={{ width: `${progressPercent}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        )
+                    }
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {STEPS.map((step, index) => {
@@ -377,8 +1192,8 @@ export default function OSWizard() {
                                             ${status === 'completed'
                                                 ? 'bg-green-600/10 border-green-600 hover:border-green-500 hover:shadow-lg hover:shadow-green-900/20'
                                                 : status === 'unlocked'
-                                                ? 'bg-[#1b1b1d] border-blue-600/50 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-900/20'
-                                                : 'bg-[#1b1b1d] border-gray-700 opacity-50 cursor-not-allowed'
+                                                    ? 'bg-[#1b1b1d] border-cyan/50 hover:border-cyan hover:shadow-lg hover:shadow-cyan/20'
+                                                    : 'bg-[#1b1b1d] border-gray-700 opacity-50 cursor-not-allowed'
                                             }
                                         `}
                                     >
@@ -388,17 +1203,16 @@ export default function OSWizard() {
                                                 ${status === 'completed'
                                                     ? 'bg-green-600/20'
                                                     : status === 'unlocked'
-                                                    ? 'bg-blue-600/20'
-                                                    : 'bg-gray-700/20'
+                                                        ? 'bg-cyan/20'
+                                                        : 'bg-gray-700/20'
                                                 }
                                             `}>
-                                                <Icon className={`w-6 h-6 ${
-                                                    status === 'completed'
-                                                        ? 'text-green-500'
-                                                        : status === 'unlocked'
-                                                        ? 'text-blue-500'
+                                                <Icon className={`w-6 h-6 ${status === 'completed'
+                                                    ? 'text-green-500'
+                                                    : status === 'unlocked'
+                                                        ? 'text-cyan'
                                                         : 'text-gray-500'
-                                                }`} />
+                                                    }`} />
                                             </div>
 
                                             {status === 'completed' && (
@@ -419,13 +1233,37 @@ export default function OSWizard() {
                                                 </p>
                                             </div>
                                         )}
+
+                                        {/* Changed my mind button for completed steps */}
+                                        {status === 'completed' && (
+                                            <div className="mt-4 pt-4 border-t border-gray-700">
+                                                <div
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleChangedMyMind(step.id);
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.stopPropagation();
+                                                            handleChangedMyMind(step.id);
+                                                        }
+                                                    }}
+                                                    className="w-full py-2 px-3 bg-cyan/10 hover:bg-cyan/20 text-cyan hover:text-cyan rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer"
+                                                >
+                                                    <RefreshCw className="w-4 h-4" />
+                                                    Changed my mind
+                                                </div>
+                                            </div>
+                                        )}
                                     </button>
                                 </motion.div>
                             );
                         })}
                     </div>
-                </div>
-            </div>
+                </div >
+            </div >
         );
     }
 
@@ -467,12 +1305,12 @@ export default function OSWizard() {
                                         className={`
                                             w-full p-4 rounded-lg text-left transition-all flex items-center gap-3
                                             ${isActive
-                                                ? 'bg-red-600 text-white'
+                                                ? 'bg-cyan text-black'
                                                 : status === 'completed'
-                                                ? 'bg-green-600/10 text-green-400 hover:bg-green-600/20'
-                                                : status === 'unlocked'
-                                                ? 'bg-[#1b1b1d] text-gray-300 hover:bg-[#2a2a2d]'
-                                                : 'bg-[#1b1b1d] text-gray-600 cursor-not-allowed opacity-50'
+                                                    ? 'bg-green-600/10 text-green-400 hover:bg-green-600/20'
+                                                    : status === 'unlocked'
+                                                        ? 'bg-[#1b1b1d] text-gray-300 hover:bg-[#2a2a2d]'
+                                                        : 'bg-[#1b1b1d] text-gray-600 cursor-not-allowed opacity-50'
                                             }
                                         `}
                                     >
@@ -509,7 +1347,7 @@ export default function OSWizard() {
                         >
                             {/* Header */}
                             <div className="mb-8">
-                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/10 text-red-500 text-sm font-medium mb-4">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan/10 text-cyan text-sm font-medium mb-4">
                                     <CurrentIcon className="w-4 h-4" />
                                     Step {currentStep} of {STEPS.length}
                                 </div>
@@ -518,10 +1356,10 @@ export default function OSWizard() {
                             </div>
 
                             {/* Info Box */}
-                            <div className="mb-6 p-4 bg-blue-600/10 border border-blue-600/30 rounded-lg flex gap-3">
-                                <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                            <div className="mb-6 p-4 bg-cyan/10 border border-cyan/30 rounded-lg flex gap-3">
+                                <Info className="w-5 h-5 text-cyan flex-shrink-0 mt-0.5" />
                                 <div>
-                                    <h3 className="text-sm font-bold text-blue-400 mb-1">What is this?</h3>
+                                    <h3 className="text-sm font-bold text-cyan mb-1">What is this?</h3>
                                     <p className="text-sm text-gray-300">{STEP_INFO[currentStep]}</p>
                                 </div>
                             </div>
@@ -530,63 +1368,136 @@ export default function OSWizard() {
                             <div className="space-y-6 bg-[#1b1b1d] p-8 rounded-2xl border border-[#2a2a2d] shadow-xl">
                                 {STEP_INPUTS[currentStep]?.map((input) => (
                                     <div key={input.name}>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            {input.label}
-                                            {input.info && (
-                                                <span className="ml-2 text-xs text-gray-500">({input.info})</span>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-sm font-medium text-gray-300">
+                                                {input.label}
+                                            </label>
+                                            {input.helpText && (
+                                                <button
+                                                    onClick={() => setShowHelpFor(showHelpFor === input.name ? null : input.name)}
+                                                    className="text-cyan hover:text-cyan transition-colors"
+                                                    type="button"
+                                                >
+                                                    <Info className="w-4 h-4" />
+                                                </button>
                                             )}
-                                        </label>
-                                        <div className="relative">
-                                            {input.type === 'textarea' ? (
-                                                <textarea
-                                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all min-h-[120px]"
-                                                    placeholder={input.placeholder}
-                                                    value={currentInput[input.name] || input.defaultValue || ""}
-                                                    onChange={(e) => handleInputChange(input.name, e.target.value)}
-                                                    rows={input.rows || 3}
-                                                />
-                                            ) : (
-                                                <input
-                                                    type="text"
-                                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-red-600 focus:border-transparent outline-none transition-all"
-                                                    placeholder={input.placeholder}
-                                                    value={currentInput[input.name] || input.defaultValue || ""}
-                                                    onChange={(e) => handleInputChange(input.name, e.target.value)}
-                                                />
-                                            )}
-                                            <button
-                                                onClick={() => handleAiAssist(input.name, input.label)}
-                                                disabled={aiAssisting === input.name}
-                                                className="absolute right-2 top-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1 transition-all disabled:opacity-50"
+                                        </div>
+
+                                        {showHelpFor === input.name && input.helpText && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                className="mb-3 p-4 bg-cyan/10 border border-cyan/30 rounded-lg"
                                             >
-                                                {aiAssisting === input.name ? (
-                                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                                ) : (
-                                                    <Sparkles className="w-3 h-3" />
-                                                )}
-                                                AI Answer
-                                            </button>
+                                                <p className="text-sm text-cyan leading-relaxed">
+                                                    {input.helpText}
+                                                </p>
+                                            </motion.div>
+                                        )}
+
+                                        <div className="space-y-2">
+                                            <textarea
+                                                className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto"
+                                                placeholder={input.placeholder}
+                                                value={currentInput[input.name] || input.defaultValue || ""}
+                                                onChange={(e) => {
+                                                    handleInputChange(input.name, e.target.value);
+                                                    // Auto-expand based on content up to max
+                                                    const minHeight = (input.rows || 5) * 28;
+                                                    const maxHeight = 400;
+                                                    e.target.style.height = 'auto';
+                                                    e.target.style.height = Math.min(maxHeight, Math.max(minHeight, e.target.scrollHeight)) + 'px';
+                                                }}
+                                                rows={input.rows || 5}
+                                                style={{
+                                                    minHeight: `${(input.rows || 5) * 28}px`,
+                                                    maxHeight: '400px'
+                                                }}
+                                            />
+                                            <div className="flex justify-end">
+                                                <button
+                                                    onClick={() => handleAiAssist(input.name, input.label)}
+                                                    disabled={aiAssisting === input.name}
+                                                    type="button"
+                                                    className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all disabled:opacity-50"
+                                                >
+                                                    {aiAssisting === input.name ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : (
+                                                        <Sparkles className="w-4 h-4" />
+                                                    )}
+                                                    Enhance with AI
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
 
-                                <div className="pt-4">
-                                    <button
-                                        onClick={handleGenerate}
-                                        disabled={isGenerating}
-                                        className="w-full bg-red-600 hover:bg-red-700 text-white px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-900/20"
-                                    >
-                                        {isGenerating ? (
-                                            <>
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                                Generating...
-                                            </>
-                                        ) : (
-                                            <>
-                                                Generate <ArrowRight className="w-5 h-5" />
-                                            </>
-                                        )}
-                                    </button>
+                                <div className="pt-4 flex gap-3">
+                                    {isEditMode ? (
+                                        /* Edit mode buttons */
+                                        <>
+                                            <button
+                                                onClick={handleBackToDashboard}
+                                                className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-6 py-4 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleCascadeUpdate}
+                                                disabled={isUpdatingCascade}
+                                                className="flex-1 bg-cyan hover:brightness-110 text-black px-6 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-cyan/30"
+                                            >
+                                                {isUpdatingCascade ? (
+                                                    <>
+                                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                                        Updating...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <RefreshCw className="w-5 h-5" />
+                                                        Update & Regenerate
+                                                    </>
+                                                )}
+                                            </button>
+                                        </>
+                                    ) : currentStep < STEPS.length ? (
+                                        <button
+                                            onClick={handleNextStep}
+                                            disabled={generatingPreview}
+                                            className="flex-1 bg-cyan hover:brightness-110 text-black px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-cyan/20 disabled:opacity-50"
+                                        >
+                                            {generatingPreview ? (
+                                                <>
+                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                    Saving...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    Next <ArrowRight className="w-5 h-5" />
+                                                </>
+                                            )}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleGenerate}
+                                            disabled={isGenerating}
+                                            className="flex-1 bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan/30"
+                                        >
+                                            {isGenerating ? (
+                                                <>
+                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                    Generating All Assets...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="w-5 h-5" />
+                                                    Generate All Assets
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </motion.div>
@@ -611,13 +1522,16 @@ export default function OSWizard() {
                             </div>
 
                             <div className="p-6 space-y-6">
-                                {formatContentForDisplay(generatedContent).map(({ key, value }) => (
-                                    <div key={key} className="space-y-2">
-                                        <label className="text-xs uppercase tracking-wider text-gray-500 font-bold">
+                                {formatContentForDisplay(generatedContent).map(({ key, value }, index) => (
+                                    <div key={`${key}-${index}`} className="space-y-3">
+                                        <h4 className="text-sm font-bold text-cyan uppercase tracking-wide flex items-center gap-2">
+                                            <div className="w-1 h-4 bg-cyan rounded-full"></div>
                                             {key}
-                                        </label>
-                                        <div className="bg-[#0e0e0f] p-4 rounded-lg border border-[#2a2a2d] text-gray-300 whitespace-pre-wrap text-sm leading-relaxed">
-                                            {value}
+                                        </h4>
+                                        <div className="bg-[#0e0e0f] p-5 rounded-xl border border-[#2a2a2d] hover:border-[#3a3a3d] transition-colors">
+                                            <p className="text-gray-200 whitespace-pre-wrap text-base leading-relaxed font-normal">
+                                                {value}
+                                            </p>
                                         </div>
                                     </div>
                                 ))}
@@ -641,6 +1555,164 @@ export default function OSWizard() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* AI Suggestions Modal */}
+            <AnimatePresence>
+                {showSuggestionsModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        onClick={() => setShowSuggestionsModal(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                                <Sparkles className="w-5 h-5 text-cyan" />
+                                Choose a Suggestion
+                            </h3>
+                            <p className="text-gray-400 text-sm mb-6">Click on any suggestion to use it</p>
+
+                            <div className="space-y-3">
+                                {aiSuggestions.map((suggestion, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleSelectSuggestion(suggestion)}
+                                        className="w-full p-4 text-left bg-[#0e0e0f] hover:bg-cyan/10 border border-[#2a2a2d] hover:border-cyan/50 rounded-xl transition-all group"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <span className="w-6 h-6 rounded-full bg-cyan/20 text-cyan text-sm font-bold flex items-center justify-center flex-shrink-0">
+                                                {idx + 1}
+                                            </span>
+                                            <p className="text-gray-300 group-hover:text-white transition-colors">
+                                                {suggestion}
+                                            </p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={() => setShowSuggestionsModal(false)}
+                                className="mt-6 w-full py-3 bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg text-gray-300 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Content Preview Modal */}
+            <AnimatePresence>
+                {showContentPreview && previewContent && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                        onClick={() => setShowContentPreview(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-6 max-w-3xl w-full max-h-[85vh] overflow-y-auto"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="w-10 h-10 rounded-full bg-green-600/20 flex items-center justify-center">
+                                    <CheckCircle className="w-5 h-5 text-green-500" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-white">
+                                        {previewContent.title || "Content Preview"}
+                                    </h3>
+                                    <p className="text-gray-400 text-sm">
+                                        Step {previewContent.stepsCompleted || completedSteps.length} completed
+                                    </p>
+                                </div>
+                            </div>
+
+                            <p className="text-cyan text-sm mb-6 pl-[52px]">
+                                ✨ AI generated this based on your answers
+                            </p>
+
+                            <div className="space-y-4 mb-6">
+                                {previewContent.content ? (
+                                    // New structure with content object
+                                    Object.entries(previewContent.content).map(([key, value]) => (
+                                        <div key={key} className="p-4 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl">
+                                            <h4 className="text-cyan font-semibold mb-2 capitalize">
+                                                {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}
+                                            </h4>
+                                            {typeof value === 'object' && !Array.isArray(value) ? (
+                                                <div className="space-y-2">
+                                                    {Object.entries(value).map(([subKey, subVal]) => (
+                                                        <div key={subKey}>
+                                                            <span className="text-gray-400 text-xs uppercase">{subKey.replace(/([A-Z])/g, ' $1').trim()}: </span>
+                                                            <span className="text-gray-200">
+                                                                {Array.isArray(subVal) ? subVal.join(', ') : String(subVal)}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : Array.isArray(value) ? (
+                                                <ul className="list-disc list-inside text-gray-300 text-sm space-y-1">
+                                                    {value.map((item, i) => <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : item}</li>)}
+                                                </ul>
+                                            ) : (
+                                                <p className="text-gray-300 text-sm">{String(value)}</p>
+                                            )}
+                                        </div>
+                                    ))
+                                ) : previewContent.preview ? (
+                                    // Fallback for unlocked: false
+                                    <div className="p-6 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-center">
+                                        <p className="text-gray-400">{previewContent.preview.message}</p>
+                                    </div>
+                                ) : (
+                                    // Legacy structure
+                                    Object.entries(previewContent).map(([key, value]) => (
+                                        <div key={key} className="p-4 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl">
+                                            <h4 className="text-cyan font-semibold mb-2 capitalize">
+                                                {key.replace(/([A-Z])/g, ' $1').trim()}
+                                            </h4>
+                                            <p className="text-gray-300 text-sm whitespace-pre-wrap">
+                                                {typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
+                                            </p>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowContentPreview(false);
+                                        generateContentPreview();
+                                    }}
+                                    className="flex-1 py-3 bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg text-gray-300 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <RefreshCw className="w-4 h-4" /> Regenerate
+                                </button>
+                                <button
+                                    onClick={() => setShowContentPreview(false)}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-lg text-white font-bold transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle className="w-4 h-4" /> Approve & Continue
+                                </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
