@@ -478,8 +478,35 @@ export default function OSWizard() {
         setCurrentInput(prev => ({ ...prev, [field]: value }));
     };
 
+    // Helper function to validate step inputs - checks all required fields have content
+    const validateStepInputs = () => {
+        const stepInputs = STEP_INPUTS[currentStep];
+        if (!stepInputs) return { valid: true, emptyFields: [] };
+
+        const emptyFields = [];
+        stepInputs.forEach(input => {
+            const value = currentInput[input.name] || '';
+            // Check if field has at least one word (3+ characters)
+            if (!value.trim() || value.trim().length < 3) {
+                emptyFields.push(input.label);
+            }
+        });
+
+        return {
+            valid: emptyFields.length === 0,
+            emptyFields
+        };
+    };
+
     // AI Assist for individual fields - now shows 5 suggestions
     const handleAiAssist = async (fieldName, fieldLabel) => {
+        // Check if field has at least some content for better suggestions
+        const fieldValue = currentInput[fieldName] || '';
+        if (!fieldValue.trim() || fieldValue.trim().length < 3) {
+            toast.error(`Please enter at least a few words in "${fieldLabel}" before using AI Enhance.`);
+            return;
+        }
+
         setAiAssisting(fieldName);
         setCurrentFieldForSuggestion(fieldName);
         try {
@@ -626,6 +653,15 @@ export default function OSWizard() {
 
     // Navigate to next step and save current input
     const handleNextStep = async () => {
+        // Validate all fields have content before saving
+        const validation = validateStepInputs();
+        if (!validation.valid) {
+            const fieldList = validation.emptyFields.slice(0, 3).join(', ');
+            const moreFields = validation.emptyFields.length > 3 ? ` and ${validation.emptyFields.length - 3} more` : '';
+            toast.error(`Please fill in all fields: ${fieldList}${moreFields}`);
+            return;
+        }
+
         // Save current input to stepData
         const updatedData = {
             ...stepData,
@@ -1644,31 +1680,56 @@ export default function OSWizard() {
                                 ✨ AI generated this based on your answers
                             </p>
 
-                            <div className="space-y-4 mb-6">
+                            <div className="space-y-4 mb-6 max-h-[50vh] overflow-y-auto">
                                 {previewContent.content ? (
-                                    // New structure with content object
-                                    Object.entries(previewContent.content).map(([key, value]) => (
-                                        <div key={key} className="p-4 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl">
-                                            <h4 className="text-cyan font-semibold mb-2 capitalize">
-                                                {key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}
+                                    // Handle nested structure like { idealClient: {...} }
+                                    Object.entries(previewContent.content).map(([mainKey, mainValue]) => (
+                                        <div key={mainKey}>
+                                            <h4 className="text-lg font-bold text-cyan mb-3 capitalize">
+                                                {mainKey.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}
                                             </h4>
-                                            {typeof value === 'object' && !Array.isArray(value) ? (
-                                                <div className="space-y-2">
-                                                    {Object.entries(value).map(([subKey, subVal]) => (
-                                                        <div key={subKey}>
-                                                            <span className="text-gray-400 text-xs uppercase">{subKey.replace(/([A-Z])/g, ' $1').trim()}: </span>
-                                                            <span className="text-gray-200">
-                                                                {Array.isArray(subVal) ? subVal.join(', ') : String(subVal)}
-                                                            </span>
+
+                                            {typeof mainValue === 'object' && mainValue !== null && !Array.isArray(mainValue) ? (
+                                                <div className="space-y-3">
+                                                    {Object.entries(mainValue).map(([sectionKey, sectionValue]) => (
+                                                        <div key={sectionKey} className="p-4 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl">
+                                                            <h5 className="text-cyan font-semibold mb-2 capitalize text-sm">
+                                                                {sectionKey.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()}
+                                                            </h5>
+
+                                                            {typeof sectionValue === 'object' && !Array.isArray(sectionValue) ? (
+                                                                <div className="space-y-1">
+                                                                    {Object.entries(sectionValue).map(([k, v]) => (
+                                                                        <div key={k} className="flex">
+                                                                            <span className="text-gray-500 text-xs uppercase w-32 flex-shrink-0">
+                                                                                {k.replace(/([A-Z])/g, ' $1').trim()}:
+                                                                            </span>
+                                                                            <span className="text-gray-200 text-sm">
+                                                                                {Array.isArray(v) ? v.join(', ') : String(v)}
+                                                                            </span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ) : Array.isArray(sectionValue) ? (
+                                                                <ul className="list-disc list-inside text-gray-300 text-sm space-y-0.5">
+                                                                    {sectionValue.map((item, i) => (
+                                                                        <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : item}</li>
+                                                                    ))}
+                                                                </ul>
+                                                            ) : (
+                                                                <p className="text-gray-300 text-sm">{String(sectionValue)}</p>
+                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>
-                                            ) : Array.isArray(value) ? (
+                                            ) : Array.isArray(mainValue) ? (
                                                 <ul className="list-disc list-inside text-gray-300 text-sm space-y-1">
-                                                    {value.map((item, i) => <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : item}</li>)}
+                                                    {mainValue.map((item, i) => (
+                                                        <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : item}</li>
+                                                    ))}
                                                 </ul>
                                             ) : (
-                                                <p className="text-gray-300 text-sm">{String(value)}</p>
+                                                <p className="text-gray-300 text-sm">{String(mainValue)}</p>
                                             )}
                                         </div>
                                     ))
@@ -1679,16 +1740,9 @@ export default function OSWizard() {
                                     </div>
                                 ) : (
                                     // Legacy structure
-                                    Object.entries(previewContent).map(([key, value]) => (
-                                        <div key={key} className="p-4 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl">
-                                            <h4 className="text-cyan font-semibold mb-2 capitalize">
-                                                {key.replace(/([A-Z])/g, ' $1').trim()}
-                                            </h4>
-                                            <p className="text-gray-300 text-sm whitespace-pre-wrap">
-                                                {typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
-                                            </p>
-                                        </div>
-                                    ))
+                                    <div className="text-center py-8">
+                                        <p className="text-gray-400">No preview available yet. Complete more questions to see content.</p>
+                                    </div>
                                 )}
                             </div>
 
