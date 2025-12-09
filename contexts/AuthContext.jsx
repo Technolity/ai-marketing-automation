@@ -22,11 +22,11 @@ export function AuthProvider({ children }) {
     const [session, setSession] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
-    const adminCheckInProgress = useRef(false);
+    const initializingRef = useRef(false);
 
     // Check admin status with caching
     const checkAdminStatus = useCallback(async (userId) => {
-        if (adminCheckInProgress.current) return false;
+        if (!userId) return false;
 
         // Check cache first
         const cached = adminCache.get(userId);
@@ -34,14 +34,17 @@ export function AuthProvider({ children }) {
             return cached.isAdmin;
         }
 
-        adminCheckInProgress.current = true;
-
         try {
             const { data: profile, error } = await supabase
                 .from('user_profiles')
                 .select('is_admin')
                 .eq('id', userId)
                 .single();
+
+            if (error) {
+                console.error('Admin check error:', error);
+                return false;
+            }
 
             const adminStatus = profile?.is_admin || false;
 
@@ -55,35 +58,42 @@ export function AuthProvider({ children }) {
         } catch (error) {
             console.error('Admin check error:', error);
             return false;
-        } finally {
-            adminCheckInProgress.current = false;
         }
     }, [supabase]);
 
     // Sign out function
     const signOut = useCallback(async () => {
         try {
-            await supabase.auth.signOut();
-            // Clear admin cache on sign out
+            // Clear cache first
             if (user?.id) {
                 adminCache.delete(user.id);
             }
+            await supabase.auth.signOut();
         } catch (e) {
             console.warn('Sign out error:', e);
         }
         setUser(null);
         setSession(null);
         setIsAdmin(false);
-        router.push("/");
-    }, [supabase, router, user]);
+    }, [supabase, user]);
 
-    // Initialize auth on mount (optimized)
+    // Initialize auth on mount
     useEffect(() => {
         let mounted = true;
 
         const initAuth = async () => {
+            // Prevent double initialization
+            if (initializingRef.current) return;
+            initializingRef.current = true;
+
             try {
-                const { data: { session: currentSession } } = await supabase.auth.getSession();
+                const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+                if (error) {
+                    console.error('Get session error:', error);
+                    if (mounted) setLoading(false);
+                    return;
+                }
 
                 if (!mounted) return;
 
@@ -91,7 +101,7 @@ export function AuthProvider({ children }) {
                     setSession(currentSession);
                     setUser(currentSession.user);
 
-                    // Check admin status with caching
+                    // Check admin status
                     const adminStatus = await checkAdminStatus(currentSession.user.id);
                     if (mounted) {
                         setIsAdmin(adminStatus);
@@ -100,36 +110,50 @@ export function AuthProvider({ children }) {
             } catch (error) {
                 console.error('Auth init error:', error);
             } finally {
-                if (mounted) setLoading(false);
+                if (mounted) {
+                    setLoading(false);
+                    initializingRef.current = false;
+                }
             }
         };
 
         initAuth();
 
-        // Listen for auth changes (optimized)
+        // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, newSession) => {
                 if (!mounted) return;
+
+                console.log('Auth state changed:', event);
 
                 if (event === 'SIGNED_OUT') {
                     setUser(null);
                     setSession(null);
                     setIsAdmin(false);
-                    if (newSession?.user?.id) {
-                        adminCache.delete(newSession.user.id);
-                    }
+                    adminCache.clear();
                 } else if (event === 'SIGNED_IN' && newSession?.user) {
                     setSession(newSession);
                     setUser(newSession.user);
 
-                    // Check admin status with caching
+                    // Check admin status
                     const adminStatus = await checkAdminStatus(newSession.user.id);
                     if (mounted) {
                         setIsAdmin(adminStatus);
+                        setLoading(false);
                     }
                 } else if (event === 'TOKEN_REFRESHED' && newSession) {
                     // Just update session, don't re-check admin status
                     setSession(newSession);
+                } else if (event === 'INITIAL_SESSION' && newSession?.user) {
+                    // Initial session on page load
+                    setSession(newSession);
+                    setUser(newSession.user);
+
+                    const adminStatus = await checkAdminStatus(newSession.user.id);
+                    if (mounted) {
+                        setIsAdmin(adminStatus);
+                        setLoading(false);
+                    }
                 }
             }
         );
