@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
     const [session, setSession] = useState(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
-    const initializingRef = useRef(false);
+    const hasInitialized = useRef(false);
 
     // Check admin status with caching
     const checkAdminStatus = useCallback(async (userId) => {
@@ -64,7 +64,6 @@ export function AuthProvider({ children }) {
     // Sign out function
     const signOut = useCallback(async () => {
         try {
-            // Clear cache first
             if (user?.id) {
                 adminCache.delete(user.id);
             }
@@ -83,17 +82,11 @@ export function AuthProvider({ children }) {
 
         const initAuth = async () => {
             // Prevent double initialization
-            if (initializingRef.current) return;
-            initializingRef.current = true;
+            if (hasInitialized.current) return;
+            hasInitialized.current = true;
 
             try {
-                const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-
-                if (error) {
-                    console.error('Get session error:', error);
-                    if (mounted) setLoading(false);
-                    return;
-                }
+                const { data: { session: currentSession } } = await supabase.auth.getSession();
 
                 if (!mounted) return;
 
@@ -110,9 +103,9 @@ export function AuthProvider({ children }) {
             } catch (error) {
                 console.error('Auth init error:', error);
             } finally {
+                // ALWAYS set loading to false
                 if (mounted) {
                     setLoading(false);
-                    initializingRef.current = false;
                 }
             }
         };
@@ -124,36 +117,23 @@ export function AuthProvider({ children }) {
             async (event, newSession) => {
                 if (!mounted) return;
 
-                console.log('Auth state changed:', event);
-
                 if (event === 'SIGNED_OUT') {
                     setUser(null);
                     setSession(null);
                     setIsAdmin(false);
                     adminCache.clear();
+                    setLoading(false);
                 } else if (event === 'SIGNED_IN' && newSession?.user) {
                     setSession(newSession);
                     setUser(newSession.user);
 
-                    // Check admin status
                     const adminStatus = await checkAdminStatus(newSession.user.id);
                     if (mounted) {
                         setIsAdmin(adminStatus);
                         setLoading(false);
                     }
                 } else if (event === 'TOKEN_REFRESHED' && newSession) {
-                    // Just update session, don't re-check admin status
                     setSession(newSession);
-                } else if (event === 'INITIAL_SESSION' && newSession?.user) {
-                    // Initial session on page load
-                    setSession(newSession);
-                    setUser(newSession.user);
-
-                    const adminStatus = await checkAdminStatus(newSession.user.id);
-                    if (mounted) {
-                        setIsAdmin(adminStatus);
-                        setLoading(false);
-                    }
                 }
             }
         );
