@@ -23,7 +23,7 @@ const nextConfig = {
         }
     },
 
-    // Headers for security
+    // Headers for security and cache control
     async headers() {
         return [
             {
@@ -40,6 +40,24 @@ const nextConfig = {
                     {
                         key: 'Referrer-Policy',
                         value: 'origin-when-cross-origin'
+                    }
+                ]
+            },
+            {
+                // Prevent caching on authenticated pages
+                source: '/(dashboard|admin|results|os)(.*)',
+                headers: [
+                    {
+                        key: 'Cache-Control',
+                        value: 'no-store, no-cache, must-revalidate'
+                    },
+                    {
+                        key: 'Pragma',
+                        value: 'no-cache'
+                    },
+                    {
+                        key: 'Expires',
+                        value: '0'
                     }
                 ]
             }

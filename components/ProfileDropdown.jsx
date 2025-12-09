@@ -1,24 +1,15 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { User, LogOut, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ProfileDropdown() {
     const [isOpen, setIsOpen] = useState(false);
-    const [user, setUser] = useState(null);
     const dropdownRef = useRef(null);
-    const supabase = createClientComponentClient();
     const router = useRouter();
-
-    useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-        };
-        getUser();
-    }, [supabase]);
+    const { user, signOut } = useAuth();
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -32,12 +23,17 @@ export default function ProfileDropdown() {
     }, []);
 
     const handleSignOut = async () => {
+        setIsOpen(false);
         try {
-            await supabase.auth.signOut();
+            await signOut();
             toast.success("Signed out successfully");
-            router.push("/auth/login");
+            // Force a hard redirect to clear any cached state
+            window.location.href = "/auth/login";
         } catch (error) {
+            console.error("Sign out error:", error);
             toast.error("Failed to sign out");
+            // Still try to redirect even on error
+            window.location.href = "/auth/login";
         }
     };
 
@@ -67,7 +63,7 @@ export default function ProfileDropdown() {
 
                     <button
                         onClick={handleSignOut}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#2a2a2d] transition-colors text-left"
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-red-600/20 hover:text-red-400 transition-colors text-left"
                     >
                         <LogOut className="w-4 h-4 text-gray-400" />
                         <span className="text-sm">Sign Out</span>

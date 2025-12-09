@@ -42,7 +42,16 @@ const osPrompts = {
 
 // CORRECTED: Map each step to what content CAN be properly generated with available data
 // Step preview generates content relevant to data gathered SO FAR
+
+// Helper function to safely stringify values for prompts
+const safeStringify = (value) => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') return JSON.stringify(value, null, 2);
+  return String(value);
+};
+
 const STEP_TO_PREVIEW = {
+
   // Step 1: Only know niche/topic
   1: {
     promptFn: (data) => `Based on this business niche/topic:
@@ -64,8 +73,8 @@ const STEP_TO_PREVIEW = {
   // Step 2: Know niche + ideal client description
   2: {
     promptFn: (data) => `Based on this business info:
-    Topic: ${data.topicArea || 'not specified'}
-    Ideal Client: ${data.idealClient || 'not specified'}
+    Topic: ${safeStringify(data.topicArea) || 'not specified'}
+    Ideal Client: ${safeStringify(data.idealClient) || 'not specified'}
     
     Create a Target Market Summary in JSON:
     {
@@ -107,12 +116,12 @@ const STEP_TO_PREVIEW = {
   // Step 7: Have outcomes - Generate Sales Scripts preview
   7: {
     promptFn: (data) => `Based on this coaching/consulting business:
-    Topic: ${data.topicArea || ''}
-    Client: ${data.idealClient || ''}
-    Problem: ${data.problem || ''}
-    Transformation: ${data.transformation || ''}
-    Unique Mechanism: ${data.uniqueMechanism || ''}
-    Main Outcome: ${data.mainOutcome || ''}
+    Topic: ${safeStringify(data.topicArea)}
+    Client: ${safeStringify(data.idealClient)}
+    Problem: ${safeStringify(data.problem)}
+    Transformation: ${safeStringify(data.transformation)}
+    Unique Mechanism: ${safeStringify(data.uniqueMechanism)}
+    Main Outcome: ${safeStringify(data.mainOutcome)}
     
     Create a Sales Framework Preview in JSON:
     {
@@ -131,10 +140,10 @@ const STEP_TO_PREVIEW = {
   // Step 8: Have pricing - Generate Offer Pricing Strategy
   8: {
     promptFn: (data) => `Based on this coaching/consulting business:
-    Topic: ${data.topicArea || ''}
-    Transformation: ${data.transformation || ''}
-    Main Outcome: ${data.mainOutcome || ''}
-    Price Point: ${data.pricing || ''}
+    Topic: ${safeStringify(data.topicArea)}
+    Transformation: ${safeStringify(data.transformation)}
+    Main Outcome: ${safeStringify(data.mainOutcome)}
+    Price Point: ${safeStringify(data.pricing)}
     
     Create an Offer Pricing Strategy in JSON:
     {
@@ -168,11 +177,11 @@ const STEP_TO_PREVIEW = {
   // Step 11: Have dream client - Generate Email Preview
   11: {
     promptFn: (data) => `Based on this business:
-    Topic: ${data.topicArea || ''}
-    Client: ${data.idealClient || ''}
-    Dream Client: ${data.dreamClient || ''}
-    Problem: ${data.problem || ''}
-    Transformation: ${data.transformation || ''}
+    Topic: ${safeStringify(data.topicArea)}
+    Client: ${safeStringify(data.idealClient)}
+    Dream Client: ${safeStringify(data.dreamClient)}
+    Problem: ${safeStringify(data.problem)}
+    Transformation: ${safeStringify(data.transformation)}
     
     Create a 3-Email Preview Sequence in JSON:
     {
@@ -282,9 +291,9 @@ export async function POST(req) {
             { role: "system", content: systemPrompt },
             { role: "user", content: prompt }
           ],
-          model: "gpt-4-turbo-preview",
+          model: "gpt-4o-mini",
           response_format: { type: "json_object" },
-          max_tokens: 2000,
+          max_tokens: 1500,
         });
 
         const result = JSON.parse(completion.choices[0].message.content);
@@ -335,9 +344,10 @@ export async function POST(req) {
               },
               { role: "user", content: prompt }
             ],
-            model: "gpt-4-turbo-preview",
+            model: "gpt-4o",
             response_format: { type: "json_object" },
           });
+
           return { key, result: JSON.parse(completion.choices[0].message.content), name: CONTENT_NAMES[key] };
         } catch (err) {
           console.error(`Error generating ${CONTENT_NAMES[key]}:`, err);
@@ -361,8 +371,9 @@ export async function POST(req) {
           user_id: user.id,
           slide_id: 99,
           ai_output: results,
-          approved: false
+          approved: true
         });
+
 
       return NextResponse.json({ result: results });
     }

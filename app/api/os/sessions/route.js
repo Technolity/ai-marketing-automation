@@ -21,13 +21,13 @@ export async function GET(req) {
             .from('saved_sessions')
             .select('*')
             .eq('user_id', user.id)
-            .or('deleted_at.is.null,deleted_at.eq.false')  // Only show non-deleted sessions
+            .eq('is_deleted', false)
             .order('updated_at', { ascending: false });
 
         if (error) {
             // If table doesn't exist or column doesn't exist, try without filter
-            if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('deleted_at')) {
-                // Fallback: fetch without deleted_at filter
+            if (error.code === 'PGRST205' || error.code === '42P01' || error.message?.includes('is_deleted')) {
+                // Fallback: fetch without is_deleted filter
                 const { data: fallbackSessions, error: fallbackError } = await supabaseAdmin
                     .from('saved_sessions')
                     .select('*')
@@ -38,14 +38,15 @@ export async function GET(req) {
                     return NextResponse.json({ sessions: [] });
                 }
 
-                // Filter out deleted sessions client-side if deleted_at exists
-                const activeSessions = (fallbackSessions || []).filter(s => !s.deleted_at);
+                // Filter out deleted sessions client-side if is_deleted exists
+                const activeSessions = (fallbackSessions || []).filter(s => !s.is_deleted);
                 return NextResponse.json({ sessions: activeSessions });
             }
             throw error;
         }
 
         return NextResponse.json({ sessions: sessions || [] });
+
 
     } catch (error) {
         console.error('List sessions error:', error);
@@ -88,8 +89,9 @@ export async function POST(req) {
                 onboarding_data: answers || {},
                 is_complete: isComplete || (completedSteps?.length >= 12),
                 status: (completedSteps?.length >= 12) ? 'completed' : 'in_progress',
-                deleted_at: null,  // Not deleted
+                is_deleted: false,  // Not deleted
                 updated_at: new Date().toISOString()
+
             })
             .select()
             .single();
@@ -131,15 +133,17 @@ export async function DELETE(req) {
         const { error } = await supabaseAdmin
             .from('saved_sessions')
             .update({
-                deleted_at: new Date().toISOString(),
-                status: 'deleted'
+                is_deleted: true,
+                status: 'deleted',
+                updated_at: new Date().toISOString()
             })
             .eq('id', sessionId)
             .eq('user_id', user.id);
 
         if (error) {
-            // If deleted_at column doesn't exist, try adding it or do hard delete as fallback
+            // If is_deleted column doesn't exist, try hard delete as fallback
             console.error('Soft delete error, attempting fallback:', error);
+
 
             // Fallback: hard delete if soft delete fails
             const { error: hardDeleteError } = await supabaseAdmin

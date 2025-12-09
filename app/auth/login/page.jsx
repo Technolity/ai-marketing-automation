@@ -4,32 +4,53 @@ import { useState, useEffect } from "react";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const router = useRouter();
   const supabase = createClientComponentClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [stayLoggedIn, setStayLoggedIn] = useState(false);
+  const [checking, setChecking] = useState(true);
 
-  // Check if user should stay logged in
+  // Check for existing session on mount
   useEffect(() => {
-    const checkSession = async () => {
-      const shouldStayLoggedIn = localStorage.getItem("stayLoggedIn") === "true";
+    let mounted = true;
 
-      if (!shouldStayLoggedIn) {
-        // Clear any existing session if user didn't opt to stay logged in
-        await supabase.auth.signOut();
-      } else {
-        // Check if already logged in
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          router.push("/dashboard");
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (mounted && session?.user) {
+          // Check if admin - redirect to appropriate dashboard
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('is_admin')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profile?.is_admin) {
+            // Admin trying to use user login - redirect to admin
+            router.replace("/admin/overview");
+          } else {
+            // Regular user - redirect to user dashboard
+            router.replace("/dashboard");
+          }
         }
+      } catch (error) {
+        console.error("Session check error:", error);
+      } finally {
+        if (mounted) setChecking(false);
       }
     };
+
     checkSession();
+
+    return () => {
+      mounted = false;
+    };
   }, [supabase, router]);
 
   const handleLogin = async (e) => {
@@ -44,21 +65,35 @@ export default function Login() {
 
       if (error) throw error;
 
-      // Save the stay logged in preference
-      if (stayLoggedIn) {
-        localStorage.setItem("stayLoggedIn", "true");
-      } else {
-        localStorage.removeItem("stayLoggedIn");
-      }
+      // Check if the user is an admin
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('is_admin')
+        .eq('id', data.user.id)
+        .single();
 
-      toast.success("Logged in successfully!");
-      router.push("/dashboard");
+      if (profile?.is_admin) {
+        // Admin trying to login through user portal - redirect to admin
+        toast.info("You're an admin! Redirecting to admin panel...");
+        window.location.href = "/admin/overview";
+      } else {
+        toast.success("Logged in successfully!");
+        window.location.href = "/dashboard";
+      }
     } catch (error) {
       toast.error(error.message || "Login failed");
-    } finally {
       setLoading(false);
     }
   };
+
+  // Show loading while checking session
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-dark">
+        <div className="w-10 h-10 border-4 border-cyan border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-hidden">
@@ -83,27 +118,26 @@ export default function Login() {
 
           <div>
             <label className="block text-sm font-medium mb-2 text-gray-300">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-dark/50 border border-gray-700 rounded-xl p-4 focus:border-cyan focus:outline-none transition-all input-glow"
-              required
-            />
-          </div>
-
-          {/* Stay Logged In Checkbox */}
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="stayLoggedIn"
-              checked={stayLoggedIn}
-              onChange={(e) => setStayLoggedIn(e.target.checked)}
-              className="w-5 h-5 rounded border-gray-600 bg-dark/50 text-cyan focus:ring-cyan focus:ring-offset-0 cursor-pointer"
-            />
-            <label htmlFor="stayLoggedIn" className="text-gray-300 text-sm cursor-pointer select-none">
-              Stay logged in
-            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-dark/50 border border-gray-700 rounded-xl p-4 pr-12 focus:border-cyan focus:outline-none transition-all input-glow"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-cyan transition-colors"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </div>
           </div>
 
           <button
@@ -111,7 +145,14 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-cyan hover:brightness-110 disabled:opacity-50 py-4 rounded-xl font-bold text-lg shadow-glow-lg hover:shadow-glow-xl transition-all text-black"
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                Logging in...
+              </span>
+            ) : (
+              "Login"
+            )}
           </button>
         </form>
 

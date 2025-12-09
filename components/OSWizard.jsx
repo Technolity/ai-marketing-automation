@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useAuth } from "@/contexts/AuthContext";
 import { STEPS, STEP_INPUTS, STEP_INFO } from "@/lib/os-wizard-data";
 
 // Helper function to format field names into readable titles
@@ -21,39 +22,69 @@ const formatFieldName = (key) => {
 };
 
 // Helper function to recursively format nested objects/arrays
-const formatValue = (value, depth = 0) => {
+const formatValue = (value, depth = 0, maxDepth = 5) => {
+    // Prevent infinite recursion
+    if (depth > maxDepth) {
+        return typeof value === 'object' ? JSON.stringify(value) : String(value);
+    }
+
     if (value === null || value === undefined) {
         return '';
     }
 
+    // Handle primitive types
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+
     if (Array.isArray(value)) {
+        if (value.length === 0) return '';
+
         // Handle array of objects (like email sequence, program modules)
-        if (value.length > 0 && typeof value[0] === 'object') {
+        if (typeof value[0] === 'object' && value[0] !== null) {
             return value.map((item, idx) => {
-                const itemContent = Object.entries(item).map(([k, v]) => {
-                    return `${formatFieldName(k)}: ${formatValue(v, depth + 1)}`;
-                }).join('\n');
-                return `${idx + 1}.\n${itemContent}`;
+                const title = item.title || item.name || item.subject || item.headline || `Item ${idx + 1}`;
+                const itemContent = Object.entries(item)
+                    .filter(([k]) => !['title', 'name'].includes(k))
+                    .map(([k, v]) => {
+                        const formattedValue = formatValue(v, depth + 1, maxDepth);
+                        return `  ${formatFieldName(k)}: ${formattedValue}`;
+                    }).join('\n');
+                return `${idx + 1}. ${title}\n${itemContent}`;
             }).join('\n\n');
         }
-        // Handle array of strings
-        return value.map((item, idx) => `${idx + 1}. ${item}`).join('\n');
+        // Handle array of strings/primitives
+        return value.map((item, idx) => `${idx + 1}. ${formatValue(item, depth + 1, maxDepth)}`).join('\n');
     }
 
     if (typeof value === 'object') {
-        // Recursively format nested objects
-        return Object.entries(value).map(([k, v]) => {
-            const formattedKey = formatFieldName(k);
-            const formattedValue = formatValue(v, depth + 1);
-            if (depth === 0) {
-                return `${formattedKey}:\n${formattedValue}`;
-            }
-            return `  ${formattedKey}: ${formattedValue}`;
-        }).join('\n\n');
+        const entries = Object.entries(value)
+            .filter(([, v]) => v !== null && v !== undefined && v !== '')
+            .map(([k, v]) => {
+                const formattedKey = formatFieldName(k);
+                const formattedValue = formatValue(v, depth + 1, maxDepth);
+
+                // For nested objects, add proper indentation
+                if (typeof v === 'object' && !Array.isArray(v) && v !== null) {
+                    const indentedValue = formattedValue.split('\n').map(line => `  ${line}`).join('\n');
+                    return `${formattedKey}:\n${indentedValue}`;
+                }
+
+                // For arrays, add proper indentation
+                if (Array.isArray(v)) {
+                    const indentedValue = formattedValue.split('\n').map(line => `  ${line}`).join('\n');
+                    return `${formattedKey}:\n${indentedValue}`;
+                }
+
+                return `${formattedKey}: ${formattedValue}`;
+            });
+
+        return entries.join('\n\n');
     }
 
     return String(value);
 };
+
 
 // Helper function to format JSON content into human-readable sections
 const formatContentForDisplay = (jsonContent) => {
@@ -156,61 +187,103 @@ export default function OSWizard() {
     // Manage Data Dropdown
     const [showManageDataDropdown, setShowManageDataDropdown] = useState(false);
 
+    // Wizard Completion State - locks editing until reset
+    const [isWizardComplete, setIsWizardComplete] = useState(false);
+
     // Load saved progress on mount
     useEffect(() => {
+        let mounted = true;
+
         const loadProgress = async () => {
             try {
                 const { data: { session } } = await supabase.auth.getSession();
+
                 if (!session) {
                     router.push("/auth/login");
                     return;
                 }
 
-                // First, check localStorage for saved progress
+                if (!mounted) return;
+
+                // Check localStorage for saved progress
                 const localProgress = localStorage.getItem(`wizard_progress_${session.user.id}`);
                 if (localProgress) {
-                    const parsed = JSON.parse(localProgress);
-                    setCompletedSteps(parsed.completedSteps || []);
-                    setStepData(parsed.answers || {});
-                    setSavedContent(parsed.generatedContent || {});
-
-                    if (parsed.completedSteps && parsed.completedSteps.length > 0) {
-                        toast.success(`Welcome back! You've completed ${parsed.completedSteps.length} steps.`);
+                    try {
+                        const parsed = JSON.parse(localProgress);
+                        if (parsed.completedSteps && parsed.completedSteps.length > 0) {
+                            if (!mounted) return;
+                            setCompletedSteps(parsed.completedSteps || []);
+                            setStepData(parsed.answers || {});
+                            setSavedContent(parsed.generatedContent || {});
+                            setGeneratedContent(parsed.generatedContent || {});
+                            if (parsed.isComplete) {
+                                setIsWizardComplete(true);
+                            }
+                            toast.success(`Welcome back! You've completed ${parsed.completedSteps.length} steps.`);
+                            setIsLoading(false);
+                            return; // Use local progress, skip API calls
+                        }
+                    } catch (parseError) {
+                        console.warn('Invalid local progress data:', parseError);
+                        localStorage.removeItem(`wizard_progress_${session.user.id}`);
                     }
                 }
 
-                // Also try Supabase (if table exists)
+                // Try to fetch saved sessions from database
                 try {
-                    const res = await fetch("/api/os/progress", {
+                    const sessionsRes = await fetch("/api/os/sessions", {
                         headers: {
                             "Authorization": `Bearer ${session.access_token}`
                         }
                     });
+                    const sessionsData = await sessionsRes.json();
 
-                    const data = await res.json();
+                    if (!mounted) return;
 
-                    if (data.exists && !data.useLocalStorage) {
-                        setCompletedSteps(data.completedSteps || []);
-                        setStepData(data.answers || {});
-                        setSavedContent(data.generatedContent || {});
+                    if (sessionsData.sessions && sessionsData.sessions.length > 0) {
+                        setSavedSessions(sessionsData.sessions);
 
-                        if (data.completedSteps && data.completedSteps.length > 0 && !localProgress) {
-                            toast.success(`Welcome back! You've completed ${data.completedSteps.length} steps.`);
-                        }
+                        // Auto-load the most recent session
+                        const mostRecent = sessionsData.sessions[0];
+                        setCompletedSteps(mostRecent.completed_steps || []);
+                        setStepData(mostRecent.answers || {});
+                        setSavedContent(mostRecent.generated_content || {});
+                        setGeneratedContent(mostRecent.generated_content || {});
+                        setIsWizardComplete(mostRecent.is_complete || (mostRecent.completed_steps?.length >= 12));
+
+                        toast.success(`Loaded your session: ${mostRecent.session_name}`);
                     }
-                } catch (apiError) {
-                    console.log('Using localStorage for progress storage');
+                } catch (sessionsError) {
+                    console.log('Could not fetch saved sessions:', sessionsError.message);
+                }
+
+                if (!mounted) return;
+
+                // Check if user clicked "Start Questionnaire" from welcome screen
+                const startFlag = localStorage.getItem(`start_questionnaire_${session.user.id}`);
+                if (startFlag === 'true') {
+                    // Remove the flag
+                    localStorage.removeItem(`start_questionnaire_${session.user.id}`);
+                    // Start at step 1
+                    setViewMode('step');
+                    setCurrentStep(1);
+                    setCurrentInput({});
+                    toast.success('Let\'s start with question 1!');
                 }
 
                 setIsLoading(false);
             } catch (error) {
                 console.error('Load progress error:', error);
-                setIsLoading(false);
+                if (mounted) setIsLoading(false);
             }
         };
 
         loadProgress();
-    }, [supabase, router]);
+
+        return () => {
+            mounted = false;
+        };
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Save progress to both localStorage and API
     const saveProgressToStorage = async (newCompletedSteps, newAnswers, newContent, overrides = {}) => {
@@ -350,10 +423,11 @@ export default function OSWizard() {
                     currentStep,
                     completedSteps,
                     answers: stepData,
-                    generatedContent: savedContent,
-                    isComplete: completedSteps.length >= 12
+                    generatedContent: generatedContent || savedContent, // Use full generated content if available
+                    isComplete: completedSteps.length >= 12 && isWizardComplete
                 })
             });
+
 
             const data = await res.json();
             if (data.error) throw new Error(data.error);
@@ -377,8 +451,12 @@ export default function OSWizard() {
             setCompletedSteps(sessionData.completed_steps || []);
             setStepData(sessionData.answers || {});
             setSavedContent(sessionData.generated_content || {});
+            setGeneratedContent(sessionData.generated_content || {});
             setCurrentStep(null); // Go to dashboard
             setViewMode('dashboard');
+
+            // Set wizard complete status based on session
+            setIsWizardComplete(sessionData.is_complete || (sessionData.completed_steps?.length >= 12));
 
             // Save to local storage and sync with main progress
             await saveProgressToStorage(
@@ -387,7 +465,7 @@ export default function OSWizard() {
                 sessionData.generated_content || {},
                 {
                     currentStep: sessionData.current_step || 1,
-                    isComplete: sessionData.is_complete || false
+                    isComplete: sessionData.is_complete || (sessionData.completed_steps?.length >= 12)
                 }
             );
 
@@ -407,13 +485,25 @@ export default function OSWizard() {
         }
     };
 
+
     // Delete a saved session (soft delete - data kept for admin)
     const handleDeleteSession = async (sessionId) => {
-        if (!confirm("⚠️ This will delete the whole data of this session for you.\n\nThis action cannot be undone. Are you sure you want to continue?")) return;
+        console.log('Delete clicked for session:', sessionId);
+
+        if (!confirm("⚠️ This will delete the whole data of this session for you.\n\nThis action cannot be undone. Are you sure you want to continue?")) {
+            console.log('Delete cancelled by user');
+            return;
+        }
 
         try {
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) return;
+            if (!session) {
+                console.error('No auth session found');
+                toast.error('Please log in again');
+                return;
+            }
+
+            console.log('Sending delete request for session:', sessionId);
 
             const res = await fetch(`/api/os/sessions?id=${sessionId}`, {
                 method: "DELETE",
@@ -423,6 +513,8 @@ export default function OSWizard() {
             });
 
             const data = await res.json();
+            console.log('Delete response:', data);
+
             if (data.error) throw new Error(data.error);
 
             toast.success("Session deleted successfully");
@@ -436,9 +528,10 @@ export default function OSWizard() {
 
         } catch (error) {
             console.error('Delete session error:', error);
-            toast.error("Failed to delete session");
+            toast.error(`Failed to delete session: ${error.message}`);
         }
     };
+
 
 
     // Reset / New Business - clears all progress and results
@@ -457,6 +550,8 @@ export default function OSWizard() {
             setIsEditMode(false);
             setEditingStep(null);
             setCurrentInput({});
+            setIsWizardComplete(false); // Unlock editing
+
 
             // Clear storage
             await saveProgressToStorage([], {}, {}, { currentStep: 1, isComplete: false });
@@ -653,6 +748,14 @@ export default function OSWizard() {
             setGeneratedContent(data.result);
             setIsReviewMode(true);
 
+            // Mark step 12 as completed and update saved content
+            const allCompletedSteps = [...new Set([...completedSteps, 12])];
+            setCompletedSteps(allCompletedSteps);
+            setSavedContent(data.result);
+
+            // Mark wizard as complete - locks editing until reset
+            setIsWizardComplete(true);
+
             // Set active session flag for Results page
             localStorage.setItem('ted_has_active_session', 'true');
             localStorage.setItem('ted_results_source', JSON.stringify({
@@ -660,7 +763,22 @@ export default function OSWizard() {
                 name: 'Current Session'
             }));
 
+            // Save completion state to localStorage
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (currentSession) {
+                const progressData = {
+                    completedSteps: allCompletedSteps,
+                    answers: { ...stepData, ...currentInput },
+                    generatedContent: data.result,
+                    isComplete: true,
+                    updatedAt: new Date().toISOString()
+                };
+                localStorage.setItem(`wizard_progress_${currentSession.user.id}`, JSON.stringify(progressData));
+            }
+
             toast.success("All content generated successfully!");
+
+
         } catch (error) {
             console.error(error);
             toast.error("Failed to generate content. Please try again.");
@@ -987,36 +1105,88 @@ export default function OSWizard() {
 
     // Mission Control View
     if (viewMode === 'dashboard') {
+        // User is first-time if they have no completed steps AND no saved sessions
+        const isFirstTimeUser = completedSteps.length === 0 && savedSessions.length === 0;
+
+
         return (
             <div className="min-h-screen bg-[#0e0e0f] text-white">
                 <div className="max-w-7xl mx-auto px-6 py-12">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-12 text-center"
-                    >
-                        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                            Mission Control
-                        </h1>
-                        <p className="text-gray-400 text-lg">
-                            Complete all 12 questions to generate your complete marketing system
-                        </p>
-                        <div className="mt-4 flex items-center justify-center gap-6 text-sm">
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                <span className="text-gray-400">Completed ({completedSteps.length})</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-cyan"></div>
-                                <span className="text-gray-400">Unlocked</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-gray-600"></div>
-                                <span className="text-gray-400">Locked</span>
-                            </div>
-                        </div>
+                    {/* First-time user welcome section */}
+                    {isFirstTimeUser ? (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mb-16 text-center"
+                        >
+                            {/* Hero headline */}
+                            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 text-white leading-tight">
+                                Answer <span className="text-cyan text-glow">12 questions</span> to build your
+                                <br />entire online business in <span className="text-cyan text-glow">12 minutes</span>.
+                            </h1>
 
+                            <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
+                                We'll guide you through each step. Your message, program, sales system & marketing funnel — all built for you.
+                            </p>
+
+                            {/* Start CTA */}
+                            <motion.button
+                                onClick={() => handleStepClick(1)}
+                                whileHover={{ scale: 1.05, boxShadow: "0 0 50px rgba(0, 229, 255, 0.6)" }}
+                                whileTap={{ scale: 0.98 }}
+                                className="bg-cyan text-black px-12 py-5 text-xl font-bold rounded-full shadow-glow-xl transition-all duration-300 border border-cyan relative overflow-hidden group inline-flex items-center gap-3"
+                            >
+                                <Sparkles className="w-6 h-6" />
+                                <span className="relative z-10 font-black">Start Questionnaire →</span>
+                                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+                            </motion.button>
+
+                            {/* Divider */}
+                            <div className="mt-16 mb-8 flex items-center justify-center">
+                                <div className="h-px bg-gradient-to-r from-transparent via-gray-700 to-transparent w-full max-w-lg" />
+                            </div>
+
+                            <p className="text-gray-500 text-sm mb-6">Or continue with a saved session</p>
+                        </motion.div>
+                    ) : (
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mb-12 text-center"
+                        >
+                            <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                                Mission Control
+                            </h1>
+                            <p className="text-gray-400 text-lg">
+                                {completedSteps.length === 12
+                                    ? "All steps complete! View your results or make changes below."
+                                    : `Continue building your business — ${completedSteps.length}/12 steps completed`
+                                }
+                            </p>
+                            <div className="mt-4 flex items-center justify-center gap-6 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                    <span className="text-gray-400">Completed ({completedSteps.length})</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-cyan"></div>
+                                    <span className="text-gray-400">Unlocked</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 rounded-full bg-gray-600"></div>
+                                    <span className="text-gray-400">Locked</span>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Action buttons - for returning users with progress */}
+                    {!isFirstTimeUser && (
                         <div className="mt-8 flex justify-center gap-4">
+
+
+
                             <button
                                 onClick={() => router.push("/results")}
                                 className="px-6 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20"
@@ -1068,11 +1238,27 @@ export default function OSWizard() {
                                             <FolderOpen className="w-4 h-4" />
                                             Load Saved Session
                                         </button>
+
+                                        {/* Edit Current Session - only when wizard is complete */}
+                                        {isWizardComplete && (
+                                            <button
+                                                onClick={() => {
+                                                    setIsWizardComplete(false); // Unlock editing
+                                                    setShowManageDataDropdown(false);
+                                                    toast.success("Session unlocked! You can now edit your answers and regenerate content.");
+                                                }}
+                                                className="w-full flex items-center gap-3 px-4 py-3 text-left text-gray-300 hover:bg-yellow-600/10 hover:text-yellow-400 transition-all border-t border-[#2a2a2d]"
+                                            >
+                                                <RefreshCw className="w-4 h-4" />
+                                                Edit Current Session
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>
                         </div>
-                    </motion.div>
+                    )}
+
 
                     {/* Save Session Modal */}
                     <AnimatePresence>
@@ -1228,7 +1414,8 @@ export default function OSWizard() {
                         )
                     }
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {/* Step Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
                         {STEPS.map((step, index) => {
                             const status = getStepStatus(step.id);
                             const Icon = step.icon;
@@ -1241,70 +1428,54 @@ export default function OSWizard() {
                                     transition={{ delay: index * 0.05 }}
                                 >
                                     <button
-                                        onClick={() => handleStepClick(step.id)}
-                                        disabled={status === 'locked'}
+                                        onClick={() => !isWizardComplete && handleStepClick(step.id)}
+                                        disabled={status === 'locked' || isWizardComplete}
                                         className={`
                                             w-full p-6 rounded-2xl border-2 transition-all duration-300 text-left
-                                            ${status === 'completed'
-                                                ? 'bg-green-600/10 border-green-600 hover:border-green-500 hover:shadow-lg hover:shadow-green-900/20'
-                                                : status === 'unlocked'
-                                                    ? 'bg-[#1b1b1d] border-cyan/50 hover:border-cyan hover:shadow-lg hover:shadow-cyan/20'
-                                                    : 'bg-[#1b1b1d] border-gray-700 opacity-50 cursor-not-allowed'
+                                            ${status === 'completed' && isWizardComplete
+                                                ? 'bg-green-600/10 border-green-600 opacity-80'
+                                                : status === 'completed'
+                                                    ? 'bg-green-600/10 border-green-600 hover:border-green-500 hover:shadow-lg hover:shadow-green-900/20'
+                                                    : status === 'unlocked'
+                                                        ? 'bg-[#1b1b1d] border-cyan/50 hover:border-cyan hover:shadow-lg hover:shadow-cyan/20'
+                                                        : 'bg-[#1b1b1d] border-gray-700 opacity-50 cursor-not-allowed'
                                             }
                                         `}
                                     >
                                         <div className="flex items-start justify-between mb-4">
                                             <div className={`
                                                 p-3 rounded-xl
-                                                ${status === 'completed'
-                                                    ? 'bg-green-600/20'
-                                                    : status === 'unlocked'
-                                                        ? 'bg-cyan/20'
-                                                        : 'bg-gray-700/20'
-                                                }
+                                                ${status === 'completed' ? 'bg-green-600/20' : status === 'unlocked' ? 'bg-cyan/10' : 'bg-gray-700/50'}
                                             `}>
-                                                <Icon className={`w-6 h-6 ${status === 'completed'
-                                                    ? 'text-green-500'
-                                                    : status === 'unlocked'
-                                                        ? 'text-cyan'
-                                                        : 'text-gray-500'
-                                                    }`} />
+                                                <Icon className={`w-6 h-6 ${status === 'completed' ? 'text-green-500' : status === 'unlocked' ? 'text-cyan' : 'text-gray-500'}`} />
                                             </div>
-
-                                            {status === 'completed' && (
-                                                <CheckCircle className="w-5 h-5 text-green-500" />
-                                            )}
-                                            {status === 'locked' && (
-                                                <Lock className="w-5 h-5 text-gray-500" />
-                                            )}
+                                            {/* Show green lock when wizard complete with content, otherwise show appropriate icon */}
+                                            {status === 'completed' && isWizardComplete ? (
+                                                <div className="flex items-center gap-1">
+                                                    <Lock className="w-5 h-5 text-green-500" />
+                                                    <CheckCircle className="w-5 h-5 text-green-500" />
+                                                </div>
+                                            ) : status === 'completed' ? (
+                                                <CheckCircle className="w-6 h-6 text-green-500" />
+                                            ) : status === 'locked' ? (
+                                                <Lock className="w-5 h-5 text-gray-600" />
+                                            ) : null}
                                         </div>
 
-                                        <h3 className="text-lg font-bold mb-2">{step.title}</h3>
-                                        <p className="text-sm text-gray-400 leading-relaxed">{step.description}</p>
+                                        <h3 className={`font-bold text-lg mb-1 ${status === 'completed' ? 'text-green-400' : status === 'unlocked' ? 'text-white' : 'text-gray-500'}`}>
+                                            {step.title}
+                                        </h3>
+                                        <p className="text-gray-500 text-sm">{step.description}</p>
 
-                                        {step.dependencies.length > 0 && status === 'locked' && (
-                                            <div className="mt-4 pt-4 border-t border-gray-700">
-                                                <p className="text-xs text-gray-500">
-                                                    Requires: {step.dependencies.map(d => `Step ${d}`).join(', ')}
-                                                </p>
-                                            </div>
-                                        )}
-
-                                        {/* Changed my mind button for completed steps */}
-                                        {status === 'completed' && (
-                                            <div className="mt-4 pt-4 border-t border-gray-700">
+                                        {/* Only show "Changed my mind" when NOT complete (content not generated yet) */}
+                                        {status === 'completed' && !isWizardComplete && (
+                                            <div className="mt-4 pt-3 border-t border-green-600/30">
                                                 <div
-                                                    role="button"
-                                                    tabIndex={0}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        handleChangedMyMind(step.id);
-                                                    }}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' || e.key === ' ') {
-                                                            e.stopPropagation();
-                                                            handleChangedMyMind(step.id);
-                                                        }
+                                                        setIsEditMode(true);
+                                                        setEditingStep(step.id);
+                                                        handleStepClick(step.id);
                                                     }}
                                                     className="w-full py-2 px-3 bg-cyan/10 hover:bg-cyan/20 text-cyan hover:text-cyan rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 cursor-pointer"
                                                 >
@@ -1314,14 +1485,16 @@ export default function OSWizard() {
                                             </div>
                                         )}
                                     </button>
+
                                 </motion.div>
                             );
                         })}
                     </div>
-                </div >
-            </div >
+                </div>
+            </div>
         );
     }
+
 
     // Step View with Sidebar
     const CurrentIcon = STEPS[currentStep - 1].icon;
@@ -1575,6 +1748,20 @@ export default function OSWizard() {
                                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                     AI Generated Result
                                 </h3>
+                            </div>
+
+                            {/* Warning Message */}
+                            <div className="mx-6 mt-6 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-yellow-500 font-semibold text-sm mb-1">
+                                        Important: Save Your Data!
+                                    </p>
+                                    <p className="text-yellow-200/80 text-sm leading-relaxed">
+                                        Please click "Approve" to save your generated content before leaving this page.
+                                        If you exit without saving, all your generated content will be lost.
+                                    </p>
+                                </div>
                             </div>
 
                             <div className="p-6 space-y-6">

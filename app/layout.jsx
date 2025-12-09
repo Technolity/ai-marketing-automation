@@ -2,6 +2,7 @@
 import "./globals.css";
 import { Toaster } from "sonner";
 import AppNavbar from "@/components/AppNavbar";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata = {
   title: "TedOS | Your Business Built For You",
@@ -12,13 +13,13 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body>
-        <AppNavbar />
-
-        <main className="pt-16">
-          {children}
-        </main>
-
-        <Toaster position="bottom-right" theme="dark" />
+        <AuthProvider>
+          <AppNavbar />
+          <main className="pt-16">
+            {children}
+          </main>
+          <Toaster position="bottom-right" theme="dark" />
+        </AuthProvider>
       </body>
     </html>
   );

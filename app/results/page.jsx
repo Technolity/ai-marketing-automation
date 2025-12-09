@@ -5,8 +5,10 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { motion } from "framer-motion";
 import {
   Download, Rocket, Image as ImageIcon,
-  CheckCircle, Loader2, FileJson, Save, ArrowLeft, AlertCircle
+  CheckCircle, Loader2, FileJson, Save, ArrowLeft, AlertCircle,
+  ChevronDown, FolderOpen
 } from "lucide-react";
+
 import { toast } from "sonner";
 
 // Map generated content keys to display titles
@@ -152,6 +154,12 @@ export default function ResultsPage() {
   const [sessionName, setSessionName] = useState("");
   const [sessionSource, setSessionSource] = useState(null); // Track where results came from
 
+  // Session selector state
+  const [savedSessions, setSavedSessions] = useState([]);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [showSessionDropdown, setShowSessionDropdown] = useState(false);
+
+
   useEffect(() => {
     const fetchResults = async () => {
       try {
@@ -215,17 +223,37 @@ export default function ResultsPage() {
           .select('*')
           .eq('user_id', user.id)
           .eq('approved', true)
-          .order('slide_id', { ascending: true });
+          .order('created_at', { ascending: false })
+          .limit(1); // Get the most recent result
 
         if (error) throw error;
 
-        // Group results by slide_id
-        const groupedResults = {};
-        data.forEach(item => {
-          groupedResults[item.slide_id] = item.ai_output;
-        });
+        // The main results are stored under slide_id 99 as a single object
+        if (data && data.length > 0) {
+          const aiOutput = data[0].ai_output;
 
-        setResults(groupedResults);
+          // Transform the structure: {1: {name, data}, 2: {name, data}} -> {1: data, 2: data}
+          // or if already flat, use as-is
+          const transformedResults = {};
+          Object.entries(aiOutput).forEach(([key, value]) => {
+            if (value && typeof value === 'object') {
+              // If it has a 'data' property, extract it; otherwise use the value directly
+              if (value.data && typeof value.data === 'object') {
+                transformedResults[key] = {
+                  ...(value.name ? { _contentName: value.name } : {}),
+                  ...value.data
+                };
+              } else {
+                transformedResults[key] = value;
+              }
+            }
+          });
+
+          setResults(transformedResults);
+        } else {
+          setResults({});
+        }
+
       } catch (error) {
         console.error("Failed to fetch results:", error);
         toast.error("Failed to load results");
@@ -237,7 +265,95 @@ export default function ResultsPage() {
     fetchResults();
   }, [supabase, router]);
 
+  // Fetch all saved sessions for the dropdown
+  const fetchSavedSessions = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('saved_sessions')
+        .select('id, session_name, business_name, created_at, updated_at, is_complete')
+        .eq('user_id', user.id)
+        .eq('is_deleted', false)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      setSavedSessions(data || []);
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+    }
+  };
+
+  // Load results from a specific saved session
+  const loadSessionResults = async (sessionId) => {
+    setIsLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: sessionData, error } = await supabase
+        .from('saved_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (sessionData && sessionData.results_data) {
+        // Transform results data
+        const transformedResults = {};
+        Object.entries(sessionData.results_data).forEach(([key, value]) => {
+          if (value && typeof value === 'object') {
+            if (value.data && typeof value.data === 'object') {
+              transformedResults[key] = {
+                ...(value.name ? { _contentName: value.name } : {}),
+                ...value.data
+              };
+            } else {
+              transformedResults[key] = value;
+            }
+          }
+        });
+        setResults(transformedResults);
+        setSelectedSessionId(sessionId);
+        setSessionSource({
+          type: 'loaded',
+          name: sessionData.session_name,
+          id: sessionId
+        });
+        setShowSessionDropdown(false);
+        toast.success(`Loaded: ${sessionData.session_name}`);
+      } else if (sessionData && sessionData.generated_content) {
+        // Fallback to generated_content if results_data is empty
+        setResults(sessionData.generated_content);
+        setSelectedSessionId(sessionId);
+        setSessionSource({
+          type: 'loaded',
+          name: sessionData.session_name,
+          id: sessionId
+        });
+        setShowSessionDropdown(false);
+        toast.success(`Loaded: ${sessionData.session_name}`);
+      }
+    } catch (error) {
+      console.error('Error loading session:', error);
+      toast.error('Failed to load session');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch sessions when dropdown is opened
+  useEffect(() => {
+    if (showSessionDropdown) {
+      fetchSavedSessions();
+    }
+  }, [showSessionDropdown]);
+
   const handleExportJSON = () => {
+
     const dataStr = JSON.stringify(results, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
@@ -287,8 +403,11 @@ export default function ResultsPage() {
           onboarding_data: {},
           results_data: results,
           generated_content: results,
+          completed_steps: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], // All 12 steps complete
+          is_complete: true,
           status: 'completed'
         });
+
 
       if (error) throw error;
 
@@ -320,22 +439,74 @@ export default function ResultsPage() {
           className="mb-8"
         >
           <div className="mb-6">
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="mb-6 text-gray-400 hover:text-white flex items-center gap-2 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-            </button>
+            <div className="flex items-center justify-between mb-6">
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="text-gray-400 hover:text-white flex items-center gap-2 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+              </button>
+
+              {/* Session Selector Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowSessionDropdown(!showSessionDropdown)}
+                  className="px-4 py-2 bg-[#1b1b1d] hover:bg-[#252528] border border-[#2a2a2d] rounded-lg font-medium flex items-center gap-2 transition-all text-sm"
+                >
+                  <FolderOpen className="w-4 h-4 text-cyan" />
+                  {sessionSource?.name || 'Current Session'}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showSessionDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showSessionDropdown && (
+                  <div className="absolute right-0 top-full mt-2 w-72 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg shadow-xl z-50 overflow-hidden">
+                    <div className="p-3 border-b border-[#2a2a2d]">
+                      <p className="text-xs text-gray-500 uppercase font-medium">Switch Business</p>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {savedSessions.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          No saved businesses yet
+                        </div>
+                      ) : (
+                        savedSessions.map((session) => (
+                          <button
+                            key={session.id}
+                            onClick={() => loadSessionResults(session.id)}
+                            className={`w-full px-4 py-3 text-left hover:bg-[#252528] transition-colors flex items-center justify-between ${selectedSessionId === session.id ? 'bg-cyan/10 border-l-2 border-cyan' : ''
+                              }`}
+                          >
+                            <div>
+                              <p className="font-medium text-white text-sm">{session.session_name}</p>
+                              {session.business_name && (
+                                <p className="text-xs text-cyan">{session.business_name}</p>
+                              )}
+                              <p className="text-xs text-gray-500 mt-1">
+                                {new Date(session.updated_at || session.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            {session.is_complete && (
+                              <CheckCircle className="w-4 h-4 text-green-500" />
+                            )}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* Session Source Banner */}
             {sessionSource && sessionSource.type === 'loaded' && (
               <div className="mb-4 p-4 bg-cyan/10 border border-cyan/30 rounded-lg flex items-center gap-3">
                 <AlertCircle className="w-5 h-5 text-cyan" />
                 <p className="text-cyan">
-                  Results from previous session: <strong>{sessionSource.name}</strong>
+                  Viewing results from: <strong>{sessionSource.name}</strong>
                 </p>
               </div>
             )}
+
 
             <div className="flex items-center justify-between">
               <div>
@@ -374,7 +545,13 @@ export default function ResultsPage() {
         {/* Results Content */}
         <div className="space-y-6">
           {Object.entries(results).map(([contentKey, content], idx) => {
-            const title = CONTENT_TITLES[contentKey] || STEP_TITLES[contentKey] || formatFieldName(contentKey);
+            // Use _contentName if available, otherwise fall back to lookup tables
+            const title = content?._contentName || CONTENT_TITLES[contentKey] || STEP_TITLES[contentKey] || formatFieldName(contentKey);
+
+            // Remove _contentName from display content
+            const displayContent = { ...content };
+            delete displayContent._contentName;
+
 
             return (
               <motion.div
@@ -390,7 +567,8 @@ export default function ResultsPage() {
                 </div>
 
                 <div className="space-y-6">
-                  {formatContentForDisplay(content).map(({ key, value }, index) => (
+                  {formatContentForDisplay(displayContent).map(({ key, value }, index) => (
+
                     <div key={`${key}-${index}`} className="space-y-3">
                       <h4 className="text-sm font-bold text-cyan uppercase tracking-wide flex items-center gap-2">
                         <div className="w-1 h-4 bg-cyan rounded-full"></div>
