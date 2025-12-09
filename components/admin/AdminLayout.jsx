@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,9 +16,10 @@ import {
     Shield,
     LogOut,
     Menu,
-    X
+    X,
+    Loader2
 } from "lucide-react";
-import { useAdminGuard } from "@/lib/useAdminGuard";
+import { useAuth } from "@/contexts/AuthContext";
 
 const MENU_ITEMS = [
     { href: "/admin/overview", label: "Overview", icon: LayoutDashboard },
@@ -32,19 +33,39 @@ const MENU_ITEMS = [
 
 export default function AdminLayout({ children }) {
     const pathname = usePathname();
-    const { isAdmin, isLoading } = useAdminGuard();
+    const { user, isAdmin, loading } = useAuth();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [hasChecked, setHasChecked] = useState(false);
 
-    if (isLoading) {
+    // Handle redirects
+    useEffect(() => {
+        if (loading) return;
+
+        setHasChecked(true);
+
+        if (!user) {
+            window.location.href = "/auth/admin/login";
+            return;
+        }
+
+        if (!isAdmin) {
+            window.location.href = "/dashboard";
+            return;
+        }
+    }, [user, isAdmin, loading]);
+
+    // Show loading only briefly
+    if (loading || (!hasChecked && !isAdmin)) {
         return (
             <div className="flex h-screen items-center justify-center bg-[#0e0e0f]">
-                <div className="w-10 h-10 border-4 border-cyan border-t-transparent rounded-full animate-spin" />
+                <Loader2 className="w-10 h-10 text-cyan animate-spin" />
             </div>
         );
     }
 
-    if (!isAdmin) {
+    // Not admin - will redirect, show nothing
+    if (!isAdmin || !user) {
         return null;
     }
 
@@ -79,41 +100,29 @@ export default function AdminLayout({ children }) {
                             </motion.div>
                         )}
                     </AnimatePresence>
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setSidebarCollapsed(!sidebarCollapsed);
-                        }}
-                        className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
-                    >
-                        {sidebarCollapsed ? (
-                            <ChevronRight className="w-5 h-5 text-gray-400" />
-                        ) : (
-                            <ChevronLeft className="w-5 h-5 text-gray-400" />
-                        )}
-                    </button>
+                    {sidebarCollapsed && (
+                        <div className="w-10 h-10 bg-gradient-to-br from-cyan to-cyan/60 rounded-xl flex items-center justify-center mx-auto">
+                            <Shield className="w-5 h-5 text-black" />
+                        </div>
+                    )}
                 </Link>
 
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                     {MENU_ITEMS.map((item) => {
                         const Icon = item.icon;
-                        const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                        const isActive = pathname === item.href;
 
                         return (
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`
-                                    flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
-                                    ${isActive
-                                        ? "bg-cyan text-black font-semibold shadow-lg shadow-cyan/20"
-                                        : "text-gray-400 hover:text-white hover:bg-[#1b1b1d]"
-                                    }
-                                `}
+                                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${isActive
+                                    ? "bg-cyan/10 text-cyan border border-cyan/30"
+                                    : "text-gray-400 hover:bg-[#1b1b1d] hover:text-white"
+                                    }`}
                             >
-                                <Icon className="w-5 h-5 flex-shrink-0" />
+                                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-cyan" : "group-hover:text-cyan"}`} />
                                 <AnimatePresence mode="wait">
                                     {!sidebarCollapsed && (
                                         <motion.span
@@ -131,19 +140,20 @@ export default function AdminLayout({ children }) {
                     })}
                 </nav>
 
-                {/* Footer */}
+                {/* Exit Admin Link */}
                 <div className="p-4 border-t border-[#1b1b1d]">
                     <Link
                         href="/"
-                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-[#1b1b1d] transition-all"
+                        className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all group"
                     >
                         <LogOut className="w-5 h-5 flex-shrink-0" />
                         <AnimatePresence mode="wait">
                             {!sidebarCollapsed && (
                                 <motion.span
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
+                                    initial={{ opacity: 0, width: 0 }}
+                                    animate={{ opacity: 1, width: "auto" }}
+                                    exit={{ opacity: 0, width: 0 }}
+                                    className="whitespace-nowrap overflow-hidden"
                                 >
                                     Exit Admin
                                 </motion.span>
@@ -151,11 +161,23 @@ export default function AdminLayout({ children }) {
                         </AnimatePresence>
                     </Link>
                 </div>
+
+                {/* Collapse Toggle */}
+                <button
+                    onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                    className="absolute -right-3 top-20 w-6 h-6 bg-[#1b1b1d] border border-[#2a2a2d] rounded-full flex items-center justify-center hover:bg-cyan/10 hover:border-cyan/30 transition-all"
+                >
+                    {sidebarCollapsed ? (
+                        <ChevronRight className="w-4 h-4" />
+                    ) : (
+                        <ChevronLeft className="w-4 h-4" />
+                    )}
+                </button>
             </motion.aside>
 
             {/* Mobile Header */}
-            <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-[#131314] border-b border-[#1b1b1d] px-4 py-3 flex items-center justify-between">
-                <Link href="/admin/overview" className="flex items-center gap-3">
+            <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#131314] border-b border-[#1b1b1d] z-50 flex items-center justify-between px-4">
+                <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-gradient-to-br from-cyan to-cyan/60 rounded-lg flex items-center justify-center">
                         <Shield className="w-4 h-4 text-black" />
                     </div>
@@ -164,83 +186,62 @@ export default function AdminLayout({ children }) {
                         <span className="text-white">OS</span>
                         <span className="text-gray-500 text-sm ml-2">Admin</span>
                     </span>
-                </Link>
+                </div>
                 <button
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                     className="p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors"
                 >
-                    {mobileMenuOpen ? (
-                        <X className="w-6 h-6 text-gray-400" />
-                    ) : (
-                        <Menu className="w-6 h-6 text-gray-400" />
-                    )}
+                    {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                 </button>
             </div>
 
-            {/* Mobile Menu Overlay */}
+            {/* Mobile Menu */}
             <AnimatePresence>
                 {mobileMenuOpen && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-                            onClick={() => setMobileMenuOpen(false)}
-                        />
-                        <motion.div
-                            initial={{ x: "-100%" }}
-                            animate={{ x: 0 }}
-                            exit={{ x: "-100%" }}
-                            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="lg:hidden fixed top-0 left-0 bottom-0 w-72 bg-[#131314] z-50 pt-16"
-                        >
-                            <nav className="p-4 space-y-2">
-                                {MENU_ITEMS.map((item) => {
-                                    const Icon = item.icon;
-                                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                    <motion.div
+                        initial={{ opacity: 0, x: "100%" }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: "100%" }}
+                        className="lg:hidden fixed inset-0 top-16 bg-[#131314] z-40 p-4"
+                    >
+                        <nav className="space-y-2">
+                            {MENU_ITEMS.map((item) => {
+                                const Icon = item.icon;
+                                const isActive = pathname === item.href;
 
-                                    return (
-                                        <Link
-                                            key={item.href}
-                                            href={item.href}
-                                            onClick={() => setMobileMenuOpen(false)}
-                                            className={`
-                                                flex items-center gap-3 px-4 py-3 rounded-xl transition-all
-                                                ${isActive
-                                                    ? "bg-cyan text-black font-semibold"
-                                                    : "text-gray-400 hover:text-white hover:bg-[#1b1b1d]"
-                                                }
-                                            `}
-                                        >
-                                            <Icon className="w-5 h-5" />
-                                            <span>{item.label}</span>
-                                        </Link>
-                                    );
-                                })}
-                            </nav>
-                            <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-[#1b1b1d]">
-                                <Link
-                                    href="/"
-                                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-[#1b1b1d] transition-all"
-                                >
-                                    <LogOut className="w-5 h-5" />
-                                    <span>Exit Admin</span>
-                                </Link>
-                            </div>
-                        </motion.div>
-                    </>
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
+                                            ? "bg-cyan/10 text-cyan border border-cyan/30"
+                                            : "text-gray-400 hover:bg-[#1b1b1d] hover:text-white"
+                                            }`}
+                                    >
+                                        <Icon className="w-5 h-5" />
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
+                        </nav>
+
+                        <div className="mt-8 pt-4 border-t border-[#1b1b1d]">
+                            <Link
+                                href="/"
+                                className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all"
+                            >
+                                <LogOut className="w-5 h-5" />
+                                Exit Admin
+                            </Link>
+                        </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
 
             {/* Main Content */}
-            <main
-                className={`
-                    flex-1 min-h-screen pt-16 lg:pt-0 transition-all duration-300
-                    ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-[280px]"}
-                `}
-            >
-                <div className="p-6 lg:p-8">
+            <main className={`flex-1 ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-[280px]"} transition-all duration-300`}>
+                <div className="lg:p-8 p-4 pt-20 lg:pt-8">
                     {children}
                 </div>
             </main>
