@@ -51,9 +51,7 @@ export default function AdminOverview() {
             const timeoutId = setTimeout(() => controller.abort(), 15000);
 
             const response = await fetch('/api/admin/stats', {
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`
-                },
+                credentials: 'include', // Include cookies for auth
                 signal: controller.signal
             });
 

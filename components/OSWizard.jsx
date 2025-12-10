@@ -8,8 +8,8 @@ import {
     ChevronDown, Settings
 } from "lucide-react";
 import { toast } from "sonner";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { STEPS, STEP_INPUTS, STEP_INFO } from "@/lib/os-wizard-data";
 
 // Helper function to format field names into readable titles
@@ -119,9 +119,9 @@ const formatContentForDisplay = (jsonContent) => {
 
 
 
-export default function OSWizard() {
-    const supabase = createClientComponentClient();
+export default function OSWizard({ startAtStepOne = false }) {
     const router = useRouter();
+    const { session, user, loading: authLoading } = useAuth();
 
     // View Management
     const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard' or 'step'
@@ -145,6 +145,19 @@ export default function OSWizard() {
     const [showSaveModal, setShowSaveModal] = useState(false);
     const [sessionName, setSessionName] = useState("");
     const [isSavingSession, setIsSavingSession] = useState(false);
+
+    // Warn on unsaved changes
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            const hasUnsavedInput = Object.values(currentInput).some(val => val && val.toString().trim().length > 0);
+            if (hasUnsavedInput && viewMode === 'step') {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [currentInput, viewMode]);
 
     const [isLoading, setIsLoading] = useState(true);
 
@@ -192,89 +205,81 @@ export default function OSWizard() {
 
     // Load saved progress on mount
     useEffect(() => {
+        // Wait for auth to finish loading
+        if (authLoading) return;
+
+        // Redirect if no session after auth check completes
+        if (!session) {
+            router.push("/auth/login");
+            return;
+        }
+
         let mounted = true;
 
         const loadProgress = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-
-                if (!session) {
-                    router.push("/auth/login");
-                    return;
+            // Safety timeout
+            const timeoutId = setTimeout(() => {
+                if (mounted) {
+                    console.warn('OSWizard load timeout - forcing render');
+                    setIsLoading(false);
                 }
+            }, 5000);
 
+            try {
                 if (!mounted) return;
 
-                // Check localStorage for saved progress
-                const localProgress = localStorage.getItem(`wizard_progress_${session.user.id}`);
-                if (localProgress) {
-                    try {
-                        const parsed = JSON.parse(localProgress);
-                        if (parsed.completedSteps && parsed.completedSteps.length > 0) {
-                            if (!mounted) return;
-                            setCompletedSteps(parsed.completedSteps || []);
-                            setStepData(parsed.answers || {});
-                            setSavedContent(parsed.generatedContent || {});
-                            setGeneratedContent(parsed.generatedContent || {});
-                            if (parsed.isComplete) {
-                                setIsWizardComplete(true);
-                            }
-                            toast.success(`Welcome back! You've completed ${parsed.completedSteps.length} steps.`);
-                            setIsLoading(false);
-                            return; // Use local progress, skip API calls
-                        }
-                    } catch (parseError) {
-                        console.warn('Invalid local progress data:', parseError);
-                        localStorage.removeItem(`wizard_progress_${session.user.id}`);
-                    }
-                }
+                // SKIP localStorage check to prevent stale/corrupt data issues
+                // Direct DB fetch only
 
                 // Try to fetch saved sessions from database
                 try {
-                    const sessionsRes = await fetch("/api/os/sessions", {
-                        headers: {
-                            "Authorization": `Bearer ${session.access_token}`
-                        }
-                    });
-                    const sessionsData = await sessionsRes.json();
+                    const sessionsRes = await fetchWithAuth("/api/os/sessions");
 
                     if (!mounted) return;
 
-                    if (sessionsData.sessions && sessionsData.sessions.length > 0) {
-                        setSavedSessions(sessionsData.sessions);
+                    if (sessionsRes.ok) {
+                        const sessionsData = await sessionsRes.json();
 
-                        // Auto-load the most recent session
-                        const mostRecent = sessionsData.sessions[0];
-                        setCompletedSteps(mostRecent.completed_steps || []);
-                        setStepData(mostRecent.answers || {});
-                        setSavedContent(mostRecent.generated_content || {});
-                        setGeneratedContent(mostRecent.generated_content || {});
-                        setIsWizardComplete(mostRecent.is_complete || (mostRecent.completed_steps?.length >= 12));
+                        if (sessionsData.sessions && sessionsData.sessions.length > 0) {
+                            setSavedSessions(sessionsData.sessions);
 
-                        toast.success(`Loaded your session: ${mostRecent.session_name}`);
+                            // Auto-load the most recent session
+                            const mostRecent = sessionsData.sessions[0];
+                            setCompletedSteps(mostRecent.completed_steps || []);
+                            setStepData(mostRecent.answers || {});
+                            setSavedContent(mostRecent.generated_content || {});
+                            setGeneratedContent(mostRecent.generated_content || {});
+                            setIsWizardComplete(mostRecent.is_complete || (mostRecent.completed_steps?.length >= 12));
+
+                            toast.success(`Loaded your session: ${mostRecent.session_name}`);
+                        }
                     }
                 } catch (sessionsError) {
-                    console.log('Could not fetch saved sessions:', sessionsError.message);
+                    console.error('Could not fetch saved sessions:', sessionsError.message);
                 }
 
                 if (!mounted) return;
 
                 // Check if user clicked "Start Questionnaire" from welcome screen
-                const startFlag = localStorage.getItem(`start_questionnaire_${session.user.id}`);
-                if (startFlag === 'true') {
-                    // Remove the flag
-                    localStorage.removeItem(`start_questionnaire_${session.user.id}`);
-                    // Start at step 1
-                    setViewMode('step');
-                    setCurrentStep(1);
-                    setCurrentInput({});
-                    toast.success('Let\'s start with question 1!');
+                // This is a simple flag, safe to keep or remove. Keeping for flow continuity but wrapping in try/catch safely
+                try {
+                    const startFlag = localStorage.getItem(`start_questionnaire_${session.user.id}`);
+                    if (startAtStepOne || startFlag === 'true') {
+                        localStorage.removeItem(`start_questionnaire_${session.user.id}`);
+                        setViewMode('step');
+                        setCurrentStep(1);
+                        setCurrentInput({});
+                    }
+                } catch (e) {
+                    console.warn('Storage access error', e);
                 }
 
                 setIsLoading(false);
             } catch (error) {
                 console.error('Load progress error:', error);
                 if (mounted) setIsLoading(false);
+            } finally {
+                clearTimeout(timeoutId);
             }
         };
 
@@ -283,12 +288,11 @@ export default function OSWizard() {
         return () => {
             mounted = false;
         };
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [session, authLoading, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Save progress to both localStorage and API
     const saveProgressToStorage = async (newCompletedSteps, newAnswers, newContent, overrides = {}) => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
             const progressData = {
@@ -306,12 +310,8 @@ export default function OSWizard() {
 
             // Also try to save to Supabase API
             try {
-                await fetch("/api/os/progress", {
+                await fetchWithAuth("/api/os/progress", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${session.access_token}`
-                    },
                     body: JSON.stringify(progressData)
                 });
             } catch (apiError) {
@@ -382,14 +382,9 @@ export default function OSWizard() {
     const fetchSavedSessions = async () => {
         setLoadingSessions(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            const res = await fetch("/api/os/sessions", {
-                headers: {
-                    "Authorization": `Bearer ${session.access_token}`
-                }
-            });
+            const res = await fetchWithAuth("/api/os/sessions");
             const data = await res.json();
             setSavedSessions(data.sessions || []);
         } catch (error) {
@@ -409,15 +404,10 @@ export default function OSWizard() {
 
         setIsSavingSession(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
-            const res = await fetch("/api/os/sessions", {
+            const res = await fetchWithAuth("/api/os/sessions", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify({
                     sessionName,
                     currentStep,
@@ -496,7 +486,6 @@ export default function OSWizard() {
         }
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 console.error('No auth session found');
                 toast.error('Please log in again');
@@ -505,11 +494,8 @@ export default function OSWizard() {
 
             console.log('Sending delete request for session:', sessionId);
 
-            const res = await fetch(`/api/os/sessions?id=${sessionId}`, {
-                method: "DELETE",
-                headers: {
-                    "Authorization": `Bearer ${session.access_token}`
-                }
+            const res = await fetchWithAuth(`/api/os/sessions?id=${sessionId}`, {
+                method: "DELETE"
             });
 
             const data = await res.json();
@@ -539,7 +525,7 @@ export default function OSWizard() {
         if (!confirm("Are you sure? This will clear all current progress and generated content. Make sure you saved your session first!")) return;
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
+            // Session is available from useAuth hook
 
             // Clear state
             setCompletedSteps([]);
@@ -562,12 +548,8 @@ export default function OSWizard() {
 
             // Clear slide_results from database so Results page shows empty
             if (session) {
-                await fetch('/api/os/reset', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${session.access_token}`,
-                        'Content-Type': 'application/json'
-                    }
+                await fetchWithAuth('/api/os/reset', {
+                    method: 'POST'
                 });
             }
 
@@ -617,18 +599,13 @@ export default function OSWizard() {
         setAiAssisting(fieldName);
         setCurrentFieldForSuggestion(fieldName);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 toast.error("You must be logged in.");
                 return;
             }
 
-            const res = await fetch("/api/os/assist", {
+            const res = await fetchWithAuth("/api/os/assist", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify({
                     fieldLabel,
                     sectionTitle: STEPS[currentStep - 1].title,
@@ -665,18 +642,13 @@ export default function OSWizard() {
     const generateContentPreview = async () => {
         setGeneratingPreview(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
             // Determine what can be generated based on completed steps
             const allData = { ...stepData, ...currentInput };
 
-            const res = await fetch("/api/os/generate", {
+            const res = await fetchWithAuth("/api/os/generate", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify({
                     step: 'preview',
                     data: allData,
@@ -709,7 +681,6 @@ export default function OSWizard() {
         }, 2000);
 
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 toast.error("You must be logged in to generate content.");
                 setIsGenerating(false);
@@ -727,12 +698,8 @@ export default function OSWizard() {
                 }
             };
 
-            const res = await fetch("/api/os/generate", {
+            const res = await fetchWithAuth("/api/os/generate", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify(payload),
             });
 
@@ -764,8 +731,7 @@ export default function OSWizard() {
             }));
 
             // Save completion state to localStorage
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
-            if (currentSession) {
+            if (session) {
                 const progressData = {
                     completedSteps: allCompletedSteps,
                     answers: { ...stepData, ...currentInput },
@@ -773,7 +739,7 @@ export default function OSWizard() {
                     isComplete: true,
                     updatedAt: new Date().toISOString()
                 };
-                localStorage.setItem(`wizard_progress_${currentSession.user.id}`, JSON.stringify(progressData));
+                localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
             }
 
             toast.success("All content generated successfully!");
@@ -814,14 +780,10 @@ export default function OSWizard() {
         // Generate content preview
         setGeneratingPreview(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
+            // Session is available from useAuth hook
             if (session) {
-                const res = await fetch("/api/os/generate", {
+                const res = await fetchWithAuth("/api/os/generate", {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${session.access_token}`
-                    },
                     body: JSON.stringify({
                         step: 'preview',
                         data: updatedData,
@@ -892,7 +854,6 @@ export default function OSWizard() {
     const handleCascadeUpdate = async () => {
         setIsUpdatingCascade(true);
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) return;
 
             // Update the answers with edited content
@@ -906,12 +867,8 @@ export default function OSWizard() {
             const affectedSteps = completedSteps.filter(s => s > editingStep);
 
             // For now, regenerate the preview for the current step
-            const res = await fetch("/api/os/generate", {
+            const res = await fetchWithAuth("/api/os/generate", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify({
                     step: 'preview',
                     data: updatedData,
@@ -958,18 +915,13 @@ export default function OSWizard() {
 
     const handleApprove = async () => {
         try {
-            const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 toast.error("You must be logged in.");
                 return;
             }
 
-            await fetch("/api/os/approve", {
+            await fetchWithAuth("/api/os/approve", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify({ step: 'all', content: generatedContent }),
             });
 
@@ -1187,12 +1139,14 @@ export default function OSWizard() {
 
 
 
-                            <button
-                                onClick={() => router.push("/results")}
-                                className="px-6 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20"
-                            >
-                                <Eye className="w-5 h-5" /> View Current Results
-                            </button>
+                            {isWizardComplete && (
+                                <button
+                                    onClick={() => router.push("/results")}
+                                    className="px-6 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20"
+                                >
+                                    <Eye className="w-5 h-5" /> View Current Results
+                                </button>
+                            )}
 
                             {/* Manage Data Dropdown */}
                             <div className="relative">
@@ -1584,14 +1538,7 @@ export default function OSWizard() {
                                 <p className="text-gray-400 text-lg">{STEPS[currentStep - 1].description}</p>
                             </div>
 
-                            {/* Info Box */}
-                            <div className="mb-6 p-4 bg-cyan/10 border border-cyan/30 rounded-lg flex gap-3">
-                                <Info className="w-5 h-5 text-cyan flex-shrink-0 mt-0.5" />
-                                <div>
-                                    <h3 className="text-sm font-bold text-cyan mb-1">What is this?</h3>
-                                    <p className="text-sm text-gray-300">{STEP_INFO[currentStep]}</p>
-                                </div>
-                            </div>
+                            {/* Info Box removed */}
 
                             {/* Input Fields */}
                             <div className="space-y-6 bg-[#1b1b1d] p-8 rounded-2xl border border-[#2a2a2d] shadow-xl">

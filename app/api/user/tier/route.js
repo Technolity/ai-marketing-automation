@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { auth, currentUser } from '@clerk/nextjs';
 
+// Service Role client to create profiles
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-// Define tier features
 const TIER_FEATURES = {
     basic: {
         name: 'Basic',
@@ -38,62 +39,78 @@ const TIER_FEATURES = {
     }
 };
 
-/**
- * GET /api/user/tier - Get current user's tier and features
- */
 export async function GET(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-        if (!token) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Get user profile
+        // 1. Get user profile from DB
         const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
             .select('subscription_tier, tier_expires_at, generation_count, last_generation_at')
-            .eq('id', user.id)
+            .eq('id', userId)
             .single();
 
-        if (profileError) {
-            // Create default profile if doesn't exist
-            const { data: newProfile } = await supabase
-                .from('user_profiles')
-                .insert({
-                    id: user.id,
-                    email: user.email,
-                    subscription_tier: 'basic'
-                })
-                .select()
-                .single();
+        // 2. If profile missing, create it (Auto-Sync) - but NEVER overwrite is_admin
+        if (profileError || !profile) {
+            const user = await currentUser(); // Fetch details from Clerk
+            if (user) {
+                const email = user.emailAddresses[0]?.emailAddress || `${userId}@no-email.com`;
+                const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+                const avatarUrl = user.imageUrl;
 
-            return NextResponse.json({
-                tier: 'basic',
-                features: TIER_FEATURES.basic,
-                usage: {
-                    generationsThisMonth: 0,
-                    remainingGenerations: TIER_FEATURES.basic.maxGenerationsPerMonth
+                // First check if profile actually exists (might have been error for other reason)
+                const { data: checkProfile } = await supabase
+                    .from('user_profiles')
+                    .select('id, is_admin, subscription_tier')
+                    .eq('id', userId)
+                    .maybeSingle();
+
+                // Only insert if profile truly doesn't exist
+                if (!checkProfile) {
+                    await supabase.from('user_profiles').insert({
+                        id: userId,
+                        email: email,
+                        full_name: fullName,
+                        avatar_url: avatarUrl,
+                        subscription_tier: 'basic',
+                        is_admin: false
+                    });
+
+                    return NextResponse.json({
+                        tier: 'basic',
+                        features: TIER_FEATURES.basic,
+                        usage: {
+                            generationsThisMonth: 0,
+                            remainingGenerations: TIER_FEATURES.basic.maxGenerationsPerMonth
+                        }
+                    });
                 }
-            });
+
+                // Profile exists - return actual data (preserving admin status)
+                return NextResponse.json({
+                    tier: checkProfile.subscription_tier || 'basic',
+                    features: TIER_FEATURES[checkProfile.subscription_tier] || TIER_FEATURES.basic,
+                    usage: {
+                        generationsThisMonth: 0,
+                        remainingGenerations: TIER_FEATURES[checkProfile.subscription_tier]?.maxGenerationsPerMonth || 10
+                    }
+                });
+            }
         }
 
-        const tier = profile.subscription_tier || 'basic';
+        // 3. Return existing profile data
+        const tier = profile?.subscription_tier || 'basic';
         const features = TIER_FEATURES[tier] || TIER_FEATURES.basic;
 
-        // Check if tier has expired
-        if (profile.tier_expires_at && new Date(profile.tier_expires_at) < new Date()) {
-            // Tier expired, downgrade to basic
+        // Check expiration
+        if (profile?.tier_expires_at && new Date(profile.tier_expires_at) < new Date()) {
             await supabase
                 .from('user_profiles')
                 .update({ subscription_tier: 'basic', tier_expires_at: null })
-                .eq('id', user.id);
+                .eq('id', userId);
 
             return NextResponse.json({
                 tier: 'basic',
@@ -106,19 +123,18 @@ export async function GET(req) {
             });
         }
 
-        // Calculate remaining generations
-        const generationsUsed = profile.generation_count || 0;
+        const generationsUsed = profile?.generation_count || 0;
         const maxGenerations = features.maxGenerationsPerMonth;
         const remainingGenerations = maxGenerations === -1 ? -1 : Math.max(0, maxGenerations - generationsUsed);
 
         return NextResponse.json({
             tier,
             features,
-            expiresAt: profile.tier_expires_at,
+            expiresAt: profile?.tier_expires_at,
             usage: {
                 generationsThisMonth: generationsUsed,
                 remainingGenerations,
-                lastGeneration: profile.last_generation_at
+                lastGeneration: profile?.last_generation_at
             }
         });
 

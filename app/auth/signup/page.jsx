@@ -1,7 +1,7 @@
 // app/auth/signup/page.jsx
 "use client";
-import { useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useState, useEffect } from "react";
+import { useSignUp, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -9,14 +9,25 @@ import { User, Mail, Lock, ArrowRight, Loader2 } from "lucide-react";
 
 export default function Signup() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const { isLoaded, signUp, setActive } = useSignUp();
+  const { isSignedIn } = useAuth();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [pendingVerification, setPendingVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     password: ""
   });
+
+  // Redirect if already signed in
+  useEffect(() => {
+    if (isSignedIn) {
+      router.push("/dashboard");
+    }
+  }, [isSignedIn, router]);
 
   const handleNext = async (e) => {
     e.preventDefault();
@@ -28,51 +39,126 @@ export default function Signup() {
   };
 
   const handleSignup = async () => {
+    if (!isLoaded) return;
     setLoading(true);
+
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
+      // Create the user in Clerk
+      const result = await signUp.create({
+        emailAddress: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-          },
-          emailRedirectTo: `${window.location.origin}/auth/verify`,
-        },
+        firstName: formData.fullName.split(' ')[0],
+        lastName: formData.fullName.split(' ').slice(1).join(' ') || undefined,
       });
 
-      if (error) throw error;
+      // Send email verification
+      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
 
-      toast.success("Account created! Please check your email to verify.");
-      router.push("/auth/login");
+      setPendingVerification(true);
+      toast.success("Verification code sent to your email!");
+
     } catch (error) {
-      if (error.message.includes("already registered") || error.message.includes("User already exists")) {
+      console.error("Signup error:", error);
+      const errorMessage = error.errors?.[0]?.longMessage || error.message || "Signup failed";
+
+      if (errorMessage.includes("already exists") || errorMessage.includes("already taken")) {
         toast.error("Account already exists. Please log in.");
       } else {
-        toast.error(error.message || "Signup failed");
+        toast.error(errorMessage);
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const slideVariants = {
-    enter: (direction) => ({
-      x: direction > 0 ? 1000 : -1000,
-      opacity: 0
-    }),
-    center: {
-      zIndex: 1,
-      x: 0,
-      opacity: 1
-    },
-    exit: (direction) => ({
-      zIndex: 0,
-      x: direction < 0 ? 1000 : -1000,
-      opacity: 0
-    })
+  const handleVerification = async (e) => {
+    e.preventDefault();
+    if (!isLoaded) return;
+    setLoading(true);
+
+    try {
+      const result = await signUp.attemptEmailAddressVerification({
+        code: verificationCode,
+      });
+
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        toast.success("Account created successfully!");
+        router.push("/dashboard");
+      } else {
+        console.log("Verification result:", result);
+        toast.error("Verification incomplete");
+      }
+    } catch (error) {
+      console.error("Verification error:", error);
+      const errorMessage = error.errors?.[0]?.longMessage || "Invalid verification code";
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Show loading while Clerk initializes
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0e0e0f]">
+        <Loader2 className="w-10 h-10 text-cyan animate-spin" />
+      </div>
+    );
+  }
+
+  // Email verification step
+  if (pendingVerification) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-6 bg-[#0e0e0f] relative overflow-hidden">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan/10 rounded-full blur-[150px] pointer-events-none" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan/10 rounded-full blur-[150px] pointer-events-none" />
+
+        <div className="max-w-md w-full relative z-10">
+          <div className="mb-8 text-center">
+            <div className="w-12 h-12 bg-cyan rounded-xl mx-auto flex items-center justify-center mb-4 shadow-glow-lg">
+              <Mail className="w-6 h-6 text-black" />
+            </div>
+            <h1 className="text-3xl font-bold text-cyan text-glow mb-2">Verify Your Email</h1>
+            <p className="text-gray-400">Enter the code we sent to {formData.email}</p>
+          </div>
+
+          <div className="bg-[#1b1b1d] p-8 rounded-2xl border border-[#2a2a2d] shadow-2xl backdrop-blur-xl">
+            <form onSubmit={handleVerification}>
+              <div className="space-y-4">
+                <input
+                  type="text"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl px-4 py-4 text-white text-center text-2xl tracking-widest focus:border-cyan focus:outline-none transition-all"
+                  placeholder="000000"
+                  maxLength={6}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || verificationCode.length < 6}
+                className="w-full mt-6 bg-cyan hover:brightness-110 disabled:opacity-50 py-4 rounded-xl font-bold text-lg shadow-glow-lg hover:shadow-glow-xl transition-all flex items-center justify-center gap-2 text-black"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" /> Verifying...
+                  </>
+                ) : (
+                  "Verify & Continue"
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main signup form
   return (
     <div className="min-h-screen flex items-center justify-center px-6 bg-[#0e0e0f] relative overflow-hidden">
       {/* Background Glows */}
@@ -156,11 +242,12 @@ export default function Signup() {
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                       className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-4 text-white focus:border-cyan focus:outline-none transition-all"
                       placeholder="••••••••"
-                      minLength={6}
+                      minLength={8}
                       required
                       autoFocus
                     />
                   </div>
+                  <p className="text-xs text-gray-500">Minimum 8 characters</p>
                 </motion.div>
               )}
             </AnimatePresence>

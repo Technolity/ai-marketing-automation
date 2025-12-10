@@ -1,6 +1,7 @@
 // app/layout.jsx
 import "./globals.css";
 import { Toaster } from "sonner";
+import { ClerkProvider } from "@clerk/nextjs";
 import AppNavbar from "@/components/AppNavbar";
 import { AuthProvider } from "@/contexts/AuthContext";
 
@@ -11,16 +12,18 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body>
-        <AuthProvider>
-          <AppNavbar />
-          <main className="pt-16">
-            {children}
-          </main>
-          <Toaster position="bottom-right" theme="dark" />
-        </AuthProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en">
+        <body>
+          <AuthProvider>
+            <AppNavbar />
+            <main className="pt-16">
+              {children}
+            </main>
+            <Toaster position="bottom-right" theme="dark" />
+          </AuthProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

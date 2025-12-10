@@ -21,6 +21,7 @@ import {
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export default function AdminSettings() {
     const { session, loading: authLoading } = useAuth();
@@ -57,11 +58,7 @@ export default function AdminSettings() {
     const fetchSettings = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/admin/settings', {
-                headers: {
-                    'Authorization': `Bearer ${session.access_token}`
-                }
-            });
+            const response = await fetchWithAuth('/api/admin/settings');
 
             if (!response.ok) {
                 throw new Error('Failed to fetch settings');
@@ -119,12 +116,8 @@ export default function AdminSettings() {
 
             // Save each category
             for (const [category, categoryData] of Object.entries(categorySettings)) {
-                const response = await fetch('/api/admin/settings', {
+                const response = await fetchWithAuth('/api/admin/settings', {
                     method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${session.access_token}`
-                    },
                     body: JSON.stringify({
                         category,
                         settings: categoryData
@@ -151,12 +144,8 @@ export default function AdminSettings() {
         }
 
         try {
-            const response = await fetch('/api/admin/settings', {
+            const response = await fetchWithAuth('/api/admin/settings', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify({ action })
             });
 

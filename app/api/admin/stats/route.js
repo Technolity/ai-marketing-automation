@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
+// ⚠️ DEV MODE: Auth disabled - admin access public
+
+const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } }
@@ -12,39 +14,12 @@ let statsCache = null;
 let cacheTimestamp = 0;
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 
-// Helper to verify admin (optimized with faster query)
-async function verifyAdmin(token) {
-    if (!token) return null;
-
-    try {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (error || !user) return null;
-
-        // Use maybeSingle() for better performance
-        const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('is_admin')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        return profile?.is_admin ? user : null;
-    } catch (error) {
-        console.error('Admin verification error:', error);
-        return null;
-    }
-}
-
 /**
  * GET /api/admin/stats - Dashboard statistics (optimized with caching and DB aggregation)
  */
-export async function GET(req) {
+export async function GET() {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-        const admin = await verifyAdmin(token);
-
-        if (!admin) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        // Dev mode: No auth check - admin panel is public
 
         // Check cache first
         const now = Date.now();
@@ -73,34 +48,34 @@ export async function GET(req) {
             weeklyActivity
         ] = await Promise.all([
             // Total users count
-            supabase.from('user_profiles').select('id', { count: 'exact', head: true }),
+            supabaseAdmin.from('user_profiles').select('id', { count: 'exact', head: true }),
 
             // Users by tier
-            supabase.from('user_profiles').select('subscription_tier'),
+            supabaseAdmin.from('user_profiles').select('subscription_tier'),
 
             // Users created this week
-            supabase.from('user_profiles')
+            supabaseAdmin.from('user_profiles')
                 .select('id', { count: 'exact', head: true })
                 .gte('created_at', weekAgo),
 
             // Users created this month
-            supabase.from('user_profiles')
+            supabaseAdmin.from('user_profiles')
                 .select('id', { count: 'exact', head: true })
                 .gte('created_at', monthAgo),
 
             // Total sessions
-            supabase.from('saved_sessions').select('id', { count: 'exact', head: true }),
+            supabaseAdmin.from('saved_sessions').select('id', { count: 'exact', head: true }),
 
             // Sessions this week
-            supabase.from('saved_sessions')
+            supabaseAdmin.from('saved_sessions')
                 .select('id', { count: 'exact', head: true })
                 .gte('created_at', weekAgo),
 
             // Total content
-            supabase.from('slide_results').select('id', { count: 'exact', head: true }),
+            supabaseAdmin.from('slide_results').select('id', { count: 'exact', head: true }),
 
             // Content this week
-            supabase.from('slide_results')
+            supabaseAdmin.from('slide_results')
                 .select('id', { count: 'exact', head: true })
                 .gte('created_at', weekAgo),
 
@@ -156,12 +131,12 @@ async function generateWeeklyActivityOptimized(weekAgo) {
 
     // Query for recent users and content (last 7 days only)
     const [recentUsers, recentContent] = await Promise.all([
-        supabase
+        supabaseAdmin
             .from('user_profiles')
             .select('created_at')
             .gte('created_at', weekAgo)
             .order('created_at', { ascending: true }),
-        supabase
+        supabaseAdmin
             .from('slide_results')
             .select('created_at')
             .gte('created_at', weekAgo)

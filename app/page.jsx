@@ -89,7 +89,7 @@ export default function Home() {
         transition={{ delay: 1, duration: 0.5 }}
         className="mt-20 mb-10"
       >
-        <Link href="/auth/admin/login">
+        <Link href="/admin/login">
           <button className="flex items-center gap-2 px-6 py-3 bg-transparent border border-[#2a2a2d] hover:border-cyan/50 text-gray-500 hover:text-cyan rounded-full transition-all text-sm">
             <Shield className="w-4 h-4" />
             Admin Portal

@@ -1,19 +1,11 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
 export async function POST(req) {
   try {
-    // Get token from Authorization header
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Validate token and get user
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-    if (authError || !user) {
+    const { userId } = auth();
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -23,7 +15,7 @@ export async function POST(req) {
     const { data: existingRecord } = await supabaseAdmin
       .from('slide_results')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('slide_id', step)
       .single();
 
@@ -36,7 +28,7 @@ export async function POST(req) {
           ai_output: content,
           updated_at: new Date().toISOString()
         })
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .eq('slide_id', step);
 
       if (error) throw error;
@@ -45,7 +37,7 @@ export async function POST(req) {
       const { error } = await supabaseAdmin
         .from('slide_results')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           slide_id: step,
           ai_output: content,
           approved: true

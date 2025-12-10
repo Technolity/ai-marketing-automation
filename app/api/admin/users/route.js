@@ -1,109 +1,52 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { auth } from '@clerk/nextjs';
+import { verifyAdmin, getSupabaseClient } from '@/lib/adminAuth';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
-// Cache for admin verification (expires after 5 minutes)
-const adminVerifyCache = new Map();
-const VERIFY_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// Helper to verify admin (optimized with caching)
-async function verifyAdmin(token) {
-    if (!token) return null;
-
-    // Check cache first
-    const cached = adminVerifyCache.get(token);
-    if (cached && Date.now() - cached.timestamp < VERIFY_CACHE_DURATION) {
-        return cached.user;
-    }
-
-    try {
-        const { data: { user }, error } = await supabase.auth.getUser(token);
-        if (error || !user) return null;
-
-        const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('is_admin')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        const isAdmin = profile?.is_admin ? user : null;
-
-        // Cache the result
-        if (isAdmin) {
-            adminVerifyCache.set(token, {
-                user: isAdmin,
-                timestamp: Date.now()
-            });
-        }
-
-        return isAdmin;
-    } catch (error) {
-        console.error('Admin verification error:', error);
-        return null;
-    }
-}
+const supabase = getSupabaseClient();
 
 /**
- * GET /api/admin/users - List all users with pagination
+ * GET /api/admin/users - List all users
  */
 export async function GET(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-        const admin = await verifyAdmin(token);
-
-        if (!admin) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const isAdmin = await verifyAdmin(userId);
+        if (!isAdmin) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const { searchParams } = new URL(req.url);
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '10');
         const search = searchParams.get('search') || '';
-        const tier = searchParams.get('tier') || '';
+        const role = searchParams.get('role') || 'all'; // 'admin', 'user'
 
         const offset = (page - 1) * limit;
 
-        // Build query
+        // Query user_profiles
         let query = supabase
             .from('user_profiles')
             .select('*', { count: 'exact' });
 
-        // Apply filters
         if (search) {
             query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
         }
-        if (tier) {
-            query = query.eq('subscription_tier', tier);
+
+        if (role === 'admin') {
+            query = query.eq('is_admin', true);
+        } else if (role === 'user') {
+            query = query.eq('is_admin', false);
         }
 
-        // Apply pagination
-        query = query
-            .order('created_at', { ascending: false })
-            .range(offset, offset + limit - 1);
+        query = query.range(offset, offset + limit - 1);
 
         const { data: users, error, count } = await query;
 
         if (error) throw error;
-
-        // Get total counts by tier (optimized with parallel queries)
-        const [totalCount, basicCount, premiumCount, enterpriseCount] = await Promise.all([
-            supabase.from('user_profiles').select('id', { count: 'exact', head: true }),
-            supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('subscription_tier', 'basic'),
-            supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('subscription_tier', 'premium'),
-            supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('subscription_tier', 'enterprise')
-        ]);
-
-        const tierStats = {
-            total: totalCount.count || 0,
-            basic: basicCount.count || 0,
-            premium: premiumCount.count || 0,
-            enterprise: enterpriseCount.count || 0,
-        };
 
         return NextResponse.json({
             users: users || [],
@@ -112,8 +55,7 @@ export async function GET(req) {
                 limit,
                 total: count || 0,
                 totalPages: Math.ceil((count || 0) / limit)
-            },
-            tierStats
+            }
         });
 
     } catch (error) {
@@ -123,46 +65,44 @@ export async function GET(req) {
 }
 
 /**
- * PUT /api/admin/users - Update user profile (tier, status)
+ * PUT /api/admin/users - Update user (e.g., ban, upgrade tier)
  */
 export async function PUT(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-        const admin = await verifyAdmin(token);
-
-        if (!admin) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { userId, updates } = await req.json();
-
-        if (!userId) {
-            return NextResponse.json({ error: 'User ID required' }, { status: 400 });
+        const isAdmin = await verifyAdmin(userId);
+        if (!isAdmin) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        // Only allow updating specific fields
-        const allowedFields = ['subscription_tier', 'tier_expires_at', 'full_name'];
-        const safeUpdates = {};
+        const body = await req.json();
+        const { userId: targetUserId, action, tier } = body;
 
-        for (const field of allowedFields) {
-            if (updates[field] !== undefined) {
-                safeUpdates[field] = updates[field];
-            }
+        if (!targetUserId) {
+            return NextResponse.json({ error: 'Target user ID required' }, { status: 400 });
         }
 
-        const { data, error } = await supabase
-            .from('user_profiles')
-            .update(safeUpdates)
-            .eq('id', userId)
-            .select()
-            .single();
+        // Handle specific actions
+        if (action === 'update_tier') {
+            const { data, error } = await supabase
+                .from('user_profiles')
+                .update({ subscription_tier: tier })
+                .eq('id', targetUserId)
+                .select()
+                .single();
 
-        if (error) throw error;
+            if (error) throw error;
+            return NextResponse.json({ success: true, user: data });
+        }
 
-        return NextResponse.json({ user: data });
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
     } catch (error) {
-        console.error('Admin update user error:', error);
+        console.error('Admin users PUT error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

@@ -1,79 +1,43 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { auth } from '@clerk/nextjs';
+import { verifyAdmin, getSupabaseClient } from '@/lib/adminAuth';
 
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false
-        }
-    }
-);
-
-// Cache for admin verification (expires after 3 minutes)
-const verifyCache = new Map();
-const CACHE_DURATION = 3 * 60 * 1000; // 3 minutes
+const supabase = getSupabaseClient();
 
 /**
- * Verify if user is an admin (optimized with caching)
- * GET /api/admin/verify
+ * GET /api/admin/verify - Verify admin status (Clerk)
  */
 export async function GET(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
+        const { userId } = auth();
 
-        if (!token) {
-            return NextResponse.json({ isAdmin: false, error: 'No token provided' }, { status: 401 });
+        if (!userId) {
+            return NextResponse.json({ isAdmin: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Check cache first
-        const cached = verifyCache.get(token);
-        if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-            return NextResponse.json({
-                ...cached.data,
-                cached: true
-            });
+        // Verify against DB
+        const isAdmin = await verifyAdmin(userId);
+
+        if (!isAdmin) {
+            return NextResponse.json({ isAdmin: false, error: 'Not an admin' }, { status: 403 });
         }
 
-        // Verify the token and get user
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-        if (authError || !user) {
-            return NextResponse.json({ isAdmin: false, error: 'Invalid token' }, { status: 401 });
-        }
-
-        // Check admin status from user_profiles
-        const { data: profile, error: profileError } = await supabase
+        // Get user profile details
+        const { data: profile } = await supabase
             .from('user_profiles')
-            .select('is_admin, subscription_tier, full_name')
-            .eq('id', user.id)
-            .maybeSingle();
+            .select('email, full_name, subscription_tier')
+            .eq('id', userId)
+            .single();
 
-        if (profileError || !profile) {
-            return NextResponse.json({ isAdmin: false, error: 'Profile not found' }, { status: 404 });
-        }
-
-        const responseData = {
-            isAdmin: profile.is_admin || false,
+        return NextResponse.json({
+            isAdmin: true,
             user: {
-                id: user.id,
-                email: user.email,
-                fullName: profile.full_name,
-                tier: profile.subscription_tier
+                id: userId,
+                email: profile?.email,
+                fullName: profile?.full_name,
+                tier: profile?.subscription_tier
             }
-        };
-
-        // Cache successful admin verifications
-        if (responseData.isAdmin) {
-            verifyCache.set(token, {
-                data: responseData,
-                timestamp: Date.now()
-            });
-        }
-
-        return NextResponse.json(responseData);
+        });
 
     } catch (error) {
         console.error('Admin verify error:', error);

@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
 // GET - List all saved sessions for the user (excluding soft-deleted ones)
 export async function GET(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-        if (authError || !user) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -20,7 +14,7 @@ export async function GET(req) {
         const { data: sessions, error } = await supabaseAdmin
             .from('saved_sessions')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .eq('is_deleted', false)
             .order('updated_at', { ascending: false });
 
@@ -31,14 +25,14 @@ export async function GET(req) {
                 const { data: fallbackSessions, error: fallbackError } = await supabaseAdmin
                     .from('saved_sessions')
                     .select('*')
-                    .eq('user_id', user.id)
+                    .eq('user_id', userId)
                     .order('updated_at', { ascending: false });
 
                 if (fallbackError) {
                     return NextResponse.json({ sessions: [] });
                 }
 
-                // Filter out deleted sessions client-side if is_deleted exists
+                // Filter out deleted sessions client-side
                 const activeSessions = (fallbackSessions || []).filter(s => !s.is_deleted);
                 return NextResponse.json({ sessions: activeSessions });
             }
@@ -46,7 +40,6 @@ export async function GET(req) {
         }
 
         return NextResponse.json({ sessions: sessions || [] });
-
 
     } catch (error) {
         console.error('List sessions error:', error);
@@ -57,15 +50,8 @@ export async function GET(req) {
 // POST - Save current progress as a new named session
 export async function POST(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-        if (authError || !user) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -79,7 +65,7 @@ export async function POST(req) {
         const { data, error } = await supabaseAdmin
             .from('saved_sessions')
             .insert({
-                user_id: user.id,
+                user_id: userId,
                 session_name: sessionName,
                 current_step: currentStep || 1,
                 completed_steps: completedSteps || [],
@@ -91,7 +77,6 @@ export async function POST(req) {
                 status: (completedSteps?.length >= 12) ? 'completed' : 'in_progress',
                 is_deleted: false,  // Not deleted
                 updated_at: new Date().toISOString()
-
             })
             .select()
             .single();
@@ -109,15 +94,8 @@ export async function POST(req) {
 // DELETE - Soft delete a saved session (keeps data for admin, hides from user)
 export async function DELETE(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-        if (authError || !user) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -128,8 +106,7 @@ export async function DELETE(req) {
             return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
         }
 
-        // SOFT DELETE: Mark as deleted instead of actually deleting
-        // This keeps the data for admin but hides it from the user
+        // SOFT DELETE: Mark as deleted
         const { error } = await supabaseAdmin
             .from('saved_sessions')
             .update({
@@ -138,19 +115,15 @@ export async function DELETE(req) {
                 updated_at: new Date().toISOString()
             })
             .eq('id', sessionId)
-            .eq('user_id', user.id);
+            .eq('user_id', userId);
 
         if (error) {
-            // If is_deleted column doesn't exist, try hard delete as fallback
-            console.error('Soft delete error, attempting fallback:', error);
-
-
-            // Fallback: hard delete if soft delete fails
+            // Fallback: hard delete if soft delete fails (e.g. column missing)
             const { error: hardDeleteError } = await supabaseAdmin
                 .from('saved_sessions')
                 .delete()
                 .eq('id', sessionId)
-                .eq('user_id', user.id);
+                .eq('user_id', userId);
 
             if (hardDeleteError) throw hardDeleteError;
         }

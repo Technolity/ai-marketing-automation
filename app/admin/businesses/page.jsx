@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import {
     useReactTable,
     getCoreRowModel,
@@ -52,8 +53,7 @@ export default function AdminBusinesses() {
                 search: globalFilter
             });
 
-            const response = await fetch(`/api/admin/businesses?${params}`, {
-                headers: { 'Authorization': `Bearer ${session.access_token}` },
+            const response = await fetchWithAuth(`/api/admin/businesses?${params}`, {
                 signal: controller.signal
             });
 

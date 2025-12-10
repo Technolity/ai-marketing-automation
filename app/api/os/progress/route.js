@@ -1,18 +1,12 @@
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
 // GET - Load user's wizard progress
 export async function GET(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-        if (authError || !user) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -20,13 +14,12 @@ export async function GET(req) {
         const { data: progress, error } = await supabaseAdmin
             .from('wizard_progress')
             .select('*')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .single();
 
         // If table doesn't exist, return empty state (localStorage will be used as fallback)
         if (error) {
             if (error.code === 'PGRST205' || error.code === '42P01') {
-                // Table doesn't exist - return empty state, client uses localStorage
                 return NextResponse.json({
                     exists: false,
                     useLocalStorage: true,
@@ -37,8 +30,7 @@ export async function GET(req) {
                     isComplete: false
                 });
             }
-
-            // PGRST116 = no rows found, which is OK for new users
+            // PGRST116 = no rows found
             if (error.code !== 'PGRST116') {
                 console.error('Progress fetch error:', error);
             }
@@ -57,7 +49,6 @@ export async function GET(req) {
             });
         }
 
-        // No progress found - return default
         return NextResponse.json({
             exists: false,
             useLocalStorage: false,
@@ -70,31 +61,15 @@ export async function GET(req) {
 
     } catch (error) {
         console.error('Load progress error:', error);
-        // Return fallback on any error
-        return NextResponse.json({
-            exists: false,
-            useLocalStorage: true,
-            currentStep: 1,
-            completedSteps: [],
-            answers: {},
-            generatedContent: {},
-            isComplete: false
-        });
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
 
 // POST - Save user's wizard progress
 export async function POST(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-        if (authError || !user) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -104,7 +79,7 @@ export async function POST(req) {
         const { data, error } = await supabaseAdmin
             .from('wizard_progress')
             .upsert({
-                user_id: user.id,
+                user_id: userId,
                 current_step: currentStep,
                 completed_steps: completedSteps,
                 answers: answers,
@@ -118,7 +93,6 @@ export async function POST(req) {
             .single();
 
         if (error) {
-            // If table doesn't exist, client should use localStorage
             if (error.code === 'PGRST205' || error.code === '42P01') {
                 return NextResponse.json({
                     success: false,
@@ -137,35 +111,18 @@ export async function POST(req) {
 
     } catch (error) {
         console.error('Save progress error:', error);
-        return NextResponse.json({
-            success: false,
-            useLocalStorage: true,
-            error: error.message
-        });
+        return NextResponse.json({ success: false, error: error.message });
     }
 }
 
 // PUT - Update a specific step (for "Changed my mind" feature)
 export async function PUT(req) {
     try {
-        const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-        if (!token) {
+        const { userId } = auth();
+        if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-
-        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-        if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // This is handled client-side with localStorage fallback
-        return NextResponse.json({
-            success: true,
-            message: 'Use client-side update'
-        });
-
+        return NextResponse.json({ success: true, message: 'Use client-side update' });
     } catch (error) {
         console.error('Update step error:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });

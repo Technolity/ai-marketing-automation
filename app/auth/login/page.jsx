@@ -1,96 +1,79 @@
 // app/auth/login/page.jsx
 "use client";
 import { useState, useEffect } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useSignIn, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function Login() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const { isSignedIn } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
 
-  // Check for existing session on mount
+  // Redirect if already signed in
   useEffect(() => {
-    let mounted = true;
-
-    const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (mounted && session?.user) {
-          // Check if admin - redirect to appropriate dashboard
-          const { data: profile } = await supabase
-            .from('user_profiles')
-            .select('is_admin')
-            .eq('id', session.user.id)
-            .single();
-
-          if (profile?.is_admin) {
-            // Admin trying to use user login - redirect to admin
-            router.replace("/admin/overview");
-          } else {
-            // Regular user - redirect to user dashboard
-            router.replace("/dashboard");
-          }
-        }
-      } catch (error) {
-        console.error("Session check error:", error);
-      } finally {
-        if (mounted) setChecking(false);
-      }
-    };
-
-    checkSession();
-
-    return () => {
-      mounted = false;
-    };
-  }, [supabase, router]);
+    if (isSignedIn) {
+      router.push("/dashboard");
+    }
+  }, [isSignedIn, router]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!isLoaded) return;
+
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
+      const result = await signIn.create({
+        identifier: email,
+        password: password,
       });
 
-      if (error) throw error;
+      if (result.status === "complete") {
+        // Set the session as active
+        await setActive({ session: result.createdSessionId });
 
-      // Check if the user is an admin
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('is_admin')
-        .eq('id', data.user.id)
-        .single();
-
-      if (profile?.is_admin) {
-        // Admin trying to login through user portal - redirect to admin
-        toast.info("You're an admin! Redirecting to admin panel...");
-        window.location.href = "/admin/overview";
-      } else {
         toast.success("Logged in successfully!");
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
+      } else if (result.status === "needs_first_factor") {
+        // This shouldn't happen with password auth, but handle it
+        toast.error("Please enter your password.");
+      } else if (result.status === "needs_second_factor") {
+        toast.error("Two-factor authentication required. Disable 2FA in Clerk dashboard or add 2FA support.");
+      } else if (result.status === "needs_new_password") {
+        toast.error("Password reset required.");
+      } else {
+        console.log("Sign in status:", result.status, result);
+        toast.error(`Login status: ${result.status}. Check console for details.`);
       }
     } catch (error) {
-      toast.error(error.message || "Login failed");
+      console.error("Login error:", error);
+      const errorCode = error.errors?.[0]?.code;
+      const errorMessage = error.errors?.[0]?.longMessage || error.errors?.[0]?.message || error.message || "Login failed";
+
+      if (errorCode === "form_password_incorrect") {
+        toast.error("Incorrect password.");
+      } else if (errorCode === "form_identifier_not_found") {
+        toast.error("No account with this email.");
+      } else {
+        toast.error(errorMessage);
+      }
+    } finally {
       setLoading(false);
     }
   };
 
-  // Show loading while checking session
-  if (checking) {
+  // Show loading while Clerk initializes
+  if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-dark">
-        <div className="w-10 h-10 border-4 border-cyan border-t-transparent rounded-full animate-spin" />
+        <Loader2 className="w-10 h-10 text-cyan animate-spin" />
       </div>
     );
   }
@@ -147,7 +130,7 @@ export default function Login() {
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
-                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                <Loader2 className="w-5 h-5 animate-spin" />
                 Logging in...
               </span>
             ) : (

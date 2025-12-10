@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import {
     FileText,
     Edit,
@@ -47,8 +48,7 @@ export default function AdminContentReview() {
                 limit: pagination.limit.toString(),
             });
 
-            const response = await fetch(`/api/admin/content-review?${params}`, {
-                headers: { 'Authorization': `Bearer ${session.access_token}` },
+            const response = await fetchWithAuth(`/api/admin/content-review?${params}`, {
                 signal: controller.signal
             });
 
@@ -78,12 +78,8 @@ export default function AdminContentReview() {
 
     const handleSave = async (id) => {
         try {
-            const response = await fetch('/api/admin/content-review', {
+            const response = await fetchWithAuth('/api/admin/content-review', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify({
                     id,
                     aiOutput: editedContent,
@@ -110,12 +106,8 @@ export default function AdminContentReview() {
 
     const handleApprove = async (id) => {
         try {
-            const response = await fetch('/api/admin/content-review', {
+            const response = await fetchWithAuth('/api/admin/content-review', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${session.access_token}`
-                },
                 body: JSON.stringify({
                     id,
                     approved: true

@@ -1,58 +1,46 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { motion } from "framer-motion";
 import {
     Loader2, Play, Sparkles, ArrowRight, MessageSquare, Target, Gift, Video
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import OSWizard from "@/components/OSWizard";
 
 export default function Dashboard() {
     const router = useRouter();
-    const supabase = createClientComponentClient();
+    const { session, loading: authLoading } = useAuth(); // Use Clerk auth
     const [isLoading, setIsLoading] = useState(true);
     const [hasExistingData, setHasExistingData] = useState(false);
     const [showWelcome, setShowWelcome] = useState(false);
 
+    // Prop to force OSWizard to start at Step 1 immediately
+    const [forceStartNew, setForceStartNew] = useState(false);
+
     useEffect(() => {
+        if (authLoading) return;
+
+        if (!session) {
+            router.push("/auth/login");
+            return;
+        }
+
+        setIsLoading(false);
         let mounted = true;
 
         const checkUserData = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
-
-                if (!session) {
-                    router.push("/auth/login");
-                    return;
-                }
-
                 if (!mounted) return;
 
-                // Check localStorage first for existing data
-                const localProgress = localStorage.getItem(`wizard_progress_${session.user.id}`);
-                if (localProgress) {
-                    try {
-                        const parsed = JSON.parse(localProgress);
-                        if (parsed.completedSteps && parsed.completedSteps.length > 0) {
-                            setHasExistingData(true);
-                            setShowWelcome(false);
-                            setIsLoading(false);
-                            return;
-                        }
-                    } catch (e) {
-                        console.warn('Invalid local progress data');
-                    }
-                }
+                // Ensure user profile exists in database (auto-creates if missing)
+                await fetch("/api/user/tier");
 
                 // Check database for saved sessions
                 try {
-                    const sessionsRes = await fetch("/api/os/sessions", {
-                        headers: {
-                            "Authorization": `Bearer ${session.access_token}`
-                        }
-                    });
+                    // Uses cookie-based auth via middleware
+                    const sessionsRes = await fetch("/api/os/sessions");
 
                     if (sessionsRes.ok && mounted) {
                         const sessionsData = await sessionsRes.json();
@@ -80,13 +68,10 @@ export default function Dashboard() {
                         setShowWelcome(true);
                     }
                 }
-
-                if (mounted) setIsLoading(false);
             } catch (error) {
                 console.error('Check user data error:', error);
                 if (mounted) {
                     setShowWelcome(true);
-                    setIsLoading(false);
                 }
             }
         };
@@ -96,9 +81,8 @@ export default function Dashboard() {
         return () => {
             mounted = false;
         };
-    }, [supabase, router]);
+    }, [session, authLoading, router]);
 
-    // Show loading spinner
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center bg-[#0e0e0f]">
@@ -107,11 +91,9 @@ export default function Dashboard() {
         );
     }
 
-    // Show welcome screen for new users
     if (showWelcome) {
         return (
             <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center px-6 relative overflow-hidden pt-20">
-                {/* Background Effects */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-cyan/10 rounded-full blur-[120px] pointer-events-none" />
                 <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-cyan/8 rounded-full blur-[150px] pointer-events-none" />
 
@@ -121,7 +103,6 @@ export default function Dashboard() {
                     transition={{ duration: 0.6 }}
                     className="max-w-5xl w-full relative z-10"
                 >
-                    {/* Welcome Card */}
                     <div className="glass-card p-12 rounded-3xl border border-cyan/30">
                         <div className="text-center mb-10">
                             <motion.div
@@ -141,37 +122,22 @@ export default function Dashboard() {
                             </p>
                         </div>
 
-                        {/* Video Placeholder */}
+                        {/* Video Info */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.4 }}
-                            className="mb-10"
+                            className="mb-10 text-center"
                         >
-                            <div className="relative aspect-video bg-gradient-to-br from-cyan/10 to-cyan/5 rounded-2xl border border-cyan/30 overflow-hidden group cursor-pointer hover:border-cyan/50 transition-all">
-                                {/* Video Thumbnail/Placeholder */}
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="text-center">
-                                        <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-cyan/20 group-hover:bg-cyan/30 transition-all mb-4">
-                                            <Video className="w-12 h-12 text-cyan" />
-                                        </div>
-                                        <h3 className="text-2xl font-bold text-white mb-2">Meet Ted</h3>
-                                        <p className="text-gray-400">
-                                            Watch this 2-minute intro to see what TedOS will do for you
-                                        </p>
-                                        <div className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-cyan/10 hover:bg-cyan/20 text-cyan rounded-full transition-all">
-                                            <Play className="w-5 h-5" />
-                                            <span className="font-semibold">Play Introduction</span>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="p-6 bg-[#1b1b1d] rounded-xl border border-[#2a2a2d] inline-block">
+                                <p className="text-gray-400 flex items-center gap-2">
+                                    <Video className="w-5 h-5 text-cyan" />
+                                    Watch the intro video to see the power of TedOS
+                                </p>
                             </div>
-                            <p className="text-sm text-gray-500 text-center mt-4">
-                                💡 Pro tip: Have your business info ready for faster completion
-                            </p>
                         </motion.div>
 
-                        {/* Start Button - Moved to TOP */}
+                        {/* Start Button */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -179,12 +145,8 @@ export default function Dashboard() {
                             className="text-center mb-10"
                         >
                             <button
-                                onClick={async () => {
-                                    const { data: { session } } = await supabase.auth.getSession();
-                                    if (session) {
-                                        // Set flag to start at step 1
-                                        localStorage.setItem(`start_questionnaire_${session.user.id}`, 'true');
-                                    }
+                                onClick={() => {
+                                    setForceStartNew(true); // Tell Wizard to start at Step 1
                                     setShowWelcome(false);
                                     setHasExistingData(true);
                                     toast.success("Let's build your business!");
@@ -195,11 +157,10 @@ export default function Dashboard() {
                                 <ArrowRight className="w-6 h-6" />
                             </button>
                             <p className="text-sm text-gray-500 mt-4">
-                                Takes 10-15 minutes • Save your progress anytime • No credit card required
+                                Takes 10-15 minutes • Save your progress anytime
                             </p>
                         </motion.div>
 
-                        {/* What You'll Create */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -235,6 +196,6 @@ export default function Dashboard() {
         );
     }
 
-    // Show OSWizard for users with data
-    return <OSWizard />;
+    // Only render OSWizard if we have data or started new
+    return <OSWizard startAtStepOne={forceStartNew} />;
 }

@@ -45,7 +45,7 @@ export default function AdminLayout({ children }) {
         setHasChecked(true);
 
         if (!user) {
-            window.location.href = "/auth/admin/login";
+            window.location.href = "/admin/login";
             return;
         }
 

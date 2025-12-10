@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { auth } from '@clerk/nextjs';
 
 // Import individual prompts from the prompts directory
 import { idealClientPrompt } from '@/lib/prompts/idealClient';
@@ -38,6 +39,7 @@ const osPrompts = {
   12: program12MonthPrompt,
   13: youtubeShowPrompt,
   14: contentPillarsPrompt
+  // 15: customPrompt // To add custom prompts: 1. Import above, 2. Add here with next ID, 3. Add to CONTENT_NAMES below
 };
 
 // CORRECTED: Map each step to what content CAN be properly generated with available data
@@ -233,17 +235,11 @@ const CONTENT_NAMES = {
 
 export async function POST(req) {
   try {
-    const token = req.headers.get('authorization')?.replace('Bearer ', '');
-
-    if (!token) {
+    const { userId } = auth();
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const user = { id: userId };
 
     const { step, data, completedSteps } = await req.json();
 
@@ -267,7 +263,7 @@ export async function POST(req) {
 
       try {
         let prompt;
-        let systemPrompt = "You are a world-class business growth strategist. Return strictly valid JSON. Keep responses concise but valuable.";
+        let systemPrompt = "You are an elite business growth strategist and expert copywriter. Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets. Avoid generic advice. Return strictly valid JSON.";
 
         // Check if this step has a custom prompt function or uses a preset prompt
         if (previewConfig.promptFn) {
@@ -340,7 +336,7 @@ export async function POST(req) {
             messages: [
               {
                 role: "system",
-                content: "You are a world-class business growth strategist and marketing expert. You help established business owners scale their products and services. Return strictly valid JSON with detailed, actionable content."
+                content: "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. Return strictly valid JSON."
               },
               { role: "user", content: prompt }
             ],
