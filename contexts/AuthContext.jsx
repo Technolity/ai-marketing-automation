@@ -19,7 +19,7 @@ function ClerkAuthProvider({ children }) {
     const { user: clerkUser, isLoaded } = useUser();
     const { signOut: clerkSignOut } = useClerk();
     const [isAdmin, setIsAdmin] = useState(false);
-    const [adminChecked, setAdminChecked] = useState(false);
+    const [userSynced, setUserSynced] = useState(false);
 
     // Map Clerk user to our AuthContext shape
     const user = clerkUser ? {
@@ -38,27 +38,49 @@ function ClerkAuthProvider({ children }) {
         expires_at: Date.now() + 86400000 // Clerk handles expiry
     } : null;
 
-    // Fetch admin status from DATABASE (not Clerk metadata)
+    // Sync user to Supabase and fetch admin status on login
     useEffect(() => {
-        if (clerkUser && isLoaded && !adminChecked) {
-            checkAdminStatus();
+        if (clerkUser && isLoaded && !userSynced) {
+            syncUserAndCheckAdmin();
         }
         if (!clerkUser && isLoaded) {
             setIsAdmin(false);
-            setAdminChecked(true);
+            setUserSynced(false);
         }
     }, [clerkUser, isLoaded]);
 
-    const checkAdminStatus = async () => {
+    const syncUserAndCheckAdmin = async () => {
         try {
-            const res = await fetch('/api/admin/verify');
-            const data = await res.json();
-            setIsAdmin(data.isAdmin === true);
+            console.log('[AuthContext] Syncing user to database...');
+
+            // First, sync user to Supabase
+            const syncRes = await fetch('/api/users/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: clerkUser.primaryEmailAddress?.emailAddress,
+                    fullName: `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim()
+                })
+            });
+
+            const syncData = await syncRes.json();
+            if (syncData.success) {
+                console.log('[AuthContext] User synced successfully:', syncData.message);
+            } else {
+                console.error('[AuthContext] User sync failed:', syncData.error);
+            }
+
+            // Then check admin status
+            const adminRes = await fetch('/api/admin/verify');
+            const adminData = await adminRes.json();
+            setIsAdmin(adminData.isAdmin === true);
+
+            console.log('[AuthContext] Admin status:', adminData.isAdmin);
         } catch (error) {
-            console.error('Admin check error:', error);
+            console.error('[AuthContext] Sync/admin check error:', error);
             setIsAdmin(false);
         } finally {
-            setAdminChecked(true);
+            setUserSynced(true);
         }
     };
 
@@ -66,7 +88,7 @@ function ClerkAuthProvider({ children }) {
     const signOut = async () => {
         await clerkSignOut();
         setIsAdmin(false);
-        setAdminChecked(false);
+        setUserSynced(false);
         window.location.href = '/';
     };
 
@@ -79,7 +101,8 @@ function ClerkAuthProvider({ children }) {
         user,
         session,
         isAdmin,
-        loading: !isLoaded || !adminChecked,
+        loading: !isLoaded || (clerkUser && !userSynced),
+        authLoading: !isLoaded || (clerkUser && !userSynced),
         switchUser,
         signOut
     };

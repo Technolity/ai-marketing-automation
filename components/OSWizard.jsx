@@ -129,7 +129,12 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     // View Management - initialize based on mode prop
     const [viewMode, setViewMode] = useState(mode === 'intake' ? 'step' : 'dashboard'); // 'dashboard' or 'step'
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [currentStep, setCurrentStep] = useState(null);
+    // Initialize currentStep to 1 if in intake mode (prevents render errors)
+    const [currentStep, setCurrentStep] = useState(() => {
+        const initialStep = mode === 'intake' ? 1 : null;
+        console.log('[OSWizard] Initial currentStep:', initialStep, 'mode:', mode);
+        return initialStep;
+    });
 
     // Data Management
     const [completedSteps, setCompletedSteps] = useState([]);
@@ -1678,6 +1683,15 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         );
     }
 
+    // Guard: Ensure currentStep is valid before rendering step view
+    if (!currentStep || currentStep < 1 || currentStep > STEPS.length) {
+        console.warn('[OSWizard] Invalid currentStep:', currentStep, '- showing loading');
+        return (
+            <div className="flex h-screen items-center justify-center bg-[#0e0e0f]">
+                <Loader2 className="w-10 h-10 text-cyan animate-spin" />
+            </div>
+        );
+    }
 
     // Step View with Sidebar
     const CurrentIcon = STEPS[currentStep - 1].icon;

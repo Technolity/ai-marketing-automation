@@ -27,9 +27,59 @@ export default function Dashboard() {
             return;
         }
 
-        // No redirects - always show dashboard for authenticated users
-        console.log('[Dashboard] User authenticated, showing dashboard grid');
-        setIsLoading(false);
+        console.log('[Dashboard] User authenticated, checking for progress');
+
+        const checkUserProgress = async () => {
+            try {
+                // Check localStorage for in-progress work
+                const localProgress = localStorage.getItem(`wizard_progress_${session.user.id}`);
+                console.log('[Dashboard] Local progress:', localProgress ? 'Found' : 'Not found');
+
+                if (localProgress) {
+                    const savedProgress = JSON.parse(localProgress);
+                    console.log('[Dashboard] Saved progress:', savedProgress);
+                    console.log('[Dashboard] Completed steps:', savedProgress.completedSteps?.length || 0);
+                    console.log('[Dashboard] Answers:', Object.keys(savedProgress.answers || {}).length);
+
+                    // If user has ANY progress (completed steps OR any answers), show dashboard
+                    if (savedProgress.completedSteps?.length > 0 ||
+                        (savedProgress.answers && Object.keys(savedProgress.answers).length > 0)) {
+                        console.log('[Dashboard] Found localStorage progress - showing grid');
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                // Check database for saved sessions
+                console.log('[Dashboard] Checking database for saved sessions');
+                const sessionsRes = await fetch("/api/os/sessions");
+                if (sessionsRes.ok) {
+                    const sessionsData = await sessionsRes.json();
+                    console.log('[Dashboard] Database sessions:', sessionsData.sessions?.length || 0);
+
+                    // If user has ANY saved sessions, show dashboard
+                    if (sessionsData.sessions?.length > 0) {
+                        console.log('[Dashboard] Found saved sessions, showing grid');
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                // No progress found - redirect new users to introduction
+                console.log('[Dashboard] No progress found - new user detected');
+                console.log('[Dashboard] Redirecting to /introduction for onboarding');
+                router.push("/introduction");
+                return;
+            } catch (error) {
+                console.error('[Dashboard] Check progress error:', error);
+                // On error, redirect to introduction as safe fallback
+                console.log('[Dashboard] Error occurred, redirecting to introduction as fallback');
+                router.push("/introduction");
+                return;
+            }
+        };
+
+        checkUserProgress();
     }, [session, authLoading, router]);
 
     if (authLoading || isLoading) {
