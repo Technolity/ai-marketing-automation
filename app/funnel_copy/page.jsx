@@ -1,367 +1,443 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Download, Copy, CheckCircle, Star, PlayCircle,
-  Shield, Zap, Target, TrendingUp, Users, Award, Clock, Sparkles
+  Shield, Zap, Target, TrendingUp, Users, Award, Clock, Sparkles,
+  Loader2, BookOpen, Rocket, ChevronRight, ChevronLeft, Layout, Smartphone, Monitor
 } from "lucide-react";
 import { toast } from "sonner";
 import Confetti from "react-confetti";
 
+// Building messages for progress animation
+const BUILDING_MESSAGES = [
+  "Analyzing your business data...",
+  "Crafting your headline copy...",
+  "Generating hero visuals...",
+  "Building Landing Page...",
+  "Creating Opt-in Form...",
+  "Designing Thank You Page...",
+  "Optimizing for conversions...",
+  "Adding final polish...",
+  "Your funnel is ready!"
+];
+
 export default function FunnelCopyPage() {
   const router = useRouter();
   const [funnelData, setFunnelData] = useState(null);
-  const [showConfetti, setShowConfetti] = useState(true);
+  const [generatedImages, setGeneratedImages] = useState([]);
+  const [isBuilding, setIsBuilding] = useState(true);
+  const [buildingMessage, setBuildingMessage] = useState(BUILDING_MESSAGES[0]);
+  const [buildProgress, setBuildProgress] = useState(0);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [imagesLoading, setImagesLoading] = useState(false);
 
+  // Preview State
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [viewMode, setViewMode] = useState('desktop'); // desktop | mobile
+
+  // Cycling through building messages
   useEffect(() => {
-    // Load funnel data from localStorage
-    const storedData = localStorage.getItem('funnel_data');
-    if (storedData) {
-      try {
-        setFunnelData(JSON.parse(storedData));
-      } catch (e) {
-        console.error('Failed to parse funnel data:', e);
-        toast.error('Failed to load funnel data');
-      }
-    }
+    if (!isBuilding) return;
 
-    // Set window size for confetti
-    setWindowSize({
-      width: window.innerWidth,
-      height: window.innerHeight
-    });
-
-    const handleResize = () => {
-      setWindowSize({
-        width: window.innerWidth,
-        height: window.innerHeight
+    const messageInterval = setInterval(() => {
+      setBuildProgress(prev => {
+        const newProgress = Math.min(prev + 12, 100);
+        const messageIndex = Math.min(
+          Math.floor((newProgress / 100) * BUILDING_MESSAGES.length),
+          BUILDING_MESSAGES.length - 1
+        );
+        setBuildingMessage(BUILDING_MESSAGES[messageIndex]);
+        return newProgress;
       });
+    }, 400);
+
+    return () => clearInterval(messageInterval);
+  }, [isBuilding]);
+
+  // Load funnel data and generate images
+  useEffect(() => {
+    const initializeFunnel = async () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+      window.addEventListener('resize', () => setWindowSize({ width: window.innerWidth, height: window.innerHeight }));
+
+      const storedData = localStorage.getItem('funnel_data');
+      if (storedData) {
+        try {
+          const data = JSON.parse(storedData);
+          setFunnelData(data);
+          const cachedImages = localStorage.getItem('funnel_images');
+          if (cachedImages) setGeneratedImages(JSON.parse(cachedImages));
+        } catch (e) {
+          console.error('Failed to parse funnel data:', e);
+        }
+      }
+
+      setTimeout(() => {
+        setIsBuilding(false);
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 5000);
+      }, 3500);
     };
 
-    window.addEventListener('resize', handleResize);
-
-    // Stop confetti after 5 seconds
-    const timer = setTimeout(() => {
-      setShowConfetti(false);
-    }, 5000);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(timer);
-    };
+    initializeFunnel();
   }, []);
+
+  const generateImages = async () => {
+    if (!funnelData) return;
+    setImagesLoading(true);
+    try {
+      const res = await fetch('/api/os/generate-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessData: funnelData })
+      });
+      const data = await res.json();
+      if (data.images) {
+        setGeneratedImages(data.images);
+        localStorage.setItem('funnel_images', JSON.stringify(data.images));
+        toast.success(`Generated ${data.count} AI images!`);
+      }
+    } catch (error) {
+      console.error('Image generation error:', error);
+      toast.error('Failed to generate images');
+    } finally {
+      setImagesLoading(false);
+    }
+  };
+
+  const getImage = (id) => {
+    const img = generatedImages.find(i => i.id === id);
+    return img?.url || null;
+  };
 
   const handleCopySection = (text) => {
     navigator.clipboard.writeText(text);
     toast.success('Copied to clipboard!');
   };
 
-  const handleDownloadFunnel = () => {
-    const htmlContent = generateFunnelHTML();
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'funnel-page.html';
-    link.click();
-    toast.success('Funnel downloaded!');
-  };
+  // Content Extraction
+  const businessName = funnelData?.idealClient?.businessName || "Your Business";
+  const headline = funnelData?.message?.headline || "Transform Your Results Today";
+  const subheadline = funnelData?.message?.subheadline || "Discover the proven system that will change everything";
+  const cta = funnelData?.callToAction?.primary || "Get Started Now";
+  const offerName = funnelData?.offerProgram?.programName || headline;
+  const features = funnelData?.deliverables?.features || [];
 
-  const generateFunnelHTML = () => {
-    // This would generate a complete HTML page with the funnel content
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>High-Converting Funnel</title>
-  <style>
-    /* Add your funnel styles here */
-  </style>
-</head>
-<body>
-  <!-- Funnel content will be generated here -->
-</body>
-</html>`;
-  };
-
-  if (!funnelData) {
-    return (
-      <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-400 mb-4">No funnel data found</p>
-          <button
-            onClick={() => router.push('/results')}
-            className="px-6 py-3 bg-cyan hover:brightness-110 rounded-lg font-semibold transition-all text-black"
-          >
-            Go to Results
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Extract key information from funnel data
-  const businessName = funnelData.idealClient?.businessName || "Your Business";
-  const headline = funnelData.message?.headline || "Transform Your Life Today";
-  const subheadline = funnelData.message?.subheadline || "Discover the proven system that will change everything";
-  const cta = funnelData.message?.cta || "Get Started Now";
-
-  return (
-    <div className="min-h-screen bg-[#0e0e0f] text-white">
-      {/* Confetti Effect */}
-      {showConfetti && (
-        <Confetti
-          width={windowSize.width}
-          height={windowSize.height}
-          recycle={false}
-          numberOfPieces={500}
-          gravity={0.3}
-        />
-      )}
-
-      {/* Top Navigation */}
-      <div className="sticky top-0 z-50 bg-[#0e0e0f]/95 backdrop-blur-sm border-b border-[#2a2a2d]">
-        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
-          <button
-            onClick={() => router.push('/results')}
-            className="text-gray-400 hover:text-white flex items-center gap-2 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back to Results
-          </button>
-          <div className="flex gap-3">
-            <button
-              onClick={handleDownloadFunnel}
-              className="px-4 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] border border-[#2a2a2d] rounded-lg font-medium flex items-center gap-2 transition-all text-sm"
-            >
-              <Download className="w-4 h-4" /> Download HTML
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Success Banner */}
-      <div className="bg-gradient-to-r from-green-600 to-emerald-600 py-4">
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="flex items-center justify-center gap-3">
-            <CheckCircle className="w-6 h-6" />
-            <p className="text-xl font-bold">Your Funnel is Ready!</p>
-            <Sparkles className="w-6 h-6" />
-          </div>
-        </div>
-      </div>
-
-      {/* Funnel Preview */}
-      <div className="max-w-6xl mx-auto px-8 py-12">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 text-center"
-        >
-          <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-            Your High-Converting Funnel
-          </h1>
-          <p className="text-gray-400">Preview your funnel page before deployment</p>
-        </motion.div>
-
-        {/* Funnel Page Preview */}
-        <div className="bg-white text-black rounded-2xl overflow-hidden shadow-2xl">
-          {/* Hero Section */}
-          <section className="relative bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 text-white py-20 px-8">
-            <div className="absolute top-4 right-4">
-              <button
-                onClick={() => handleCopySection(`${headline}\n${subheadline}`)}
-                className="px-3 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg flex items-center gap-2 text-sm transition-all"
-              >
-                <Copy className="w-4 h-4" /> Copy
-              </button>
-            </div>
-            <div className="max-w-4xl mx-auto text-center">
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-              >
-                <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-                  {headline}
+  // --- FUNNEL PAGES (SLIDES) with ViewMode awareness ---
+  const getSlides = (mode) => [
+    {
+      id: 'landing',
+      title: 'Landing Page',
+      component: (
+        <div className="bg-[#050505] text-white min-h-full font-inter">
+          {/* Landing Page Content - Green Theme */}
+          <section className={`relative ${mode === 'mobile' ? 'py-8 px-4' : 'py-16 px-8'}`}>
+            <div className={`max-w-4xl mx-auto flex ${mode === 'mobile' ? 'flex-col-reverse gap-8' : 'grid md:grid-cols-2 gap-12'} items-center`}>
+              <div className="text-left w-full">
+                <p className="text-green-500 text-sm font-bold uppercase tracking-widest mb-4">Free Book Offer</p>
+                <h1 className={`${mode === 'mobile' ? 'text-3xl' : 'text-4xl'} font-extrabold leading-tight mb-6`}>
+                  Get The <span className="text-green-500">Playbook</span> That <br />Changes Everything
                 </h1>
-                <p className="text-xl md:text-2xl mb-8 text-white/90">
-                  {subheadline}
-                </p>
-                <button className="px-8 py-4 bg-white text-purple-600 rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-2xl">
+                <p className={`text-gray-400 ${mode === 'mobile' ? 'text-base' : 'text-lg'} mb-8`}>{subheadline}</p>
+                <button className="w-full md:w-auto px-8 py-4 bg-green-500 hover:bg-green-600 text-black font-bold text-lg rounded-md shadow-lg shadow-green-500/20 transition-all">
                   {cta}
                 </button>
-              </motion.div>
-            </div>
-          </section>
-
-          {/* Video/Image Section */}
-          <section className="py-16 px-8 bg-gray-50">
-            <div className="max-w-4xl mx-auto">
-              <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden shadow-xl flex items-center justify-center">
-                <div className="absolute top-4 right-4 z-10">
-                  <button
-                    onClick={() => handleCopySection('Video Section')}
-                    className="px-3 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg flex items-center gap-2 text-sm transition-all text-white"
-                  >
-                    <Copy className="w-4 h-4" /> Copy
-                  </button>
-                </div>
-                <PlayCircle className="w-24 h-24 text-white/80" />
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                  <div className="text-center">
-                    <p className="text-white text-2xl font-bold mb-2">Watch Our Story</p>
-                    <p className="text-white/80">Discover how we can help you succeed</p>
+              </div>
+              <div className={`relative w-full ${mode === 'mobile' ? 'mb-4' : ''}`}>
+                {getImage('hero_book') ? (
+                  <img src={getImage('hero_book')} alt="Book" className={`mx-auto shadow-2xl rounded-sm transform ${mode === 'mobile' ? 'w-[60%] rotate-0' : 'w-[80%] rotate-[-5deg] hover:rotate-0'} transition-all duration-500`} />
+                ) : (
+                  <div className={`${mode === 'mobile' ? 'w-[200px] h-[300px]' : 'w-[280px] h-[400px]'} bg-gradient-to-br from-green-900 to-black border border-green-800 mx-auto flex items-center justify-center rounded-sm shadow-2xl`}>
+                    <BookOpen className="w-16 h-16 text-green-500 opacity-50" />
                   </div>
-                </div>
-                <img
-                  src="/funnel-images/placeholder-video.jpg"
-                  alt="Video Thumbnail"
-                  className="absolute inset-0 w-full h-full object-cover opacity-30"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
+                )}
               </div>
             </div>
           </section>
 
-          {/* Benefits Section */}
-          <section className="py-16 px-8 bg-white">
-            <div className="absolute top-4 right-4">
-              <button
-                onClick={() => handleCopySection('Benefits section content')}
-                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 text-sm transition-all"
-              >
-                <Copy className="w-4 h-4" /> Copy
-              </button>
-            </div>
-            <div className="max-w-6xl mx-auto">
-              <h2 className="text-4xl font-bold text-center mb-4">Why Choose Us?</h2>
-              <p className="text-xl text-gray-600 text-center mb-12">Everything you need to succeed</p>
-
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-                {[
-                  { icon: <Zap className="w-8 h-8" />, title: "Fast Results", desc: "See changes in weeks, not months" },
-                  { icon: <Shield className="w-8 h-8" />, title: "Proven System", desc: "Battle-tested with 1000+ clients" },
-                  { icon: <Target className="w-8 h-8" />, title: "Laser-Focused", desc: "Customized to your unique goals" },
-                  { icon: <Award className="w-8 h-8" />, title: "Award-Winning", desc: "Recognized industry leader" }
-                ].map((benefit, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="text-center p-6 bg-gray-50 rounded-xl hover:shadow-lg transition-shadow"
-                  >
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-600 text-white rounded-full mb-4">
-                      {benefit.icon}
-                    </div>
-                    <h3 className="text-xl font-bold mb-2">{benefit.title}</h3>
-                    <p className="text-gray-600">{benefit.desc}</p>
-                  </motion.div>
+          <section className="bg-[#0a0a0a] py-12 px-8">
+            <div className="max-w-4xl mx-auto">
+              <h3 className={`${mode === 'mobile' ? 'text-xl' : 'text-2xl'} font-bold text-center mb-10`}>What You'll Discover Inside...</h3>
+              <div className={`${mode === 'mobile' ? 'flex flex-col' : 'grid md:grid-cols-2'} gap-6`}>
+                {(features.length > 0 ? features.slice(0, 4) : [1, 2, 3, 4]).map((f, i) => (
+                  <div key={i} className="flex gap-4 p-4 bg-[#111] rounded-lg border border-white/5">
+                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
+                    <p className="text-gray-300 text-sm">{typeof f === 'string' ? f : "Unlock the secrets to massive growth and stability in your business."}</p>
+                  </div>
                 ))}
               </div>
             </div>
           </section>
+        </div>
+      )
+    },
+    {
+      id: 'optin',
+      title: 'Opt-in Page',
+      component: (
+        <div className="bg-[#050505] text-white min-h-full font-inter flex flex-col justify-center">
+          <div className={`max-w-5xl mx-auto w-full px-8 py-12 ${mode === 'mobile' ? 'flex flex-col gap-8' : 'grid md:grid-cols-2 gap-16'} items-center`}>
+            {/* Form Section First on Mobile? No, usually Promise then Form. Original layout was: Image(2->1), Form(1->2) with grid. */}
+            {/* Let's be explicit: Image then Form */}
 
-          {/* Social Proof Section */}
-          <section className="py-16 px-8 bg-gray-50 relative">
-            <div className="absolute top-4 right-4">
-              <button
-                onClick={() => handleCopySection('Testimonials section')}
-                className="px-3 py-2 bg-white hover:bg-gray-100 rounded-lg flex items-center gap-2 text-sm transition-all"
-              >
-                <Copy className="w-4 h-4" /> Copy
-              </button>
+            <div className={`w-full ${mode === 'mobile' ? 'order-1' : 'order-1'}`}>
+              {/* Changed order logic for clarity: always Image first visually if strictly defined, or swap.
+                  Design referenced had Image on Left (col 1), Form on Right (col 2).
+                  On mobile: Image Top, Form Bottom usually.
+                  Wait, code had: order-2 (Image) md:order-1. order-1 (Form) md:order-2. 
+                  So on mobile: Form is Top (order-1), Image is Bottom (order-2).
+                  Let's flip it for mobile to be Image Top (standard funnel).
+              */}
+              {getImage('hero_product') ? (
+                <img src={getImage('hero_product')} alt="Bundle" className="w-full rounded-lg shadow-2xl border border-white/10" />
+              ) : (
+                <div className="aspect-video bg-[#111] rounded-lg border border-dashed border-green-500/30 flex items-center justify-center">
+                  <p className="text-green-500">Product Bundle Image</p>
+                </div>
+              )}
             </div>
-            <div className="max-w-6xl mx-auto">
-              <h2 className="text-4xl font-bold text-center mb-4">Success Stories</h2>
-              <p className="text-xl text-gray-600 text-center mb-12">Join thousands of happy clients</p>
 
-              <div className="grid md:grid-cols-3 gap-8">
-                {[1, 2, 3].map((idx) => (
-                  <div key={idx} className="bg-white p-6 rounded-xl shadow-lg">
-                    <div className="flex items-center gap-1 mb-4">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                      ))}
+            <div className={`w-full bg-[#111] p-8 rounded-2xl border border-white/10 shadow-2xl ${mode === 'mobile' ? 'order-2' : 'order-2'}`}>
+              <div className="w-16 h-1 bg-green-500 mb-6"></div>
+              <h2 className={`${mode === 'mobile' ? 'text-2xl' : 'text-3xl'} font-bold mb-4`}>Where Should We Send Your Free Copy?</h2>
+              <p className="text-gray-400 mb-8">Enter your details below to get instant access to the full system.</p>
+
+              <div className="space-y-4">
+                <input type="text" placeholder="Your Name" className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-green-500 transition-colors" />
+                <input type="email" placeholder="Your Email Address" className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 focus:outline-none focus:border-green-500 transition-colors" />
+                <button className="w-full bg-green-500 hover:bg-green-600 text-black font-bold py-4 rounded-lg text-lg shadow-lg shadow-green-500/20 transition-all">
+                  Send Me The Book Now »
+                </button>
+              </div>
+              <p className="text-xs text-center text-gray-500 mt-4">We respect your privacy. Unsubscribe at any time.</p>
+            </div>
+          </div>
+        </div>
+      )
+    },
+    {
+      id: 'thankyou',
+      title: 'Thank You Page',
+      component: (
+        <div className="bg-[#050505] text-white min-h-full font-inter pt-12">
+          <div className="max-w-2xl mx-auto text-center px-8 mb-12">
+            <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-green-500" />
+            </div>
+            <h1 className={`${mode === 'mobile' ? 'text-3xl' : 'text-4xl'} font-bold mb-4`}>You're All Set!</h1>
+            <p className={`${mode === 'mobile' ? 'text-lg' : 'text-xl'} text-gray-400`}>Please check your email inbox for your access link. It should arrive in the next 5 minutes.</p>
+          </div>
+
+          <div className="bg-[#111] py-16 px-8 border-t border-white/5">
+            <div className="max-w-4xl mx-auto">
+              <h3 className="text-center text-2xl font-bold mb-12">See What Others Are Saying</h3>
+              <div className={`${mode === 'mobile' ? 'flex flex-col' : 'grid md:grid-cols-2'} gap-8`}>
+                {[1, 2].map((i) => (
+                  <div key={i} className="bg-black/40 p-6 rounded-xl border border-white/5">
+                    <div className="flex gap-1 mb-4">
+                      {[1, 2, 3, 4, 5].map(s => <Star key={s} className="w-4 h-4 text-yellow-500 fill-yellow-500" />)}
                     </div>
-                    <p className="text-gray-700 mb-4 italic">
-                      "This completely transformed my business. I saw results within the first week!"
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full"></div>
+                    <p className="text-gray-300 italic mb-6">"This system completely revolutionized how I approach my business. Highly recommended!"</p>
+                    <div className="flex items-center gap-4">
+                      {getImage(`testimonial_${i}`) ? (
+                        <img src={getImage(`testimonial_${i}`)} alt="User" className="w-12 h-12 rounded-full object-cover border-2 border-green-500" />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-[#222] border-2 border-green-500"></div>
+                      )}
                       <div>
-                        <p className="font-bold">Client Name</p>
-                        <p className="text-sm text-gray-600">Business Owner</p>
+                        <p className="font-bold">Happy Client</p>
+                        <p className="text-xs text-gray-500">Business Owner</p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-          </section>
+          </div>
+        </div>
+      )
+    }
+  ];
 
-          {/* Stats Section */}
-          <section className="py-16 px-8 bg-gradient-to-br from-purple-600 to-blue-600 text-white relative">
-            <div className="absolute top-4 right-4">
-              <button
-                onClick={() => handleCopySection('Stats section')}
-                className="px-3 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg flex items-center gap-2 text-sm transition-all"
-              >
-                <Copy className="w-4 h-4" /> Copy
-              </button>
+  const currentSlides = getSlides(viewMode);
+
+  if (isBuilding) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-md px-6">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+            className="w-24 h-24 mx-auto mb-8 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/20"
+          >
+            <Rocket className="w-12 h-12 text-white" />
+          </motion.div>
+          <div className="mb-6">
+            <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
+              <motion.div className="h-full bg-gradient-to-r from-cyan-400 to-blue-500" initial={{ width: "0%" }} animate={{ width: `${buildProgress}%` }} />
             </div>
-            <div className="max-w-6xl mx-auto">
-              <div className="grid md:grid-cols-4 gap-8 text-center">
-                {[
-                  { icon: <Users className="w-8 h-8" />, value: "10,000+", label: "Happy Clients" },
-                  { icon: <TrendingUp className="w-8 h-8" />, value: "250%", label: "Average Growth" },
-                  { icon: <Clock className="w-8 h-8" />, value: "24/7", label: "Support" },
-                  { icon: <Award className="w-8 h-8" />, value: "15+", label: "Industry Awards" }
-                ].map((stat, idx) => (
-                  <div key={idx}>
-                    <div className="inline-flex items-center justify-center mb-3">
-                      {stat.icon}
-                    </div>
-                    <p className="text-4xl font-bold mb-2">{stat.value}</p>
-                    <p className="text-white/80">{stat.label}</p>
+            <p className="text-sm text-cyan-400 mt-2 font-medium">{buildProgress}% Complete</p>
+          </div>
+          <p className="text-xl text-white font-medium mb-4">{buildingMessage}</p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (!funnelData) return null;
+
+  return (
+    <div className="min-h-screen bg-[#0e0e10] text-white flex flex-col h-screen overflow-hidden">
+      {/* APP HEADER - Cyan Theme (App Context) */}
+      <div className="h-16 bg-[#0a0a0b] border-b border-[#1a1a1a] flex items-center justify-between px-6 flex-shrink-0 z-50">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.push('/results')} className="text-gray-400 hover:text-white flex items-center gap-2 text-sm transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <div className="h-6 w-px bg-[#2a2a2a]"></div>
+          <h1 className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            Funnel Builder
+          </h1>
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* View Mode Toggles */}
+          <div className="hidden md:flex bg-[#1a1a1a] rounded-lg p-1 border border-[#2a2a2a]">
+            <button
+              onClick={() => setViewMode('desktop')}
+              className={`p-2 rounded-md transition-all ${viewMode === 'desktop' ? 'bg-[#2a2a2a] text-cyan-400' : 'text-gray-500 hover:text-white'}`}
+            >
+              <Monitor className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('mobile')}
+              className={`p-2 rounded-md transition-all ${viewMode === 'mobile' ? 'bg-[#2a2a2a] text-cyan-400' : 'text-gray-500 hover:text-white'}`}
+            >
+              <Smartphone className="w-4 h-4" />
+            </button>
+          </div>
+
+          <button onClick={generateImages} disabled={imagesLoading} className="px-3 py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-[#2a2a2a] rounded-lg font-medium flex items-center gap-2 text-sm text-cyan-400">
+            {imagesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            <span>Generate Visuals</span>
+          </button>
+
+          <button className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110 rounded-lg font-bold text-sm text-white shadow-lg shadow-cyan-500/20">
+            Publish Funnel
+          </button>
+        </div>
+      </div>
+
+      {/* MAIN LAYOUT: Sidebar (Slides) + Preview Area */}
+      <div className="flex-1 flex overflow-hidden">
+
+        {/* LEFT SIDEBAR - Funnel Steps Navigation */}
+        <div className="w-64 bg-[#0a0a0b] border-r border-[#1a1a1a] flex flex-col">
+          <div className="p-4 border-b border-[#1a1a1a]">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Funnel Steps</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {currentSlides.map((slide, index) => (
+              <button
+                key={slide.id}
+                onClick={() => setCurrentSlide(index)}
+                className={`w-full text-left p-3 rounded-lg border transition-all flex items-center gap-3 ${currentSlide === index
+                    ? 'bg-[#1a1a1a] border-cyan-500/50 text-white shadow-md'
+                    : 'bg-transparent border-transparent text-gray-500 hover:bg-[#111] hover:text-gray-300'
+                  }`}
+              >
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${currentSlide === index ? 'bg-cyan-500 text-black' : 'bg-[#222] text-gray-500'
+                  }`}>
+                  {index + 1}
+                </div>
+                <span className="text-sm font-medium">{slide.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* PREVIEW AREA */}
+        <div className="flex-1 bg-[#151515] flex items-center justify-center p-8 relative">
+
+          {/* Confetti */}
+          {showConfetti && <Confetti width={windowSize.width} height={windowSize.height} recycle={false} numberOfPieces={500} colors={['#22d3ee', '#06b6d4', '#ffffff']} />}
+
+          {/* Device Frame */}
+          <motion.div
+            initial={false}
+            animate={{
+              width: viewMode === 'mobile' ? '375px' : '100%',
+              maxWidth: viewMode === 'desktop' ? '1200px' : '375px',
+              height: viewMode === 'mobile' ? '100%' : '100%',
+              borderRadius: viewMode === 'mobile' ? '32px' : '8px',
+            }}
+            transition={{ type: "spring", stiffness: 200, damping: 25 }}
+            className={`bg-white relative shadow-2xl overflow-hidden flex flex-col ${viewMode === 'mobile' ? 'border-8 border-[#333]' : 'border border-[#333]'}`}
+          >
+            {/* Browser Bar (Desktop only) */}
+            {viewMode === 'desktop' && (
+              <div className="h-10 bg-[#222] flex items-center px-4 gap-2 border-b border-[#333] flex-shrink-0">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-500/20"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/20"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500/20"></div>
+                </div>
+                <div className="flex-1 flex justify-center">
+                  <div className="bg-[#111] text-gray-500 text-xs px-24 py-1 rounded-md flex items-center gap-2">
+                    <Shield className="w-3 h-3" />
+                    secure-funnel.com/{businessName.toLowerCase().replace(/\s/g, '')}
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
-          </section>
+            )}
 
-          {/* Final CTA Section */}
-          <section className="py-16 px-8 bg-white relative">
-            <div className="absolute top-4 right-4">
+            {/* Funnel Content Slider */}
+            <div className="flex-1 relative bg-[#050505] overflow-y-auto custom-scrollbar">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentSlide}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="min-h-full"
+                >
+                  <div className="relative">
+                    {/* Copy Button Overlay */}
+                    <div className="absolute top-4 right-4 z-50">
+                      <button onClick={() => handleCopySection("Funnel Page Content")} className="bg-black/50 hover:bg-black/80 text-white px-3 py-1 rounded text-xs border border-white/10 backdrop-blur-sm transition-all flex items-center gap-2">
+                        <Copy className="w-3 h-3" /> Copy
+                      </button>
+                    </div>
+                    {currentSlides[currentSlide].component}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            {/* Navigation Overlay (Arrows) */}
+            <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/80 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-xl transition-opacity ${viewMode === 'mobile' ? 'opacity-100' : 'opacity-0 hover:opacity-100'}`}>
               <button
-                onClick={() => handleCopySection(`Final CTA: ${cta}`)}
-                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-2 text-sm transition-all"
+                onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+                disabled={currentSlide === 0}
+                className="p-2 hover:bg-white/10 rounded-full disabled:opacity-30 text-white"
               >
-                <Copy className="w-4 h-4" /> Copy
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="text-xs font-mono text-gray-400">{currentSlide + 1} / {currentSlides.length}</span>
+              <button
+                onClick={() => setCurrentSlide(Math.min(currentSlides.length - 1, currentSlide + 1))}
+                disabled={currentSlide === currentSlides.length - 1}
+                className="p-2 hover:bg-white/10 rounded-full disabled:opacity-30 text-white"
+              >
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
-            <div className="max-w-4xl mx-auto text-center">
-              <h2 className="text-4xl font-bold mb-4">Ready to Get Started?</h2>
-              <p className="text-xl text-gray-600 mb-8">
-                Join thousands of successful clients today
-              </p>
-              <button className="px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-full font-bold text-lg hover:scale-105 transition-transform shadow-2xl">
-                {cta}
-              </button>
-              <p className="text-sm text-gray-500 mt-6">
-                🔒 100% Secure • 30-Day Money Back Guarantee • No Credit Card Required
-              </p>
-            </div>
-          </section>
 
-          {/* Footer */}
-          <footer className="py-8 px-8 bg-gray-900 text-gray-400 text-center">
-            <p className="mb-2">&copy; 2025 {businessName}. All rights reserved.</p>
-            <p className="text-sm">Privacy Policy • Terms of Service • Contact Us</p>
-          </footer>
+          </motion.div>
         </div>
       </div>
     </div>
