@@ -11,12 +11,15 @@ export async function POST(req) {
 
     const { step, content } = await req.json();
 
+    // Use slide_id 99 for "all" content (full generation)
+    const slideId = step === 'all' ? 99 : (typeof step === 'number' ? step : parseInt(step));
+
     // First check if a record exists
     const { data: existingRecord } = await supabaseAdmin
       .from('slide_results')
       .select('id')
       .eq('user_id', userId)
-      .eq('slide_id', step)
+      .eq('slide_id', slideId)
       .single();
 
     if (existingRecord) {
@@ -29,7 +32,7 @@ export async function POST(req) {
           updated_at: new Date().toISOString()
         })
         .eq('user_id', userId)
-        .eq('slide_id', step);
+        .eq('slide_id', slideId);
 
       if (error) throw error;
     } else {
@@ -38,7 +41,7 @@ export async function POST(req) {
         .from('slide_results')
         .insert({
           user_id: userId,
-          slide_id: step,
+          slide_id: slideId,
           ai_output: content,
           approved: true
         });
@@ -46,6 +49,7 @@ export async function POST(req) {
       if (error) throw error;
     }
 
+    console.log(`[Approve API] Successfully saved content for user ${userId}, slide_id: ${slideId}`);
     return NextResponse.json({ success: true });
 
   } catch (error) {

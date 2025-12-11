@@ -100,10 +100,25 @@ const STEP_TO_PREVIEW = {
     name: "Core Message"
   },
 
-  // Step 4: Core Problem - Generate Ideal Client Profile
+  // Step 4: Core Problem - Generate Problem Analysis
   4: {
-    key: 1,
-    name: "Ideal Client Profile"
+    promptFn: (data) => `Based on this business info:
+    Industry: ${safeStringify(data.industry)}
+    Client: ${safeStringify(data.idealClient)}
+    Message: ${safeStringify(data.message)}
+    Core Problem: ${safeStringify(data.coreProblem)}
+    
+    Create a Problem Analysis in JSON:
+    {
+      "problemAnalysis": {
+        "primaryProblem": "Main problem the client faces",
+        "painPoints": ["Pain 1", "Pain 2", "Pain 3"],
+        "consequences": "What happens if problem isn't solved",
+        "emotionalImpact": "How this problem makes them feel",
+        "problemAwareness": "How aware is the market of this problem"
+      }
+    }`,
+    name: "Problem Analysis"
   },
 
   // Step 5: Outcomes

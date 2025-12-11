@@ -1,14 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import {
   Download, Rocket, Image as ImageIcon,
   CheckCircle, Loader2, FileJson, Save, ArrowLeft, AlertCircle,
   ChevronDown, FolderOpen
 } from "lucide-react";
-
 import { toast } from "sonner";
 
 // Map generated content keys to display titles
@@ -38,7 +37,7 @@ const STEP_TITLES = {
   6: "Unique Positioning",
   7: "Signature Story",
   8: "Social Proof Strategy",
-  9: "8-Week Program",
+  9: " 8-Week Program",
   10: "Deliverables Structure",
   11: "Pricing Strategy",
   12: "Assets Gap Analysis",
@@ -153,7 +152,8 @@ const formatContentForDisplay = (jsonContent) => {
 
 export default function ResultsPage() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const { session, loading: authLoading } = useAuth();
+
   const [isLoading, setIsLoading] = useState(true);
   const [results, setResults] = useState({});
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
@@ -167,97 +167,41 @@ export default function ResultsPage() {
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [showSessionDropdown, setShowSessionDropdown] = useState(false);
 
-
   useEffect(() => {
+    if (authLoading) return;
+    if (!session) {
+      router.push("/auth/login");
+      return;
+    }
+
     const fetchResults = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          router.push("/auth/login");
-          return;
-        }
-
-        // Check localStorage for session source
+        // Check local storage for hints
         const storedSource = localStorage.getItem('ted_results_source');
         if (storedSource) {
-          try {
-            const source = JSON.parse(storedSource);
-            setSessionSource(source);
-          } catch (e) {
-            console.error('Error parsing session source:', e);
-          }
+          try { setSessionSource(JSON.parse(storedSource)); } catch (e) { }
         }
 
-        // Check if we're viewing a saved session via URL
+        // Check URL for specific session
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
 
-        if (sessionId) {
-          // Fetch the saved session
-          const { data: sessionData, error: sessionError } = await supabase
-            .from('saved_sessions')
-            .select('*')
-            .eq('id', sessionId)
-            .eq('user_id', user.id)
-            .single();
+        const endpoint = sessionId
+          ? `/api/os/results?session_id=${sessionId}`
+          : '/api/os/results'; // Fetches latest approved or fallback to latest session
 
-          if (sessionError) throw sessionError;
+        const res = await fetch(endpoint);
+        if (!res.ok) throw new Error('Failed to fetch results');
 
-          if (sessionData && sessionData.results_data) {
-            setResults(sessionData.results_data);
-            setSessionSource({
-              type: 'loaded',
-              name: sessionData.session_name,
-              id: sessionId
-            });
-            setIsLoading(false);
-            return;
-          }
+        const data = await res.json();
+
+        if (data.source) {
+          setSessionSource(data.source);
+          setSelectedSessionId(data.source.id);
         }
 
-        // Check if there are any results to show
-        const hasActiveSession = localStorage.getItem('ted_has_active_session');
-
-        if (!hasActiveSession || hasActiveSession !== 'true') {
-          // No active session - show empty
-          setResults({});
-          setIsLoading(false);
-          return;
-        }
-
-        // Fetch all approved slide results (current session)
-        const { data, error } = await supabase
-          .from('slide_results')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('approved', true)
-          .order('created_at', { ascending: false })
-          .limit(1); // Get the most recent result
-
-        if (error) throw error;
-
-        // The main results are stored under slide_id 99 as a single object
-        if (data && data.length > 0) {
-          const aiOutput = data[0].ai_output;
-
-          // Transform the structure: {1: {name, data}, 2: {name, data}} -> {1: data, 2: data}
-          // or if already flat, use as-is
-          const transformedResults = {};
-          Object.entries(aiOutput).forEach(([key, value]) => {
-            if (value && typeof value === 'object') {
-              // If it has a 'data' property, extract it; otherwise use the value directly
-              if (value.data && typeof value.data === 'object') {
-                transformedResults[key] = {
-                  ...(value.name ? { _contentName: value.name } : {}),
-                  ...value.data
-                };
-              } else {
-                transformedResults[key] = value;
-              }
-            }
-          });
-
-          setResults(transformedResults);
+        if (data.data && Object.keys(data.data).length > 0) {
+          processResults(data.data);
         } else {
           setResults({});
         }
@@ -271,79 +215,51 @@ export default function ResultsPage() {
     };
 
     fetchResults();
-  }, [supabase, router]);
+  }, [session, authLoading, router]);
 
-  // Fetch all saved sessions for the dropdown
+  // Helper to process and set results state
+  const processResults = (rawData) => {
+    const transformedResults = {};
+    Object.entries(rawData).forEach(([key, value]) => {
+      if (value && typeof value === 'object') {
+        if (value.data && typeof value.data === 'object') {
+          transformedResults[key] = {
+            ...(value.name ? { _contentName: value.name } : {}),
+            ...value.data
+          };
+        } else {
+          transformedResults[key] = value;
+        }
+      }
+    });
+    setResults(transformedResults);
+  };
+
+  // Fetch all saved sessions for dropdown
   const fetchSavedSessions = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('saved_sessions')
-        .select('id, session_name, business_name, created_at, updated_at, is_complete')
-        .eq('user_id', user.id)
-        .eq('is_deleted', false)
-        .order('updated_at', { ascending: false });
-
-      if (error) throw error;
-      setSavedSessions(data || []);
+      const res = await fetch('/api/os/sessions'); // Use existing API
+      const data = await res.json();
+      if (data.sessions) {
+        setSavedSessions(data.sessions);
+      }
     } catch (error) {
       console.error('Error fetching sessions:', error);
     }
   };
 
-  // Load results from a specific saved session
   const loadSessionResults = async (sessionId) => {
     setIsLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const res = await fetch(`/api/os/results?session_id=${sessionId}`);
+      const data = await res.json();
 
-      const { data: sessionData, error } = await supabase
-        .from('saved_sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (error) throw error;
-
-      if (sessionData && sessionData.results_data) {
-        // Transform results data
-        const transformedResults = {};
-        Object.entries(sessionData.results_data).forEach(([key, value]) => {
-          if (value && typeof value === 'object') {
-            if (value.data && typeof value.data === 'object') {
-              transformedResults[key] = {
-                ...(value.name ? { _contentName: value.name } : {}),
-                ...value.data
-              };
-            } else {
-              transformedResults[key] = value;
-            }
-          }
-        });
-        setResults(transformedResults);
+      if (data.data) {
+        processResults(data.data);
+        setSessionSource(data.source);
         setSelectedSessionId(sessionId);
-        setSessionSource({
-          type: 'loaded',
-          name: sessionData.session_name,
-          id: sessionId
-        });
         setShowSessionDropdown(false);
-        toast.success(`Loaded: ${sessionData.session_name}`);
-      } else if (sessionData && sessionData.generated_content) {
-        // Fallback to generated_content if results_data is empty
-        setResults(sessionData.generated_content);
-        setSelectedSessionId(sessionId);
-        setSessionSource({
-          type: 'loaded',
-          name: sessionData.session_name,
-          id: sessionId
-        });
-        setShowSessionDropdown(false);
-        toast.success(`Loaded: ${sessionData.session_name}`);
+        toast.success(`Loaded: ${data.source?.name}`);
       }
     } catch (error) {
       console.error('Error loading session:', error);
@@ -353,7 +269,6 @@ export default function ResultsPage() {
     }
   };
 
-  // Fetch sessions when dropdown is opened
   useEffect(() => {
     if (showSessionDropdown) {
       fetchSavedSessions();
@@ -361,7 +276,6 @@ export default function ResultsPage() {
   }, [showSessionDropdown]);
 
   const handleExportJSON = () => {
-
     const dataStr = JSON.stringify(results, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
@@ -397,31 +311,27 @@ export default function ResultsPage() {
 
     setIsSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error("You must be logged in");
-        return;
-      }
+      // Use existing sessions API to save
+      const res = await fetch("/api/os/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          sessionName: sessionName.trim(),
+          completedSteps: Array.from({ length: 20 }, (_, i) => i + 1),
+          answers: {}, // We might not have raw answers here easily, or need to fetch them.
+          // Note: This save might be incomplete if we don't have 'answers'.
+          // But 'generatedContent' is the key part for results.
+          generatedContent: results,
+          isComplete: true
+        })
+      });
 
-      const { error } = await supabase
-        .from('saved_sessions')
-        .insert({
-          user_id: user.id,
-          session_name: sessionName.trim(),
-          onboarding_data: {},
-          results_data: results,
-          generated_content: results,
-          completed_steps: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // All 20 steps complete
-          is_complete: true,
-          status: 'completed'
-        });
-
-
-      if (error) throw error;
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
 
       toast.success("Session saved successfully!");
       setShowSaveDialog(false);
       setSessionName("");
+      fetchSavedSessions(); // Refresh list
     } catch (error) {
       console.error("Failed to save session:", error);
       toast.error("Failed to save session");
@@ -430,7 +340,7 @@ export default function ResultsPage() {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center">
         <Loader2 className="w-10 h-10 text-cyan animate-spin" />
@@ -511,6 +421,14 @@ export default function ResultsPage() {
                 <AlertCircle className="w-5 h-5 text-cyan" />
                 <p className="text-cyan">
                   Viewing results from: <strong>{sessionSource.name}</strong>
+                </p>
+              </div>
+            )}
+            {sessionSource && sessionSource.type === 'latest_session' && (
+              <div className="mb-4 p-4 bg-cyan/10 border border-cyan/30 rounded-lg flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-cyan" />
+                <p className="text-cyan">
+                  Showing results from your latest session: <strong>{sessionSource.name}</strong>
                 </p>
               </div>
             )}
