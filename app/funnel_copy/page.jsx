@@ -63,16 +63,39 @@ export default function FunnelCopyPage() {
       setWindowSize({ width: window.innerWidth, height: window.innerHeight });
       window.addEventListener('resize', () => setWindowSize({ width: window.innerWidth, height: window.innerHeight }));
 
-      const storedData = localStorage.getItem('funnel_data');
-      if (storedData) {
-        try {
-          const data = JSON.parse(storedData);
-          setFunnelData(data);
+      // Load data from DATABASE (Latest Session) instead of local storage
+      try {
+        const res = await fetch('/api/os/sessions');
+        const data = await res.json();
+
+        if (data.sessions && data.sessions.length > 0) {
+          // Use the most recent session
+          const latestSession = data.sessions[0];
+          console.log('Loaded latest session:', latestSession.session_name);
+
+          // Merge answers and generated content
+          const fullData = {
+            ...latestSession.answers,
+            ...latestSession.generated_content,
+            // Fallback for fields stored in specific columns if any
+          };
+
+          setFunnelData(fullData);
+
+          // Check for cached images
           const cachedImages = localStorage.getItem('funnel_images');
           if (cachedImages) setGeneratedImages(JSON.parse(cachedImages));
-        } catch (e) {
-          console.error('Failed to parse funnel data:', e);
+
+        } else {
+          console.log('No sessions found in database, trying localStorage fallback');
+          const storedData = localStorage.getItem('funnel_data');
+          if (storedData) setFunnelData(JSON.parse(storedData));
         }
+      } catch (error) {
+        console.error('Failed to load session:', error);
+        // Fallback
+        const storedData = localStorage.getItem('funnel_data');
+        if (storedData) setFunnelData(JSON.parse(storedData));
       }
 
       setTimeout(() => {
@@ -88,23 +111,50 @@ export default function FunnelCopyPage() {
   const generateImages = async () => {
     if (!funnelData) return;
     setImagesLoading(true);
-    try {
-      const res = await fetch('/api/os/generate-images', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ businessData: funnelData })
-      });
-      const data = await res.json();
-      if (data.images) {
-        setGeneratedImages(data.images);
-        localStorage.setItem('funnel_images', JSON.stringify(data.images));
-        toast.success(`Generated ${data.count} AI images!`);
+
+    const imageTypes = ['hero_book', 'hero_product', 'testimonial_1', 'testimonial_2', 'feature_icon'];
+    let successCount = 0;
+
+    // Generate images sequentially to avoid Vercel timeouts
+    for (const type of imageTypes) {
+      try {
+        // Check if we already have this image (optional optimization)
+        if (generatedImages.find(img => img.id === type)) continue;
+
+        const res = await fetch('/api/os/generate-images', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            businessData: funnelData,
+            imageType: type // Generate one by one
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.images && data.images.length > 0) {
+          setGeneratedImages(prev => {
+            const newImages = [...prev, ...data.images];
+            // Remove duplicates
+            const uniqueImages = Array.from(new Map(newImages.map(item => [item.id, item])).values());
+            localStorage.setItem('funnel_images', JSON.stringify(uniqueImages));
+            return uniqueImages;
+          });
+          successCount++;
+        }
+      } catch (error) {
+        console.error(`Error generating ${type}:`, error);
+        // Continue to next image
       }
-    } catch (error) {
-      console.error('Image generation error:', error);
-      toast.error('Failed to generate images');
-    } finally {
-      setImagesLoading(false);
+    }
+
+    setImagesLoading(false);
+    if (successCount > 0) {
+      toast.success(`Generated ${successCount} new images!`);
+    } else if (generatedImages.length > 0) {
+      toast.info('Images already generated.');
+    } else {
+      toast.error('Failed to generate images. Please try again.');
     }
   };
 
@@ -118,13 +168,19 @@ export default function FunnelCopyPage() {
     toast.success('Copied to clipboard!');
   };
 
-  // Content Extraction
-  const businessName = funnelData?.idealClient?.businessName || "Your Business";
-  const headline = funnelData?.message?.headline || "Transform Your Results Today";
-  const subheadline = funnelData?.message?.subheadline || "Discover the proven system that will change everything";
-  const cta = funnelData?.callToAction?.primary || "Get Started Now";
-  const offerName = funnelData?.offerProgram?.programName || headline;
-  const features = funnelData?.deliverables?.features || [];
+  // Content Extraction with Safe Access
+  // Ensure we check nested properties correctly
+  const businessName = funnelData?.idealClient?.businessName || funnelData?.industry || "Your Business";
+  const headline = funnelData?.message?.headline || funnelData?.callToAction?.headline || "Transform Your Results Today";
+  const subheadline = funnelData?.message?.subheadline || funnelData?.coreProblem || "Discover the proven system that will change everything";
+  const cta = funnelData?.callToAction?.primary || funnelData?.message?.cta || "Get Started Now";
+  const offerName = funnelData?.offerProgram?.programName || funnelData?.deliverables?.mainOffer || headline;
+
+  // Extract features - checking multiple locations
+  const features = funnelData?.deliverables?.features || funnelData?.outcomes?.results || funnelData?.platforms || [];
+
+  // Extract platforms if available explicitly
+  const platforms = funnelData?.platforms || [];
 
   // --- FUNNEL PAGES (SLIDES) with ViewMode awareness ---
   const getSlides = (mode) => [
@@ -162,10 +218,15 @@ export default function FunnelCopyPage() {
             <div className="max-w-4xl mx-auto">
               <h3 className={`${mode === 'mobile' ? 'text-xl' : 'text-2xl'} font-bold text-center mb-10`}>What You'll Discover Inside...</h3>
               <div className={`${mode === 'mobile' ? 'flex flex-col' : 'grid md:grid-cols-2'} gap-6`}>
-                {(features.length > 0 ? features.slice(0, 4) : [1, 2, 3, 4]).map((f, i) => (
+                {(features.length > 0 ? features.slice(0, 4) : [
+                  "The Hidden Truth They Don't Want You to Know",
+                  "Breaking Free From the Traditional Path",
+                  "The System That Actually Works",
+                  "Your Step-by-Step Action Plan"
+                ]).map((f, i) => (
                   <div key={i} className="flex gap-4 p-4 bg-[#111] rounded-lg border border-white/5">
                     <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
-                    <p className="text-gray-300 text-sm">{typeof f === 'string' ? f : "Unlock the secrets to massive growth and stability in your business."}</p>
+                    <p className="text-gray-300 text-sm">{typeof f === 'string' ? f : (f.title || f.name || "Unlock growth secrets")}</p>
                   </div>
                 ))}
               </div>
@@ -180,17 +241,8 @@ export default function FunnelCopyPage() {
       component: (
         <div className="bg-[#050505] text-white min-h-full font-inter flex flex-col justify-center">
           <div className={`max-w-5xl mx-auto w-full px-8 py-12 ${mode === 'mobile' ? 'flex flex-col gap-8' : 'grid md:grid-cols-2 gap-16'} items-center`}>
-            {/* Form Section First on Mobile? No, usually Promise then Form. Original layout was: Image(2->1), Form(1->2) with grid. */}
-            {/* Let's be explicit: Image then Form */}
 
             <div className={`w-full ${mode === 'mobile' ? 'order-1' : 'order-1'}`}>
-              {/* Changed order logic for clarity: always Image first visually if strictly defined, or swap.
-                  Design referenced had Image on Left (col 1), Form on Right (col 2).
-                  On mobile: Image Top, Form Bottom usually.
-                  Wait, code had: order-2 (Image) md:order-1. order-1 (Form) md:order-2. 
-                  So on mobile: Form is Top (order-1), Image is Bottom (order-2).
-                  Let's flip it for mobile to be Image Top (standard funnel).
-              */}
               {getImage('hero_product') ? (
                 <img src={getImage('hero_product')} alt="Bundle" className="w-full rounded-lg shadow-2xl border border-white/10" />
               ) : (
@@ -287,7 +339,19 @@ export default function FunnelCopyPage() {
     );
   }
 
-  if (!funnelData) return null;
+  // Not strictly returning null here to allow seeing the building state or empty state with retry
+  if (!funnelData) {
+    if (!isBuilding) {
+      // Show error state
+      return (
+        <div className="min-h-screen bg-[#0a0a0b] flex items-center justify-center flex-col gap-4 text-white">
+          <p>Could not load your funnel data.</p>
+          <button onClick={() => window.location.reload()} className="text-cyan-400 underline">Try Again</button>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#0e0e10] text-white flex flex-col h-screen overflow-hidden">
@@ -322,7 +386,7 @@ export default function FunnelCopyPage() {
 
           <button onClick={generateImages} disabled={imagesLoading} className="px-3 py-2 bg-[#1a1a1a] hover:bg-[#252525] border border-[#2a2a2a] rounded-lg font-medium flex items-center gap-2 text-sm text-cyan-400">
             {imagesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            <span>Generate Visuals</span>
+            <span>{imagesLoading ? 'Processing...' : 'Generate Visuals'}</span>
           </button>
 
           <button className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110 rounded-lg font-bold text-sm text-white shadow-lg shadow-cyan-500/20">
@@ -335,7 +399,7 @@ export default function FunnelCopyPage() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* LEFT SIDEBAR - Funnel Steps Navigation */}
-        <div className="w-64 bg-[#0a0a0b] border-r border-[#1a1a1a] flex flex-col">
+        <div className="w-64 bg-[#0a0a0b] border-r border-[#1a1a1a] flex hidden md:flex flex-col">
           <div className="p-4 border-b border-[#1a1a1a]">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Funnel Steps</p>
           </div>

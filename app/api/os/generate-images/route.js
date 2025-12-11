@@ -14,19 +14,20 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { businessData } = await req.json();
+        const body = await req.json();
+        const { businessData, imageType } = body;
+        // imageType is optional: if provided, generates ONLY that image. If missing, attempts all (risk of timeout).
 
-        console.log('[Generate Images] Starting image generation for user:', userId);
+        console.log('[Generate Images] Request for user:', userId, 'Type:', imageType || 'ALL');
 
         // Extract relevant info from business data
         const industry = businessData?.industry || 'professional services';
         const businessName = businessData?.idealClient?.businessName || 'Premium Business';
         const offerName = businessData?.offerProgram?.programName || businessData?.message?.headline || 'Transform Your Life';
         const brandColors = businessData?.brandColors || 'blue and white';
-        const targetAudient = businessData?.idealClient?.description || 'professionals';
 
         // Define image prompts based on business data
-        const imagePrompts = [
+        const allPrompts = [
             {
                 id: 'hero_book',
                 prompt: `Professional 3D book cover mockup floating at an angle. The book title is "${offerName}" in bold modern typography. Dark moody background with subtle ${brandColors} gradient lighting. High-end product photography style, dramatic shadows, premium feel. No text other than the title.`,
@@ -54,10 +55,19 @@ export async function POST(req) {
             }
         ];
 
+        // Filter prompts if imageType is specified
+        const promptsToGenerate = imageType
+            ? allPrompts.filter(p => p.id === imageType)
+            : allPrompts;
+
+        if (promptsToGenerate.length === 0) {
+            return NextResponse.json({ error: 'Invalid image type' }, { status: 400 });
+        }
+
         const generatedImages = [];
 
         // Generate images using DALL-E 3
-        for (const imageConfig of imagePrompts) {
+        for (const imageConfig of promptsToGenerate) { // Note: Sequential execution for safety if multiple
             try {
                 console.log(`[Generate Images] Creating: ${imageConfig.id}`);
 
@@ -67,7 +77,7 @@ export async function POST(req) {
                     n: 1,
                     size: '1024x1024',
                     quality: 'standard',
-                    response_format: 'b64_json' // Get base64 directly to avoid URL expiry
+                    response_format: 'b64_json'
                 });
 
                 const base64Data = response.data[0].b64_json;
@@ -85,7 +95,6 @@ export async function POST(req) {
 
                 if (uploadError) {
                     console.error(`[Generate Images] Upload error for ${imageConfig.id}:`, uploadError);
-                    // Continue with other images even if one fails
                     continue;
                 }
 
@@ -104,11 +113,9 @@ export async function POST(req) {
 
             } catch (imageError) {
                 console.error(`[Generate Images] Error generating ${imageConfig.id}:`, imageError);
-                // Continue with other images
+                // We return partial results if some fail, but log the error
             }
         }
-
-        console.log(`[Generate Images] Completed. Generated ${generatedImages.length} images`);
 
         return NextResponse.json({
             success: true,
@@ -118,6 +125,7 @@ export async function POST(req) {
 
     } catch (error) {
         console.error('[Generate Images] Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        // Ensure JSON is returned
+        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }
