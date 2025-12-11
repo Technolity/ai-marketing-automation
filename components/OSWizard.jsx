@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { STEPS, STEP_INPUTS, STEP_INFO } from "@/lib/os-wizard-data";
+import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS } from "@/lib/os-wizard-data";
 
 // Helper function to format field names into readable titles
 const formatFieldName = (key) => {
@@ -249,7 +249,7 @@ export default function OSWizard({ startAtStepOne = false }) {
                             setStepData(mostRecent.answers || {});
                             setSavedContent(mostRecent.generated_content || {});
                             setGeneratedContent(mostRecent.generated_content || {});
-                            setIsWizardComplete(mostRecent.is_complete || (mostRecent.completed_steps?.length >= 12));
+                            setIsWizardComplete(mostRecent.is_complete || (mostRecent.completed_steps?.length >= 20));
 
                             toast.success(`Loaded your session: ${mostRecent.session_name}`);
                         }
@@ -300,7 +300,7 @@ export default function OSWizard({ startAtStepOne = false }) {
                 completedSteps: newCompletedSteps,
                 answers: newAnswers,
                 generatedContent: newContent,
-                isComplete: newCompletedSteps.length >= 12,
+                isComplete: newCompletedSteps.length >= 20,
                 updatedAt: new Date().toISOString(),
                 ...overrides
             };
@@ -414,7 +414,7 @@ export default function OSWizard({ startAtStepOne = false }) {
                     completedSteps,
                     answers: stepData,
                     generatedContent: generatedContent || savedContent, // Use full generated content if available
-                    isComplete: completedSteps.length >= 12 && isWizardComplete
+                    isComplete: completedSteps.length >= 20 && isWizardComplete
                 })
             });
 
@@ -446,7 +446,7 @@ export default function OSWizard({ startAtStepOne = false }) {
             setViewMode('dashboard');
 
             // Set wizard complete status based on session
-            setIsWizardComplete(sessionData.is_complete || (sessionData.completed_steps?.length >= 12));
+            setIsWizardComplete(sessionData.is_complete || (sessionData.completed_steps?.length >= 20));
 
             // Save to local storage and sync with main progress
             await saveProgressToStorage(
@@ -455,7 +455,7 @@ export default function OSWizard({ startAtStepOne = false }) {
                 sessionData.generated_content || {},
                 {
                     currentStep: sessionData.current_step || 1,
-                    isComplete: sessionData.is_complete || (sessionData.completed_steps?.length >= 12)
+                    isComplete: sessionData.is_complete || (sessionData.completed_steps?.length >= 20)
                 }
             );
 
@@ -574,10 +574,34 @@ export default function OSWizard({ startAtStepOne = false }) {
 
         const emptyFields = [];
         stepInputs.forEach(input => {
-            const value = currentInput[input.name] || '';
-            // Check if field has at least one word (3+ characters)
-            if (!value.trim() || value.trim().length < 3) {
-                emptyFields.push(input.label);
+            // Skip conditional inputs if their condition isn't met
+            if (input.conditionalOn) {
+                const parentValue = currentInput[input.conditionalOn] || [];
+                if (!parentValue.includes(input.conditionalValue)) {
+                    return; // Skip validation for this field
+                }
+            }
+
+            const value = currentInput[input.name];
+
+            // Handle arrays (multiselect)
+            if (input.type === 'multiselect') {
+                if (!value || !Array.isArray(value) || value.length === 0) {
+                    emptyFields.push(input.label);
+                }
+            }
+            // Handle select dropdowns
+            else if (input.type === 'select') {
+                if (!value || value === '') {
+                    emptyFields.push(input.label);
+                }
+            }
+            // Handle text inputs (textarea, text)
+            else {
+                const strValue = value || '';
+                if (!strValue.trim() || strValue.trim().length < 3) {
+                    emptyFields.push(input.label);
+                }
             }
         });
 
@@ -689,7 +713,7 @@ export default function OSWizard({ startAtStepOne = false }) {
                 return;
             }
 
-            // On step 12, generate ALL artifacts
+            // On step 20, generate ALL artifacts
             const payload = {
                 step: 'all',
                 data: {
@@ -715,8 +739,8 @@ export default function OSWizard({ startAtStepOne = false }) {
             setGeneratedContent(data.result);
             setIsReviewMode(true);
 
-            // Mark step 12 as completed and update saved content
-            const allCompletedSteps = [...new Set([...completedSteps, 12])];
+            // Mark step 20 as completed and update saved content
+            const allCompletedSteps = [...new Set([...completedSteps, 20])];
             setCompletedSteps(allCompletedSteps);
             setSavedContent(data.result);
 
@@ -1073,8 +1097,8 @@ export default function OSWizard({ startAtStepOne = false }) {
                         >
                             {/* Hero headline */}
                             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 text-white leading-tight">
-                                Answer <span className="text-cyan text-glow">12 questions</span> to build your
-                                <br />entire online business in <span className="text-cyan text-glow">12 minutes</span>.
+                                Answer <span className="text-cyan text-glow">20 questions</span> to build your
+                                <br />entire online business in <span className="text-cyan text-glow">15 minutes</span>.
                             </h1>
 
                             <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
@@ -1111,9 +1135,9 @@ export default function OSWizard({ startAtStepOne = false }) {
                                 Mission Control
                             </h1>
                             <p className="text-gray-400 text-lg">
-                                {completedSteps.length === 12
+                                {completedSteps.length === 20
                                     ? "All steps complete! View your results or make changes below."
-                                    : `Continue building your business — ${completedSteps.length}/12 steps completed`
+                                    : `Continue building your business — ${completedSteps.length}/20 steps completed`
                                 }
                             </p>
                             <div className="mt-4 flex items-center justify-center gap-6 text-sm">
@@ -1573,39 +1597,111 @@ export default function OSWizard({ startAtStepOne = false }) {
                                         )}
 
                                         <div className="space-y-2">
-                                            <textarea
-                                                className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto"
-                                                placeholder={input.placeholder}
-                                                value={currentInput[input.name] || input.defaultValue || ""}
-                                                onChange={(e) => {
-                                                    handleInputChange(input.name, e.target.value);
-                                                    // Auto-expand based on content up to max
-                                                    const minHeight = (input.rows || 5) * 28;
-                                                    const maxHeight = 400;
-                                                    e.target.style.height = 'auto';
-                                                    e.target.style.height = Math.min(maxHeight, Math.max(minHeight, e.target.scrollHeight)) + 'px';
-                                                }}
-                                                rows={input.rows || 5}
-                                                style={{
-                                                    minHeight: `${(input.rows || 5) * 28}px`,
-                                                    maxHeight: '400px'
-                                                }}
-                                            />
-                                            <div className="flex justify-end">
-                                                <button
-                                                    onClick={() => handleAiAssist(input.name, input.label)}
-                                                    disabled={aiAssisting === input.name}
-                                                    type="button"
-                                                    className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all disabled:opacity-50"
+                                            {/* Render based on input type */}
+                                            {input.type === 'select' ? (
+                                                /* Select dropdown */
+                                                <select
+                                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all cursor-pointer"
+                                                    value={currentInput[input.name] || ""}
+                                                    onChange={(e) => handleInputChange(input.name, e.target.value)}
                                                 >
-                                                    {aiAssisting === input.name ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : (
-                                                        <Sparkles className="w-4 h-4" />
+                                                    <option value="" className="text-gray-500">{input.placeholder}</option>
+                                                    {(input.options === 'REVENUE_OPTIONS' ? REVENUE_OPTIONS :
+                                                        input.options === 'BUSINESS_STAGE_OPTIONS' ? BUSINESS_STAGE_OPTIONS :
+                                                            []).map(option => (
+                                                                <option key={option.value} value={option.value} className="bg-[#0e0e0f]">
+                                                                    {option.label}
+                                                                </option>
+                                                            ))}
+                                                </select>
+                                            ) : input.type === 'multiselect' ? (
+                                                /* Multi-select checkboxes */
+                                                <div className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4">
+                                                    <p className="text-gray-400 text-sm mb-3">{input.placeholder}</p>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {(input.options === 'ASSET_OPTIONS' ? ASSET_OPTIONS :
+                                                            input.options === 'PLATFORM_OPTIONS' ? PLATFORM_OPTIONS :
+                                                                []).map(option => {
+                                                                    const selectedValues = currentInput[input.name] || [];
+                                                                    const isSelected = selectedValues.includes(option.value);
+                                                                    return (
+                                                                        <label
+                                                                            key={option.value}
+                                                                            className={`
+                                                                        flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all
+                                                                        ${isSelected
+                                                                                    ? 'bg-cyan/20 border border-cyan/50 text-cyan'
+                                                                                    : 'bg-[#1b1b1d] border border-[#2a2a2d] text-gray-300 hover:border-gray-500'
+                                                                                }
+                                                                    `}
+                                                                        >
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={isSelected}
+                                                                                onChange={(e) => {
+                                                                                    const newValues = e.target.checked
+                                                                                        ? [...selectedValues, option.value]
+                                                                                        : selectedValues.filter(v => v !== option.value);
+                                                                                    handleInputChange(input.name, newValues);
+                                                                                }}
+                                                                                className="w-4 h-4 accent-cyan"
+                                                                            />
+                                                                            <span className="text-sm font-medium">{option.label}</span>
+                                                                        </label>
+                                                                    );
+                                                                })}
+                                                    </div>
+                                                    {/* Show "Other" text input if other is selected */}
+                                                    {input.hasOtherInput && (currentInput[input.name] || []).includes('other') && (
+                                                        <div className="mt-4">
+                                                            <input
+                                                                type="text"
+                                                                className="w-full bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg p-3 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all"
+                                                                placeholder="Specify other platforms..."
+                                                                value={currentInput[`${input.name}Other`] || ""}
+                                                                onChange={(e) => handleInputChange(`${input.name}Other`, e.target.value)}
+                                                            />
+                                                        </div>
                                                     )}
-                                                    Enhance with AI
-                                                </button>
-                                            </div>
+                                                </div>
+                                            ) : (
+                                                /* Default textarea */
+                                                <>
+                                                    <textarea
+                                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto"
+                                                        placeholder={input.placeholder}
+                                                        value={currentInput[input.name] || input.defaultValue || ""}
+                                                        onChange={(e) => {
+                                                            handleInputChange(input.name, e.target.value);
+                                                            // Auto-expand based on content up to max
+                                                            const minHeight = (input.rows || 5) * 28;
+                                                            const maxHeight = 400;
+                                                            e.target.style.height = 'auto';
+                                                            e.target.style.height = Math.min(maxHeight, Math.max(minHeight, e.target.scrollHeight)) + 'px';
+                                                        }}
+                                                        rows={input.rows || 5}
+                                                        style={{
+                                                            minHeight: `${(input.rows || 5) * 28}px`,
+                                                            maxHeight: '400px'
+                                                        }}
+                                                    />
+                                                    <div className="flex justify-end">
+                                                        <button
+                                                            onClick={() => handleAiAssist(input.name, input.label)}
+                                                            disabled={aiAssisting === input.name}
+                                                            type="button"
+                                                            className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all disabled:opacity-50"
+                                                        >
+                                                            {aiAssisting === input.name ? (
+                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                            ) : (
+                                                                <Sparkles className="w-4 h-4" />
+                                                            )}
+                                                            Enhance with AI
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

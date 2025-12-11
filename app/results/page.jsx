@@ -30,18 +30,26 @@ const CONTENT_TITLES = {
 };
 
 const STEP_TITLES = {
-  1: "Ideal Client Builder",
-  2: "Million-Dollar Message",
-  3: "Signature Story Creator",
-  4: "High-Ticket Offer Builder",
-  5: "Personalized Sales Scripts",
-  6: "Lead Magnet Generator",
-  7: "VSL Builder",
-  8: "15-Day Email Sequence",
-  9: "Ad Copy & Creative",
-  10: "Funnel Copy",
-  11: "YouTube Show",
-  12: "Content Pillars"
+  1: "Industry Analysis",
+  2: "Target Market Summary",
+  3: "Core Message",
+  4: "Ideal Client Profile",
+  5: "Outcomes Framework",
+  6: "Unique Positioning",
+  7: "Signature Story",
+  8: "Social Proof Strategy",
+  9: "8-Week Program",
+  10: "Deliverables Structure",
+  11: "Pricing Strategy",
+  12: "Assets Gap Analysis",
+  13: "Growth Strategy",
+  14: "Brand Voice Guide",
+  15: "Visual Style Guide",
+  16: "CTA Variations",
+  17: "Platform Ads Preview",
+  18: "90-Day Action Plan",
+  19: "Stage Recommendations",
+  20: "Help Priority Analysis"
 };
 
 // Helper function to format field names into readable titles
@@ -403,7 +411,7 @@ export default function ResultsPage() {
           onboarding_data: {},
           results_data: results,
           generated_content: results,
-          completed_steps: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], // All 12 steps complete
+          completed_steps: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], // All 20 steps complete
           is_complete: true,
           status: 'completed'
         });

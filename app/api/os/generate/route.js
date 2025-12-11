@@ -18,6 +18,8 @@ import { contentIdeasPrompt } from '@/lib/prompts/contentIdeas';
 import { program12MonthPrompt } from '@/lib/prompts/program12Month';
 import { youtubeShowPrompt } from '@/lib/prompts/youtubeShow';
 import { contentPillarsPrompt } from '@/lib/prompts/contentPillars';
+import { bioPrompt } from '@/lib/prompts/bio';
+import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -38,8 +40,9 @@ const osPrompts = {
   11: contentIdeasPrompt,
   12: program12MonthPrompt,
   13: youtubeShowPrompt,
-  14: contentPillarsPrompt
-  // 15: customPrompt // To add custom prompts: 1. Import above, 2. Add here with next ID, 3. Add to CONTENT_NAMES below
+  14: contentPillarsPrompt,
+  15: bioPrompt,
+  16: appointmentRemindersPrompt
 };
 
 // CORRECTED: Map each step to what content CAN be properly generated with available data
@@ -54,28 +57,28 @@ const safeStringify = (value) => {
 
 const STEP_TO_PREVIEW = {
 
-  // Step 1: Only know niche/topic
+  // Step 1: Industry
   1: {
-    promptFn: (data) => `Based on this business niche/topic:
-    Topic: ${data.topicArea || 'not specified'}
+    promptFn: (data) => `Based on this business industry/field:
+    Industry: ${data.industry || 'not specified'}
     
-    Create a brief Niche Positioning analysis in JSON:
+    Create a brief Industry Analysis in JSON:
     {
-      "nichePositioning": {
-        "niche": "The specific niche",
+      "industryAnalysis": {
+        "industry": "The specific industry",
         "marketSize": "Estimated market size/demand",
         "uniqueAngle": "Potential unique positioning angle",
         "topCompetitors": ["Competitor 1", "Competitor 2"],
         "opportunityScore": "1-10 rating with brief explanation"
       }
     }`,
-    name: "Niche Positioning"
+    name: "Industry Analysis"
   },
 
-  // Step 2: Know niche + ideal client description
+  // Step 2: Ideal Client
   2: {
     promptFn: (data) => `Based on this business info:
-    Topic: ${safeStringify(data.topicArea) || 'not specified'}
+    Industry: ${safeStringify(data.industry) || 'not specified'}
     Ideal Client: ${safeStringify(data.idealClient) || 'not specified'}
     
     Create a Target Market Summary in JSON:
@@ -91,128 +94,263 @@ const STEP_TO_PREVIEW = {
     name: "Target Market Summary"
   },
 
-  // Step 3: NOW have pain points! Generate Ideal Client Profile
+  // Step 3: Message
   3: {
+    key: 2,
+    name: "Core Message"
+  },
+
+  // Step 4: Core Problem - Generate Ideal Client Profile
+  4: {
     key: 1,
     name: "Ideal Client Profile"
   },
 
-  // Step 4: Have transformation - Generate Million Dollar Message
-  4: {
-    key: 2,
-    name: "Million-Dollar Message"
-  },
-
-  // Step 5: Have unique mechanism - Generate 8-Week Program outline
+  // Step 5: Outcomes
   5: {
-    key: 4,
-    name: "8-Week Program Preview"
+    promptFn: (data) => `Based on this business:
+    Industry: ${safeStringify(data.industry)}
+    Client: ${safeStringify(data.idealClient)}
+    Message: ${safeStringify(data.message)}
+    Problem: ${safeStringify(data.coreProblem)}
+    Outcomes: ${safeStringify(data.outcomes)}
+    
+    Create an Outcomes Framework in JSON:
+    {
+      "outcomesFramework": {
+        "primaryOutcome": "Main result achieved",
+        "secondaryOutcomes": ["Outcome 2", "Outcome 3"],
+        "timeframe": "Expected timeline",
+        "proofPoints": ["How to measure success"]
+      }
+    }`,
+    name: "Outcomes Framework"
   },
 
-  // Step 6: Have story - Generate Signature Story
+  // Step 6: Unique Advantage
   6: {
+    promptFn: (data) => `Based on this business:
+    Industry: ${safeStringify(data.industry)}
+    Client: ${safeStringify(data.idealClient)}
+    Problem: ${safeStringify(data.coreProblem)}
+    Unique Advantage: ${safeStringify(data.uniqueAdvantage)}
+    
+    Create a Unique Positioning Analysis in JSON:
+    {
+      "uniquePositioning": {
+        "uniqueMechanism": "What makes them different",
+        "competitiveAdvantage": "Why clients choose them",
+        "positioning": "Market position statement"
+      }
+    }`,
+    name: "Unique Positioning"
+  },
+
+  // Step 7: Story - Generate Signature Story
+  7: {
     key: 3,
     name: "Signature Story"
   },
 
-  // Step 7: Have outcomes - Generate Sales Scripts preview
-  7: {
-    promptFn: (data) => `Based on this coaching/consulting business:
-    Topic: ${safeStringify(data.topicArea)}
+  // Step 8: Testimonials
+  8: {
+    promptFn: (data) => `Based on this business:
+    Industry: ${safeStringify(data.industry)}
     Client: ${safeStringify(data.idealClient)}
-    Problem: ${safeStringify(data.problem)}
-    Transformation: ${safeStringify(data.transformation)}
-    Unique Mechanism: ${safeStringify(data.uniqueMechanism)}
-    Main Outcome: ${safeStringify(data.mainOutcome)}
+    Outcomes: ${safeStringify(data.outcomes)}
+    Testimonials: ${safeStringify(data.testimonials)}
     
-    Create a Sales Framework Preview in JSON:
+    Create a Social Proof Strategy in JSON:
     {
-      "salesFramework": {
-        "openingHook": "Attention-grabbing opener",
-        "buildRapport": "Questions to build connection",
-        "uncoverPain": "Questions to reveal pain points",
-        "presentSolution": "How to position your offer",
-        "handleObjections": ["Objection 1 -> Response", "Objection 2 -> Response"],
-        "closeStrong": "Closing technique"
+      "socialProof": {
+        "caseStudyIdeas": ["Case study 1", "Case study 2"],
+        "testimonialFramework": "How to collect testimonials",
+        "proofElements": ["Proof element 1", "Proof element 2"]
       }
     }`,
-    name: "Sales Framework Preview"
+    name: "Social Proof Strategy"
   },
 
-  // Step 8: Have pricing - Generate Offer Pricing Strategy
-  8: {
-    promptFn: (data) => `Based on this coaching/consulting business:
-    Topic: ${safeStringify(data.topicArea)}
-    Transformation: ${safeStringify(data.transformation)}
-    Main Outcome: ${safeStringify(data.mainOutcome)}
-    Price Point: ${safeStringify(data.pricing)}
+  // Step 9: Offer/Program
+  9: {
+    key: 4,
+    name: "8-Week Program Preview"
+  },
+
+  // Step 10: Deliverables
+  10: {
+    promptFn: (data) => `Based on this business:
+    Industry: ${safeStringify(data.industry)}
+    Offer: ${safeStringify(data.offerProgram)}
+    Deliverables: ${safeStringify(data.deliverables)}
     
-    Create an Offer Pricing Strategy in JSON:
+    Create a Deliverables Structure in JSON:
+    {
+      "deliverablesStructure": {
+        "coreDeliverables": ["Deliverable 1", "Deliverable 2"],
+        "bonuses": ["Bonus 1", "Bonus 2"],
+        "supportStructure": "How support is provided"
+      }
+    }`,
+    name: "Deliverables Structure"
+  },
+
+  // Step 11: Pricing
+  11: {
+    promptFn: (data) => `Based on this business:
+    Industry: ${safeStringify(data.industry)}
+    Outcomes: ${safeStringify(data.outcomes)}
+    Offer: ${safeStringify(data.offerProgram)}
+    Pricing: ${safeStringify(data.pricing)}
+    
+    Create a Pricing Strategy in JSON:
     {
       "pricingStrategy": {
         "recommendedPrice": "Optimal price with justification",
-        "valueStack": ["Value item 1", "Value item 2", "Value item 3"],
+        "valueStack": ["Value item 1", "Value item 2"],
         "pricingTiers": {
           "basic": { "price": "$X", "includes": ["..."] },
-          "premium": { "price": "$Y", "includes": ["..."] },
-          "vip": { "price": "$Z", "includes": ["..."] }
+          "premium": { "price": "$Y", "includes": ["..."] }
         },
-        "guaranteeType": "Risk reversal strategy",
-        "paymentOptions": ["Full pay", "Payment plan option"]
+        "paymentOptions": ["Full pay", "Payment plan"]
       }
     }`,
-    name: "Offer Pricing Strategy"
+    name: "Pricing Strategy"
   },
 
-  // Step 9: Have communication style - Generate Lead Magnet Ideas
-  9: {
-    key: 6,
-    name: "Lead Magnet Ideas"
+  // Step 12: Assets
+  12: {
+    promptFn: (data) => `Based on this business:
+    Industry: ${safeStringify(data.industry)}
+    Current Assets: ${safeStringify(data.assets)}
+    
+    Create a Marketing Assets Gap Analysis in JSON:
+    {
+      "assetsAnalysis": {
+        "existingAssets": ["Asset 1", "Asset 2"],
+        "missingAssets": ["Missing 1", "Missing 2"],
+        "priorityOrder": ["Priority 1", "Priority 2"]
+      }
+    }`,
+    name: "Assets Gap Analysis"
   },
 
-  // Step 10: Have platforms - Generate Ads Preview
-  10: {
+  // Step 13: Revenue
+  13: {
+    promptFn: (data) => `Based on this business stage:
+    Industry: ${safeStringify(data.industry)}
+    Revenue: ${safeStringify(data.revenue)}
+    
+    Create a Growth Strategy in JSON:
+    {
+      "growthStrategy": {
+        "currentStage": "Business stage",
+        "nextMilestone": "Next revenue goal",
+        "strategies": ["Strategy 1", "Strategy 2"]
+      }
+    }`,
+    name: "Growth Strategy"
+  },
+
+  // Step 14: Brand Voice
+  14: {
+    promptFn: (data) => `Based on this brand:
+    Industry: ${safeStringify(data.industry)}
+    Brand Voice: ${safeStringify(data.brandVoice)}
+    
+    Create a Brand Voice Guide in JSON:
+    {
+      "brandVoice": {
+        "tone": "Voice description",
+        "doSay": ["Phrase 1", "Phrase 2"],
+        "dontSay": ["Avoid 1", "Avoid 2"],
+        "exampleHeadlines": ["Headline 1", "Headline 2"]
+      }
+    }`,
+    name: "Brand Voice Guide"
+  },
+
+  // Step 15: Brand Colors
+  15: {
+    promptFn: (data) => `Based on this brand:
+    Industry: ${safeStringify(data.industry)}
+    Brand Colors: ${safeStringify(data.brandColors)}
+    
+    Create a Visual Style Guide in JSON:
+    {
+      "visualStyle": {
+        "primaryColors": ["Color 1", "Color 2"],
+        "accentColors": ["Accent 1"],
+        "mood": "Visual mood description",
+        "styleNotes": "Additional style guidance"
+      }
+    }`,
+    name: "Visual Style Guide"
+  },
+
+  // Step 16: Call to Action
+  16: {
+    promptFn: (data) => `Based on this business:
+    Industry: ${safeStringify(data.industry)}
+    Offer: ${safeStringify(data.offerProgram)}
+    CTA: ${safeStringify(data.callToAction)}
+    
+    Create CTA Variations in JSON:
+    {
+      "ctaVariations": {
+        "primaryCTA": "Main call to action",
+        "alternatives": ["CTA 2", "CTA 3"],
+        "urgencyElements": ["Urgency 1", "Urgency 2"]
+      }
+    }`,
+    name: "CTA Variations"
+  },
+
+  // Step 17: Platforms
+  17: {
     key: 9,
     name: "Facebook Ads Preview"
   },
 
-  // Step 11: Have dream client - Generate Email Preview
-  11: {
+  // Step 18: 90-Day Goal
+  18: {
     promptFn: (data) => `Based on this business:
-    Topic: ${safeStringify(data.topicArea)}
-    Client: ${safeStringify(data.idealClient)}
-    Dream Client: ${safeStringify(data.dreamClient)}
-    Problem: ${safeStringify(data.problem)}
-    Transformation: ${safeStringify(data.transformation)}
+    Industry: ${safeStringify(data.industry)}
+    90-Day Goal: ${safeStringify(data.goal90Days)}
     
-    Create a 3-Email Preview Sequence in JSON:
+    Create a 90-Day Action Plan in JSON:
     {
-      "emailPreview": {
-        "email1": {
-          "subject": "Subject line",
-          "hook": "Opening hook",
-          "mainPoint": "Core message",
-          "cta": "Call to action"
-        },
-        "email2": {
-          "subject": "Subject line",
-          "hook": "Opening hook", 
-          "mainPoint": "Core message",
-          "cta": "Call to action"
-        },
-        "email3": {
-          "subject": "Subject line",
-          "hook": "Opening hook",
-          "mainPoint": "Core message",
-          "cta": "Call to action"
-        }
+      "actionPlan": {
+        "mainGoal": "Primary objective",
+        "milestones": ["Week 4 milestone", "Week 8 milestone", "Week 12 milestone"],
+        "dailyActions": ["Action 1", "Action 2"],
+        "metrics": ["Metric to track 1", "Metric to track 2"]
       }
     }`,
-    name: "Email Sequence Preview"
+    name: "90-Day Action Plan"
   },
 
-  // Step 12: All data available - final generation happens via 'all'
-  12: null
+  // Step 19: Business Stage
+  19: {
+    promptFn: (data) => `Based on this business:
+    Industry: ${safeStringify(data.industry)}
+    Business Stage: ${safeStringify(data.businessStage)}
+    Revenue: ${safeStringify(data.revenue)}
+    
+    Create Stage-Specific Recommendations in JSON:
+    {
+      "stageRecommendations": {
+        "currentStage": "Stage name",
+        "priorities": ["Priority 1", "Priority 2"],
+        "avoid": ["Thing to avoid 1"],
+        "focusAreas": ["Focus 1", "Focus 2"]
+      }
+    }`,
+    name: "Stage Recommendations"
+  },
+
+  // Step 20: All data available - final generation happens via 'all'
+  20: null
 };
 
 // Content titles for display
