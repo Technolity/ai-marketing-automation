@@ -2,11 +2,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Download, Rocket, Image as ImageIcon,
   CheckCircle, Loader2, FileJson, Save, ArrowLeft, AlertCircle,
-  ChevronDown, FolderOpen
+  ChevronDown, FolderOpen, ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -167,6 +167,12 @@ export default function ResultsPage() {
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [showSessionDropdown, setShowSessionDropdown] = useState(false);
 
+  // Collapsible sections state
+  const [expandedSections, setExpandedSections] = useState({});
+
+  // Funnel building state
+  const [isBuildingFunnel, setIsBuildingFunnel] = useState(false);
+
   useEffect(() => {
     if (authLoading) return;
     if (!session) {
@@ -286,8 +292,25 @@ export default function ResultsPage() {
     toast.success("Downloaded JSON file!");
   };
 
-  const handlePushToGHL = async () => {
-    toast.info("Pushing to GoHighLevel... (feature coming soon)");
+  const toggleSection = (contentKey) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [contentKey]: !prev[contentKey]
+    }));
+  };
+
+  const handleBuildFunnel = async () => {
+    setIsBuildingFunnel(true);
+    toast.info("Building your funnel...");
+
+    // Simulate funnel building process (3 seconds)
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    setIsBuildingFunnel(false);
+
+    // Navigate to funnel copy page with results data
+    localStorage.setItem('funnel_data', JSON.stringify(results));
+    router.push('/funnel_copy');
   };
 
   const handleGenerateImages = async () => {
@@ -457,10 +480,19 @@ export default function ResultsPage() {
                     <FileJson className="w-5 h-5" /> Export JSON
                   </button>
                   <button
-                    onClick={handlePushToGHL}
-                    className="px-6 py-3 bg-cyan rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20 text-black"
+                    onClick={handleBuildFunnel}
+                    disabled={isBuildingFunnel}
+                    className="px-6 py-3 bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/30 text-black disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <Rocket className="w-5 h-5" /> Push to GHL
+                    {isBuildingFunnel ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" /> Building Your Funnel...
+                      </>
+                    ) : (
+                      <>
+                        <Rocket className="w-5 h-5" /> Build my Funnel
+                      </>
+                    )}
                   </button>
                 </div>
               )}
@@ -469,7 +501,7 @@ export default function ResultsPage() {
         </motion.div>
 
         {/* Results Content */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {Object.entries(results).map(([contentKey, content], idx) => {
             // Use _contentName if available, otherwise fall back to lookup tables
             const title = content?._contentName || CONTENT_TITLES[contentKey] || STEP_TITLES[contentKey] || formatFieldName(contentKey);
@@ -478,6 +510,7 @@ export default function ResultsPage() {
             const displayContent = { ...content };
             delete displayContent._contentName;
 
+            const isExpanded = expandedSections[contentKey];
 
             return (
               <motion.div
@@ -485,29 +518,53 @@ export default function ResultsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
-                className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-6"
+                className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] overflow-hidden"
               >
-                <div className="flex items-center gap-3 mb-4">
-                  <CheckCircle className="w-6 h-6 text-green-500" />
-                  <h2 className="text-2xl font-bold">{title}</h2>
-                </div>
+                {/* Collapsible Header */}
+                <button
+                  onClick={() => toggleSection(contentKey)}
+                  className="w-full flex items-center justify-between p-6 hover:bg-[#252528] transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
+                    <h2 className="text-xl md:text-2xl font-bold text-left">{title}</h2>
+                  </div>
+                  <motion.div
+                    animate={{ rotate: isExpanded ? 90 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronRight className="w-6 h-6 text-gray-400" />
+                  </motion.div>
+                </button>
 
-                <div className="space-y-6">
-                  {formatContentForDisplay(displayContent).map(({ key, value }, index) => (
-
-                    <div key={`${key}-${index}`} className="space-y-3">
-                      <h4 className="text-sm font-bold text-cyan uppercase tracking-wide flex items-center gap-2">
-                        <div className="w-1 h-4 bg-cyan rounded-full"></div>
-                        {key}
-                      </h4>
-                      <div className="bg-[#0e0e0f] p-5 rounded-xl border border-[#2a2a2d] hover:border-[#3a3a3d] transition-colors">
-                        <p className="text-gray-200 whitespace-pre-wrap text-base leading-relaxed font-normal">
-                          {value}
-                        </p>
+                {/* Collapsible Content */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-6 pb-6 space-y-6 border-t border-[#2a2a2d] pt-6">
+                        {formatContentForDisplay(displayContent).map(({ key, value }, index) => (
+                          <div key={`${key}-${index}`} className="space-y-3">
+                            <h4 className="text-sm font-bold text-cyan uppercase tracking-wide flex items-center gap-2">
+                              <div className="w-1 h-4 bg-cyan rounded-full"></div>
+                              {key}
+                            </h4>
+                            <div className="bg-[#0e0e0f] p-5 rounded-xl border border-[#2a2a2d] hover:border-[#3a3a3d] transition-colors">
+                              <p className="text-gray-200 whitespace-pre-wrap text-base leading-relaxed font-normal">
+                                {value}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )
           })}
