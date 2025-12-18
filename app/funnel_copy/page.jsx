@@ -388,10 +388,6 @@ export default function FunnelCopyPage() {
             {imagesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             <span>{imagesLoading ? 'Processing...' : 'Generate Visuals'}</span>
           </button>
-
-          <button className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:brightness-110 rounded-lg font-bold text-sm text-white shadow-lg shadow-cyan-500/20">
-            Publish Funnel
-          </button>
         </div>
       </div>
 

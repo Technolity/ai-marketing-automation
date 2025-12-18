@@ -32,4 +32,12 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.tsnul
+next-env.d.ts
+
+# documentation
+docs/
+*.md
+
+# system files
+nul
+supabase/.temp/

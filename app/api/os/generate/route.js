@@ -3,6 +3,12 @@ import OpenAI from 'openai';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { auth } from '@clerk/nextjs';
 
+// Import RAG retrieval helpers
+import { getRelevantContext, injectContextIntoPrompt, getKnowledgeBaseStats } from '@/lib/rag/retrieve';
+
+// Import JSON parser with error recovery
+import { parseJsonSafe } from '@/lib/utils/jsonParser';
+
 // Import individual prompts from the prompts directory
 import { idealClientPrompt } from '@/lib/prompts/idealClient';
 import { messagePrompt } from '@/lib/prompts/message';
@@ -20,10 +26,41 @@ import { youtubeShowPrompt } from '@/lib/prompts/youtubeShow';
 import { contentPillarsPrompt } from '@/lib/prompts/contentPillars';
 import { bioPrompt } from '@/lib/prompts/bio';
 import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
+import { masterPrompt } from '@/lib/prompts/masterPrompt';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+// Retry configuration
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000; // Start with 1 second
+
+// Retry helper with exponential backoff
+async function retryWithBackoff(fn, maxRetries = MAX_RETRIES, retryDelay = RETRY_DELAY_MS) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on authentication errors or invalid requests
+      if (error.status === 401 || error.status === 400) {
+        throw error;
+      }
+
+      if (attempt < maxRetries) {
+        const delay = retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        console.log(`[RETRY] Attempt ${attempt} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError;
+}
 
 // All prompts mapped by key for final generation
 const osPrompts = {
@@ -43,6 +80,26 @@ const osPrompts = {
   14: contentPillarsPrompt,
   15: bioPrompt,
   16: appointmentRemindersPrompt
+};
+
+// Map content keys to RAG content types
+const CONTENT_TYPE_MAP = {
+  1: 'ideal-client',
+  2: 'message',
+  3: 'story',
+  4: 'offer',
+  5: 'sales-script',
+  6: 'lead-magnet',
+  7: 'vsl',
+  8: 'email',
+  9: 'facebook-ads',
+  10: 'funnel-copy',
+  11: 'lead-generation',
+  12: 'offer',
+  13: 'lead-generation',
+  14: 'message',
+  15: 'message',
+  16: 'email'
 };
 
 // CORRECTED: Map each step to what content CAN be properly generated with available data
@@ -415,8 +472,14 @@ export async function POST(req) {
       }
 
       try {
+        // Check if RAG knowledge base is available
+        const kbStats = await getKnowledgeBaseStats();
+        const useRAG = kbStats.is_ready && kbStats.total_chunks > 0;
+
+        console.log(`[RAG PREVIEW] Knowledge base status: ${useRAG ? 'ENABLED' : 'DISABLED'} (${kbStats.total_chunks} chunks)`);
+
         let prompt;
-        let systemPrompt = "You are an elite business growth strategist and expert copywriter. Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets. Avoid generic advice. Return strictly valid JSON.";
+        let systemPrompt = "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that use proven frameworks and real-world strategies. Avoid generic advice. Return strictly valid JSON.";
 
         // Check if this step has a custom prompt function or uses a preset prompt
         if (previewConfig.promptFn) {
@@ -435,6 +498,20 @@ export async function POST(req) {
           });
         }
 
+        // RAG Enhancement: Get relevant context from Ted's knowledge base for preview
+        if (useRAG && previewConfig.key && CONTENT_TYPE_MAP[previewConfig.key]) {
+          try {
+            const ragContext = await getRelevantContext(CONTENT_TYPE_MAP[previewConfig.key], data);
+            if (ragContext && ragContext.hasContext) {
+              prompt = injectContextIntoPrompt(prompt, ragContext);
+              console.log(`[RAG PREVIEW] Enhanced preview with ${ragContext.sources?.length || 0} frameworks`);
+            }
+          } catch (ragError) {
+            console.error(`[RAG PREVIEW] Failed to enhance preview:`, ragError.message);
+            // Continue without RAG if it fails
+          }
+        }
+
         const completion = await openai.chat.completions.create({
           messages: [
             { role: "system", content: systemPrompt },
@@ -443,9 +520,44 @@ export async function POST(req) {
           model: "gpt-4o-mini",
           response_format: { type: "json_object" },
           max_tokens: 1500,
+          temperature: 0.7,
         });
 
-        const result = JSON.parse(completion.choices[0].message.content);
+        const rawContent = completion.choices[0].message.content;
+
+        // Use safe JSON parser with error recovery
+        let result;
+        try {
+          result = parseJsonSafe(rawContent, {
+            throwOnError: true,
+            logErrors: true
+          });
+        } catch (parseError) {
+          console.error('[Preview] JSON parsing failed:', parseError.message);
+          console.error('[Preview] Raw content (first 1000 chars):', rawContent.substring(0, 1000));
+
+          // If parsing fails, retry with a simpler prompt
+          console.log('[Preview] Retrying with simplified prompt...');
+          const retryCompletion = await openai.chat.completions.create({
+            messages: [
+              {
+                role: "system",
+                content: "You are a business strategist. Return ONLY valid JSON. No markdown, no code blocks, no extra text. Ensure all strings are properly escaped and no unescaped quotes or newlines exist in string values."
+              },
+              { role: "user", content: prompt }
+            ],
+            model: "gpt-4o-mini",
+            response_format: { type: "json_object" },
+            max_tokens: 1500,
+            temperature: 0.5, // Lower temperature for more consistent formatting
+          });
+
+          result = parseJsonSafe(retryCompletion.choices[0].message.content, {
+            throwOnError: true,
+            logErrors: true
+          });
+        }
+
         return NextResponse.json({
           result: {
             title: previewConfig.name,
@@ -456,15 +568,22 @@ export async function POST(req) {
         });
       } catch (err) {
         console.error('Preview generation error:', err);
+        console.error('Error details:', err.message, err.stack);
+
+        // Return the actual error to help debug
         return NextResponse.json({
+          error: true,
+          message: `Preview generation failed: ${err.message}`,
+          details: err.stack?.substring(0, 500),
           result: {
             preview: {
               title: previewConfig.name,
-              message: "Preview generation in progress...",
-              unlocked: false
+              message: `Error: ${err.message}. Please check your API keys and try again.`,
+              unlocked: false,
+              error: true
             }
           }
-        });
+        }, { status: 500 });
       }
     }
 
@@ -478,53 +597,203 @@ export async function POST(req) {
           answers: data
         });
 
+      // Check if RAG knowledge base is available
+      const kbStats = await getKnowledgeBaseStats();
+      const useRAG = kbStats.is_ready && kbStats.total_chunks > 0;
+
+      console.log(`[RAG] Knowledge base status: ${useRAG ? 'ENABLED' : 'DISABLED'} (${kbStats.total_chunks} chunks)`);
+
       // Generate all artifacts in parallel (all 14 prompts)
       const promptKeys = Object.keys(osPrompts).map(Number);
       const results = {};
 
       const promises = promptKeys.map(async (key) => {
         try {
-          const prompt = osPrompts[key](data);
-          const completion = await openai.chat.completions.create({
-            messages: [
-              {
-                role: "system",
-                content: "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. Return strictly valid JSON."
-              },
-              { role: "user", content: prompt }
-            ],
-            model: "gpt-4o",
-            response_format: { type: "json_object" },
+          let basePrompt = osPrompts[key](data);
+
+          // RAG Enhancement: Get relevant context from Ted's knowledge base
+          if (useRAG && CONTENT_TYPE_MAP[key]) {
+            try {
+              const ragContext = await getRelevantContext(CONTENT_TYPE_MAP[key], data);
+              if (ragContext && ragContext.hasContext) {
+                basePrompt = injectContextIntoPrompt(basePrompt, ragContext);
+                console.log(`[RAG] Enhanced prompt ${key} (${CONTENT_TYPE_MAP[key]}) with ${ragContext.sources?.length || 0} frameworks`);
+              }
+            } catch (ragError) {
+              console.error(`[RAG] Failed to enhance prompt ${key}:`, ragError.message);
+              // Continue without RAG if it fails
+            }
+          }
+
+          // Use retry logic for OpenAI API calls
+          const completion = await retryWithBackoff(async () => {
+            return await openai.chat.completions.create({
+              messages: [
+                {
+                  role: "system",
+                  content: "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped."
+                },
+                { role: "user", content: basePrompt }
+              ],
+              model: "gpt-4o",
+              response_format: { type: "json_object" },
+              temperature: 0.7,
+            });
           });
 
-          return { key, result: JSON.parse(completion.choices[0].message.content), name: CONTENT_NAMES[key] };
-        } catch (err) {
-          console.error(`Error generating ${CONTENT_NAMES[key]}:`, err);
-          return { key, result: null, name: CONTENT_NAMES[key] };
-        }
-      });
+          const rawContent = completion.choices[0].message.content;
+          const parsedResult = parseJsonSafe(rawContent, {
+            throwOnError: false,
+            logErrors: true,
+            defaultValue: null
+          });
 
-      const allResults = await Promise.all(promises);
-      allResults.forEach(({ key, result, name }) => {
-        if (result) {
-          results[key] = {
-            name,
-            data: result
+          if (!parsedResult) {
+            throw new Error(`Failed to parse JSON for ${CONTENT_NAMES[key]}`);
+          }
+
+          return {
+            key,
+            result: parsedResult,
+            name: CONTENT_NAMES[key],
+            success: true,
+            error: null
+          };
+        } catch (err) {
+          console.error(`Error generating ${CONTENT_NAMES[key]} after ${MAX_RETRIES} attempts:`, err);
+          return {
+            key,
+            result: null,
+            name: CONTENT_NAMES[key],
+            success: false,
+            error: err.message
           };
         }
       });
 
-      await supabaseAdmin
-        .from('slide_results')
-        .insert({
-          user_id: user.id,
-          slide_id: 99,
-          ai_output: results,
-          approved: true
-        });
+      const allResults = await Promise.all(promises);
 
+      // Track successful and failed generations
+      const successfulItems = [];
+      const failedItems = [];
 
-      return NextResponse.json({ result: results });
+      allResults.forEach(({ key, result, name, success, error }) => {
+        if (success && result) {
+          results[key] = {
+            name,
+            data: result
+          };
+          successfulItems.push(name);
+        } else {
+          failedItems.push({ name, error });
+        }
+      });
+
+      // Save results even if some items failed (partial save)
+      const totalItems = allResults.length;
+      const successCount = successfulItems.length;
+      const failCount = failedItems.length;
+
+      console.log(`[GENERATION PHASE 1] Completed: ${successCount}/${totalItems} individual sections successful, ${failCount} failed`);
+
+      if (failedItems.length > 0) {
+        console.log('[GENERATION PHASE 1] Failed items:', failedItems.map(f => f.name).join(', '));
+      }
+
+      // PHASE 2: Master Aggregation and Polishing
+      // Generate comprehensive final marketing system using master prompt
+      let masterSystem = null;
+
+      if (successCount >= 10) { // Only run master prompt if we have at least 10 sections
+        try {
+          console.log('[GENERATION PHASE 2] Starting master aggregation...');
+
+          // Get RAG context for master prompt (general business strategy context)
+          let masterRagContext = null;
+          if (useRAG) {
+            try {
+              masterRagContext = await getRelevantContext('master-strategy', data);
+              if (masterRagContext && masterRagContext.hasContext) {
+                console.log(`[GENERATION PHASE 2] Enhanced master prompt with ${masterRagContext.sources?.length || 0} frameworks`);
+              }
+            } catch (ragError) {
+              console.error(`[GENERATION PHASE 2] Failed to enhance master prompt:`, ragError.message);
+            }
+          }
+
+          // Generate master prompt with all individual sections
+          const masterPromptText = masterPrompt(data, results, masterRagContext);
+
+          // Generate master marketing system
+          const masterCompletion = await retryWithBackoff(async () => {
+            return await openai.chat.completions.create({
+              messages: [
+                {
+                  role: "system",
+                  content: "You are Ted McGrath, an elite business growth strategist and master synthesizer. You take individual marketing components and create comprehensive, cohesive marketing systems that are greater than the sum of their parts. You ensure every element works together perfectly and is grounded in proven frameworks. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped."
+                },
+                { role: "user", content: masterPromptText }
+              ],
+              model: "gpt-4o",
+              response_format: { type: "json_object" },
+              temperature: 0.7,
+            });
+          });
+
+          const masterRawContent = masterCompletion.choices[0].message.content;
+          masterSystem = parseJsonSafe(masterRawContent, {
+            throwOnError: false,
+            logErrors: true,
+            defaultValue: null
+          });
+
+          if (masterSystem) {
+            console.log('[GENERATION PHASE 2] Master marketing system generated successfully');
+          } else {
+            console.error('[GENERATION PHASE 2] Failed to parse master system JSON');
+            throw new Error('Master system JSON parsing failed');
+          }
+
+          // Add master system to results
+          results['master'] = {
+            name: 'Complete Marketing System',
+            data: masterSystem
+          };
+
+        } catch (masterError) {
+          console.error('[GENERATION PHASE 2] Master aggregation failed:', masterError.message);
+          // Continue without master system if it fails - individual sections still available
+        }
+      } else {
+        console.log('[GENERATION PHASE 2] Skipped - not enough successful sections for master aggregation');
+      }
+
+      // Save successful results to database (including master system if generated)
+      if (successCount > 0) {
+        await supabaseAdmin
+          .from('slide_results')
+          .insert({
+            user_id: user.id,
+            slide_id: 99,
+            ai_output: results,
+            approved: true
+          });
+      }
+
+      // Return results with metadata about success/failure
+      return NextResponse.json({
+        result: results,
+        metadata: {
+          total: totalItems,
+          successful: successCount,
+          failed: failCount,
+          failedItems: failedItems.length > 0 ? failedItems : undefined,
+          partialSave: failCount > 0 && successCount > 0,
+          hasMasterSystem: masterSystem !== null,
+          phase1Complete: true,
+          phase2Complete: masterSystem !== null
+        }
+      });
     }
 
     return NextResponse.json({ error: 'Invalid step' }, { status: 400 });

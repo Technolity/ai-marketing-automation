@@ -6,24 +6,27 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Download, Rocket, Image as ImageIcon,
   CheckCircle, Loader2, FileJson, Save, ArrowLeft, AlertCircle,
-  ChevronDown, FolderOpen, ChevronRight
+  ChevronDown, FolderOpen, ChevronRight, Menu, X, Users, MessageSquare,
+  BookOpen, Calendar, ScrollText, Magnet, Video, Mail, Megaphone,
+  Layout, MonitorPlay, Layers
 } from "lucide-react";
 import { toast } from "sonner";
+import GHLPushButton from "@/components/GHLPushButton";
 
 // Map generated content keys to display titles
 const CONTENT_TITLES = {
   idealClient: "Ideal Client Builder",
   message: "Million-Dollar Message",
-  stories: "Signature Story (3 Versions)",
+  stories: "Signature Story",
   program8Week: "8-Week Program Blueprint",
   program12Month: "12-Month Program Blueprint",
-  scripts: "Sales Scripts (Setter, Closer, Objections)",
+  scripts: "Sales Scripts",
   leadMagnet: "Lead Magnet",
   vslScript: "VSL Script",
   vslPage: "VSL Page Copy",
   emails: "15-Day Email Sequence",
-  ads: "Ad Copy & Image Prompts",
-  funnel: "Funnel Copy (Opt-in, VSL, Thank You)",
+  ads: "Ad Copy & Prompts",
+  funnel: "Funnel Copy",
   youtube: "YouTube Show",
   contentPillars: "Content Pillars"
 };
@@ -49,6 +52,25 @@ const STEP_TITLES = {
   18: "90-Day Action Plan",
   19: "Stage Recommendations",
   20: "Help Priority Analysis"
+};
+
+// Icons mapping for sidebar
+const CONTENT_ICONS = {
+  idealClient: Users,
+  message: MessageSquare,
+  stories: BookOpen,
+  program8Week: Calendar,
+  program12Month: Calendar,
+  scripts: ScrollText,
+  leadMagnet: Magnet,
+  vslScript: Video,
+  vslPage: Layout,
+  emails: Mail,
+  ads: Megaphone,
+  funnel: Layers,
+  youtube: MonitorPlay,
+  contentPillars: Layers,
+  default: FileJson
 };
 
 // Helper function to format field names into readable titles
@@ -156,22 +178,19 @@ export default function ResultsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [results, setResults] = useState({});
-  const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [sessionName, setSessionName] = useState("");
-  const [sessionSource, setSessionSource] = useState(null); // Track where results came from
+  const [sessionSource, setSessionSource] = useState(null);
 
   // Session selector state
   const [savedSessions, setSavedSessions] = useState([]);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [showSessionDropdown, setShowSessionDropdown] = useState(false);
 
-  // Collapsible sections state
-  const [expandedSections, setExpandedSections] = useState({});
-
-  // Funnel building state
-  const [isBuildingFunnel, setIsBuildingFunnel] = useState(false);
+  // New UI State
+  const [selectedContentKey, setSelectedContentKey] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   useEffect(() => {
     if (authLoading) return;
@@ -182,19 +201,17 @@ export default function ResultsPage() {
 
     const fetchResults = async () => {
       try {
-        // Check local storage for hints
         const storedSource = localStorage.getItem('ted_results_source');
         if (storedSource) {
           try { setSessionSource(JSON.parse(storedSource)); } catch (e) { }
         }
 
-        // Check URL for specific session
         const urlParams = new URLSearchParams(window.location.search);
         const sessionId = urlParams.get('session');
 
         const endpoint = sessionId
           ? `/api/os/results?session_id=${sessionId}`
-          : '/api/os/results'; // Fetches latest approved or fallback to latest session
+          : '/api/os/results';
 
         const res = await fetch(endpoint);
         if (!res.ok) throw new Error('Failed to fetch results');
@@ -223,7 +240,6 @@ export default function ResultsPage() {
     fetchResults();
   }, [session, authLoading, router]);
 
-  // Helper to process and set results state
   const processResults = (rawData) => {
     const transformedResults = {};
     Object.entries(rawData).forEach(([key, value]) => {
@@ -241,10 +257,9 @@ export default function ResultsPage() {
     setResults(transformedResults);
   };
 
-  // Fetch all saved sessions for dropdown
   const fetchSavedSessions = async () => {
     try {
-      const res = await fetch('/api/os/sessions'); // Use existing API
+      const res = await fetch('/api/os/sessions');
       const data = await res.json();
       if (data.sessions) {
         setSavedSessions(data.sessions);
@@ -265,6 +280,8 @@ export default function ResultsPage() {
         setSessionSource(data.source);
         setSelectedSessionId(sessionId);
         setShowSessionDropdown(false);
+        setSelectedContentKey(null); // Reset selection
+        setIsSidebarOpen(true); // Re-open sidebar
         toast.success(`Loaded: ${data.source?.name}`);
       }
     } catch (error) {
@@ -292,40 +309,6 @@ export default function ResultsPage() {
     toast.success("Downloaded JSON file!");
   };
 
-  const toggleSection = (contentKey) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [contentKey]: !prev[contentKey]
-    }));
-  };
-
-  const handleBuildFunnel = async () => {
-    setIsBuildingFunnel(true);
-    toast.info("Building your funnel...");
-
-    // Simulate funnel building process (3 seconds)
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    setIsBuildingFunnel(false);
-
-    // Navigate to funnel copy page with results data
-    localStorage.setItem('funnel_data', JSON.stringify(results));
-    router.push('/funnel_copy');
-  };
-
-  const handleGenerateImages = async () => {
-    setIsGeneratingImages(true);
-    try {
-      toast.info("Generating ad images... (feature coming soon)");
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast.success("Images generated!");
-    } catch (error) {
-      toast.error("Failed to generate images");
-    } finally {
-      setIsGeneratingImages(false);
-    }
-  };
-
   const handleSaveData = async () => {
     if (!sessionName.trim()) {
       toast.error("Please enter a session name");
@@ -334,15 +317,12 @@ export default function ResultsPage() {
 
     setIsSaving(true);
     try {
-      // Use existing sessions API to save
       const res = await fetch("/api/os/sessions", {
         method: "POST",
         body: JSON.stringify({
           sessionName: sessionName.trim(),
           completedSteps: Array.from({ length: 20 }, (_, i) => i + 1),
-          answers: {}, // We might not have raw answers here easily, or need to fetch them.
-          // Note: This save might be incomplete if we don't have 'answers'.
-          // But 'generatedContent' is the key part for results.
+          answers: {},
           generatedContent: results,
           isComplete: true
         })
@@ -354,13 +334,19 @@ export default function ResultsPage() {
       toast.success("Session saved successfully!");
       setShowSaveDialog(false);
       setSessionName("");
-      fetchSavedSessions(); // Refresh list
+      fetchSavedSessions();
     } catch (error) {
       console.error("Failed to save session:", error);
       toast.error("Failed to save session");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleContentSelect = (key) => {
+    setSelectedContentKey(key);
+    // Auto close sidebar on selection for cleaner reading experience
+    setIsSidebarOpen(false);
   };
 
   if (authLoading || isLoading) {
@@ -371,270 +357,334 @@ export default function ResultsPage() {
     );
   }
 
+  // Current Content Rendering Logic
+  const currentContent = selectedContentKey ? results[selectedContentKey] : null;
+  const currentTitle = currentContent
+    ? (currentContent._contentName || CONTENT_TITLES[selectedContentKey] || STEP_TITLES[selectedContentKey] || formatFieldName(selectedContentKey))
+    : "Welcome";
+
+  const displayContent = currentContent ? { ...currentContent } : null;
+  if (displayContent) delete displayContent._contentName;
+
+  const IconComponent = selectedContentKey ? (CONTENT_ICONS[selectedContentKey] || CONTENT_ICONS.default) : Rocket;
+
   return (
-    <div className="min-h-screen bg-[#0e0e0f] text-white">
-      <div className="max-w-7xl mx-auto p-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-6">
+    <div className="flex h-screen bg-[#0e0e0f] text-white overflow-hidden font-sans selection:bg-cyan/30">
+
+      {/* Sidebar Overlay (Mobile) */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar */}
+      <motion.aside
+        initial={false}
+        animate={{
+          x: isSidebarOpen ? 0 : "-100%",
+          width: isSidebarOpen ? "320px" : "0px",
+          opacity: isSidebarOpen ? 1 : 0
+        }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className={`fixed lg:relative z-50 h-full bg-[#1b1b1d]/80 backdrop-blur-xl border-r border-[#2a2a2d] flex flex-col flex-shrink-0 lg:flex overflow-hidden`}
+      >
+        <div className="p-6 border-b border-[#2a2a2d] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan to-blue-600 flex items-center justify-center shadow-lg shadow-cyan/20">
+              <Rocket className="w-5 h-5 text-white" />
+            </div>
+            <span className="font-bold text-xl tracking-tight">TedOS</span>
+          </div>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="lg:hidden p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+          <div className="mb-4 px-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Generated Assets</p>
+            {Object.keys(results).length === 0 ? (
+              <div className="text-center py-8 px-4 border border-dashed border-[#2a2a2d] rounded-xl">
+                <p className="text-sm text-gray-500">No content generated yet.</p>
+              </div>
+            ) : (
+              Object.keys(results).map((key, idx) => {
+                const ItemIcon = CONTENT_ICONS[key] || CONTENT_ICONS.default;
+                const title = results[key]?._contentName || CONTENT_TITLES[key] || STEP_TITLES[key] || formatFieldName(key);
+                const isActive = selectedContentKey === key;
+
+                return (
+                  <motion.button
+                    key={key}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    onClick={() => handleContentSelect(key)}
+                    className={`w-full group flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-200 border border-transparent ${isActive
+                      ? "bg-cyan/10 text-cyan border-cyan/20 shadow-lg shadow-cyan/5"
+                      : "text-gray-400 hover:text-white hover:bg-[#2a2a2d]"
+                      }`}
+                  >
+                    <ItemIcon className={`w-5 h-5 ${isActive ? "text-cyan" : "text-gray-500 group-hover:text-gray-300"}`} />
+                    <span className="text-sm font-medium truncate">{title}</span>
+                    {isActive && <ChevronRight className="w-4 h-4 ml-auto opacity-50" />}
+                  </motion.button>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-[#2a2a2d]">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-[#2a2a2d] hover:bg-[#343437] text-white text-sm font-medium transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </button>
+        </div>
+      </motion.aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+        {/* Top Header */}
+        <header className="h-16 border-b border-[#2a2a2d] bg-[#0e0e0f]/80 backdrop-blur-md flex items-center justify-between px-4 lg:px-8 z-30">
+          <div className="flex items-center gap-4">
+            {!isSidebarOpen && (
               <button
-                onClick={() => router.push("/dashboard")}
-                className="text-gray-400 hover:text-white flex items-center gap-2 transition-colors"
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors text-gray-400 hover:text-white"
+                title="Open Sidebar"
               >
-                <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+                <Menu className="w-6 h-6" />
+              </button>
+            )}
+
+            {/* Breadcrumb / Title */}
+            {selectedContentKey && (
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity"
+                title="Back to Menu"
+              >
+                <span className="text-gray-500">Results</span>
+                <ChevronRight className="w-4 h-4 text-gray-600" />
+                <span className="text-white font-medium truncate max-w-[200px] md:max-w-md">{currentTitle}</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Session Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowSessionDropdown(!showSessionDropdown)}
+                className="px-3 py-2 hover:bg-[#1b1b1d] rounded-lg font-medium flex items-center gap-2 transition-all text-xs text-gray-400 hover:text-white"
+              >
+                <FolderOpen className="w-4 h-4" />
+                <span className="hidden sm:inline">{sessionSource?.name || 'Session'}</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showSessionDropdown ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Session Selector Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowSessionDropdown(!showSessionDropdown)}
-                  className="px-4 py-2 bg-[#1b1b1d] hover:bg-[#252528] border border-[#2a2a2d] rounded-lg font-medium flex items-center gap-2 transition-all text-sm"
-                >
-                  <FolderOpen className="w-4 h-4 text-cyan" />
-                  {sessionSource?.name || 'Current Session'}
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showSessionDropdown ? 'rotate-180' : ''}`} />
-                </button>
-
+              <AnimatePresence>
                 {showSessionDropdown && (
-                  <div className="absolute right-0 top-full mt-2 w-72 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg shadow-xl z-50 overflow-hidden">
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute right-0 top-full mt-2 w-72 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl shadow-2xl z-50 overflow-hidden"
+                  >
                     <div className="p-3 border-b border-[#2a2a2d]">
-                      <p className="text-xs text-gray-500 uppercase font-medium">Switch Business</p>
+                      <p className="text-xs text-gray-500 uppercase font-medium">Switch Session</p>
                     </div>
-                    <div className="max-h-64 overflow-y-auto">
+                    <div className="max-h-64 overflow-y-auto custom-scrollbar">
                       {savedSessions.length === 0 ? (
                         <div className="p-4 text-center text-gray-500 text-sm">
-                          No saved businesses yet
+                          No saved sessions found.
                         </div>
                       ) : (
                         savedSessions.map((session) => (
                           <button
                             key={session.id}
                             onClick={() => loadSessionResults(session.id)}
-                            className={`w-full px-4 py-3 text-left hover:bg-[#252528] transition-colors flex items-center justify-between ${selectedSessionId === session.id ? 'bg-cyan/10 border-l-2 border-cyan' : ''
+                            className={`w-full px-4 py-3 text-left hover:bg-[#252528] transition-colors flex items-center justify-between border-b last:border-0 border-[#2a2a2d]/50 ${selectedSessionId === session.id ? 'bg-cyan/5' : ''
                               }`}
                           >
-                            <div>
-                              <p className="font-medium text-white text-sm">{session.session_name}</p>
-                              {session.business_name && (
-                                <p className="text-xs text-cyan">{session.business_name}</p>
-                              )}
-                              <p className="text-xs text-gray-500 mt-1">
+                            <div className="overflow-hidden">
+                              <p className={`font-medium text-sm truncate ${selectedSessionId === session.id ? 'text-cyan' : 'text-gray-300'}`}>{session.session_name}</p>
+                              <p className="text-xs text-gray-600 mt-1">
                                 {new Date(session.updated_at || session.created_at).toLocaleDateString()}
                               </p>
                             </div>
-                            {session.is_complete && (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                            )}
                           </button>
                         ))
                       )}
                     </div>
-                  </div>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </div>
 
-            {/* Session Source Banner */}
-            {sessionSource && sessionSource.type === 'loaded' && (
-              <div className="mb-4 p-4 bg-cyan/10 border border-cyan/30 rounded-lg flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-cyan" />
-                <p className="text-cyan">
-                  Viewing results from: <strong>{sessionSource.name}</strong>
-                </p>
-              </div>
-            )}
-            {sessionSource && sessionSource.type === 'latest_session' && (
-              <div className="mb-4 p-4 bg-cyan/10 border border-cyan/30 rounded-lg flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-cyan" />
-                <p className="text-cyan">
-                  Showing results from your latest session: <strong>{sessionSource.name}</strong>
-                </p>
-              </div>
-            )}
+            <div className="h-6 w-px bg-[#2a2a2d] mx-2"></div>
 
-
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                  Your Complete Marketing System
-                </h1>
-                <p className="text-gray-400">All your AI-generated content in one place</p>
-              </div>
-
-              {Object.keys(results).length > 0 && (
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowSaveDialog(true)}
-                    className="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-green-900/20"
-                  >
-                    <Save className="w-5 h-5" /> Save Data
-                  </button>
-                  <button
-                    onClick={handleExportJSON}
-                    className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] border border-[#2a2a2d] rounded-lg font-semibold flex items-center gap-2 transition-all"
-                  >
-                    <FileJson className="w-5 h-5" /> Export JSON
-                  </button>
-                  <button
-                    onClick={handleBuildFunnel}
-                    disabled={isBuildingFunnel}
-                    className="px-6 py-3 bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/30 text-black disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isBuildingFunnel ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" /> Building Your Funnel...
-                      </>
-                    ) : (
-                      <>
-                        <Rocket className="w-5 h-5" /> Build my Funnel
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => setShowSaveDialog(true)}
+              className="p-2 hover:bg-[#2a2a2d] rounded-lg text-gray-400 hover:text-green-500 transition-colors"
+              title="Save Session"
+            >
+              <Save className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleExportJSON}
+              className="p-2 hover:bg-[#2a2a2d] rounded-lg text-gray-400 hover:text-blue-400 transition-colors"
+              title="Export JSON"
+            >
+              <FileJson className="w-5 h-5" />
+            </button>
+            <GHLPushButton sessionId={selectedSessionId} minimal={true} />
           </div>
-        </motion.div>
+        </header>
 
-        {/* Results Content */}
-        <div className="space-y-4">
-          {Object.entries(results).map(([contentKey, content], idx) => {
-            // Use _contentName if available, otherwise fall back to lookup tables
-            const title = content?._contentName || CONTENT_TITLES[contentKey] || STEP_TITLES[contentKey] || formatFieldName(contentKey);
-
-            // Remove _contentName from display content
-            const displayContent = { ...content };
-            delete displayContent._contentName;
-
-            const isExpanded = expandedSections[contentKey];
-
-            return (
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-12 relative">
+          <AnimatePresence mode="wait">
+            {!selectedContentKey ? (
               <motion.div
-                key={contentKey}
+                key="landing"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] overflow-hidden"
+                exit={{ opacity: 0, y: -20 }}
+                className="flex flex-col items-center justify-center min-h-full py-12 text-center max-w-2xl mx-auto"
               >
-                {/* Collapsible Header */}
-                <button
-                  onClick={() => toggleSection(contentKey)}
-                  className="w-full flex items-center justify-between p-6 hover:bg-[#252528] transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
-                    <h2 className="text-xl md:text-2xl font-bold text-left">{title}</h2>
-                  </div>
-                  <motion.div
-                    animate={{ rotate: isExpanded ? 90 : 0 }}
-                    transition={{ duration: 0.2 }}
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gray-800 to-black border border-[#2a2a2d] flex items-center justify-center mb-8 shadow-2xl relative">
+                  <div className="absolute inset-0 rounded-full bg-cyan/20 blur-xl animate-pulse"></div>
+                  <Rocket className="w-10 h-10 text-cyan relative z-10" />
+                </div>
+                <h1 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-br from-white via-gray-200 to-gray-500 bg-clip-text text-transparent pb-2 leading-tight">
+                  TedOS has built your<br />marketing system.
+                </h1>
+                <p className="text-lg text-gray-400 mb-10 max-w-lg leading-relaxed">
+                  Your complete 20-part marketing strategy has been successfully generated. Select an item from the sidebar to review your content.
+                </p>
+
+                {!isSidebarOpen && (
+                  <button
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="px-8 py-3 bg-white text-black rounded-full font-bold hover:bg-gray-200 transition-all flex items-center gap-2 shadow-lg hover:shadow-xl hover:-translate-y-1"
                   >
-                    <ChevronRight className="w-6 h-6 text-gray-400" />
-                  </motion.div>
-                </button>
-
-                {/* Collapsible Content */}
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="px-6 pb-6 space-y-6 border-t border-[#2a2a2d] pt-6">
-                        {formatContentForDisplay(displayContent).map(({ key, value }, index) => (
-                          <div key={`${key}-${index}`} className="space-y-3">
-                            <h4 className="text-sm font-bold text-cyan uppercase tracking-wide flex items-center gap-2">
-                              <div className="w-1 h-4 bg-cyan rounded-full"></div>
-                              {key}
-                            </h4>
-                            <div className="bg-[#0e0e0f] p-5 rounded-xl border border-[#2a2a2d] hover:border-[#3a3a3d] transition-colors">
-                              <p className="text-gray-200 whitespace-pre-wrap text-base leading-relaxed font-normal">
-                                {value}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    <Menu className="w-4 h-4" />
+                    Open Menu
+                  </button>
+                )}
               </motion.div>
-            )
-          })}
-        </div>
+            ) : (
+              <motion.div
+                key={selectedContentKey}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.3 }}
+                className="max-w-4xl mx-auto"
+              >
+                <header className="mb-8 flex items-center gap-4 border-b border-[#2a2a2d] pb-6">
+                  <div className="p-3 rounded-xl bg-cyan/10 border border-cyan/20">
+                    <IconComponent className="w-8 h-8 text-cyan" />
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-bold text-white">{currentTitle}</h2>
+                    <p className="text-gray-400 text-sm mt-1">Generated Content Module</p>
+                  </div>
+                </header>
 
-        {Object.keys(results).length === 0 && (
-          <div className="text-center py-20">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[#1b1b1d] flex items-center justify-center">
-              <FileJson className="w-10 h-10 text-gray-500" />
-            </div>
-            <h2 className="text-2xl font-bold text-gray-300 mb-2">No Results Yet</h2>
-            <p className="text-gray-500 mb-6 max-w-md mx-auto">
-              Complete the wizard to generate your marketing content, or load a previously saved session.
-            </p>
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="px-6 py-3 bg-cyan hover:brightness-110 rounded-lg font-semibold transition-all text-black"
+                <div className="space-y-8 pb-20">
+                  {formatContentForDisplay(displayContent).map(({ key, value }, index) => (
+                    <div key={`${key}-${index}`} className="group">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-1.5 h-1.5 rounded-full bg-cyan group-hover:scale-150 transition-transform"></div>
+                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">{key}</h4>
+                      </div>
+                      <div className="bg-[#1b1b1d] p-6 lg:p-8 rounded-2xl border border-[#2a2a2d] shadow-sm hover:border-[#3a3a3d] transition-colors relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(value);
+                              toast.success("Copied to clipboard");
+                            }}
+                            className="p-2 bg-[#2a2a2d] rounded-lg hover:bg-white hover:text-black transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                          </button>
+                        </div>
+                        <p className="text-gray-200 whitespace-pre-wrap text-base lg:text-lg leading-relaxed font-light">
+                          {value}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
+
+      {/* Save Dialog Modal */}
+      <AnimatePresence>
+        {showSaveDialog && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-8 max-w-md w-full shadow-2xl relative overflow-hidden"
             >
-              Go to Dashboard
-            </button>
+              {/* Background Glow */}
+              <div className="absolute -top-20 -right-20 w-40 h-40 bg-cyan/20 blur-3xl rounded-full pointer-events-none"></div>
+
+              <h3 className="text-2xl font-bold mb-2 z-10 relative">Save Session</h3>
+              <p className="text-gray-400 mb-6 text-sm z-10 relative">Name your session to easily find it later.</p>
+
+              <input
+                type="text"
+                value={sessionName}
+                onChange={(e) => setSessionName(e.target.value)}
+                placeholder="e.g., Q1 Marketing Campaign"
+                autoFocus
+                className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl p-4 text-white focus:ring-2 focus:ring-cyan/50 focus:border-cyan outline-none transition-all mb-6 placeholder:text-gray-600"
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveData()}
+              />
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSaveDialog(false)}
+                  className="flex-1 px-6 py-3 bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-xl font-medium transition-all text-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveData}
+                  disabled={isSaving || !sessionName.trim()}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:brightness-110 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan/20"
+                >
+                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
-      </div>
-
-      {/* Save Dialog */}
-      {showSaveDialog && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-8 max-w-md w-full shadow-2xl"
-          >
-            <h3 className="text-2xl font-bold mb-4">Save Your Marketing System</h3>
-            <p className="text-gray-400 mb-6">Give this session a name so you can find it later</p>
-
-            <input
-              type="text"
-              value={sessionName}
-              onChange={(e) => setSessionName(e.target.value)}
-              placeholder="e.g., Fitness Coaching Campaign 2025"
-              className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all mb-6"
-              onKeyDown={(e) => e.key === 'Enter' && handleSaveData()}
-            />
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowSaveDialog(false)}
-                className="flex-1 px-6 py-3 bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg font-semibold transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveData}
-                disabled={isSaving || !sessionName.trim()}
-                className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" /> Save
-                  </>
-                )}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      </AnimatePresence>
     </div>
   );
 }

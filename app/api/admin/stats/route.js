@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-
-// ⚠️ DEV MODE: Auth disabled - admin access public
+import { auth } from '@clerk/nextjs/server';
 
 const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -19,7 +18,29 @@ const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
  */
 export async function GET() {
     try {
-        // Dev mode: No auth check - admin panel is public
+        // Verify admin authentication
+        const { userId } = auth();
+
+        if (!userId) {
+            return NextResponse.json(
+                { error: 'Unauthorized - Authentication required' },
+                { status: 401 }
+            );
+        }
+
+        // Verify user is admin
+        const { data: userProfile, error: profileError } = await supabaseAdmin
+            .from('user_profiles')
+            .select('is_admin')
+            .eq('id', userId)
+            .single();
+
+        if (profileError || !userProfile?.is_admin) {
+            return NextResponse.json(
+                { error: 'Forbidden - Admin access required' },
+                { status: 403 }
+            );
+        }
 
         // Check cache first
         const now = Date.now();

@@ -69,14 +69,16 @@ export async function GET(req) {
 
             return {
                 id: session.id,
-                name: session.session_name || answers.businessName || 'Unnamed Business',
+                session_name: session.session_name || answers.businessName || 'Unnamed Business',
                 industry: answers.topicArea || answers.industry || 'Not specified',
-                owner: owner.full_name || owner.email || 'Unknown',
-                ownerId: session.user_id,
+                user_name: owner.full_name || owner.email || 'Unknown',
+                user_email: owner.email || '',
+                user_id: session.user_id,
                 status: session.results_data?.completed_steps?.length >= 12 ? 'Complete' : 'In Progress',
                 stepsCompleted: session.results_data?.completed_steps?.length || 0,
-                createdAt: session.created_at,
-                updatedAt: session.updated_at
+                created_at: session.created_at,
+                updated_at: session.updated_at,
+                results_data: session.results_data // Include for viewing details
             };
         });
 
