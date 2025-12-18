@@ -1391,23 +1391,26 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
 
         return (
-            <div className="min-h-screen bg-[#0e0e0f] text-white">
+            <div className="min-h-[calc(100vh-5rem)] bg-[#0e0e0f] text-white">
                 <div className="max-w-7xl mx-auto px-6 py-12">
                     {/* Dashboard header - same for all users */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mb-12 text-center"
+                        className="mb-12 text-center relative"
                     >
-                        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                        {/* Background subtle glow for header */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-32 bg-cyan/5 blur-3xl rounded-full -z-10"></div>
+
+                        <h1 className="text-5xl md:text-6xl font-black mb-4 bg-gradient-to-br from-white via-white to-gray-500 bg-clip-text text-transparent tracking-tighter">
                             Mission Control
                         </h1>
-                        <p className="text-gray-400 text-lg">
+                        <p className="text-gray-400 text-lg max-w-2xl mx-auto font-light leading-relaxed">
                             {isFirstTimeUser
                                 ? "Start building your business — click any section below to begin"
-                                : completedSteps.length === 20
+                                : completedSteps.length === STEPS.length
                                     ? "All steps complete! View your results or make changes below."
-                                    : `Continue building your business — ${completedSteps.length}/20 steps completed`
+                                    : `Continue building your business — ${completedSteps.length}/${STEPS.length} steps completed`
                             }
                         </p>
                         <div className="mt-4 flex items-center justify-center gap-6 text-sm">
@@ -1683,14 +1686,14 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         onClick={() => !isWizardComplete && handleStepClick(step.id)}
                                         disabled={status === 'locked' || isWizardComplete}
                                         className={`
-                                            w-full p-6 rounded-2xl border-2 transition-all duration-300 text-left
+                                            w-full p-6 rounded-2xl border transition-all duration-300 text-left glass-card
                                             ${status === 'completed' && isWizardComplete
-                                                ? 'bg-green-600/10 border-green-600 opacity-80'
+                                                ? 'border-green-600/50 opacity-80'
                                                 : status === 'completed'
-                                                    ? 'bg-green-600/10 border-green-600 hover:border-green-500 hover:shadow-lg hover:shadow-green-900/20'
+                                                    ? 'border-green-600/50 hover:border-green-500 hover:shadow-lg hover:shadow-green-900/20'
                                                     : status === 'unlocked'
-                                                        ? 'bg-[#1b1b1d] border-cyan/50 hover:border-cyan hover:shadow-lg hover:shadow-cyan/20'
-                                                        : 'bg-[#1b1b1d] border-gray-700 opacity-50 cursor-not-allowed'
+                                                        ? 'border-cyan/30 hover:border-cyan hover:shadow-glow-cyan'
+                                                        : 'border-white/5 opacity-50 cursor-not-allowed'
                                             }
                                         `}
                                     >
@@ -1761,7 +1764,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     const CurrentIcon = STEPS[currentStep - 1].icon;
 
     return (
-        <div className="min-h-screen bg-[#0e0e0f] text-white font-sans flex">
+        <div className="h-[calc(100vh-5rem)] bg-[#0e0e0f] text-white font-sans flex overflow-hidden">
             {/* Sidebar */}
             <AnimatePresence>
                 {isSidebarOpen && (
@@ -1793,19 +1796,19 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         onClick={() => status !== 'locked' && handleStepClick(step.id)}
                                         disabled={status === 'locked'}
                                         className={`
-                                            w-full p-4 rounded-lg text-left transition-all flex items-center gap-3
+                                            w-full p-4 rounded-xl text-left transition-all flex items-center gap-3 border border-transparent
                                             ${isActive
-                                                ? 'bg-cyan text-black'
+                                                ? 'bg-cyan text-black shadow-lg shadow-cyan/20'
                                                 : status === 'completed'
-                                                    ? 'bg-green-600/10 text-green-400 hover:bg-green-600/20'
+                                                    ? 'bg-green-600/5 text-green-400 hover:bg-green-600/10 hover:border-green-600/30'
                                                     : status === 'unlocked'
-                                                        ? 'bg-[#1b1b1d] text-gray-300 hover:bg-[#2a2a2d]'
+                                                        ? 'bg-[#1b1b1d] text-gray-300 hover:bg-[#252528] hover:border-white/10'
                                                         : 'bg-[#1b1b1d] text-gray-600 cursor-not-allowed opacity-50'
                                             }
                                         `}
                                     >
                                         <Icon className="w-4 h-4 flex-shrink-0" />
-                                        <span className="text-sm font-medium flex-1">{step.title}</span>
+                                        <span className="text-sm font-bold flex-1 tracking-tight">{step.title}</span>
                                         {status === 'completed' && <CheckCircle className="w-4 h-4 flex-shrink-0" />}
                                         {status === 'locked' && <Lock className="w-4 h-4 flex-shrink-0" />}
                                     </button>
@@ -1841,14 +1844,21 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                     <CurrentIcon className="w-4 h-4" />
                                     Step {currentStep} of {STEPS.length}
                                 </div>
-                                <h1 className="text-4xl font-bold mb-3">{STEPS[currentStep - 1].title}</h1>
-                                <p className="text-gray-400 text-lg">{STEPS[currentStep - 1].description}</p>
+                                <h1 className="text-4xl md:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
+                                    {STEPS[currentStep - 1].title}
+                                    {STEPS[currentStep - 1].optional && (
+                                        <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 font-normal">Optional Section</span>
+                                    )}
+                                </h1>
+                                <p className="text-gray-400 text-lg font-light leading-relaxed">{STEPS[currentStep - 1].description}</p>
                             </div>
 
                             {/* Info Box removed */}
 
                             {/* Input Fields */}
-                            <div className="space-y-6 bg-[#1b1b1d] p-8 rounded-2xl border border-[#2a2a2d] shadow-xl">
+                            <div className="space-y-8 glass-card p-10 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
+                                {/* Interactive glow effect in the corner */}
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan/5 blur-3xl rounded-full pointer-events-none"></div>
                                 {STEP_INPUTS[currentStep]?.filter((input) => {
                                     // Hide conditional fields if their condition isn't met
                                     if (input.conditionalOn) {
@@ -1856,7 +1866,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         return parentValue.includes(input.conditionalValue);
                                     }
                                     return true;
-                                }).map((input) => (
+                                }).map((input, idx) => (
                                     <div key={input.name}>
                                         {/* Help button for additional context */}
                                         {input.helpText && (
@@ -1886,21 +1896,22 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         )}
 
                                         <div className="space-y-2">
-                                            {/* Field Label with Optional Badge */}
-                                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                                {input.label}
-                                                {input.optional && (
-                                                    <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400">Optional</span>
-                                                )}
-                                            </label>
+                                            {/* Field Label with Optional Badge - Only show if not the first primary input */}
+                                            {idx > 0 && (
+                                                <label className="block text-sm font-medium text-gray-300 mb-2">
+                                                    {input.label}
+                                                    {input.optional && (
+                                                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400">Optional</span>
+                                                    )}
+                                                </label>
+                                            )}
 
                                             {/* Render based on input type */}
                                             {input.type === 'select' ? (
                                                 /* Select dropdown */
                                                 <select
-                                                    className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all cursor-pointer ${
-                                                        fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
-                                                    }`}
+                                                    className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all cursor-pointer ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
+                                                        }`}
                                                     value={currentInput[input.name] || ""}
                                                     onChange={(e) => handleInputChange(input.name, e.target.value)}
                                                 >
@@ -1915,9 +1926,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                 </select>
                                             ) : input.type === 'multiselect' ? (
                                                 /* Multi-select checkboxes */
-                                                <div className={`bg-[#0e0e0f] border rounded-lg p-4 ${
-                                                    fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
-                                                }`}>
+                                                <div className={`bg-[#0e0e0f] border rounded-lg p-4 ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
+                                                    }`}>
                                                     <p className="text-gray-400 text-sm mb-3">{input.placeholder}</p>
                                                     <div className="grid grid-cols-2 gap-3">
                                                         {(input.options === 'ASSET_OPTIONS' ? ASSET_OPTIONS :
@@ -1969,9 +1979,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                 /* Default textarea */
                                                 <>
                                                     <textarea
-                                                        className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto ${
-                                                            fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
-                                                        }`}
+                                                        className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
+                                                            }`}
                                                         placeholder={input.placeholder}
                                                         value={currentInput[input.name] || input.defaultValue || ""}
                                                         onChange={(e) => {
@@ -2073,7 +2082,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                 <button
                                                     onClick={handleNextStep}
                                                     disabled={generatingPreview}
-                                                    className="bg-cyan hover:brightness-110 text-black px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20 disabled:opacity-50"
+                                                    className="bg-cyan hover:brightness-110 text-black px-8 py-3.5 rounded-xl font-black flex items-center gap-2 transition-all shadow-lg shadow-cyan/25 disabled:opacity-50 btn-premium"
                                                 >
                                                     {generatingPreview ? (
                                                         <>
@@ -2092,7 +2101,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         <button
                                             onClick={handleGenerate}
                                             disabled={isGenerating}
-                                            className="flex-1 bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan/30"
+                                            className="flex-1 bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-8 py-5 rounded-xl font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-cyan/30 btn-premium"
                                         >
                                             {isGenerating ? (
                                                 <>

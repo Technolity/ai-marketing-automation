@@ -369,7 +369,7 @@ export default function ResultsPage() {
   const IconComponent = selectedContentKey ? (CONTENT_ICONS[selectedContentKey] || CONTENT_ICONS.default) : Rocket;
 
   return (
-    <div className="flex h-screen bg-[#0e0e0f] text-white overflow-hidden font-sans selection:bg-cyan/30">
+    <div className="flex h-[calc(100vh-5rem)] bg-[#0e0e0f] text-white overflow-hidden font-sans selection:bg-cyan/30">
 
       {/* Sidebar Overlay (Mobile) */}
       <AnimatePresence>
@@ -571,11 +571,11 @@ export default function ResultsPage() {
                   <div className="absolute inset-0 rounded-full bg-cyan/20 blur-xl animate-pulse"></div>
                   <Rocket className="w-10 h-10 text-cyan relative z-10" />
                 </div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-6 bg-gradient-to-br from-white via-gray-200 to-gray-500 bg-clip-text text-transparent pb-2 leading-tight">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-black mb-6 bg-gradient-to-br from-white via-white to-gray-500 bg-clip-text text-transparent pb-2 leading-none tracking-tighter">
                   TedOS has built your<br />marketing system.
                 </h1>
-                <p className="text-lg text-gray-400 mb-10 max-w-lg leading-relaxed">
-                  Your complete 20-part marketing strategy has been successfully generated. Select an item from the sidebar to review your content.
+                <p className="text-lg text-gray-400 mb-10 max-w-lg leading-relaxed font-light">
+                  Your complete 20-part marketing system is ready. Use the sidebar to explore your message, offers, and assets.
                 </p>
 
                 {!isSidebarOpen && (
@@ -598,35 +598,35 @@ export default function ResultsPage() {
                 className="max-w-4xl mx-auto"
               >
                 <header className="mb-8 flex items-center gap-4 border-b border-[#2a2a2d] pb-6">
-                  <div className="p-3 rounded-xl bg-cyan/10 border border-cyan/20">
-                    <IconComponent className="w-8 h-8 text-cyan" />
+                  <div className="p-4 rounded-2xl bg-cyan/5 border border-cyan/10 shadow-glow-sm">
+                    <IconComponent className="w-10 h-10 text-cyan text-glow" />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-bold text-white">{currentTitle}</h2>
-                    <p className="text-gray-400 text-sm mt-1">Generated Content Module</p>
+                    <h2 className="text-4xl font-black text-white tracking-tighter">{currentTitle}</h2>
+                    <p className="text-gray-500 text-sm mt-1 font-medium uppercase tracking-widest">Targeted Marketing Module</p>
                   </div>
                 </header>
 
                 <div className="space-y-8 pb-20">
                   {formatContentForDisplay(displayContent).map(({ key, value }, index) => (
                     <div key={`${key}-${index}`} className="group">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-1.5 h-1.5 rounded-full bg-cyan group-hover:scale-150 transition-transform"></div>
-                        <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest">{key}</h4>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-2 h-2 rounded-full bg-cyan shadow-glow-sm group-hover:scale-150 transition-transform"></div>
+                        <h4 className="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">{key}</h4>
                       </div>
-                      <div className="bg-[#1b1b1d] p-6 lg:p-8 rounded-2xl border border-[#2a2a2d] shadow-sm hover:border-[#3a3a3d] transition-colors relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="glass-card p-8 lg:p-10 rounded-3xl border border-white/5 shadow-2xl hover:border-cyan/20 transition-all relative overflow-hidden group/card">
+                        <div className="absolute top-0 right-0 p-6 opacity-0 group-hover/card:opacity-100 transition-opacity">
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(value);
                               toast.success("Copied to clipboard");
                             }}
-                            className="p-2 bg-[#2a2a2d] rounded-lg hover:bg-white hover:text-black transition-colors"
+                            className="p-3 bg-white/5 hover:bg-cyan hover:text-black rounded-xl border border-white/10 transition-all"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
                           </button>
                         </div>
-                        <p className="text-gray-200 whitespace-pre-wrap text-base lg:text-lg leading-relaxed font-light">
+                        <p className="text-gray-200 whitespace-pre-wrap text-lg lg:text-xl leading-relaxed font-light selection:bg-cyan/40">
                           {value}
                         </p>
                       </div>

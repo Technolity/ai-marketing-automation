@@ -85,20 +85,23 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
   // Render logic
   const renderConfigModal = () => (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-      <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-6 max-w-md w-full shadow-2xl relative">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold text-white">GHL Configuration</h3>
+      <div className="bg-[#1b1b1d] rounded-3xl border border-white/5 p-8 max-w-md w-full shadow-2xl relative overflow-hidden glass-card">
+        {/* Decorative corner glow */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-cyan/5 blur-3xl rounded-full pointer-events-none"></div>
+
+        <div className="flex justify-between items-center mb-6 relative z-10">
+          <h3 className="text-2xl font-black text-white tracking-tighter">GHL Configuration</h3>
           <button
             onClick={() => setShowConfig(false)}
-            className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors text-gray-400 hover:text-white"
+            className="p-2 hover:bg-white/10 rounded-xl transition-all text-gray-400 hover:text-white"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-5 relative z-10">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
               Access Token <span className="text-red-500">*</span>
             </label>
             <input
@@ -106,12 +109,12 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
               value={ghlConfig.accessToken}
               onChange={(e) => setGhlConfig({ ...ghlConfig, accessToken: e.target.value })}
               placeholder="Enter your GHL access token"
-              className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan/50 focus:border-cyan outline-none transition-all"
+              className="w-full px-4 py-3.5 bg-black/40 border border-white/5 rounded-2xl text-white placeholder-gray-600 focus:ring-2 focus:ring-cyan/30 focus:border-cyan/50 outline-none transition-all input-glow"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
               Location ID <span className="text-red-500">*</span>
             </label>
             <input
@@ -119,12 +122,12 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
               value={ghlConfig.locationId}
               onChange={(e) => setGhlConfig({ ...ghlConfig, locationId: e.target.value })}
               placeholder="Enter your GHL location ID"
-              className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan/50 focus:border-cyan outline-none transition-all"
+              className="w-full px-4 py-3.5 bg-black/40 border border-white/5 rounded-2xl text-white placeholder-gray-600 focus:ring-2 focus:ring-cyan/30 focus:border-cyan/50 outline-none transition-all input-glow"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
               Contact ID <span className="text-gray-500">(Optional)</span>
             </label>
             <input
@@ -132,20 +135,20 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
               value={ghlConfig.contactId}
               onChange={(e) => setGhlConfig({ ...ghlConfig, contactId: e.target.value })}
               placeholder="Leave empty to create custom fields only"
-              className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan/50 focus:border-cyan outline-none transition-all"
+              className="w-full px-4 py-3.5 bg-black/40 border border-white/5 rounded-2xl text-white placeholder-gray-600 focus:ring-2 focus:ring-cyan/30 focus:border-cyan/50 outline-none transition-all input-glow"
             />
           </div>
 
           <div className="pt-4 flex gap-3">
             <button
               onClick={() => setShowConfig(false)}
-              className="flex-1 px-4 py-3 bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-xl font-medium text-gray-300 transition-colors"
+              className="flex-1 px-4 py-3.5 bg-white/5 hover:bg-white/10 rounded-2xl font-bold text-gray-400 transition-all border border-white/5"
             >
               Cancel
             </button>
             <button
               onClick={() => { setShowConfig(false); handleBuildFunnel(); }}
-              className="flex-1 px-4 py-3 bg-cyan hover:brightness-110 text-black rounded-xl font-bold transition-all"
+              className="flex-1 px-4 py-3.5 bg-cyan hover:brightness-110 text-black rounded-2xl font-black transition-all shadow-lg shadow-cyan/20 btn-premium"
             >
               Save & Build
             </button>
@@ -162,7 +165,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
         <button
           onClick={handleBuildFunnel}
           disabled={building || !sessionId}
-          className="p-2 hover:bg-[#2a2a2d] rounded-lg text-gray-400 hover:text-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-2.5 hover:bg-cyan/10 rounded-xl text-gray-400 hover:text-cyan transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-transparent hover:border-cyan/30"
           title={building ? "Building..." : "Push to GoHighLevel"}
         >
           {building ? <Loader2 className="w-5 h-5 animate-spin" /> : <Rocket className="w-5 h-5" />}
@@ -185,7 +188,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
         <button
           onClick={handleBuildFunnel}
           disabled={building || !sessionId}
-          className="flex items-center gap-2 bg-cyan hover:brightness-110 disabled:bg-gray-600 disabled:cursor-not-allowed px-6 py-3 rounded-xl font-bold transition-all text-black shadow-lg shadow-cyan/20"
+          className="flex items-center gap-2 bg-cyan hover:brightness-110 disabled:bg-gray-600 disabled:cursor-not-allowed px-8 py-3.5 rounded-2xl font-black transition-all text-black shadow-lg shadow-cyan/25 btn-premium"
         >
           {building ? <Loader2 className="w-5 h-5 animate-spin" /> : <Rocket size={20} />}
           {building ? "Building..." : "Build My Funnel"}
@@ -193,7 +196,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
 
         <button
           onClick={() => setShowConfig(!showConfig)}
-          className="flex items-center gap-2 bg-[#2a2a2d] hover:bg-[#3a3a3d] px-4 py-3 rounded-xl font-semibold transition-all text-white border border-[#3a3a3d]"
+          className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-3.5 rounded-2xl font-bold transition-all text-white border border-white/10"
           title="Configure GHL credentials"
         >
           <Settings size={20} />
