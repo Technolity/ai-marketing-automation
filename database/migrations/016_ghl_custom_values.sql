@@ -21,9 +21,9 @@ CREATE INDEX IF NOT EXISTS idx_ghl_custom_values_created ON public.ghl_custom_va
 -- Enable RLS
 ALTER TABLE public.ghl_custom_value_mappings ENABLE ROW LEVEL SECURITY;
 -- RLS Policies
--- Users can manage their own mappings
 CREATE POLICY "Users can manage own GHL custom values" ON public.ghl_custom_value_mappings FOR ALL USING (auth.uid() = user_id);
--- Note: Admins access via service_role key which bypasses RLS
+CREATE POLICY "Admins can view all GHL custom values" ON public.ghl_custom_value_mappings FOR
+SELECT USING (public.is_admin());
 -- Add updated_at trigger
 CREATE OR REPLACE FUNCTION update_ghl_custom_values_updated_at() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now();
 RETURN NEW;
