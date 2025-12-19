@@ -358,7 +358,7 @@ export default function FunnelCopyPage() {
       {/* APP HEADER - Cyan Theme (App Context) */}
       <div className="h-16 bg-[#0a0a0b] border-b border-[#1a1a1a] flex items-center justify-between px-6 flex-shrink-0 z-50">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push('/results')} className="text-gray-400 hover:text-white flex items-center gap-2 text-sm transition-colors">
+          <button onClick={() => router.push('/business-core')} className="text-gray-400 hover:text-white flex items-center gap-2 text-sm transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back
           </button>
           <div className="h-6 w-px bg-[#2a2a2a]"></div>
@@ -405,8 +405,8 @@ export default function FunnelCopyPage() {
                 key={slide.id}
                 onClick={() => setCurrentSlide(index)}
                 className={`w-full text-left p-3 rounded-lg border transition-all flex items-center gap-3 ${currentSlide === index
-                    ? 'bg-[#1a1a1a] border-cyan-500/50 text-white shadow-md'
-                    : 'bg-transparent border-transparent text-gray-500 hover:bg-[#111] hover:text-gray-300'
+                  ? 'bg-[#1a1a1a] border-cyan-500/50 text-white shadow-md'
+                  : 'bg-transparent border-transparent text-gray-500 hover:bg-[#111] hover:text-gray-300'
                   }`}
               >
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${currentSlide === index ? 'bg-cyan-500 text-black' : 'bg-[#222] text-gray-500'

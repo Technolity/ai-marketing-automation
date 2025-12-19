@@ -1463,10 +1463,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
                         {isWizardComplete && (
                             <button
-                                onClick={() => router.push("/results")}
+                                onClick={() => router.push("/business-core")}
                                 className="px-6 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20"
                             >
-                                <Eye className="w-5 h-5" /> View Current Results
+                                <Eye className="w-5 h-5" /> View Business Core
                             </button>
                         )}
 
