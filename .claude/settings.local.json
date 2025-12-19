@@ -14,7 +14,8 @@
       "Bash(xargs cat:*)",
       "Bash(npm run build:*)",
       "Bash(dir:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(pkill:*)"
     ]
   }
 }
