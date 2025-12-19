@@ -1272,13 +1272,14 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 name: 'Current Session'
             }));
 
-            toast.success("All content saved! Redirecting to results...");
+            toast.success("Your Business Core is ready! Let's review it.");
 
             // Wait a brief moment before redirecting to ensure all saves are complete
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            console.log('[OSWizard] Redirecting to /results');
-            router.push("/results");
+            // Redirect to Business Core dashboard (Phase 1 of new UX flow)
+            console.log('[OSWizard] Redirecting to /business-core');
+            router.push("/business-core");
         } catch (error) {
             console.error('[OSWizard] Approve error:', error);
             toast.error("Failed to save. Please try again.");
