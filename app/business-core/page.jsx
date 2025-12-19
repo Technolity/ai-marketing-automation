@@ -2,8 +2,9 @@
 /**
  * Business Core Dashboard
  * 
- * Fully responsive for mobile, tablet, desktop, and foldable devices.
- * Features collapsible phases with approve/regenerate/edit options.
+ * Connected to existing database schema.
+ * Uses /api/os/results which reads from saved_sessions.generated_content
+ * No mock data - displays actual AI-generated content from database.
  */
 
 import { useEffect, useState } from "react";
@@ -18,7 +19,7 @@ import {
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-// Business Core phases with their corresponding data keys
+// Business Core phases - mapped to keys in saved_sessions.generated_content
 const BUSINESS_CORE_PHASES = [
     { id: 'idealClient', title: 'Ideal Client', subtitle: 'WHO you serve', icon: Users },
     { id: 'message', title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
@@ -34,12 +35,13 @@ export default function BusinessCorePage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [businessCore, setBusinessCore] = useState({});
+    const [dataSource, setDataSource] = useState(null);
     const [approvedPhases, setApprovedPhases] = useState([]);
     const [isPhaseOneComplete, setIsPhaseOneComplete] = useState(false);
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [expandedPhase, setExpandedPhase] = useState(null);
 
-    // Load business core data from API
+    // Load business core data from saved_sessions via API
     useEffect(() => {
         if (authLoading) return;
         if (!session) {
@@ -49,21 +51,47 @@ export default function BusinessCorePage() {
 
         const loadBusinessCore = async () => {
             try {
+                // This fetches from saved_sessions.generated_content or results_data
                 const res = await fetchWithAuth('/api/os/results');
-                const data = await res.json();
+                const result = await res.json();
 
-                if (data.data && Object.keys(data.data).length > 0) {
-                    setBusinessCore(data.data);
+                if (result.error) {
+                    console.error("API error:", result.error);
+                    toast.error("Failed to load your Business Core");
+                    return;
+                }
 
-                    // Load approvals from database or localStorage fallback
-                    const savedApprovals = localStorage.getItem(`business_core_approvals_${session.user.id}`);
-                    if (savedApprovals) {
-                        const approvals = JSON.parse(savedApprovals);
-                        setApprovedPhases(approvals);
-                        if (approvals.length >= BUSINESS_CORE_PHASES.length) {
-                            setIsPhaseOneComplete(true);
+                if (result.data && Object.keys(result.data).length > 0) {
+                    setBusinessCore(result.data);
+                    setDataSource(result.source);
+                    console.log('[BusinessCore] Loaded from:', result.source);
+
+                    // Load approvals from database (try API first, then localStorage fallback)
+                    try {
+                        const approvalsRes = await fetchWithAuth('/api/os/approvals');
+                        if (approvalsRes.ok) {
+                            const approvalsData = await approvalsRes.json();
+                            if (approvalsData.approvals) {
+                                setApprovedPhases(approvalsData.approvals.businessCore || []);
+                                if ((approvalsData.approvals.businessCore || []).length >= BUSINESS_CORE_PHASES.length) {
+                                    setIsPhaseOneComplete(true);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        // Fallback to localStorage if API doesn't exist yet
+                        const savedApprovals = localStorage.getItem(`business_core_approvals_${session.user.id}`);
+                        if (savedApprovals) {
+                            const approvals = JSON.parse(savedApprovals);
+                            setApprovedPhases(approvals);
+                            if (approvals.length >= BUSINESS_CORE_PHASES.length) {
+                                setIsPhaseOneComplete(true);
+                            }
                         }
                     }
+                } else {
+                    toast.error("No generated content found. Please complete the intake form first.");
+                    router.push('/intake_form');
                 }
             } catch (error) {
                 console.error("Failed to load business core:", error);
@@ -87,7 +115,23 @@ export default function BusinessCorePage() {
     const handleApprove = async (phaseId) => {
         const newApprovals = [...approvedPhases, phaseId];
         setApprovedPhases(newApprovals);
+
+        // Save to localStorage (and optionally to database)
         localStorage.setItem(`business_core_approvals_${session.user.id}`, JSON.stringify(newApprovals));
+
+        // Try to save to database
+        try {
+            await fetchWithAuth('/api/os/approvals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'businessCore',
+                    approvals: newApprovals
+                })
+            });
+        } catch (e) {
+            console.log('Approvals API not available, using localStorage');
+        }
 
         if (newApprovals.length >= BUSINESS_CORE_PHASES.length) {
             setIsPhaseOneComplete(true);
@@ -98,13 +142,18 @@ export default function BusinessCorePage() {
         setExpandedPhase(null);
     };
 
+    // Regenerate calls existing AI generation endpoints
     const handleRegenerate = async (phaseId) => {
         setIsRegenerating(true);
         try {
-            const res = await fetchWithAuth('/api/ai/generate', {
+            // This would call the existing AI generation endpoint
+            const res = await fetchWithAuth(`/api/os/regenerate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: phaseId, regenerate: true })
+                body: JSON.stringify({
+                    section: phaseId,
+                    sessionId: dataSource?.id
+                })
             });
 
             if (res.ok) {
@@ -112,10 +161,15 @@ export default function BusinessCorePage() {
                 if (data.content) {
                     setBusinessCore(prev => ({ ...prev, [phaseId]: data.content }));
                     toast.success("Content regenerated!");
+                } else {
+                    toast.error("Regeneration returned no content");
                 }
+            } else {
+                toast.error("Failed to regenerate - API error");
             }
         } catch (error) {
-            toast.error("Failed to regenerate");
+            console.error("Regeneration error:", error);
+            toast.error("Failed to regenerate. Please try again.");
         } finally {
             setIsRegenerating(false);
         }
@@ -129,16 +183,17 @@ export default function BusinessCorePage() {
         setApprovedPhases(newApprovals);
         localStorage.setItem(`business_core_approvals_${session.user.id}`, JSON.stringify(newApprovals));
         setIsPhaseOneComplete(false);
-        toast.info("Redirecting to edit...");
+        toast.info("Redirecting to edit your answers...");
         router.push('/intake_form');
     };
 
+    // Format content from database for display
     const formatContent = (content) => {
-        if (!content) return "No content generated yet.";
+        if (!content) return "No content generated for this section.";
         if (typeof content === 'string') return content;
         if (typeof content === 'object') {
             return Object.entries(content)
-                .filter(([k, v]) => v && k !== '_contentName')
+                .filter(([k, v]) => v && k !== '_contentName' && k !== 'id')
                 .map(([k, v]) => {
                     const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
                     const value = typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v);
@@ -206,7 +261,7 @@ export default function BusinessCorePage() {
         <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8 xl:p-12">
             <div className="max-w-4xl mx-auto">
 
-                {/* Back Button (Mobile) */}
+                {/* Back Button */}
                 <button
                     onClick={() => router.push('/dashboard')}
                     className="mb-4 sm:mb-6 p-2 -ml-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
@@ -228,6 +283,11 @@ export default function BusinessCorePage() {
                     <p className="text-sm sm:text-base lg:text-lg text-gray-400 max-w-xl mx-auto px-4">
                         Review and approve each section. Approval unlocks the next step.
                     </p>
+                    {dataSource && (
+                        <p className="text-xs text-gray-600 mt-2">
+                            Data from: {dataSource.name || dataSource.type}
+                        </p>
+                    )}
                 </div>
 
                 {/* Progress Bar */}

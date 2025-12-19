@@ -2,8 +2,9 @@
 /**
  * Funnel Assets Generation Screen
  * 
- * Fully responsive. Generates each asset with approve/regenerate/edit options.
- * Connected to AI API for real content generation.
+ * Connected to existing database schema.
+ * Uses /api/os/results for data and existing AI endpoints for regeneration.
+ * No mock data fallbacks.
  */
 
 import { useEffect, useState } from "react";
@@ -18,13 +19,13 @@ import {
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-// Funnel asset types
+// Funnel asset types - mapped to saved_sessions.generated_content keys
 const FUNNEL_ASSETS = [
-    { id: 'ads', title: 'Ad Copy', subtitle: '3 variations', icon: Megaphone },
+    { id: 'ads', title: 'Ad Copy', subtitle: 'Ad variations', icon: Megaphone },
     { id: 'leadMagnet', title: 'Lead Magnet', subtitle: 'Value proposition', icon: Gift },
     { id: 'optinPage', title: 'Opt-in Page', subtitle: 'Lead capture', icon: Layout },
-    { id: 'vslPage', title: 'VSL / Sales Page', subtitle: 'Complete copy', icon: Video },
-    { id: 'emails', title: 'Email Sequence', subtitle: '5-15 day nurture', icon: Mail },
+    { id: 'salesPage', title: 'Sales Page', subtitle: 'Complete copy', icon: Video },
+    { id: 'emails', title: 'Email Sequence', subtitle: 'Nurture sequence', icon: Mail },
     { id: 'sms', title: 'SMS Sequence', subtitle: 'Text follow-ups', icon: MessageSquare }
 ];
 
@@ -34,12 +35,14 @@ export default function FunnelAssetsPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [generatedAssets, setGeneratedAssets] = useState({});
+    const [dataSource, setDataSource] = useState(null);
     const [approvedAssets, setApprovedAssets] = useState([]);
     const [expandedAsset, setExpandedAsset] = useState(null);
     const [isAllComplete, setIsAllComplete] = useState(false);
     const [generatingAsset, setGeneratingAsset] = useState(null);
     const [isRegenerating, setIsRegenerating] = useState(false);
 
+    // Load assets from database
     useEffect(() => {
         if (authLoading) return;
         if (!session) {
@@ -49,26 +52,48 @@ export default function FunnelAssetsPage() {
 
         const loadAssets = async () => {
             try {
-                const savedAssets = localStorage.getItem(`funnel_assets_${session.user.id}`);
-                const savedApprovals = localStorage.getItem(`funnel_approvals_${session.user.id}`);
+                // Load from database via API
+                const res = await fetchWithAuth('/api/os/results');
+                const result = await res.json();
 
-                if (savedAssets) {
-                    setGeneratedAssets(JSON.parse(savedAssets));
+                if (result.error) {
+                    console.error("API error:", result.error);
+                    toast.error("Failed to load assets");
+                    return;
                 }
-                if (savedApprovals) {
-                    const approvals = JSON.parse(savedApprovals);
-                    setApprovedAssets(approvals);
-                    if (approvals.length >= FUNNEL_ASSETS.length) {
-                        setIsAllComplete(true);
+
+                if (result.data && Object.keys(result.data).length > 0) {
+                    setGeneratedAssets(result.data);
+                    setDataSource(result.source);
+                    console.log('[FunnelAssets] Loaded from:', result.source);
+                }
+
+                // Load approvals
+                try {
+                    const approvalsRes = await fetchWithAuth('/api/os/approvals');
+                    if (approvalsRes.ok) {
+                        const approvalsData = await approvalsRes.json();
+                        if (approvalsData.approvals?.funnelAssets) {
+                            setApprovedAssets(approvalsData.approvals.funnelAssets);
+                            if (approvalsData.approvals.funnelAssets.length >= FUNNEL_ASSETS.length) {
+                                setIsAllComplete(true);
+                            }
+                        }
                     }
-                }
-
-                // Auto-generate first asset if none exist
-                if (!savedAssets || Object.keys(JSON.parse(savedAssets || '{}')).length === 0) {
-                    await generateAsset(FUNNEL_ASSETS[0].id);
+                } catch (e) {
+                    // Fallback to localStorage
+                    const savedApprovals = localStorage.getItem(`funnel_approvals_${session.user.id}`);
+                    if (savedApprovals) {
+                        const approvals = JSON.parse(savedApprovals);
+                        setApprovedAssets(approvals);
+                        if (approvals.length >= FUNNEL_ASSETS.length) {
+                            setIsAllComplete(true);
+                        }
+                    }
                 }
             } catch (error) {
                 console.error("Failed to load assets:", error);
+                toast.error("Failed to load assets");
             } finally {
                 setIsLoading(false);
             }
@@ -87,62 +112,64 @@ export default function FunnelAssetsPage() {
         return 'locked';
     };
 
+    // Generate asset via existing AI endpoint
     const generateAsset = async (assetId) => {
         setGeneratingAsset(assetId);
 
         try {
-            // Call actual AI API
-            const res = await fetchWithAuth('/api/ai/generate', {
+            const res = await fetchWithAuth('/api/os/regenerate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: assetId })
+                body: JSON.stringify({
+                    section: assetId,
+                    sessionId: dataSource?.id
+                })
             });
 
-            let content;
             if (res.ok) {
                 const data = await res.json();
-                content = data.content;
+                if (data.content) {
+                    setGeneratedAssets(prev => ({ ...prev, [assetId]: data.content }));
+                    toast.success(`${FUNNEL_ASSETS.find(a => a.id === assetId)?.title} generated!`);
+                } else {
+                    toast.error("Generation returned no content");
+                }
             } else {
-                // Fallback mock content if API fails
-                content = getMockContent(assetId);
+                toast.error("Generation failed - check API");
             }
-
-            const newAssets = { ...generatedAssets, [assetId]: content };
-            setGeneratedAssets(newAssets);
-            localStorage.setItem(`funnel_assets_${session.user.id}`, JSON.stringify(newAssets));
-
-            toast.success(`${FUNNEL_ASSETS.find(a => a.id === assetId)?.title} generated!`);
         } catch (error) {
             console.error("Generation error:", error);
-            // Use mock content on error
-            const content = getMockContent(assetId);
-            const newAssets = { ...generatedAssets, [assetId]: content };
-            setGeneratedAssets(newAssets);
-            localStorage.setItem(`funnel_assets_${session.user.id}`, JSON.stringify(newAssets));
+            toast.error("Failed to generate content");
         } finally {
             setGeneratingAsset(null);
         }
     };
-
-    const getMockContent = (assetId) => ({
-        ads: { headline: "Stop Struggling With [Problem]...", body: "Discover how [Outcome] is possible...", cta: "Get Free Access →" },
-        leadMagnet: { title: "The Ultimate Guide", description: "5 secrets to achieving [Outcome]..." },
-        optinPage: { headline: "Free: [Lead Magnet]", subheadline: "Learn the exact system...", bullets: ["Benefit 1", "Benefit 2", "Benefit 3"] },
-        vslPage: { hook: "What if I told you...", story: "I used to struggle with...", offer: "Introducing [Program]..." },
-        emails: { subject1: "Welcome! Here's your download", subject2: "Don't make this mistake...", subject3: "Quick question..." },
-        sms: { message1: "Hey! Got your download?", message2: "Quick reminder..." }
-    })[assetId] || { content: "Generated content for " + assetId };
 
     const handleApprove = async (assetId, index) => {
         const newApprovals = [...approvedAssets, assetId];
         setApprovedAssets(newApprovals);
         localStorage.setItem(`funnel_approvals_${session.user.id}`, JSON.stringify(newApprovals));
 
+        // Try to save to database
+        try {
+            await fetchWithAuth('/api/os/approvals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'funnelAssets',
+                    approvals: newApprovals
+                })
+            });
+        } catch (e) {
+            console.log('Approvals API not available');
+        }
+
         if (newApprovals.length >= FUNNEL_ASSETS.length) {
             setIsAllComplete(true);
             toast.success("🎉 All funnel assets ready!");
         } else {
             toast.success(`${FUNNEL_ASSETS.find(a => a.id === assetId)?.title} approved!`);
+            // Auto-generate next if not already generated
             const nextAsset = FUNNEL_ASSETS[index + 1];
             if (nextAsset && !generatedAssets[nextAsset.id]) {
                 await generateAsset(nextAsset.id);
@@ -158,10 +185,11 @@ export default function FunnelAssetsPage() {
     };
 
     const formatContent = (content) => {
-        if (!content) return "Generating...";
+        if (!content) return "No content generated yet.";
         if (typeof content === 'string') return content;
         return Object.entries(content)
-            .map(([k, v]) => `**${k}:** ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+            .filter(([k]) => k !== 'id' && k !== '_contentName')
+            .map(([k, v]) => `**${k}:** ${typeof v === 'object' ? JSON.stringify(v, null, 2) : v}`)
             .join('\n\n');
     };
 
@@ -244,6 +272,11 @@ export default function FunnelAssetsPage() {
                     <p className="text-sm sm:text-base lg:text-lg text-gray-400 max-w-xl mx-auto px-4">
                         Approve each asset to unlock the next.
                     </p>
+                    {dataSource && (
+                        <p className="text-xs text-gray-600 mt-2">
+                            Data from: {dataSource.name || dataSource.type}
+                        </p>
+                    )}
                 </div>
 
                 {/* Progress Bar */}

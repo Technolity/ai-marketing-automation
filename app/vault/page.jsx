@@ -2,12 +2,9 @@
 /**
  * Vault Page
  * 
- * Central repository for all generated assets.
- * Features:
- * - Collapsible sidebar
- * - Fully responsive (mobile, tablet, desktop, folds)
- * - Categories with search
- * - Regenerate/Copy options
+ * Connected to existing database schema.
+ * Uses /api/os/results to read from saved_sessions.generated_content
+ * No mock data - displays actual AI-generated content from database.
  */
 
 import { useEffect, useState } from "react";
@@ -23,7 +20,7 @@ import {
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-// Asset categories for the vault
+// Asset categories mapped to saved_sessions.generated_content keys
 const VAULT_CATEGORIES = [
     {
         id: 'businessCore',
@@ -43,9 +40,9 @@ const VAULT_CATEGORIES = [
         title: 'Ad Copy',
         icon: Megaphone,
         items: [
-            { id: 'ad_facebook', name: 'Facebook Ads', icon: Megaphone },
-            { id: 'ad_instagram', name: 'Instagram Ads', icon: Megaphone },
-            { id: 'ad_google', name: 'Google Ads', icon: Megaphone }
+            { id: 'ads', name: 'All Ad Variations', icon: Megaphone },
+            { id: 'adHeadlines', name: 'Headlines', icon: Megaphone },
+            { id: 'adCopy', name: 'Body Copy', icon: Megaphone }
         ]
     },
     {
@@ -54,7 +51,7 @@ const VAULT_CATEGORIES = [
         icon: Layout,
         items: [
             { id: 'optinPage', name: 'Opt-in Page', icon: Layout },
-            { id: 'vslPage', name: 'VSL / Sales Page', icon: Video },
+            { id: 'salesPage', name: 'Sales Page', icon: Video },
             { id: 'thankYouPage', name: 'Thank You Page', icon: CheckCircle }
         ]
     },
@@ -72,8 +69,8 @@ const VAULT_CATEGORIES = [
         title: 'Brand Assets',
         icon: Palette,
         items: [
-            { id: 'colors', name: 'Color Palette', icon: Palette },
-            { id: 'fonts', name: 'Typography', icon: Palette },
+            { id: 'brandColors', name: 'Color Palette', icon: Palette },
+            { id: 'brandFonts', name: 'Typography', icon: Palette },
             { id: 'logo', name: 'Logo Concepts', icon: Palette }
         ]
     }
@@ -85,16 +82,15 @@ export default function VaultPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [allAssets, setAllAssets] = useState({});
+    const [dataSource, setDataSource] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState(VAULT_CATEGORIES[0].id);
     const [selectedItem, setSelectedItem] = useState(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [isRegenerating, setIsRegenerating] = useState(false);
 
-    // Sidebar state - collapsed by default on mobile
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [expandedCategories, setExpandedCategories] = useState([VAULT_CATEGORIES[0].id]);
 
-    // Check screen size on mount
     useEffect(() => {
         const checkScreenSize = () => {
             setIsSidebarOpen(window.innerWidth >= 1024);
@@ -104,7 +100,7 @@ export default function VaultPage() {
         return () => window.removeEventListener('resize', checkScreenSize);
     }, []);
 
-    // Load all assets from API and local storage
+    // Load all assets from database via /api/os/results
     useEffect(() => {
         if (authLoading) return;
         if (!session) {
@@ -114,21 +110,26 @@ export default function VaultPage() {
 
         const loadAllAssets = async () => {
             try {
-                // Load business core from API
+                // Fetch from saved_sessions.generated_content via API
                 const res = await fetchWithAuth('/api/os/results');
-                const data = await res.json();
+                const result = await res.json();
 
-                // Load funnel assets from localStorage
-                const funnelAssets = localStorage.getItem(`funnel_assets_${session.user.id}`);
+                if (result.error) {
+                    console.error("API error:", result.error);
+                    toast.error("Failed to load assets");
+                    return;
+                }
 
-                const combined = {
-                    ...(data.data || {}),
-                    ...(funnelAssets ? JSON.parse(funnelAssets) : {})
-                };
-
-                setAllAssets(combined);
+                if (result.data && Object.keys(result.data).length > 0) {
+                    setAllAssets(result.data);
+                    setDataSource(result.source);
+                    console.log('[Vault] Loaded assets from:', result.source);
+                } else {
+                    toast.info("No generated content yet. Complete the intake form first.");
+                }
             } catch (error) {
                 console.error("Failed to load assets:", error);
+                toast.error("Failed to load assets");
             } finally {
                 setIsLoading(false);
             }
@@ -137,7 +138,6 @@ export default function VaultPage() {
         loadAllAssets();
     }, [session, authLoading, router]);
 
-    // Toggle category expansion
     const toggleCategory = (categoryId) => {
         setExpandedCategories(prev =>
             prev.includes(categoryId)
@@ -147,7 +147,6 @@ export default function VaultPage() {
         setSelectedCategory(categoryId);
     };
 
-    // Get content for display
     const getAssetContent = (itemId) => {
         const content = allAssets[itemId];
         if (!content) return null;
@@ -155,7 +154,7 @@ export default function VaultPage() {
         if (typeof content === 'string') return content;
         if (typeof content === 'object') {
             return Object.entries(content)
-                .filter(([k]) => k !== '_contentName')
+                .filter(([k]) => k !== '_contentName' && k !== 'id')
                 .map(([k, v]) => {
                     const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
                     const value = typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v);
@@ -166,23 +165,21 @@ export default function VaultPage() {
         return String(content);
     };
 
-    // Copy to clipboard
     const handleCopy = (content) => {
         navigator.clipboard.writeText(content);
         toast.success("Copied to clipboard!");
     };
 
-    // Regenerate an item using API
+    // Regenerate via existing API
     const handleRegenerate = async (itemId) => {
         setIsRegenerating(true);
         try {
-            // Call actual AI API for regeneration
-            const res = await fetchWithAuth('/api/ai/generate', {
+            const res = await fetchWithAuth('/api/os/regenerate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: itemId,
-                    regenerate: true
+                    section: itemId,
+                    sessionId: dataSource?.id
                 })
             });
 
@@ -193,17 +190,16 @@ export default function VaultPage() {
                     toast.success("Content regenerated!");
                 }
             } else {
-                throw new Error("Failed to regenerate");
+                toast.error("Regeneration failed - check API logs");
             }
         } catch (error) {
             console.error("Regeneration error:", error);
-            toast.error("Failed to regenerate. Please try again.");
+            toast.error("Failed to regenerate");
         } finally {
             setIsRegenerating(false);
         }
     };
 
-    // Select item and close sidebar on mobile
     const handleItemSelect = (itemId) => {
         setSelectedItem(itemId);
         if (window.innerWidth < 1024) {
@@ -211,7 +207,6 @@ export default function VaultPage() {
         }
     };
 
-    // Filter items based on search
     const filteredCategories = VAULT_CATEGORIES.map(cat => ({
         ...cat,
         items: cat.items.filter(item =>
@@ -252,7 +247,7 @@ export default function VaultPage() {
                 </button>
             </div>
 
-            {/* Sidebar Overlay (Mobile) */}
+            {/* Sidebar Overlay */}
             <AnimatePresence>
                 {isSidebarOpen && (
                     <motion.div
@@ -273,17 +268,15 @@ export default function VaultPage() {
                         animate={{ x: 0 }}
                         exit={{ x: "-100%" }}
                         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className={`
-              fixed lg:relative z-50 h-full lg:h-auto
-              w-[280px] sm:w-[320px] lg:w-80
-              bg-[#131314] border-r border-[#2a2a2d] 
-              flex flex-col
-              lg:sticky lg:top-0 lg:max-h-screen
-            `}
+                        className="fixed lg:relative z-50 h-full lg:h-auto w-[280px] sm:w-[320px] lg:w-80 bg-[#131314] border-r border-[#2a2a2d] flex flex-col lg:sticky lg:top-0 lg:max-h-screen"
                     >
-                        {/* Sidebar Header */}
                         <div className="p-4 sm:p-6 border-b border-[#2a2a2d] flex items-center justify-between">
-                            <h1 className="text-xl sm:text-2xl font-bold">Vault</h1>
+                            <div>
+                                <h1 className="text-xl sm:text-2xl font-bold">Vault</h1>
+                                {dataSource && (
+                                    <p className="text-xs text-gray-500 mt-1">From: {dataSource.name || dataSource.type}</p>
+                                )}
+                            </div>
                             <button
                                 onClick={() => setIsSidebarOpen(false)}
                                 className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors lg:hidden"
@@ -292,7 +285,6 @@ export default function VaultPage() {
                             </button>
                         </div>
 
-                        {/* Search */}
                         <div className="p-4 border-b border-[#2a2a2d]">
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -306,7 +298,6 @@ export default function VaultPage() {
                             </div>
                         </div>
 
-                        {/* Categories */}
                         <div className="flex-1 overflow-y-auto p-4 space-y-2">
                             {filteredCategories.map((category) => {
                                 const CatIcon = category.icon;
@@ -364,7 +355,6 @@ export default function VaultPage() {
                             })}
                         </div>
 
-                        {/* Back Button */}
                         <div className="p-4 border-t border-[#2a2a2d]">
                             <button
                                 onClick={() => router.push('/dashboard')}
@@ -403,7 +393,7 @@ export default function VaultPage() {
                                 <h2 className="text-xl sm:text-2xl font-bold mb-2">Select an Asset</h2>
                                 <p className="text-gray-500 text-sm sm:text-base">
                                     {isSidebarOpen
-                                        ? "Click on any item in the sidebar to view and manage your content."
+                                        ? "Click on any item in the sidebar to view your generated content."
                                         : "Tap the menu button to browse your assets."}
                                 </p>
                                 {!isSidebarOpen && (
@@ -425,7 +415,6 @@ export default function VaultPage() {
                             exit={{ opacity: 0, x: -20 }}
                             className="max-w-4xl mx-auto"
                         >
-                            {/* Header */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                                 <div className="flex items-center gap-3 sm:gap-4">
                                     <button
@@ -468,7 +457,6 @@ export default function VaultPage() {
                                 </div>
                             </div>
 
-                            {/* Content Display */}
                             <div className="bg-[#131314] border border-[#2a2a2d] rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8">
                                 {currentContent ? (
                                     <pre className="text-gray-200 whitespace-pre-wrap text-sm sm:text-base lg:text-lg leading-relaxed font-sans overflow-x-auto">
@@ -476,21 +464,12 @@ export default function VaultPage() {
                                     </pre>
                                 ) : (
                                     <div className="text-center py-8 sm:py-12">
-                                        <p className="text-gray-500 mb-4 text-sm sm:text-base">No content generated yet for this item.</p>
-                                        <button
-                                            onClick={() => handleRegenerate(selectedItem)}
-                                            disabled={isRegenerating}
-                                            className="px-6 py-3 bg-cyan text-black rounded-lg font-bold flex items-center gap-2 mx-auto hover:brightness-110 transition-all text-sm sm:text-base"
-                                        >
-                                            {isRegenerating ? (
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                            ) : (
-                                                <>
-                                                    <RefreshCw className="w-5 h-5" />
-                                                    Generate Now
-                                                </>
-                                            )}
-                                        </button>
+                                        <p className="text-gray-500 mb-4 text-sm sm:text-base">
+                                            No content generated for this item yet.
+                                        </p>
+                                        <p className="text-gray-600 text-xs">
+                                            Complete the intake form to generate content.
+                                        </p>
                                     </div>
                                 )}
                             </div>
