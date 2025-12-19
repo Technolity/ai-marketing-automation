@@ -1784,9 +1784,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
     return (
         <div className="h-[calc(100vh-5rem)] bg-[#0e0e0f] text-white font-sans flex overflow-hidden">
-            {/* Sidebar */}
+            {/* Sidebar - Hidden in intake mode for linear question flow */}
             <AnimatePresence>
-                {isSidebarOpen && (
+                {isSidebarOpen && mode !== 'intake' && (
                     <motion.div
                         initial={{ x: -300 }}
                         animate={{ x: 0 }}
@@ -1838,13 +1838,15 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 )}
             </AnimatePresence>
 
-            {/* Toggle Sidebar Button */}
-            <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="fixed left-4 top-20 z-30 bg-[#1b1b1d] p-2 rounded-lg border border-[#2a2a2d] hover:bg-[#2a2a2d] transition-colors"
-            >
-                {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
+            {/* Toggle Sidebar Button - Hidden in intake mode for linear flow */}
+            {mode !== 'intake' && (
+                <button
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className="fixed left-4 top-20 z-30 bg-[#1b1b1d] p-2 rounded-lg border border-[#2a2a2d] hover:bg-[#2a2a2d] transition-colors"
+                >
+                    {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                </button>
+            )}
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
@@ -2088,16 +2090,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
                                             {/* Right side buttons */}
                                             <div className="flex items-center gap-3">
-                                                {/* Skip Button - Only show for optional steps */}
-                                                {STEPS.find(s => s.id === currentStep)?.optional && (
-                                                    <button
-                                                        onClick={handleSkipStep}
-                                                        disabled={generatingPreview}
-                                                        className="bg-gray-700 hover:bg-gray-600 text-white px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all disabled:opacity-50"
-                                                    >
-                                                        Skip
-                                                    </button>
-                                                )}
+                                                {/* Skip Button - REMOVED for linear flow (TedOS UX overhaul) */}
+                                                {/* Users must answer all questions in order */}
 
                                                 {/* Next Step Button */}
                                                 <button
@@ -2132,7 +2126,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                             ) : (
                                                 <>
                                                     <Sparkles className="w-5 h-5" />
-                                                    Generate All Assets
+                                                    Generate My Business Core
                                                 </>
                                             )}
                                         </button>
