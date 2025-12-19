@@ -1,4 +1,20 @@
 "use client";
+/**
+ * OSWizard Component
+ * 
+ * Main wizard component for the TedOS questionnaire and content generation flow.
+ * 
+ * MODULAR STRUCTURE (components/OSWizard/):
+ * - hooks/useWizardState.js - Core state management
+ * - hooks/useWizardSessions.js - Session save/load/delete
+ * - components/ProcessingAnimation.jsx - Loading overlay
+ * - components/QuestionProgressBar.jsx - "Question X of 20" progress bar
+ * - utils/formatters.js - Display formatting helpers
+ * - utils/validators.js - Input validation
+ * 
+ * The modular files are ready for gradual migration.
+ * This file remains the master until migration is complete.
+ */
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,6 +27,9 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS } from "@/lib/os-wizard-data";
+
+// Import modular components
+import { QuestionProgressBar } from "./OSWizard/components";
 
 // Helper function to format field names into readable titles
 const formatFieldName = (key) => {
@@ -1838,16 +1857,18 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4 }}
                         >
-                            {/* Header */}
+                            {/* Header with Progress Bar */}
                             <div className="mb-8">
-                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan/10 text-cyan text-sm font-medium mb-4">
-                                    <CurrentIcon className="w-4 h-4" />
-                                    Step {currentStep} of {STEPS.length}
-                                </div>
+                                {/* NEW: Question Progress Bar for single-question UX */}
+                                <QuestionProgressBar
+                                    currentStep={currentStep}
+                                    completedSteps={completedSteps}
+                                />
+
                                 <h1 className="text-4xl md:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
                                     {STEPS[currentStep - 1].title}
                                     {STEPS[currentStep - 1].optional && (
-                                        <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 font-normal">Optional Section</span>
+                                        <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 font-normal">Optional</span>
                                     )}
                                 </h1>
                                 <p className="text-gray-400 text-lg font-light leading-relaxed">{STEPS[currentStep - 1].description}</p>
