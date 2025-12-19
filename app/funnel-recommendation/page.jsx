@@ -2,13 +2,8 @@
 /**
  * Funnel Recommendation Screen
  * 
- * After Phase 1 (Business Core) is complete, this screen recommends
- * the best funnel type based on the user's business type.
- * 
- * Features:
- * - Recommends a funnel based on business answers
- * - Shows collapsed section with alternative options
- * - "Build Recommended Funnel" CTA
+ * Fully responsive for mobile, tablet, desktop, and foldable devices.
+ * Recommends funnel based on business type with collapsed alternatives.
  */
 
 import { useEffect, useState } from "react";
@@ -17,7 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Rocket, ChevronDown, CheckCircle, Loader2, Sparkles,
-    BookOpen, Video, Mail, Gift, Megaphone, Layout, Star, ArrowRight
+    BookOpen, Video, Mail, Gift, Megaphone, Layout, Star, ArrowRight, ArrowLeft
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -77,7 +72,6 @@ export default function FunnelRecommendationPage() {
     const [showAlternatives, setShowAlternatives] = useState(false);
     const [isBuilding, setIsBuilding] = useState(false);
 
-    // Load business data and determine recommendation
     useEffect(() => {
         if (authLoading) return;
         if (!session) {
@@ -92,8 +86,6 @@ export default function FunnelRecommendationPage() {
 
                 if (data.data) {
                     setBusinessData(data.data);
-
-                    // Determine best funnel based on business type
                     const recommended = determineBestFunnel(data.data);
                     setRecommendedFunnel(recommended);
                     setSelectedFunnel(recommended);
@@ -108,13 +100,10 @@ export default function FunnelRecommendationPage() {
         loadData();
     }, [session, authLoading, router]);
 
-    // Logic to determine best funnel based on business data
     const determineBestFunnel = (data) => {
-        // Check business type indicators
         const industry = (data.industry || '').toLowerCase();
         const offer = (data.offer?.programType || data.offerProgram?.programType || '').toLowerCase();
 
-        // Matches for different funnels
         if (industry.includes('coach') || industry.includes('consultant')) {
             return FUNNEL_TYPES.find(f => f.id === 'free-book');
         }
@@ -127,21 +116,13 @@ export default function FunnelRecommendationPage() {
         if (industry.includes('trainer') || industry.includes('speaker')) {
             return FUNNEL_TYPES.find(f => f.id === 'webinar');
         }
-
-        // Default to Free Book Funnel
         return FUNNEL_TYPES.find(f => f.id === 'free-book');
     };
 
-    // Handle building the funnel
     const handleBuildFunnel = async () => {
         setIsBuilding(true);
-
-        // Save selected funnel type to localStorage for the build process
         localStorage.setItem('selected_funnel_type', selectedFunnel.id);
-
-        // Simulate a brief delay for UX
         await new Promise(resolve => setTimeout(resolve, 1000));
-
         toast.success(`Building your ${selectedFunnel.title}...`);
         router.push('/funnel-assets');
     };
@@ -149,29 +130,40 @@ export default function FunnelRecommendationPage() {
     if (authLoading || isLoading) {
         return (
             <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center">
-                <Loader2 className="w-10 h-10 text-cyan animate-spin" />
+                <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-cyan animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#0e0e0f] text-white p-6 lg:p-12">
+        <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8 xl:p-12">
             <div className="max-w-4xl mx-auto">
+
+                {/* Back Button */}
+                <button
+                    onClick={() => router.push('/business-core')}
+                    className="mb-4 sm:mb-6 p-2 -ml-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span className="sm:hidden">Back</span>
+                    <span className="hidden sm:inline">Back to Business Core</span>
+                </button>
+
                 {/* Header */}
-                <div className="text-center mb-12">
+                <div className="text-center mb-8 sm:mb-10 lg:mb-12">
                     <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-cyan to-blue-600 flex items-center justify-center shadow-2xl shadow-cyan/30"
+                        className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 rounded-full bg-gradient-to-br from-cyan to-blue-600 flex items-center justify-center shadow-2xl shadow-cyan/30"
                     >
-                        <Rocket className="w-10 h-10 text-white" />
+                        <Rocket className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                     </motion.div>
 
-                    <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tighter">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-3 sm:mb-4 tracking-tighter">
                         Recommended Funnel
                     </h1>
-                    <p className="text-lg text-gray-400 max-w-xl mx-auto">
-                        Based on your business, we recommend the following funnel to get you results fastest.
+                    <p className="text-sm sm:text-base lg:text-lg text-gray-400 max-w-xl mx-auto px-4">
+                        Based on your business, we recommend the following funnel.
                     </p>
                 </div>
 
@@ -181,7 +173,7 @@ export default function FunnelRecommendationPage() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         className={`
-              p-8 rounded-3xl border-2 mb-8 transition-all cursor-pointer
+              p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl lg:rounded-3xl border-2 mb-6 sm:mb-8 transition-all cursor-pointer
               ${selectedFunnel?.id === recommendedFunnel.id
                                 ? 'bg-cyan/10 border-cyan shadow-xl shadow-cyan/20'
                                 : 'bg-[#1b1b1d] border-[#2a2a2d] hover:border-cyan/50'
@@ -189,45 +181,45 @@ export default function FunnelRecommendationPage() {
             `}
                         onClick={() => setSelectedFunnel(recommendedFunnel)}
                     >
-                        <div className="flex items-start gap-6">
-                            <div className="w-16 h-16 rounded-2xl bg-cyan/20 flex items-center justify-center flex-shrink-0">
-                                <recommendedFunnel.icon className="w-8 h-8 text-cyan" />
+                        <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
+                            <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-16 lg:h-16 rounded-xl sm:rounded-2xl bg-cyan/20 flex items-center justify-center flex-shrink-0">
+                                <recommendedFunnel.icon className="w-6 h-6 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-cyan" />
                             </div>
 
-                            <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                    <h2 className="text-2xl font-bold">{recommendedFunnel.title}</h2>
-                                    <span className="px-3 py-1 bg-cyan/20 text-cyan text-xs font-bold rounded-full flex items-center gap-1">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
+                                    <h2 className="text-xl sm:text-2xl font-bold">{recommendedFunnel.title}</h2>
+                                    <span className="px-2 sm:px-3 py-0.5 sm:py-1 bg-cyan/20 text-cyan text-xs font-bold rounded-full flex items-center gap-1">
                                         <Star className="w-3 h-3" /> RECOMMENDED
                                     </span>
                                 </div>
-                                <p className="text-gray-400 mb-4">{recommendedFunnel.description}</p>
+                                <p className="text-gray-400 mb-3 sm:mb-4 text-sm sm:text-base">{recommendedFunnel.description}</p>
 
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-1.5 sm:gap-2">
                                     {recommendedFunnel.features.map((feature, idx) => (
-                                        <span key={idx} className="px-3 py-1 bg-[#2a2a2d] text-gray-300 text-sm rounded-lg flex items-center gap-2">
-                                            <CheckCircle className="w-4 h-4 text-green-500" />
-                                            {feature}
+                                        <span key={idx} className="px-2 sm:px-3 py-1 sm:py-1.5 bg-[#2a2a2d] text-gray-300 text-xs sm:text-sm rounded-lg flex items-center gap-1 sm:gap-2">
+                                            <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
+                                            <span className="truncate">{feature}</span>
                                         </span>
                                     ))}
                                 </div>
                             </div>
 
                             {selectedFunnel?.id === recommendedFunnel.id && (
-                                <CheckCircle className="w-8 h-8 text-cyan flex-shrink-0" />
+                                <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-cyan flex-shrink-0 hidden sm:block" />
                             )}
                         </div>
                     </motion.div>
                 )}
 
                 {/* Show Other Options */}
-                <div className="mb-8">
+                <div className="mb-6 sm:mb-8">
                     <button
                         onClick={() => setShowAlternatives(!showAlternatives)}
-                        className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-white transition-colors"
+                        className="w-full flex items-center justify-center gap-2 py-3 sm:py-4 text-gray-400 hover:text-white transition-colors text-sm sm:text-base"
                     >
                         <span>See other funnel options</span>
-                        <ChevronDown className={`w-5 h-5 transition-transform ${showAlternatives ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${showAlternatives ? 'rotate-180' : ''}`} />
                     </button>
 
                     <AnimatePresence>
@@ -236,7 +228,7 @@ export default function FunnelRecommendationPage() {
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
-                                className="space-y-4 overflow-hidden"
+                                className="space-y-3 sm:space-y-4 overflow-hidden"
                             >
                                 {FUNNEL_TYPES.filter(f => f.id !== recommendedFunnel?.id).map((funnel, idx) => {
                                     const Icon = funnel.icon;
@@ -250,22 +242,22 @@ export default function FunnelRecommendationPage() {
                                             transition={{ delay: idx * 0.1 }}
                                             onClick={() => setSelectedFunnel(funnel)}
                                             className={`
-                        p-6 rounded-2xl border cursor-pointer transition-all
+                        p-4 sm:p-5 lg:p-6 rounded-xl sm:rounded-2xl border cursor-pointer transition-all
                         ${isSelected
                                                     ? 'bg-cyan/10 border-cyan'
                                                     : 'bg-[#131314] border-[#2a2a2d] hover:border-gray-600'
                                                 }
                       `}
                                         >
-                                            <div className="flex items-center gap-4">
-                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isSelected ? 'bg-cyan/20' : 'bg-[#2a2a2d]'}`}>
-                                                    <Icon className={`w-6 h-6 ${isSelected ? 'text-cyan' : 'text-gray-400'}`} />
+                                            <div className="flex items-center gap-3 sm:gap-4">
+                                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-cyan/20' : 'bg-[#2a2a2d]'}`}>
+                                                    <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isSelected ? 'text-cyan' : 'text-gray-400'}`} />
                                                 </div>
-                                                <div className="flex-1">
-                                                    <h3 className={`font-bold ${isSelected ? 'text-white' : 'text-gray-300'}`}>{funnel.title}</h3>
-                                                    <p className="text-sm text-gray-500">{funnel.description}</p>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className={`font-bold text-sm sm:text-base ${isSelected ? 'text-white' : 'text-gray-300'}`}>{funnel.title}</h3>
+                                                    <p className="text-xs sm:text-sm text-gray-500 truncate">{funnel.description}</p>
                                                 </div>
-                                                {isSelected && <CheckCircle className="w-6 h-6 text-cyan" />}
+                                                {isSelected && <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-cyan flex-shrink-0" />}
                                             </div>
                                         </motion.div>
                                     );
@@ -285,23 +277,24 @@ export default function FunnelRecommendationPage() {
                     <button
                         onClick={handleBuildFunnel}
                         disabled={isBuilding || !selectedFunnel}
-                        className="px-10 py-5 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-2xl font-black text-xl flex items-center justify-center gap-3 hover:brightness-110 transition-all shadow-2xl shadow-cyan/30 mx-auto disabled:opacity-50"
+                        className="w-full sm:w-auto px-8 sm:px-10 py-4 sm:py-5 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl sm:rounded-2xl font-black text-lg sm:text-xl flex items-center justify-center gap-2 sm:gap-3 hover:brightness-110 transition-all shadow-2xl shadow-cyan/30 mx-auto disabled:opacity-50"
                     >
                         {isBuilding ? (
                             <>
-                                <Loader2 className="w-6 h-6 animate-spin" />
+                                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
                                 Building...
                             </>
                         ) : (
                             <>
-                                <Sparkles className="w-6 h-6" />
-                                Build {selectedFunnel?.title || 'Funnel'}
-                                <ArrowRight className="w-6 h-6" />
+                                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+                                <span className="hidden sm:inline">Build {selectedFunnel?.title || 'Funnel'}</span>
+                                <span className="sm:hidden">Build Funnel</span>
+                                <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
                             </>
                         )}
                     </button>
 
-                    <p className="text-sm text-gray-500 mt-4">
+                    <p className="text-xs sm:text-sm text-gray-500 mt-3 sm:mt-4 px-4">
                         We'll generate all assets for your funnel in the next step
                     </p>
                 </motion.div>
