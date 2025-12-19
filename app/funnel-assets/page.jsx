@@ -1,22 +1,17 @@
 "use client";
 /**
- * Business Core Dashboard
+ * Funnel Assets Generation Screen
  * 
- * Phase 1 of the TedOS funnel building experience.
- * Displays a locked checklist of Business Core items with linear progression.
+ * After selecting a funnel type, this screen generates each asset
+ * in a checklist format with approve/regenerate/edit options.
  * 
- * Business Core Items:
- * 1. Ideal Client - WHO you serve
- * 2. Message - WHAT you help them with  
- * 3. Story - WHY you do this work
- * 4. Proof - Social proof & testimonials
- * 5. Offer & Pricing - Your core offer
- * 6. Sales Script - How you close
- * 
- * UX Rules:
- * - Only first unlocked item is editable
- * - Approve → unlocks next item
- * - Edit + Regenerate → re-locks all items after
+ * Assets include:
+ * - Ads (3 variations)
+ * - Free Gift / Lead Magnet
+ * - Opt-in Page
+ * - VSL Page
+ * - Email Sequence (5-15 emails)
+ * - SMS Sequence
  */
 
 import { useEffect, useState } from "react";
@@ -25,74 +20,74 @@ import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     CheckCircle, Lock, RefreshCw, Loader2, ChevronRight,
-    Users, MessageSquare, BookOpen, Award, Gift, Mic,
-    Sparkles, Edit3, ArrowRight, Rocket, PartyPopper
+    Megaphone, Gift, Layout, Video, Mail, MessageSquare,
+    Sparkles, Edit3, ArrowRight, Eye, PartyPopper
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-// Business Core phases with their corresponding data keys
-const BUSINESS_CORE_PHASES = [
+// Funnel asset types in order of generation
+const FUNNEL_ASSETS = [
     {
-        id: 'idealClient',
-        title: 'Ideal Client',
-        subtitle: 'WHO you serve',
-        icon: Users,
-        description: 'Your perfect customer profile and target audience'
+        id: 'ads',
+        title: 'Ad Copy',
+        subtitle: '3 variations for testing',
+        icon: Megaphone,
+        description: 'Facebook, Instagram, and Google ad copy'
     },
     {
-        id: 'message',
-        title: 'Message',
-        subtitle: 'WHAT you help them with',
-        icon: MessageSquare,
-        description: 'Your core message and value proposition'
-    },
-    {
-        id: 'stories',
-        title: 'Story',
-        subtitle: 'WHY you do this work',
-        icon: BookOpen,
-        description: 'Your signature story and personal mission'
-    },
-    {
-        id: 'proof',
-        title: 'Proof',
-        subtitle: 'Social proof & testimonials',
-        icon: Award,
-        description: 'Client results and testimonials'
-    },
-    {
-        id: 'offer',
-        title: 'Offer & Pricing',
-        subtitle: 'Your core offer',
+        id: 'leadMagnet',
+        title: 'Free Gift / Lead Magnet',
+        subtitle: 'Value proposition for opt-in',
         icon: Gift,
-        description: 'Your program structure and pricing strategy'
+        description: 'Your irresistible free offer'
     },
     {
-        id: 'scripts',
-        title: 'Sales Script',
-        subtitle: 'How you close',
-        icon: Mic,
-        description: 'Your sales conversation framework'
+        id: 'optinPage',
+        title: 'Opt-in Page',
+        subtitle: 'Lead capture page copy',
+        icon: Layout,
+        description: 'Headlines, bullets, and CTA'
+    },
+    {
+        id: 'vslPage',
+        title: 'VSL / Sales Page',
+        subtitle: 'Video sales letter or sales page',
+        icon: Video,
+        description: 'Complete sales page copy'
+    },
+    {
+        id: 'emails',
+        title: 'Email Sequence',
+        subtitle: '5-15 day nurture sequence',
+        icon: Mail,
+        description: 'Follow-up emails to convert leads'
+    },
+    {
+        id: 'sms',
+        title: 'SMS Sequence',
+        subtitle: 'Text message follow-ups',
+        icon: MessageSquare,
+        description: 'Short, punchy SMS messages'
     }
 ];
 
-export default function BusinessCorePage() {
+export default function FunnelAssetsPage() {
     const router = useRouter();
     const { session, loading: authLoading } = useAuth();
 
     // Core state
     const [isLoading, setIsLoading] = useState(true);
-    const [businessCore, setBusinessCore] = useState({});
-    const [approvedPhases, setApprovedPhases] = useState([]);
-    const [activePhase, setActivePhase] = useState(null);
-    const [isPhaseOneComplete, setIsPhaseOneComplete] = useState(false);
+    const [generatedAssets, setGeneratedAssets] = useState({});
+    const [approvedAssets, setApprovedAssets] = useState([]);
+    const [expandedAsset, setExpandedAsset] = useState(null);
+    const [isAllComplete, setIsAllComplete] = useState(false);
 
-    // UI state
+    // Generation state
+    const [generatingAsset, setGeneratingAsset] = useState(null);
     const [isRegenerating, setIsRegenerating] = useState(false);
-    const [expandedPhase, setExpandedPhase] = useState(null);
 
-    // Load business core data
+    // Load existing assets
     useEffect(() => {
         if (authLoading) return;
         if (!session) {
@@ -100,117 +95,144 @@ export default function BusinessCorePage() {
             return;
         }
 
-        const loadBusinessCore = async () => {
+        const loadAssets = async () => {
             try {
-                // First try to load from API
-                const res = await fetchWithAuth('/api/os/results');
-                const data = await res.json();
+                // Check for saved assets in localStorage
+                const savedAssets = localStorage.getItem(`funnel_assets_${session.user.id}`);
+                const savedApprovals = localStorage.getItem(`funnel_approvals_${session.user.id}`);
 
-                if (data.data && Object.keys(data.data).length > 0) {
-                    setBusinessCore(data.data);
-
-                    // Check for saved approval state in localStorage
-                    const savedApprovals = localStorage.getItem(`business_core_approvals_${session.user.id}`);
-                    if (savedApprovals) {
-                        const approvals = JSON.parse(savedApprovals);
-                        setApprovedPhases(approvals);
-
-                        // Check if all phases approved
-                        if (approvals.length >= BUSINESS_CORE_PHASES.length) {
-                            setIsPhaseOneComplete(true);
-                        }
+                if (savedAssets) {
+                    setGeneratedAssets(JSON.parse(savedAssets));
+                }
+                if (savedApprovals) {
+                    const approvals = JSON.parse(savedApprovals);
+                    setApprovedAssets(approvals);
+                    if (approvals.length >= FUNNEL_ASSETS.length) {
+                        setIsAllComplete(true);
                     }
                 }
+
+                // Start generating first asset if none exist
+                if (!savedAssets || Object.keys(JSON.parse(savedAssets || '{}')).length === 0) {
+                    await generateAsset(FUNNEL_ASSETS[0].id);
+                }
             } catch (error) {
-                console.error("Failed to load business core:", error);
-                toast.error("Failed to load your Business Core");
+                console.error("Failed to load assets:", error);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        loadBusinessCore();
+        loadAssets();
     }, [session, authLoading, router]);
 
-    // Get phase status: 'locked' | 'current' | 'approved'
-    const getPhaseStatus = (phaseId, index) => {
-        if (approvedPhases.includes(phaseId)) return 'approved';
-        if (index === 0 || approvedPhases.includes(BUSINESS_CORE_PHASES[index - 1].id)) {
-            return 'current';
-        }
+    // Get asset status: 'locked' | 'generating' | 'ready' | 'approved'
+    const getAssetStatus = (assetId, index) => {
+        if (generatingAsset === assetId) return 'generating';
+        if (approvedAssets.includes(assetId)) return 'approved';
+        if (generatedAssets[assetId]) return 'ready';
+        if (index === 0) return 'ready'; // First one is always unlocked
+
+        // Unlock if previous is approved
+        const prevAsset = FUNNEL_ASSETS[index - 1];
+        if (approvedAssets.includes(prevAsset.id)) return 'ready';
+
         return 'locked';
     };
 
-    // Handle phase approval
-    const handleApprove = async (phaseId) => {
-        const newApprovals = [...approvedPhases, phaseId];
-        setApprovedPhases(newApprovals);
+    // Generate a specific asset
+    const generateAsset = async (assetId) => {
+        setGeneratingAsset(assetId);
 
-        // Save to localStorage
-        localStorage.setItem(
-            `business_core_approvals_${session.user.id}`,
-            JSON.stringify(newApprovals)
-        );
-
-        // Check if all phases complete
-        if (newApprovals.length >= BUSINESS_CORE_PHASES.length) {
-            setIsPhaseOneComplete(true);
-            toast.success("🎉 Phase One Complete! Your Business Core is ready.");
-        } else {
-            toast.success(`${BUSINESS_CORE_PHASES.find(p => p.id === phaseId)?.title} approved!`);
-        }
-
-        setExpandedPhase(null);
-    };
-
-    // Handle regeneration
-    const handleRegenerate = async (phaseId) => {
-        setIsRegenerating(true);
         try {
-            // API call to regenerate would go here
-            await new Promise(resolve => setTimeout(resolve, 2000)); // Simulated delay
-            toast.success("Content regenerated!");
+            // Simulated generation (replace with actual API call)
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Mock generated content
+            const mockContent = {
+                ads: {
+                    headline: "Stop Struggling With [Problem]...",
+                    body: "Discover how [Outcome] is possible in just [Timeframe]...",
+                    cta: "Get Free Access →"
+                },
+                leadMagnet: {
+                    title: "The Ultimate Guide to [Topic]",
+                    description: "5 secrets to achieving [Outcome]..."
+                },
+                optinPage: {
+                    headline: "Free: [Lead Magnet Title]",
+                    subheadline: "Learn the exact system used by...",
+                    bullets: ["Bullet 1", "Bullet 2", "Bullet 3"]
+                },
+                vslPage: {
+                    hook: "What if I told you...",
+                    story: "I used to struggle with...",
+                    offer: "Introducing [Program Name]..."
+                },
+                emails: {
+                    subject1: "Welcome! Here's your [Lead Magnet]",
+                    subject2: "Don't make this mistake...",
+                    subject3: "[First Name], quick question..."
+                },
+                sms: {
+                    message1: "Hey [Name]! Got your download?",
+                    message2: "Quick reminder about..."
+                }
+            };
+
+            const newAssets = {
+                ...generatedAssets,
+                [assetId]: mockContent[assetId] || { content: "Generated content for " + assetId }
+            };
+
+            setGeneratedAssets(newAssets);
+            localStorage.setItem(`funnel_assets_${session.user.id}`, JSON.stringify(newAssets));
+
+            toast.success(`${FUNNEL_ASSETS.find(a => a.id === assetId)?.title} generated!`);
         } catch (error) {
-            toast.error("Failed to regenerate");
+            toast.error("Failed to generate asset");
         } finally {
-            setIsRegenerating(false);
+            setGeneratingAsset(null);
         }
     };
 
-    // Handle edit + regenerate (re-locks subsequent phases)
-    const handleEditRegenerate = async (phaseId, index) => {
-        // Remove approvals for this phase and all after it
-        const newApprovals = approvedPhases.filter(id => {
-            const approvedIndex = BUSINESS_CORE_PHASES.findIndex(p => p.id === id);
-            return approvedIndex < index;
-        });
-        setApprovedPhases(newApprovals);
-        localStorage.setItem(
-            `business_core_approvals_${session.user.id}`,
-            JSON.stringify(newApprovals)
-        );
-        setIsPhaseOneComplete(false);
+    // Approve an asset
+    const handleApprove = async (assetId, index) => {
+        const newApprovals = [...approvedAssets, assetId];
+        setApprovedAssets(newApprovals);
+        localStorage.setItem(`funnel_approvals_${session.user.id}`, JSON.stringify(newApprovals));
 
-        // Redirect to intake form for that specific step
-        toast.info("Redirecting to edit your answers...");
-        router.push('/intake_form');
+        // Check if all complete
+        if (newApprovals.length >= FUNNEL_ASSETS.length) {
+            setIsAllComplete(true);
+            toast.success("🎉 All funnel assets ready!");
+        } else {
+            toast.success(`${FUNNEL_ASSETS.find(a => a.id === assetId)?.title} approved!`);
+
+            // Auto-generate next asset
+            const nextAsset = FUNNEL_ASSETS[index + 1];
+            if (nextAsset && !generatedAssets[nextAsset.id]) {
+                await generateAsset(nextAsset.id);
+            }
+        }
+
+        setExpandedAsset(null);
+    };
+
+    // Regenerate an asset
+    const handleRegenerate = async (assetId) => {
+        setIsRegenerating(true);
+        await generateAsset(assetId);
+        setIsRegenerating(false);
     };
 
     // Format content for display
     const formatContent = (content) => {
-        if (!content) return "No content generated yet.";
+        if (!content) return "Generating...";
         if (typeof content === 'string') return content;
-        if (typeof content === 'object') {
-            return Object.entries(content)
-                .filter(([k, v]) => v && k !== '_contentName')
-                .map(([k, v]) => {
-                    const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-                    const value = typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v);
-                    return `**${label}:**\n${value}`;
-                })
-                .join('\n\n');
-        }
-        return String(content);
+        return Object.entries(content)
+            .map(([k, v]) => `**${k}:** ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+            .join('\n\n');
     };
 
     if (authLoading || isLoading) {
@@ -221,8 +243,8 @@ export default function BusinessCorePage() {
         );
     }
 
-    // Phase One Complete Screen
-    if (isPhaseOneComplete) {
+    // All Complete Screen
+    if (isAllComplete) {
         return (
             <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center p-6">
                 <motion.div
@@ -240,25 +262,25 @@ export default function BusinessCorePage() {
                     </motion.div>
 
                     <h1 className="text-5xl md:text-6xl font-black text-white mb-4 tracking-tighter">
-                        Phase One Complete! 🎉
+                        Funnel Assets Ready! 🎉
                     </h1>
                     <p className="text-xl text-gray-400 mb-8 leading-relaxed">
-                        Your Business Core is built. Now let's create your funnel and start getting clients.
+                        All your funnel content has been generated and approved. Let's build your funnel!
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <button
-                            onClick={() => router.push('/funnel-recommendation')}
+                            onClick={() => router.push('/build-funnel')}
                             className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-3 hover:brightness-110 transition-all shadow-xl shadow-cyan/30"
                         >
-                            <Rocket className="w-6 h-6" />
-                            Choose My Funnel
+                            <Sparkles className="w-6 h-6" />
+                            Build My Funnel
                         </button>
                         <button
-                            onClick={() => setIsPhaseOneComplete(false)}
+                            onClick={() => router.push('/vault')}
                             className="px-8 py-4 bg-[#1b1b1d] border border-[#2a2a2d] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#252528] transition-all"
                         >
-                            Review Business Core
+                            View in Vault
                         </button>
                     </div>
                 </motion.div>
@@ -273,13 +295,13 @@ export default function BusinessCorePage() {
                 <div className="text-center mb-12">
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan/10 text-cyan text-sm font-medium mb-6">
                         <Sparkles className="w-4 h-4" />
-                        Phase 1 of 2
+                        Building Your Funnel
                     </div>
                     <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tighter">
-                        Your Business Core
+                        Funnel Assets
                     </h1>
                     <p className="text-lg text-gray-400 max-w-xl mx-auto">
-                        Review and approve each section. Approval unlocks the next step.
+                        Approve each asset to unlock the next. All content is customized for your business.
                     </p>
                 </div>
 
@@ -288,29 +310,29 @@ export default function BusinessCorePage() {
                     <div className="flex justify-between text-sm mb-2">
                         <span className="text-gray-500">Progress</span>
                         <span className="text-cyan font-medium">
-                            {approvedPhases.length} of {BUSINESS_CORE_PHASES.length} approved
+                            {approvedAssets.length} of {FUNNEL_ASSETS.length} approved
                         </span>
                     </div>
                     <div className="h-2 bg-[#1b1b1d] rounded-full overflow-hidden">
                         <motion.div
                             initial={{ width: 0 }}
-                            animate={{ width: `${(approvedPhases.length / BUSINESS_CORE_PHASES.length) * 100}%` }}
+                            animate={{ width: `${(approvedAssets.length / FUNNEL_ASSETS.length) * 100}%` }}
                             className="h-full bg-gradient-to-r from-cyan to-green-500 rounded-full"
                         />
                     </div>
                 </div>
 
-                {/* Phase Checklist */}
+                {/* Asset Checklist */}
                 <div className="space-y-4">
-                    {BUSINESS_CORE_PHASES.map((phase, index) => {
-                        const status = getPhaseStatus(phase.id, index);
-                        const Icon = phase.icon;
-                        const isExpanded = expandedPhase === phase.id;
-                        const content = businessCore[phase.id];
+                    {FUNNEL_ASSETS.map((asset, index) => {
+                        const status = getAssetStatus(asset.id, index);
+                        const Icon = asset.icon;
+                        const isExpanded = expandedAsset === asset.id;
+                        const content = generatedAssets[asset.id];
 
                         return (
                             <motion.div
-                                key={phase.id}
+                                key={asset.id}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.1 }}
@@ -318,29 +340,34 @@ export default function BusinessCorePage() {
                   rounded-2xl border overflow-hidden transition-all
                   ${status === 'approved'
                                         ? 'bg-green-500/5 border-green-500/30'
-                                        : status === 'current'
-                                            ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10'
-                                            : 'bg-[#131314] border-[#2a2a2d] opacity-60'
+                                        : status === 'generating'
+                                            ? 'bg-cyan/5 border-cyan/30 animate-pulse'
+                                            : status === 'ready'
+                                                ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10'
+                                                : 'bg-[#131314] border-[#2a2a2d] opacity-60'
                                     }
                 `}
                             >
-                                {/* Phase Header */}
+                                {/* Asset Header */}
                                 <button
-                                    onClick={() => status !== 'locked' && setExpandedPhase(isExpanded ? null : phase.id)}
-                                    disabled={status === 'locked'}
+                                    onClick={() => status !== 'locked' && status !== 'generating' && setExpandedAsset(isExpanded ? null : asset.id)}
+                                    disabled={status === 'locked' || status === 'generating'}
                                     className={`w-full p-6 flex items-center gap-4 text-left ${status === 'locked' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
                                 >
-                                    {/* Status Icon */}
                                     <div className={`
                     w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0
                     ${status === 'approved'
                                             ? 'bg-green-500/20'
-                                            : status === 'current'
+                                            : status === 'generating'
                                                 ? 'bg-cyan/20'
-                                                : 'bg-gray-700/50'
+                                                : status === 'ready'
+                                                    ? 'bg-cyan/20'
+                                                    : 'bg-gray-700/50'
                                         }
                   `}>
-                                        {status === 'approved' ? (
+                                        {status === 'generating' ? (
+                                            <Loader2 className="w-6 h-6 text-cyan animate-spin" />
+                                        ) : status === 'approved' ? (
                                             <CheckCircle className="w-6 h-6 text-green-500" />
                                         ) : status === 'locked' ? (
                                             <Lock className="w-5 h-5 text-gray-500" />
@@ -349,16 +376,14 @@ export default function BusinessCorePage() {
                                         )}
                                     </div>
 
-                                    {/* Title */}
                                     <div className="flex-1 min-w-0">
-                                        <h3 className={`font-bold text-lg ${status === 'approved' ? 'text-green-400' : status === 'current' ? 'text-white' : 'text-gray-500'}`}>
-                                            {phase.title}
+                                        <h3 className={`font-bold text-lg ${status === 'approved' ? 'text-green-400' : status === 'generating' ? 'text-cyan' : status === 'ready' ? 'text-white' : 'text-gray-500'}`}>
+                                            {asset.title}
                                         </h3>
-                                        <p className="text-sm text-gray-500 truncate">{phase.subtitle}</p>
+                                        <p className="text-sm text-gray-500 truncate">{asset.subtitle}</p>
                                     </div>
 
-                                    {/* Expand Arrow */}
-                                    {status !== 'locked' && (
+                                    {status !== 'locked' && status !== 'generating' && (
                                         <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                                     )}
                                 </button>
@@ -382,9 +407,9 @@ export default function BusinessCorePage() {
 
                                                 {/* Action Buttons */}
                                                 <div className="flex flex-wrap gap-3">
-                                                    {status === 'current' && (
+                                                    {status === 'ready' && (
                                                         <button
-                                                            onClick={() => handleApprove(phase.id)}
+                                                            onClick={() => handleApprove(asset.id, index)}
                                                             className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
                                                         >
                                                             <CheckCircle className="w-5 h-5" />
@@ -393,7 +418,7 @@ export default function BusinessCorePage() {
                                                     )}
 
                                                     <button
-                                                        onClick={() => handleRegenerate(phase.id)}
+                                                        onClick={() => handleRegenerate(asset.id)}
                                                         disabled={isRegenerating}
                                                         className="flex-1 sm:flex-none px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
                                                     >
@@ -406,20 +431,13 @@ export default function BusinessCorePage() {
                                                     </button>
 
                                                     <button
-                                                        onClick={() => handleEditRegenerate(phase.id, index)}
+                                                        onClick={() => toast.info("Edit mode coming soon!")}
                                                         className="flex-1 sm:flex-none px-6 py-3 border border-[#2a2a2d] text-gray-400 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#1b1b1d] transition-all"
                                                     >
                                                         <Edit3 className="w-5 h-5" />
-                                                        Edit + Regenerate
+                                                        Edit
                                                     </button>
                                                 </div>
-
-                                                {status === 'approved' && (
-                                                    <p className="text-sm text-green-500/80 mt-4 flex items-center gap-2">
-                                                        <CheckCircle className="w-4 h-4" />
-                                                        This section has been approved
-                                                    </p>
-                                                )}
                                             </div>
                                         </motion.div>
                                     )}
@@ -428,23 +446,6 @@ export default function BusinessCorePage() {
                         );
                     })}
                 </div>
-
-                {/* Bottom CTA when all approved */}
-                {approvedPhases.length === BUSINESS_CORE_PHASES.length && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-12 text-center"
-                    >
-                        <button
-                            onClick={() => setIsPhaseOneComplete(true)}
-                            className="px-10 py-5 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-2xl font-black text-xl flex items-center justify-center gap-3 hover:brightness-110 transition-all shadow-2xl shadow-cyan/30 mx-auto"
-                        >
-                            Continue to Build Funnel
-                            <ArrowRight className="w-6 h-6" />
-                        </button>
-                    </motion.div>
-                )}
             </div>
         </div>
     );
