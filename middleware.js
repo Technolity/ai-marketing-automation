@@ -9,7 +9,9 @@ export default authMiddleware({
     "/sign-in",
     "/sign-up",
     "/api/webhooks(.*)",
-    "/api/webhooks/clerk"
+    "/api/webhooks/clerk",
+    "/api/rag(.*)",
+    "/api/admin/setup-pgvector"
   ],
   ignoredRoutes: [
     "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",

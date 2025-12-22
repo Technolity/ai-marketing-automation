@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import AppNavbar from "@/components/AppNavbar";
 import OSWizard from "@/components/OSWizard";
 
 export default function Dashboard() {
@@ -84,7 +83,7 @@ export default function Dashboard() {
 
     if (authLoading || isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-[#0e0e0f]">
+            <div className="flex h-[calc(100vh-5rem)] items-center justify-center bg-[#0e0e0f]">
                 <Loader2 className="w-10 h-10 text-cyan animate-spin" />
             </div>
         );
@@ -92,8 +91,7 @@ export default function Dashboard() {
 
     // Always show dashboard grid with OSWizard in dashboard mode
     return (
-        <div className="min-h-screen bg-[#0e0e0f]">
-            <AppNavbar />
+        <div className="min-h-[calc(100vh-5rem)] bg-[#0e0e0f]">
             <OSWizard mode="dashboard" />
         </div>
     );

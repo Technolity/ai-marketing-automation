@@ -1,4 +1,17 @@
 "use client";
+/**
+ * OSWizard Component
+ * 
+ * Main wizard component for the TedOS questionnaire and content generation flow.
+ * 
+ * MODULAR STRUCTURE (components/OSWizard/):
+ * - hooks/useWizardState.js - Core state management (ready for integration)
+ * - hooks/useWizardSessions.js - Session save/load/delete (ready for integration)
+ * - components/ProcessingAnimation.jsx - Loading overlay
+ * - components/QuestionProgressBar.jsx - "Question X of 20" progress bar
+ * - utils/formatters.js - Display formatting helpers ✓ INTEGRATED
+ * - utils/validators.js - Input validation ✓ INTEGRATED
+ */
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,112 +25,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS } from "@/lib/os-wizard-data";
 
-// Helper function to format field names into readable titles
-const formatFieldName = (key) => {
-    return key
-        .replace(/_/g, ' ')
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/^./, str => str.toUpperCase())
-        .trim();
-};
-
-// Helper function to recursively format nested objects/arrays
-const formatValue = (value, depth = 0, maxDepth = 5) => {
-    // Prevent infinite recursion
-    if (depth > maxDepth) {
-        return typeof value === 'object' ? JSON.stringify(value) : String(value);
-    }
-
-    if (value === null || value === undefined) {
-        return '';
-    }
-
-    // Handle primitive types
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        return String(value);
-    }
-
-    if (Array.isArray(value)) {
-        if (value.length === 0) return '';
-
-        // Handle array of objects (like email sequence, program modules)
-        if (typeof value[0] === 'object' && value[0] !== null) {
-            return value.map((item, idx) => {
-                const title = item.title || item.name || item.subject || item.headline || `Item ${idx + 1}`;
-                const itemContent = Object.entries(item)
-                    .filter(([k]) => !['title', 'name'].includes(k))
-                    .map(([k, v]) => {
-                        const formattedValue = formatValue(v, depth + 1, maxDepth);
-                        return `  ${formatFieldName(k)}: ${formattedValue}`;
-                    }).join('\n');
-                return `${idx + 1}. ${title}\n${itemContent}`;
-            }).join('\n\n');
-        }
-        // Handle array of strings/primitives
-        return value.map((item, idx) => `${idx + 1}. ${formatValue(item, depth + 1, maxDepth)}`).join('\n');
-    }
-
-    if (typeof value === 'object') {
-        const entries = Object.entries(value)
-            .filter(([, v]) => v !== null && v !== undefined && v !== '')
-            .map(([k, v]) => {
-                const formattedKey = formatFieldName(k);
-                const formattedValue = formatValue(v, depth + 1, maxDepth);
-
-                // For nested objects, add proper indentation
-                if (typeof v === 'object' && !Array.isArray(v) && v !== null) {
-                    const indentedValue = formattedValue.split('\n').map(line => `  ${line}`).join('\n');
-                    return `${formattedKey}:\n${indentedValue}`;
-                }
-
-                // For arrays, add proper indentation
-                if (Array.isArray(v)) {
-                    const indentedValue = formattedValue.split('\n').map(line => `  ${line}`).join('\n');
-                    return `${formattedKey}:\n${indentedValue}`;
-                }
-
-                return `${formattedKey}: ${formattedValue}`;
-            });
-
-        return entries.join('\n\n');
-    }
-
-    return String(value);
-};
-
-
-// Helper function to format JSON content into human-readable sections
-const formatContentForDisplay = (jsonContent) => {
-    if (!jsonContent || typeof jsonContent !== 'object') {
-        return [];
-    }
-
-    const sections = [];
-
-    // Flatten the top-level structure (e.g., idealClient, message, etc.)
-    Object.entries(jsonContent).forEach(([topKey, topValue]) => {
-        if (typeof topValue === 'object' && !Array.isArray(topValue)) {
-            // This is a nested object like { idealClient: {...} }
-            Object.entries(topValue).forEach(([key, value]) => {
-                sections.push({
-                    key: formatFieldName(key),
-                    value: formatValue(value)
-                });
-            });
-        } else {
-            // This is a direct key-value pair
-            sections.push({
-                key: formatFieldName(topKey),
-                value: formatValue(topValue)
-            });
-        }
-    });
-
-    return sections;
-};
-
-
-
+// Import modular components and utilities
+import { QuestionProgressBar } from "./OSWizard/components";
+import { formatFieldName, formatValue, formatContentForDisplay } from "./OSWizard/utils/formatters";
+import { validateStepInputs as validateInputs } from "./OSWizard/utils/validators";
 
 export default function OSWizard({ mode = 'dashboard', startAtStepOne = false }) {
     const router = useRouter();
@@ -157,6 +68,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     // Track if current session has been saved (for navigation warnings)
     const [isSessionSaved, setIsSessionSaved] = useState(true);
     const [hasUnsavedProgress, setHasUnsavedProgress] = useState(false);
+
+    // Field-level validation errors
+    const [fieldErrors, setFieldErrors] = useState({});
 
     // Warn on unsaved changes
     useEffect(() => {
@@ -768,49 +682,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         setHasUnsavedProgress(true);
     };
 
-    // Helper function to validate step inputs - checks all required fields have content
-    const validateStepInputs = () => {
-        const stepInputs = STEP_INPUTS[currentStep];
-        if (!stepInputs) return { valid: true, emptyFields: [] };
+    // Validate step inputs using modular validator
+    const validateStepInputs = () => validateInputs(currentStep, currentInput);
 
-        const emptyFields = [];
-        stepInputs.forEach(input => {
-            // Skip conditional inputs if their condition isn't met
-            if (input.conditionalOn) {
-                const parentValue = currentInput[input.conditionalOn] || [];
-                if (!parentValue.includes(input.conditionalValue)) {
-                    return; // Skip validation for this field
-                }
-            }
-
-            const value = currentInput[input.name];
-
-            // Handle arrays (multiselect)
-            if (input.type === 'multiselect') {
-                if (!value || !Array.isArray(value) || value.length === 0) {
-                    emptyFields.push(input.label);
-                }
-            }
-            // Handle select dropdowns
-            else if (input.type === 'select') {
-                if (!value || value === '') {
-                    emptyFields.push(input.label);
-                }
-            }
-            // Handle text inputs (textarea, text)
-            else {
-                const strValue = value || '';
-                if (!strValue.trim() || strValue.trim().length < 3) {
-                    emptyFields.push(input.label);
-                }
-            }
-        });
-
-        return {
-            valid: emptyFields.length === 0,
-            emptyFields
-        };
-    };
 
     // AI Assist for individual fields - now shows 5 suggestions
     const handleAiAssist = async (fieldName, fieldLabel) => {
@@ -980,16 +854,58 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         }
     };
 
+    // Skip optional step
+    const handleSkipStep = async () => {
+        const currentStepConfig = STEPS.find(s => s.id === currentStep);
+        if (!currentStepConfig?.optional) {
+            toast.error('This step cannot be skipped');
+            return;
+        }
+
+        // Mark step as completed even though it's skipped
+        const newCompletedSteps = [...new Set([...completedSteps, currentStep])];
+        setCompletedSteps(newCompletedSteps);
+
+        // Save progress
+        if (session) {
+            const progressData = {
+                currentStep: currentStep < STEPS.length ? currentStep + 1 : currentStep,
+                viewMode: 'step',
+                completedSteps: newCompletedSteps,
+                answers: stepData,
+                generatedContent: savedContent,
+                isComplete: newCompletedSteps.length >= 20,
+                updatedAt: new Date().toISOString()
+            };
+            localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+        }
+
+        toast.success(`Step ${currentStep} skipped`);
+
+        // Move to next step
+        if (currentStep < STEPS.length) {
+            setCurrentStep(currentStep + 1);
+            setCurrentInput({});
+            setFieldErrors({});
+        } else {
+            setViewMode('dashboard');
+        }
+    };
+
     // Navigate to next step and save current input
     const handleNextStep = async () => {
         // Validate all fields have content before saving
         const validation = validateStepInputs();
         if (!validation.valid) {
+            setFieldErrors(validation.errors);
             const fieldList = validation.emptyFields.slice(0, 3).join(', ');
             const moreFields = validation.emptyFields.length > 3 ? ` and ${validation.emptyFields.length - 3} more` : '';
-            toast.error(`Please fill in all fields: ${fieldList}${moreFields}`);
+            toast.error(`Please fill in required fields: ${fieldList}${moreFields}`);
             return;
         }
+
+        // Clear field errors if validation passed
+        setFieldErrors({});
 
         // Save current input to stepData
         const updatedData = {
@@ -1065,6 +981,31 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
             setCurrentStep(currentStep + 1);
             setCurrentInput({});
         }
+    };
+
+    // Navigate to previous step - allows user to review/edit previous answers
+    const handlePreviousStep = () => {
+        if (currentStep <= 1) return;
+
+        const previousStep = currentStep - 1;
+        setCurrentStep(previousStep);
+
+        // Load saved answers for the previous step
+        const stepInputs = STEP_INPUTS[previousStep];
+        if (stepInputs) {
+            const loadedInput = {};
+            stepInputs.forEach(input => {
+                if (stepData[input.name]) {
+                    loadedInput[input.name] = stepData[input.name];
+                }
+            });
+            setCurrentInput(loadedInput);
+        } else {
+            setCurrentInput({});
+        }
+
+        // Clear any field errors
+        setFieldErrors({});
     };
 
     // Handle "Changed my mind" - enter edit mode for a completed step
@@ -1189,13 +1130,14 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 name: 'Current Session'
             }));
 
-            toast.success("All content saved! Redirecting to results...");
+            toast.success("Your Business Core is ready! Let's review it.");
 
             // Wait a brief moment before redirecting to ensure all saves are complete
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            console.log('[OSWizard] Redirecting to /results');
-            router.push("/results");
+            // Redirect to Business Core dashboard (Phase 1 of new UX flow)
+            console.log('[OSWizard] Redirecting to /business-core');
+            router.push("/business-core");
         } catch (error) {
             console.error('[OSWizard] Approve error:', error);
             toast.error("Failed to save. Please try again.");
@@ -1327,23 +1269,26 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
 
         return (
-            <div className="min-h-screen bg-[#0e0e0f] text-white">
+            <div className="min-h-full bg-[#0e0e0f] text-white">
                 <div className="max-w-7xl mx-auto px-6 py-12">
                     {/* Dashboard header - same for all users */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mb-12 text-center"
+                        className="mb-12 text-center relative"
                     >
-                        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+                        {/* Background subtle glow for header */}
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-32 bg-cyan/5 blur-3xl rounded-full -z-10"></div>
+
+                        <h1 className="text-5xl md:text-6xl font-black mb-4 bg-gradient-to-br from-white via-white to-gray-500 bg-clip-text text-transparent tracking-tighter">
                             Mission Control
                         </h1>
-                        <p className="text-gray-400 text-lg">
+                        <p className="text-gray-400 text-lg max-w-2xl mx-auto font-light leading-relaxed">
                             {isFirstTimeUser
                                 ? "Start building your business — click any section below to begin"
-                                : completedSteps.length === 20
+                                : completedSteps.length === STEPS.length
                                     ? "All steps complete! View your results or make changes below."
-                                    : `Continue building your business — ${completedSteps.length}/20 steps completed`
+                                    : `Continue building your business — ${completedSteps.length}/${STEPS.length} steps completed`
                             }
                         </p>
                         <div className="mt-4 flex items-center justify-center gap-6 text-sm">
@@ -1376,10 +1321,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
                         {isWizardComplete && (
                             <button
-                                onClick={() => router.push("/results")}
+                                onClick={() => router.push("/business-core")}
                                 className="px-6 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20"
                             >
-                                <Eye className="w-5 h-5" /> View Current Results
+                                <Eye className="w-5 h-5" /> View Business Core
                             </button>
                         )}
 
@@ -1528,7 +1473,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         <div className="space-y-3 max-h-96 overflow-y-auto">
                                             {savedSessions.map((session) => {
                                                 const stepsCompleted = session.completed_steps?.length || 0;
-                                                const totalSteps = 12;
+                                                const totalSteps = 20;
                                                 const progressPercent = (stepsCompleted / totalSteps) * 100;
                                                 const isAllComplete = stepsCompleted >= totalSteps;
                                                 const businessName = session.answers?.businessName || session.answers?.business_name || '';
@@ -1619,14 +1564,14 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         onClick={() => !isWizardComplete && handleStepClick(step.id)}
                                         disabled={status === 'locked' || isWizardComplete}
                                         className={`
-                                            w-full p-6 rounded-2xl border-2 transition-all duration-300 text-left
+                                            w-full p-6 rounded-2xl border transition-all duration-300 text-left glass-card
                                             ${status === 'completed' && isWizardComplete
-                                                ? 'bg-green-600/10 border-green-600 opacity-80'
+                                                ? 'border-green-600/50 opacity-80'
                                                 : status === 'completed'
-                                                    ? 'bg-green-600/10 border-green-600 hover:border-green-500 hover:shadow-lg hover:shadow-green-900/20'
+                                                    ? 'border-green-600/50 hover:border-green-500 hover:shadow-lg hover:shadow-green-900/20'
                                                     : status === 'unlocked'
-                                                        ? 'bg-[#1b1b1d] border-cyan/50 hover:border-cyan hover:shadow-lg hover:shadow-cyan/20'
-                                                        : 'bg-[#1b1b1d] border-gray-700 opacity-50 cursor-not-allowed'
+                                                        ? 'border-cyan/30 hover:border-cyan hover:shadow-glow-cyan'
+                                                        : 'border-white/5 opacity-50 cursor-not-allowed'
                                             }
                                         `}
                                     >
@@ -1697,10 +1642,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     const CurrentIcon = STEPS[currentStep - 1].icon;
 
     return (
-        <div className="min-h-screen bg-[#0e0e0f] text-white font-sans flex">
-            {/* Sidebar */}
+        <div className="h-full bg-[#0e0e0f] text-white font-sans flex overflow-hidden">
+            {/* Sidebar - Hidden in intake mode for linear question flow */}
             <AnimatePresence>
-                {isSidebarOpen && (
+                {isSidebarOpen && mode !== 'intake' && (
                     <motion.div
                         initial={{ x: -300 }}
                         animate={{ x: 0 }}
@@ -1729,19 +1674,19 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         onClick={() => status !== 'locked' && handleStepClick(step.id)}
                                         disabled={status === 'locked'}
                                         className={`
-                                            w-full p-4 rounded-lg text-left transition-all flex items-center gap-3
+                                            w-full p-4 rounded-xl text-left transition-all flex items-center gap-3 border border-transparent
                                             ${isActive
-                                                ? 'bg-cyan text-black'
+                                                ? 'bg-cyan text-black shadow-lg shadow-cyan/20'
                                                 : status === 'completed'
-                                                    ? 'bg-green-600/10 text-green-400 hover:bg-green-600/20'
+                                                    ? 'bg-green-600/5 text-green-400 hover:bg-green-600/10 hover:border-green-600/30'
                                                     : status === 'unlocked'
-                                                        ? 'bg-[#1b1b1d] text-gray-300 hover:bg-[#2a2a2d]'
+                                                        ? 'bg-[#1b1b1d] text-gray-300 hover:bg-[#252528] hover:border-white/10'
                                                         : 'bg-[#1b1b1d] text-gray-600 cursor-not-allowed opacity-50'
                                             }
                                         `}
                                     >
                                         <Icon className="w-4 h-4 flex-shrink-0" />
-                                        <span className="text-sm font-medium flex-1">{step.title}</span>
+                                        <span className="text-sm font-bold flex-1 tracking-tight">{step.title}</span>
                                         {status === 'completed' && <CheckCircle className="w-4 h-4 flex-shrink-0" />}
                                         {status === 'locked' && <Lock className="w-4 h-4 flex-shrink-0" />}
                                     </button>
@@ -1752,13 +1697,15 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 )}
             </AnimatePresence>
 
-            {/* Toggle Sidebar Button */}
-            <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="fixed left-4 top-20 z-30 bg-[#1b1b1d] p-2 rounded-lg border border-[#2a2a2d] hover:bg-[#2a2a2d] transition-colors"
-            >
-                {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
+            {/* Toggle Sidebar Button - Hidden in intake mode for linear flow */}
+            {mode !== 'intake' && (
+                <button
+                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                    className="fixed left-4 top-20 z-30 bg-[#1b1b1d] p-2 rounded-lg border border-[#2a2a2d] hover:bg-[#2a2a2d] transition-colors"
+                >
+                    {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                </button>
+            )}
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
@@ -1771,21 +1718,37 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4 }}
                         >
-                            {/* Header */}
+                            {/* Header with Progress Bar */}
                             <div className="mb-8">
-                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan/10 text-cyan text-sm font-medium mb-4">
-                                    <CurrentIcon className="w-4 h-4" />
-                                    Step {currentStep} of {STEPS.length}
-                                </div>
-                                <h1 className="text-4xl font-bold mb-3">{STEPS[currentStep - 1].title}</h1>
-                                <p className="text-gray-400 text-lg">{STEPS[currentStep - 1].description}</p>
+                                {/* NEW: Question Progress Bar for single-question UX */}
+                                <QuestionProgressBar
+                                    currentStep={currentStep}
+                                    completedSteps={completedSteps}
+                                />
+
+                                <h1 className="text-4xl md:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
+                                    {STEPS[currentStep - 1].title}
+                                    {STEPS[currentStep - 1].optional && (
+                                        <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 font-normal">Optional</span>
+                                    )}
+                                </h1>
+                                <p className="text-gray-400 text-lg font-light leading-relaxed">{STEPS[currentStep - 1].description}</p>
                             </div>
 
                             {/* Info Box removed */}
 
                             {/* Input Fields */}
-                            <div className="space-y-6 bg-[#1b1b1d] p-8 rounded-2xl border border-[#2a2a2d] shadow-xl">
-                                {STEP_INPUTS[currentStep]?.map((input) => (
+                            <div className="space-y-8 glass-card p-10 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
+                                {/* Interactive glow effect in the corner */}
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan/5 blur-3xl rounded-full pointer-events-none"></div>
+                                {STEP_INPUTS[currentStep]?.filter((input) => {
+                                    // Hide conditional fields if their condition isn't met
+                                    if (input.conditionalOn) {
+                                        const parentValue = currentInput[input.conditionalOn] || [];
+                                        return parentValue.includes(input.conditionalValue);
+                                    }
+                                    return true;
+                                }).map((input, idx) => (
                                     <div key={input.name}>
                                         {/* Help button for additional context */}
                                         {input.helpText && (
@@ -1815,11 +1778,22 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         )}
 
                                         <div className="space-y-2">
+                                            {/* Field Label with Optional Badge - Only show if not the first primary input */}
+                                            {idx > 0 && (
+                                                <label className="block text-sm font-medium text-gray-300 mb-2">
+                                                    {input.label}
+                                                    {input.optional && (
+                                                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400">Optional</span>
+                                                    )}
+                                                </label>
+                                            )}
+
                                             {/* Render based on input type */}
                                             {input.type === 'select' ? (
                                                 /* Select dropdown */
                                                 <select
-                                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all cursor-pointer"
+                                                    className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all cursor-pointer ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
+                                                        }`}
                                                     value={currentInput[input.name] || ""}
                                                     onChange={(e) => handleInputChange(input.name, e.target.value)}
                                                 >
@@ -1834,7 +1808,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                 </select>
                                             ) : input.type === 'multiselect' ? (
                                                 /* Multi-select checkboxes */
-                                                <div className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4">
+                                                <div className={`bg-[#0e0e0f] border rounded-lg p-4 ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
+                                                    }`}>
                                                     <p className="text-gray-400 text-sm mb-3">{input.placeholder}</p>
                                                     <div className="grid grid-cols-2 gap-3">
                                                         {(input.options === 'ASSET_OPTIONS' ? ASSET_OPTIONS :
@@ -1886,7 +1861,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                 /* Default textarea */
                                                 <>
                                                     <textarea
-                                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto"
+                                                        className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
+                                                            }`}
                                                         placeholder={input.placeholder}
                                                         value={currentInput[input.name] || input.defaultValue || ""}
                                                         onChange={(e) => {
@@ -1904,6 +1880,18 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                         }}
                                                     />
                                                 </>
+                                            )}
+
+                                            {/* Validation Error Message */}
+                                            {fieldErrors[input.name] && (
+                                                <motion.p
+                                                    initial={{ opacity: 0, y: -10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    className="text-red-500 text-sm mt-1 flex items-center gap-1"
+                                                >
+                                                    <AlertTriangle className="w-4 h-4" />
+                                                    {fieldErrors[input.name]}
+                                                </motion.p>
                                             )}
                                         </div>
                                     </div>
@@ -1938,62 +1926,94 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                             </button>
                                         </>
                                     ) : currentStep < STEPS.length ? (
-                                        <div className="flex justify-between items-center w-full">
-                                            {/* Polish with AI Button - Left side */}
-                                            <button
-                                                onClick={() => {
-                                                    const stepInputs = STEP_INPUTS[currentStep];
-                                                    if (stepInputs && stepInputs[0]) {
-                                                        handleAiAssist(stepInputs[0].name, stepInputs[0].label);
-                                                    }
-                                                }}
-                                                disabled={aiAssisting}
-                                                type="button"
-                                                className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all disabled:opacity-50"
-                                            >
-                                                {aiAssisting ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
-                                                    <Sparkles className="w-4 h-4" />
+                                        <div className="flex justify-between items-center w-full gap-3">
+                                            {/* Left side - Back and Polish buttons */}
+                                            <div className="flex items-center gap-3">
+                                                {/* Back Button - Only show if not on first step */}
+                                                {currentStep > 1 && (
+                                                    <button
+                                                        onClick={handlePreviousStep}
+                                                        type="button"
+                                                        className="bg-[#1b1b1d] hover:bg-[#252528] text-gray-300 hover:text-white px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all border border-[#2a2a2d] hover:border-[#3a3a3d]"
+                                                    >
+                                                        <ChevronLeft className="w-4 h-4" />
+                                                        Back
+                                                    </button>
                                                 )}
-                                                Polish with AI
-                                            </button>
-                                            {/* Next Step Button - Right side */}
-                                            <button
-                                                onClick={handleNextStep}
-                                                disabled={generatingPreview}
-                                                className="bg-cyan hover:brightness-110 text-black px-6 py-3 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20 disabled:opacity-50"
-                                            >
-                                                {generatingPreview ? (
-                                                    <>
+
+                                                {/* Polish with AI Button */}
+                                                <button
+                                                    onClick={() => {
+                                                        const stepInputs = STEP_INPUTS[currentStep];
+                                                        if (stepInputs && stepInputs[0]) {
+                                                            handleAiAssist(stepInputs[0].name, stepInputs[0].label);
+                                                        }
+                                                    }}
+                                                    disabled={aiAssisting}
+                                                    type="button"
+                                                    className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all disabled:opacity-50"
+                                                >
+                                                    {aiAssisting ? (
                                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                                        Saving...
+                                                    ) : (
+                                                        <Sparkles className="w-4 h-4" />
+                                                    )}
+                                                    Polish with AI
+                                                </button>
+                                            </div>
+
+                                            {/* Right side - Next button */}
+                                            <div className="flex items-center gap-3">
+                                                {/* Next Step Button */}
+                                                <button
+                                                    onClick={handleNextStep}
+                                                    disabled={generatingPreview}
+                                                    className="bg-cyan hover:brightness-110 text-black px-8 py-3.5 rounded-xl font-black flex items-center gap-2 transition-all shadow-lg shadow-cyan/25 disabled:opacity-50 btn-premium"
+                                                >
+                                                    {generatingPreview ? (
+                                                        <>
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                            Saving...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            Next <ArrowRight className="w-4 h-4" />
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex justify-between items-center w-full gap-3">
+                                            {/* Left side - Back button on final step */}
+                                            <button
+                                                onClick={handlePreviousStep}
+                                                type="button"
+                                                className="bg-[#1b1b1d] hover:bg-[#252528] text-gray-300 hover:text-white px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all border border-[#2a2a2d] hover:border-[#3a3a3d]"
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                                Back
+                                            </button>
+
+                                            {/* Right side - Generate button */}
+                                            <button
+                                                onClick={handleGenerate}
+                                                disabled={isGenerating}
+                                                className="flex-1 max-w-md bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-8 py-5 rounded-xl font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-cyan/30 btn-premium"
+                                            >
+                                                {isGenerating ? (
+                                                    <>
+                                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                                        Generating All Assets...
                                                     </>
                                                 ) : (
                                                     <>
-                                                        Next <ArrowRight className="w-4 h-4" />
+                                                        <Sparkles className="w-5 h-5" />
+                                                        Generate My Business Core
                                                     </>
                                                 )}
                                             </button>
                                         </div>
-                                    ) : (
-                                        <button
-                                            onClick={handleGenerate}
-                                            disabled={isGenerating}
-                                            className="flex-1 bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-8 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan/30"
-                                        >
-                                            {isGenerating ? (
-                                                <>
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                    Generating All Assets...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles className="w-5 h-5" />
-                                                    Generate All Assets
-                                                </>
-                                            )}
-                                        </button>
                                     )}
                                 </div>
                             </div>

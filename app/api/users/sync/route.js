@@ -28,7 +28,7 @@ export async function POST(req) {
     const { data: existingUser, error: fetchError } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
-      .eq('clerk_user_id', userId)
+      .eq('id', userId) // Fixed: use 'id' instead of 'clerk_user_id'
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
@@ -46,10 +46,9 @@ export async function POST(req) {
         .update({
           email: email || existingUser.email,
           full_name: fullName || existingUser.full_name,
-          last_login_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
-        .eq('clerk_user_id', userId);
+        .eq('id', userId); // Fixed: use 'id'
 
       if (updateError) {
         console.error('[User Sync API] Error updating user:', updateError);
@@ -70,15 +69,13 @@ export async function POST(req) {
     const { data: newUser, error: insertError } = await supabaseAdmin
       .from('user_profiles')
       .insert({
-        clerk_user_id: userId,
+        id: userId, // Fixed: set PK 'id' to userId
         email: email || null,
         full_name: fullName || null,
-        tier: 'free',
         is_admin: false,
-        subscription_status: 'inactive',
-        generations_used: 0,
-        generations_limit: 10,
-        last_login_at: new Date().toISOString()
+        subscription_tier: 'basic', // Default to basic
+        generation_count: 0,
+        last_generation_at: null
       })
       .select()
       .single();

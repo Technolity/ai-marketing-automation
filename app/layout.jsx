@@ -17,7 +17,7 @@ export default function RootLayout({ children }) {
         <body>
           <AuthProvider>
             <AppNavbar />
-            <main className="pt-16">
+            <main className="pt-20">
               {children}
             </main>
             <Toaster position="bottom-right" theme="dark" />
