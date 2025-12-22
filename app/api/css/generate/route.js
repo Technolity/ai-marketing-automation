@@ -1,3 +1,9 @@
+/**
+ * @deprecated This API route is no longer used.
+ * Colors are now pushed as hex codes to GHL custom values directly.
+ * Kept for backwards compatibility.
+ */
+
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';

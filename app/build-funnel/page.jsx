@@ -19,9 +19,7 @@ export default function BuildFunnelPage() {
   const [credentialsValid, setCredentialsValid] = useState(false);
 
   const [generatingImages, setGeneratingImages] = useState(false);
-  const [generatingCSS, setGeneratingCSS] = useState(false);
   const [imageStatus, setImageStatus] = useState(null);
-  const [cssStatus, setCssStatus] = useState(null);
 
   const [pushing, setPushing] = useState(false);
   const [pushOperationId, setPushOperationId] = useState(null);
@@ -161,44 +159,7 @@ export default function BuildFunnelPage() {
     checkStatus();
   };
 
-  const startCSSGeneration = async () => {
-    if (!sessionId) {
-      toast.error('No session selected');
-      return;
-    }
 
-    setGeneratingCSS(true);
-
-    try {
-      const res = await fetch('/api/css/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        toast.success('CSS code generated!');
-        setCssStatus('completed');
-      } else {
-        toast.error('Failed to generate CSS');
-      }
-    } catch (error) {
-      console.error('Error generating CSS:', error);
-      toast.error('Failed to generate CSS');
-    } finally {
-      setGeneratingCSS(false);
-    }
-  };
-
-  const handleGenerateAll = async () => {
-    // Start both image and CSS generation in parallel
-    await Promise.all([
-      startImageGeneration(),
-      startCSSGeneration()
-    ]);
-  };
 
   const handlePushToGHL = async () => {
     if (!sessionId || !credentials) {
@@ -258,7 +219,7 @@ export default function BuildFunnelPage() {
             Build Your Funnel
           </h1>
           <p className="text-gray-400">
-            Generate content, images, and CSS, then push everything to your GHL funnel
+            Generate content and images, then push everything to your GHL funnel
           </p>
         </div>
 
@@ -273,24 +234,21 @@ export default function BuildFunnelPage() {
               { num: 5, label: 'Complete', icon: CheckCircle }
             ].map((step, i) => (
               <div key={step.num} className="flex items-center">
-                <div className={`flex flex-col items-center ${
-                  currentStep >= step.num ? 'opacity-100' : 'opacity-40'
-                }`}>
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 ${
-                    currentStep > step.num
+                <div className={`flex flex-col items-center ${currentStep >= step.num ? 'opacity-100' : 'opacity-40'
+                  }`}>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 ${currentStep > step.num
                       ? 'bg-green-500/20 border-2 border-green-500'
                       : currentStep === step.num
-                      ? 'bg-cyan/20 border-2 border-cyan'
-                      : 'bg-gray-700 border-2 border-gray-600'
-                  }`}>
+                        ? 'bg-cyan/20 border-2 border-cyan'
+                        : 'bg-gray-700 border-2 border-gray-600'
+                    }`}>
                     <step.icon className="w-6 h-6" />
                   </div>
                   <p className="text-xs font-medium">{step.label}</p>
                 </div>
                 {i < 4 && (
-                  <ArrowRight className={`w-6 h-6 mx-4 ${
-                    currentStep > step.num ? 'text-green-500' : 'text-gray-600'
-                  }`} />
+                  <ArrowRight className={`w-6 h-6 mx-4 ${currentStep > step.num ? 'text-green-500' : 'text-gray-600'
+                    }`} />
                 )}
               </div>
             ))}
@@ -406,13 +364,13 @@ export default function BuildFunnelPage() {
         {currentStep === 3 && (
           <div className="space-y-6">
             <div className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg p-8">
-              <h2 className="text-2xl font-bold mb-4">Generate Images & CSS</h2>
+              <h2 className="text-2xl font-bold mb-4">Generate Images</h2>
               <p className="text-gray-400 mb-6">
-                Generate AI-powered images and custom CSS styling for your funnel.
+                Generate AI-powered images for your funnel.
                 This runs in the background and may take 2-3 minutes.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div className="mb-6">
                 {/* Image Generation */}
                 <div className="bg-black/30 border border-cyan/30 rounded-lg p-6">
                   <div className="flex items-center gap-3 mb-3">
@@ -441,50 +399,24 @@ export default function BuildFunnelPage() {
                     </button>
                   )}
                 </div>
-
-                {/* CSS Generation */}
-                <div className="bg-black/30 border border-purple-500/30 rounded-lg p-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Sparkles className="w-6 h-6 text-purple-400" />
-                    <h3 className="text-lg font-bold">Custom CSS</h3>
-                  </div>
-                  <p className="text-sm text-gray-400 mb-4">
-                    Generates CSS code based on your color preferences
-                  </p>
-                  {cssStatus === 'completed' ? (
-                    <div className="flex items-center gap-2 text-green-400">
-                      <CheckCircle className="w-5 h-5" />
-                      <span className="font-semibold">Complete!</span>
-                    </div>
-                  ) : generatingCSS ? (
-                    <div className="flex items-center gap-2 text-blue-400">
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Generating...</span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={startCSSGeneration}
-                      className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg font-semibold"
-                    >
-                      Generate CSS
-                    </button>
-                  )}
-                </div>
+                <p className="text-xs text-gray-500 mt-3">
+                  Note: Colors are automatically pushed as custom values to GHL.
+                </p>
               </div>
 
               <div className="flex gap-4">
                 <button
-                  onClick={handleGenerateAll}
-                  disabled={generatingImages || generatingCSS}
+                  onClick={startImageGeneration}
+                  disabled={generatingImages}
                   className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed rounded-lg font-bold flex items-center justify-center gap-2"
                 >
                   <Sparkles className="w-5 h-5" />
-                  Generate All (Parallel)
+                  Generate Images
                 </button>
 
                 <button
                   onClick={() => setCurrentStep(4)}
-                  disabled={imageStatus !== 'completed' && cssStatus !== 'completed'}
+                  disabled={imageStatus !== 'completed'}
                   className="px-6 py-3 bg-green-500 hover:bg-green-600 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg font-bold flex items-center gap-2"
                 >
                   Continue to Push

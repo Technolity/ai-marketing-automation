@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import AppNavbar from "@/components/AppNavbar";
 import OSWizard from "@/components/OSWizard";
 import { Loader2 } from "lucide-react";
 
@@ -33,15 +32,14 @@ export default function IntakeFormPage() {
 
     if (authLoading || isLoading) {
         return (
-            <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center">
+            <div className="h-[calc(100vh-5rem)] bg-[#0e0e0f] flex items-center justify-center">
                 <Loader2 className="w-10 h-10 text-cyan animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-[#0e0e0f]">
-            <AppNavbar />
+        <div className="h-[calc(100vh-5rem)] bg-[#0e0e0f] overflow-hidden">
             <OSWizard mode="intake" />
         </div>
     );
