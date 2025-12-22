@@ -61,6 +61,22 @@ export function useWizardState(mode = 'dashboard', startAtStepOne = false) {
     const [generatedContent, setGeneratedContent] = useState(null);
     const [isReviewMode, setIsReviewMode] = useState(false);
     const [savedContent, setSavedContent] = useState({});
+    const [aiAssisting, setAiAssisting] = useState(null);
+    const [showHelpFor, setShowHelpFor] = useState(null);
+
+    // ==========================================
+    // AI SUGGESTIONS MODAL STATE
+    // ==========================================
+    const [showSuggestionsModal, setShowSuggestionsModal] = useState(false);
+    const [aiSuggestions, setAiSuggestions] = useState([]);
+    const [currentFieldForSuggestion, setCurrentFieldForSuggestion] = useState(null);
+
+    // ==========================================
+    // CONTENT PREVIEW STATE
+    // ==========================================
+    const [showContentPreview, setShowContentPreview] = useState(false);
+    const [previewContent, setPreviewContent] = useState(null);
+    const [generatingPreview, setGeneratingPreview] = useState(false);
 
     // ==========================================
     // UI STATE
@@ -288,6 +304,26 @@ export function useWizardState(mode = 'dashboard', startAtStepOne = false) {
         setIsReviewMode,
         savedContent,
         setSavedContent,
+        aiAssisting,
+        setAiAssisting,
+        showHelpFor,
+        setShowHelpFor,
+
+        // AI Suggestions Modal
+        showSuggestionsModal,
+        setShowSuggestionsModal,
+        aiSuggestions,
+        setAiSuggestions,
+        currentFieldForSuggestion,
+        setCurrentFieldForSuggestion,
+
+        // Content Preview
+        showContentPreview,
+        setShowContentPreview,
+        previewContent,
+        setPreviewContent,
+        generatingPreview,
+        setGeneratingPreview,
 
         // UI State
         isLoading,

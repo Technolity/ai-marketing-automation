@@ -5,15 +5,12 @@
  * Main wizard component for the TedOS questionnaire and content generation flow.
  * 
  * MODULAR STRUCTURE (components/OSWizard/):
- * - hooks/useWizardState.js - Core state management
- * - hooks/useWizardSessions.js - Session save/load/delete
+ * - hooks/useWizardState.js - Core state management (ready for integration)
+ * - hooks/useWizardSessions.js - Session save/load/delete (ready for integration)
  * - components/ProcessingAnimation.jsx - Loading overlay
  * - components/QuestionProgressBar.jsx - "Question X of 20" progress bar
- * - utils/formatters.js - Display formatting helpers
- * - utils/validators.js - Input validation
- * 
- * The modular files are ready for gradual migration.
- * This file remains the master until migration is complete.
+ * - utils/formatters.js - Display formatting helpers ✓ INTEGRATED
+ * - utils/validators.js - Input validation ✓ INTEGRATED
  */
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -28,115 +25,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS } from "@/lib/os-wizard-data";
 
-// Import modular components
+// Import modular components and utilities
 import { QuestionProgressBar } from "./OSWizard/components";
-
-// Helper function to format field names into readable titles
-const formatFieldName = (key) => {
-    return key
-        .replace(/_/g, ' ')
-        .replace(/([A-Z])/g, ' $1')
-        .replace(/^./, str => str.toUpperCase())
-        .trim();
-};
-
-// Helper function to recursively format nested objects/arrays
-const formatValue = (value, depth = 0, maxDepth = 5) => {
-    // Prevent infinite recursion
-    if (depth > maxDepth) {
-        return typeof value === 'object' ? JSON.stringify(value) : String(value);
-    }
-
-    if (value === null || value === undefined) {
-        return '';
-    }
-
-    // Handle primitive types
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-        return String(value);
-    }
-
-    if (Array.isArray(value)) {
-        if (value.length === 0) return '';
-
-        // Handle array of objects (like email sequence, program modules)
-        if (typeof value[0] === 'object' && value[0] !== null) {
-            return value.map((item, idx) => {
-                const title = item.title || item.name || item.subject || item.headline || `Item ${idx + 1}`;
-                const itemContent = Object.entries(item)
-                    .filter(([k]) => !['title', 'name'].includes(k))
-                    .map(([k, v]) => {
-                        const formattedValue = formatValue(v, depth + 1, maxDepth);
-                        return `  ${formatFieldName(k)}: ${formattedValue}`;
-                    }).join('\n');
-                return `${idx + 1}. ${title}\n${itemContent}`;
-            }).join('\n\n');
-        }
-        // Handle array of strings/primitives
-        return value.map((item, idx) => `${idx + 1}. ${formatValue(item, depth + 1, maxDepth)}`).join('\n');
-    }
-
-    if (typeof value === 'object') {
-        const entries = Object.entries(value)
-            .filter(([, v]) => v !== null && v !== undefined && v !== '')
-            .map(([k, v]) => {
-                const formattedKey = formatFieldName(k);
-                const formattedValue = formatValue(v, depth + 1, maxDepth);
-
-                // For nested objects, add proper indentation
-                if (typeof v === 'object' && !Array.isArray(v) && v !== null) {
-                    const indentedValue = formattedValue.split('\n').map(line => `  ${line}`).join('\n');
-                    return `${formattedKey}:\n${indentedValue}`;
-                }
-
-                // For arrays, add proper indentation
-                if (Array.isArray(v)) {
-                    const indentedValue = formattedValue.split('\n').map(line => `  ${line}`).join('\n');
-                    return `${formattedKey}:\n${indentedValue}`;
-                }
-
-                return `${formattedKey}: ${formattedValue}`;
-            });
-
-        return entries.join('\n\n');
-    }
-
-    return String(value);
-};
-
-
-// Helper function to format JSON content into human-readable sections
-const formatContentForDisplay = (jsonContent) => {
-    if (!jsonContent || typeof jsonContent !== 'object') {
-        return [];
-    }
-
-    const sections = [];
-
-    // Flatten the top-level structure (e.g., idealClient, message, etc.)
-    Object.entries(jsonContent).forEach(([topKey, topValue]) => {
-        if (typeof topValue === 'object' && !Array.isArray(topValue)) {
-            // This is a nested object like { idealClient: {...} }
-            Object.entries(topValue).forEach(([key, value]) => {
-                sections.push({
-                    key: formatFieldName(key),
-                    value: formatValue(value)
-                });
-            });
-        } else {
-            // This is a direct key-value pair
-            sections.push({
-                key: formatFieldName(topKey),
-                value: formatValue(topValue)
-            });
-        }
-    });
-
-    return sections;
-};
-
-
-
+import { formatFieldName, formatValue, formatContentForDisplay } from "./OSWizard/utils/formatters";
+import { validateStepInputs as validateInputs } from "./OSWizard/utils/validators";
 
 export default function OSWizard({ mode = 'dashboard', startAtStepOne = false }) {
     const router = useRouter();
@@ -790,68 +682,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         setHasUnsavedProgress(true);
     };
 
-    // Helper function to validate step inputs - checks all required fields have content
-    const validateStepInputs = () => {
-        const stepInputs = STEP_INPUTS[currentStep];
-        if (!stepInputs) return { valid: true, emptyFields: [], errors: {} };
+    // Validate step inputs using modular validator
+    const validateStepInputs = () => validateInputs(currentStep, currentInput);
 
-        const emptyFields = [];
-        const errors = {};
-
-        stepInputs.forEach(input => {
-            // Skip conditional inputs if their condition isn't met
-            if (input.conditionalOn) {
-                const parentValue = currentInput[input.conditionalOn] || [];
-                if (!parentValue.includes(input.conditionalValue)) {
-                    return; // Skip validation for this field
-                }
-            }
-
-            // Skip validation for optional fields
-            if (input.optional) {
-                return;
-            }
-
-            const value = currentInput[input.name];
-            let isInvalid = false;
-
-            // Handle arrays (multiselect)
-            if (input.type === 'multiselect') {
-                if (!value || !Array.isArray(value) || value.length === 0) {
-                    isInvalid = true;
-                    errors[input.name] = 'Please select at least one option';
-                }
-            }
-            // Handle select dropdowns
-            else if (input.type === 'select') {
-                if (!value || value === '') {
-                    isInvalid = true;
-                    errors[input.name] = 'Please select an option';
-                }
-            }
-            // Handle text inputs (textarea, text)
-            else {
-                const strValue = value || '';
-                if (!strValue.trim()) {
-                    isInvalid = true;
-                    errors[input.name] = 'This field is required';
-                } else if (strValue.trim().length < 3) {
-                    isInvalid = true;
-                    errors[input.name] = 'Please enter at least 3 characters';
-                }
-            }
-
-            if (isInvalid) {
-                emptyFields.push(input.label);
-            }
-        });
-
-        return {
-            valid: emptyFields.length === 0,
-            emptyFields,
-            errors
-        };
-    };
 
     // AI Assist for individual fields - now shows 5 suggestions
     const handleAiAssist = async (fieldName, fieldLabel) => {
@@ -1150,6 +983,31 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         }
     };
 
+    // Navigate to previous step - allows user to review/edit previous answers
+    const handlePreviousStep = () => {
+        if (currentStep <= 1) return;
+
+        const previousStep = currentStep - 1;
+        setCurrentStep(previousStep);
+
+        // Load saved answers for the previous step
+        const stepInputs = STEP_INPUTS[previousStep];
+        if (stepInputs) {
+            const loadedInput = {};
+            stepInputs.forEach(input => {
+                if (stepData[input.name]) {
+                    loadedInput[input.name] = stepData[input.name];
+                }
+            });
+            setCurrentInput(loadedInput);
+        } else {
+            setCurrentInput({});
+        }
+
+        // Clear any field errors
+        setFieldErrors({});
+    };
+
     // Handle "Changed my mind" - enter edit mode for a completed step
     const handleChangedMyMind = (stepId) => {
         setIsEditMode(true);
@@ -1411,7 +1269,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
 
         return (
-            <div className="min-h-[calc(100vh-5rem)] bg-[#0e0e0f] text-white">
+            <div className="min-h-full bg-[#0e0e0f] text-white">
                 <div className="max-w-7xl mx-auto px-6 py-12">
                     {/* Dashboard header - same for all users */}
                     <motion.div
@@ -1784,7 +1642,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     const CurrentIcon = STEPS[currentStep - 1].icon;
 
     return (
-        <div className="h-[calc(100vh-5rem)] bg-[#0e0e0f] text-white font-sans flex overflow-hidden">
+        <div className="h-full bg-[#0e0e0f] text-white font-sans flex overflow-hidden">
             {/* Sidebar - Hidden in intake mode for linear question flow */}
             <AnimatePresence>
                 {isSidebarOpen && mode !== 'intake' && (
@@ -2069,31 +1927,43 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         </>
                                     ) : currentStep < STEPS.length ? (
                                         <div className="flex justify-between items-center w-full gap-3">
-                                            {/* Polish with AI Button - Left side */}
-                                            <button
-                                                onClick={() => {
-                                                    const stepInputs = STEP_INPUTS[currentStep];
-                                                    if (stepInputs && stepInputs[0]) {
-                                                        handleAiAssist(stepInputs[0].name, stepInputs[0].label);
-                                                    }
-                                                }}
-                                                disabled={aiAssisting}
-                                                type="button"
-                                                className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all disabled:opacity-50"
-                                            >
-                                                {aiAssisting ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
-                                                    <Sparkles className="w-4 h-4" />
-                                                )}
-                                                Polish with AI
-                                            </button>
-
-                                            {/* Right side buttons */}
+                                            {/* Left side - Back and Polish buttons */}
                                             <div className="flex items-center gap-3">
-                                                {/* Skip Button - REMOVED for linear flow (TedOS UX overhaul) */}
-                                                {/* Users must answer all questions in order */}
+                                                {/* Back Button - Only show if not on first step */}
+                                                {currentStep > 1 && (
+                                                    <button
+                                                        onClick={handlePreviousStep}
+                                                        type="button"
+                                                        className="bg-[#1b1b1d] hover:bg-[#252528] text-gray-300 hover:text-white px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all border border-[#2a2a2d] hover:border-[#3a3a3d]"
+                                                    >
+                                                        <ChevronLeft className="w-4 h-4" />
+                                                        Back
+                                                    </button>
+                                                )}
 
+                                                {/* Polish with AI Button */}
+                                                <button
+                                                    onClick={() => {
+                                                        const stepInputs = STEP_INPUTS[currentStep];
+                                                        if (stepInputs && stepInputs[0]) {
+                                                            handleAiAssist(stepInputs[0].name, stepInputs[0].label);
+                                                        }
+                                                    }}
+                                                    disabled={aiAssisting}
+                                                    type="button"
+                                                    className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all disabled:opacity-50"
+                                                >
+                                                    {aiAssisting ? (
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                    ) : (
+                                                        <Sparkles className="w-4 h-4" />
+                                                    )}
+                                                    Polish with AI
+                                                </button>
+                                            </div>
+
+                                            {/* Right side - Next button */}
+                                            <div className="flex items-center gap-3">
                                                 {/* Next Step Button */}
                                                 <button
                                                     onClick={handleNextStep}
@@ -2114,23 +1984,36 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                             </div>
                                         </div>
                                     ) : (
-                                        <button
-                                            onClick={handleGenerate}
-                                            disabled={isGenerating}
-                                            className="flex-1 bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-8 py-5 rounded-xl font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-cyan/30 btn-premium"
-                                        >
-                                            {isGenerating ? (
-                                                <>
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                                    Generating All Assets...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Sparkles className="w-5 h-5" />
-                                                    Generate My Business Core
-                                                </>
-                                            )}
-                                        </button>
+                                        <div className="flex justify-between items-center w-full gap-3">
+                                            {/* Left side - Back button on final step */}
+                                            <button
+                                                onClick={handlePreviousStep}
+                                                type="button"
+                                                className="bg-[#1b1b1d] hover:bg-[#252528] text-gray-300 hover:text-white px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all border border-[#2a2a2d] hover:border-[#3a3a3d]"
+                                            >
+                                                <ChevronLeft className="w-4 h-4" />
+                                                Back
+                                            </button>
+
+                                            {/* Right side - Generate button */}
+                                            <button
+                                                onClick={handleGenerate}
+                                                disabled={isGenerating}
+                                                className="flex-1 max-w-md bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-8 py-5 rounded-xl font-black flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-cyan/30 btn-premium"
+                                            >
+                                                {isGenerating ? (
+                                                    <>
+                                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                                        Generating All Assets...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Sparkles className="w-5 h-5" />
+                                                        Generate My Business Core
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
