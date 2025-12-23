@@ -24,9 +24,11 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS } from "@/lib/os-wizard-data";
+import { SAMPLE_DATA } from "@/lib/sampleData";
 
 // Import modular components and utilities
 import { QuestionProgressBar } from "./OSWizard/components";
+import BuildingAnimation from "./BuildingAnimation";
 import { formatFieldName, formatValue, formatContentForDisplay } from "./OSWizard/utils/formatters";
 import { validateStepInputs as validateInputs } from "./OSWizard/utils/validators";
 
@@ -673,7 +675,85 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         }
     };
 
+    // Fill form with sample data for testing/demo purposes
+    const fillSampleData = () => {
+        console.log('[OSWizard] Filling sample data...');
+        
+        // Set all the sample data to stepData
+        setStepData(SAMPLE_DATA);
+        
+        // Mark all steps as completed
+        const allSteps = Array.from({ length: 20 }, (_, i) => i + 1);
+        setCompletedSteps(allSteps);
+        
+        // Load current step's sample data into currentInput
+        const stepInputs = STEP_INPUTS[currentStep];
+        if (stepInputs) {
+            const loadedInput = {};
+            stepInputs.forEach(input => {
+                if (SAMPLE_DATA[input.name] !== undefined) {
+                    loadedInput[input.name] = SAMPLE_DATA[input.name];
+                }
+            });
+            setCurrentInput(loadedInput);
+        }
+        
+        // Save to localStorage
+        if (session) {
+            const progressData = {
+                currentStep,
+                viewMode: 'step',
+                completedSteps: allSteps,
+                answers: SAMPLE_DATA,
+                generatedContent: savedContent,
+                isComplete: false, // Not complete until generated
+                isSampleData: true,
+                updatedAt: new Date().toISOString()
+            };
+            localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+        }
+        
+        setIsSessionSaved(false);
+        setHasUnsavedProgress(true);
+        
+        toast.success("Sample data loaded! You can now review and edit each question, then generate content.");
+    };
 
+    // Handle click on progress bar dots to navigate to specific question
+    const handleProgressDotClick = (stepNum) => {
+        console.log('[OSWizard] Progress dot clicked:', stepNum);
+        
+        // Merge current input with stepData first
+        const mergedData = { ...stepData, ...currentInput };
+        
+        // Save current input before navigating
+        if (Object.keys(currentInput).length > 0) {
+            setStepData(mergedData);
+        }
+        
+        // Navigate to the clicked step
+        setCurrentStep(stepNum);
+        
+        // Load the data for the clicked step (use merged data to get latest)
+        const stepInputs = STEP_INPUTS[stepNum];
+        if (stepInputs) {
+            const loadedInput = {};
+            stepInputs.forEach(input => {
+                // Check merged data first (includes current unsaved input)
+                if (mergedData[input.name] !== undefined) {
+                    loadedInput[input.name] = mergedData[input.name];
+                }
+            });
+            setCurrentInput(loadedInput);
+        }
+        
+        // Clear any errors
+        setFieldErrors({});
+        
+        // Clear generated content and review mode when navigating
+        setGeneratedContent(null);
+        setIsReviewMode(false);
+    };
 
     const handleInputChange = (field, value) => {
         setCurrentInput(prev => ({ ...prev, [field]: value }));
@@ -942,7 +1022,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                     body: JSON.stringify({
                         step: 'preview',
                         data: updatedData,
-                        completedSteps: newCompletedSteps.length
+                        completedSteps: currentStep // Use current step number, not total completed count
                     }),
                 });
 
@@ -1155,111 +1235,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         );
     }
 
-    // Processing Animation Overlay
+    // Processing Animation Overlay - Using BuildingAnimation component
     if (showProcessingAnimation) {
-        return (
-            <div className="fixed inset-0 z-50 bg-[#0e0e0f] flex items-center justify-center">
-                <div className="text-center max-w-2xl px-8">
-                    {/* Animated Logo/Icon */}
-                    <motion.div
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="mb-8"
-                    >
-                        <div className="w-32 h-32 mx-auto relative">
-                            {/* Outer ring */}
-                            <motion.div
-                                animate={{ rotate: 360 }}
-                                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                                className="absolute inset-0 rounded-full border-4 border-cyan/30"
-                            />
-                            {/* Middle ring */}
-                            <motion.div
-                                animate={{ rotate: -360 }}
-                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                className="absolute inset-3 rounded-full border-4 border-t-cyan border-r-transparent border-b-cyan border-l-transparent"
-                            />
-                            {/* Inner glow */}
-                            <motion.div
-                                animate={{ scale: [1, 1.2, 1] }}
-                                transition={{ duration: 1.5, repeat: Infinity }}
-                                className="absolute inset-6 rounded-full bg-gradient-to-br from-cyan/40 to-blue-500/40 blur-sm"
-                            />
-                            {/* Center icon */}
-                            <div className="absolute inset-8 flex items-center justify-center">
-                                <Sparkles className="w-10 h-10 text-cyan" />
-                            </div>
-                        </div>
-                    </motion.div>
-
-                    {/* Processing Title */}
-                    <motion.h1
-                        initial={{ y: 20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 0.2 }}
-                        className="text-3xl md:text-4xl font-bold text-white mb-4"
-                    >
-                        Processing Your Business
-                    </motion.h1>
-
-                    {/* Dynamic Message */}
-                    <motion.div
-                        key={processingMessage}
-                        initial={{ y: 10, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: -10, opacity: 0 }}
-                        className="h-8 mb-8"
-                    >
-                        <p className="text-cyan text-lg font-medium">{processingMessage}</p>
-                    </motion.div>
-
-                    {/* Progress indicator */}
-                    <div className="w-full max-w-md mx-auto mb-6">
-                        <div className="h-1 bg-[#1b1b1d] rounded-full overflow-hidden">
-                            <motion.div
-                                animate={{ x: ["-100%", "100%"] }}
-                                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                                className="h-full w-1/3 bg-gradient-to-r from-transparent via-cyan to-transparent"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Subtitle */}
-                    <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.5 }}
-                        className="text-gray-400 text-sm"
-                    >
-                        Building your complete marketing system. This may take a few moments...
-                    </motion.p>
-
-                    {/* Floating particles effect */}
-                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                        {[...Array(12)].map((_, i) => (
-                            <motion.div
-                                key={i}
-                                initial={{
-                                    x: Math.random() * 100 + "%",
-                                    y: "110%",
-                                    opacity: 0.3
-                                }}
-                                animate={{
-                                    y: "-10%",
-                                    opacity: [0.3, 0.8, 0.3]
-                                }}
-                                transition={{
-                                    duration: 3 + Math.random() * 2,
-                                    repeat: Infinity,
-                                    delay: Math.random() * 2
-                                }}
-                                className="absolute w-1 h-1 bg-cyan rounded-full"
-                            />
-                        ))}
-                    </div>
-                </div>
-            </div>
-        );
+        return <BuildingAnimation processingMessage={processingMessage} isGenerating={isGenerating} />;
     }
 
     // Mission Control View
@@ -1720,27 +1698,43 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                         >
                             {/* Header with Progress Bar */}
                             <div className="mb-8">
+                                {/* Sample Data Button - Only show if form is mostly empty */}
+                                {completedSteps.length < 3 && (
+                                    <div className="flex justify-end mb-4">
+                                        <button
+                                            onClick={fillSampleData}
+                                            className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-400 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all border border-amber-500/30 hover:border-amber-500/50"
+                                            type="button"
+                                        >
+                                            <Sparkles className="w-4 h-4" />
+                                            Fill Sample Data (Demo)
+                                        </button>
+                                    </div>
+                                )}
+
                                 {/* NEW: Question Progress Bar for single-question UX */}
                                 <QuestionProgressBar
                                     currentStep={currentStep}
                                     completedSteps={completedSteps}
-                                />
+                                    onDotClick={handleProgressDotClick}
+                                stepData={stepData}
+                            />
+                        </div>
 
+                        {/* Info Box removed */}
+
+                        {/* Input Fields */}
+                        <div className="space-y-8 glass-card p-10 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
+                            {/* Interactive glow effect in the corner */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan/5 blur-3xl rounded-full pointer-events-none"></div>
+                            
+                            {/* Question Title and Description */}
+                            <div className="mb-6">
                                 <h1 className="text-4xl md:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
                                     {STEPS[currentStep - 1].title}
-                                    {STEPS[currentStep - 1].optional && (
-                                        <span className="text-xs px-2 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400 font-normal">Optional</span>
-                                    )}
                                 </h1>
                                 <p className="text-gray-400 text-lg font-light leading-relaxed">{STEPS[currentStep - 1].description}</p>
                             </div>
-
-                            {/* Info Box removed */}
-
-                            {/* Input Fields */}
-                            <div className="space-y-8 glass-card p-10 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
-                                {/* Interactive glow effect in the corner */}
-                                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan/5 blur-3xl rounded-full pointer-events-none"></div>
                                 {STEP_INPUTS[currentStep]?.filter((input) => {
                                     // Hide conditional fields if their condition isn't met
                                     if (input.conditionalOn) {
@@ -1778,13 +1772,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         )}
 
                                         <div className="space-y-2">
-                                            {/* Field Label with Optional Badge - Only show if not the first primary input */}
+                                            {/* Field Label - Only show if not the first primary input */}
                                             {idx > 0 && (
                                                 <label className="block text-sm font-medium text-gray-300 mb-2">
                                                     {input.label}
-                                                    {input.optional && (
-                                                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400">Optional</span>
-                                                    )}
                                                 </label>
                                             )}
 
@@ -2166,7 +2157,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                         {previewContent.title || "Content Preview"}
                                     </h3>
                                     <p className="text-gray-400 text-sm">
-                                        Step {previewContent.stepsCompleted || completedSteps.length} completed
+                                        Step {previewContent.stepsCompleted || currentStep} completed
                                     </p>
                                 </div>
                             </div>

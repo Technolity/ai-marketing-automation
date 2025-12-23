@@ -3,6 +3,9 @@ import OpenAI from 'openai';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { auth } from '@clerk/nextjs';
 
+// Import multi-provider AI config
+import { getAvailableProvider, AI_PROVIDERS, getOpenAIClient, getClaudeClient, getGeminiClient } from '@/lib/ai/providerConfig';
+
 // Import RAG retrieval helpers
 import { getRelevantContext, injectContextIntoPrompt, getKnowledgeBaseStats } from '@/lib/rag/retrieve';
 
@@ -28,9 +31,87 @@ import { bioPrompt } from '@/lib/prompts/bio';
 import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
 import { masterPrompt } from '@/lib/prompts/masterPrompt';
 
+// Legacy OpenAI client (fallback)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+/**
+ * Multi-provider AI generation with fallback
+ * Tries providers in order: OpenAI -> Claude -> Gemini
+ */
+async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
+  const providers = ['OPENAI', 'CLAUDE', 'GEMINI'];
+  let lastError = null;
+
+  for (const providerKey of providers) {
+    const config = AI_PROVIDERS[providerKey];
+    
+    // Skip if provider is not enabled or doesn't have an API key
+    if (!config.enabled || !config.apiKey) {
+      console.log(`[AI] Skipping ${providerKey}: enabled=${config.enabled}, hasKey=${!!config.apiKey}`);
+      continue;
+    }
+
+    console.log(`[AI] Trying ${config.name} for generation...`);
+
+    try {
+      switch (providerKey) {
+        case 'OPENAI': {
+          const client = getOpenAIClient();
+          const completion = await client.chat.completions.create({
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt }
+            ],
+            model: config.models.text,
+            response_format: options.jsonMode ? { type: "json_object" } : undefined,
+            max_tokens: options.maxTokens || 1500,
+            temperature: options.temperature || 0.7,
+          });
+          console.log(`[AI] ${config.name} succeeded!`);
+          return completion.choices[0].message.content;
+        }
+
+        case 'CLAUDE': {
+          const client = getClaudeClient();
+          const response = await client.messages.create({
+            model: config.models.text,
+            max_tokens: options.maxTokens || 1500,
+            system: systemPrompt,
+            messages: [{ role: 'user', content: userPrompt + (options.jsonMode ? '\n\nIMPORTANT: Return ONLY valid JSON, no markdown code blocks.' : '') }],
+            temperature: options.temperature || 0.7
+          });
+          console.log(`[AI] ${config.name} succeeded!`);
+          return response.content[0].text;
+        }
+
+        case 'GEMINI': {
+          const client = getGeminiClient();
+          const model = client.getGenerativeModel({
+            model: config.models.text,
+            generationConfig: {
+              temperature: options.temperature || 0.7,
+              maxOutputTokens: options.maxTokens || 1500
+            }
+          });
+          const fullPrompt = `${systemPrompt}\n\n${userPrompt}${options.jsonMode ? '\n\nIMPORTANT: Return ONLY valid JSON, no markdown code blocks.' : ''}`;
+          const result = await model.generateContent(fullPrompt);
+          const response = await result.response;
+          console.log(`[AI] ${config.name} succeeded!`);
+          return response.text();
+        }
+      }
+    } catch (error) {
+      console.error(`[AI] ${config.name} failed:`, error.message);
+      lastError = error;
+      // Continue to next provider
+    }
+  }
+
+  // All providers failed
+  throw lastError || new Error('No AI providers available. Please configure at least one provider in .env.local');
+}
 
 // Retry configuration
 const MAX_RETRIES = 3;
@@ -512,18 +593,12 @@ export async function POST(req) {
           }
         }
 
-        const completion = await openai.chat.completions.create({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: prompt }
-          ],
-          model: "gpt-4o-mini",
-          response_format: { type: "json_object" },
-          max_tokens: 1500,
-          temperature: 0.7,
+        // Use multi-provider AI generation with fallback
+        const rawContent = await generateWithProvider(systemPrompt, prompt, {
+          jsonMode: true,
+          maxTokens: 1500,
+          temperature: 0.7
         });
-
-        const rawContent = completion.choices[0].message.content;
 
         // Use safe JSON parser with error recovery
         let result;
@@ -538,21 +613,13 @@ export async function POST(req) {
 
           // If parsing fails, retry with a simpler prompt
           console.log('[Preview] Retrying with simplified prompt...');
-          const retryCompletion = await openai.chat.completions.create({
-            messages: [
-              {
-                role: "system",
-                content: "You are a business strategist. Return ONLY valid JSON. No markdown, no code blocks, no extra text. Ensure all strings are properly escaped and no unescaped quotes or newlines exist in string values."
-              },
-              { role: "user", content: prompt }
-            ],
-            model: "gpt-4o-mini",
-            response_format: { type: "json_object" },
-            max_tokens: 1500,
-            temperature: 0.5, // Lower temperature for more consistent formatting
-          });
+          const retryContent = await generateWithProvider(
+            "You are a business strategist. Return ONLY valid JSON. No markdown, no code blocks, no extra text. Ensure all strings are properly escaped and no unescaped quotes or newlines exist in string values.",
+            prompt,
+            { jsonMode: true, maxTokens: 1500, temperature: 0.5 }
+          );
 
-          result = parseJsonSafe(retryCompletion.choices[0].message.content, {
+          result = parseJsonSafe(retryContent, {
             throwOnError: true,
             logErrors: true
           });
@@ -625,23 +692,14 @@ export async function POST(req) {
             }
           }
 
-          // Use retry logic for OpenAI API calls
-          const completion = await retryWithBackoff(async () => {
-            return await openai.chat.completions.create({
-              messages: [
-                {
-                  role: "system",
-                  content: "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped."
-                },
-                { role: "user", content: basePrompt }
-              ],
-              model: "gpt-4o",
-              response_format: { type: "json_object" },
-              temperature: 0.7,
-            });
+          // Use multi-provider AI generation with retry logic
+          const rawContent = await retryWithBackoff(async () => {
+            return await generateWithProvider(
+              "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped.",
+              basePrompt,
+              { jsonMode: true, maxTokens: 4000, temperature: 0.7 }
+            );
           });
-
-          const rawContent = completion.choices[0].message.content;
           const parsedResult = parseJsonSafe(rawContent, {
             throwOnError: false,
             logErrors: true,
@@ -724,23 +782,14 @@ export async function POST(req) {
           // Generate master prompt with all individual sections
           const masterPromptText = masterPrompt(data, results, masterRagContext);
 
-          // Generate master marketing system
-          const masterCompletion = await retryWithBackoff(async () => {
-            return await openai.chat.completions.create({
-              messages: [
-                {
-                  role: "system",
-                  content: "You are Ted McGrath, an elite business growth strategist and master synthesizer. You take individual marketing components and create comprehensive, cohesive marketing systems that are greater than the sum of their parts. You ensure every element works together perfectly and is grounded in proven frameworks. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped."
-                },
-                { role: "user", content: masterPromptText }
-              ],
-              model: "gpt-4o",
-              response_format: { type: "json_object" },
-              temperature: 0.7,
-            });
+          // Generate master marketing system using multi-provider
+          const masterRawContent = await retryWithBackoff(async () => {
+            return await generateWithProvider(
+              "You are Ted McGrath, an elite business growth strategist and master synthesizer. You take individual marketing components and create comprehensive, cohesive marketing systems that are greater than the sum of their parts. You ensure every element works together perfectly and is grounded in proven frameworks. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped.",
+              masterPromptText,
+              { jsonMode: true, maxTokens: 4000, temperature: 0.7 }
+            );
           });
-
-          const masterRawContent = masterCompletion.choices[0].message.content;
           masterSystem = parseJsonSafe(masterRawContent, {
             throwOnError: false,
             logErrors: true,

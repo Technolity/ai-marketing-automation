@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowRight, Play, CheckCircle } from "lucide-react";
+import { ArrowRight, Play, CheckCircle, Zap } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function IntroductionPage() {
@@ -34,10 +34,9 @@ export default function IntroductionPage() {
     }
 
     const steps = [
-        "You'll answer 20 questions",
-        "We'll build your message, offer, and funnel",
-        "You approve everything",
-        "Then we build it for you"
+        "Answer 20 questions",
+        "Review what's created",
+        "Launch your funnel"
     ];
 
     return (
@@ -51,6 +50,24 @@ export default function IntroductionPage() {
                 transition={{ duration: 0.6 }}
                 className="max-w-2xl w-full relative z-10"
             >
+                {/* Main Headline */}
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="text-center mb-8"
+                >
+                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-white mb-4 leading-tight">
+                        TedOS will generate your message, offer, content, and funnel for you.
+                    </h1>
+                    <div className="flex items-center justify-center gap-2 text-cyan">
+                        <Zap className="w-5 h-5" />
+                        <p className="text-lg md:text-xl font-medium">
+                            Most users are live in under an hour.
+                        </p>
+                    </div>
+                </motion.div>
+
                 {/* AI Ted Video Placeholder */}
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -71,7 +88,7 @@ export default function IntroductionPage() {
                     </div>
                 </motion.div>
 
-                {/* Steps List */}
+                {/* Simplified 3 Steps */}
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -86,15 +103,15 @@ export default function IntroductionPage() {
                             transition={{ delay: 0.5 + index * 0.1 }}
                             className="flex items-center gap-4"
                         >
-                            <div className="w-8 h-8 rounded-full bg-cyan/20 flex items-center justify-center flex-shrink-0">
-                                <CheckCircle className="w-5 h-5 text-cyan" />
+                            <div className="w-10 h-10 rounded-full bg-cyan/20 flex items-center justify-center flex-shrink-0 border border-cyan/30">
+                                <span className="text-cyan font-bold">{index + 1}</span>
                             </div>
-                            <p className="text-lg text-gray-300">{step}</p>
+                            <p className="text-lg md:text-xl text-gray-200 font-medium">{step}</p>
                         </motion.div>
                     ))}
                 </motion.div>
 
-                {/* Single CTA Button */}
+                {/* Begin Setup CTA Button */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -107,7 +124,7 @@ export default function IntroductionPage() {
                         whileTap={{ scale: 0.98 }}
                         className="w-full bg-cyan hover:brightness-110 text-black px-10 py-5 rounded-2xl font-bold text-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-cyan/30"
                     >
-                        Start My 20 Questions
+                        Begin Setup
                         <ArrowRight className="w-6 h-6" />
                     </motion.button>
                 </motion.div>
@@ -115,4 +132,3 @@ export default function IntroductionPage() {
         </div>
     );
 }
-

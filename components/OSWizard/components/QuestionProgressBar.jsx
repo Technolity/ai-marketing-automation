@@ -1,17 +1,75 @@
 /**
  * QuestionProgressBar Component
  * 
- * Shows progress through the 20 questions.
- * New component for the TedOS UX overhaul.
+ * Shows progress through the 20 questions with clickable dots for navigation.
+ * Part of the TedOS UX - allows users to jump to specific questions when filled.
  */
 
 "use client";
 import { motion } from 'framer-motion';
 import { STEPS } from '@/lib/os-wizard-data';
 
-export default function QuestionProgressBar({ currentStep, completedSteps }) {
+export default function QuestionProgressBar({ 
+    currentStep, 
+    completedSteps = [],
+    onDotClick,
+    stepData = {}
+}) {
     const totalQuestions = 20;
     const progress = ((currentStep - 1) / totalQuestions) * 100;
+
+    // Check if a step has data filled
+    const hasStepData = (stepNum) => {
+        // Check if the step is completed or has data
+        if (completedSteps.includes(stepNum)) return true;
+        
+        // Check if stepData has values for this step
+        const stepFields = getStepFields(stepNum);
+        return stepFields.some(field => {
+            const value = stepData[field];
+            if (Array.isArray(value)) return value.length > 0;
+            return value && String(value).trim().length > 0;
+        });
+    };
+
+    // Get field names for each step (simplified mapping)
+    const getStepFields = (stepNum) => {
+        const fieldMap = {
+            1: ['industry'],
+            2: ['idealClient'],
+            3: ['message'],
+            4: ['coreProblem'],
+            5: ['outcomes'],
+            6: ['uniqueAdvantage'],
+            7: ['story'],
+            8: ['testimonials'],
+            9: ['offerProgram'],
+            10: ['deliverables'],
+            11: ['pricing'],
+            12: ['assets'],
+            13: ['revenue'],
+            14: ['brandVoice'],
+            15: ['brandColors'],
+            16: ['callToAction'],
+            17: ['platforms', 'platformsOther'],
+            18: ['goal90Days'],
+            19: ['businessStage'],
+            20: ['helpNeeded']
+        };
+        return fieldMap[stepNum] || [];
+    };
+
+    // Check if a dot is clickable (has data or is completed)
+    const isDotClickable = (stepNum) => {
+        return hasStepData(stepNum) || completedSteps.includes(stepNum);
+    };
+
+    // Handle dot click
+    const handleDotClick = (stepNum) => {
+        if (onDotClick && isDotClickable(stepNum)) {
+            onDotClick(stepNum);
+        }
+    };
 
     return (
         <div className="w-full mb-8">
@@ -35,20 +93,50 @@ export default function QuestionProgressBar({ currentStep, completedSteps }) {
                 />
             </div>
 
-            {/* Step Dots (optional visual) */}
+            {/* Clickable Step Dots */}
             <div className="flex justify-between mt-2">
-                {[...Array(totalQuestions)].map((_, idx) => (
-                    <div
-                        key={idx}
-                        className={`w-1.5 h-1.5 rounded-full transition-colors ${idx + 1 < currentStep
-                                ? 'bg-cyan'
-                                : idx + 1 === currentStep
-                                    ? 'bg-cyan animate-pulse'
-                                    : 'bg-[#2a2a2d]'
-                            }`}
-                    />
-                ))}
+                {[...Array(totalQuestions)].map((_, idx) => {
+                    const stepNum = idx + 1;
+                    const isCompleted = completedSteps.includes(stepNum);
+                    const isCurrent = stepNum === currentStep;
+                    const hasFilled = hasStepData(stepNum);
+                    const clickable = isDotClickable(stepNum);
+
+                    return (
+                        <button
+                            key={idx}
+                            onClick={() => handleDotClick(stepNum)}
+                            disabled={!clickable}
+                            className={`
+                                w-2.5 h-2.5 rounded-full transition-all duration-200
+                                ${isCompleted
+                                    ? 'bg-cyan hover:bg-cyan/80 cursor-pointer scale-110'
+                                    : isCurrent
+                                        ? 'bg-cyan animate-pulse scale-125'
+                                        : hasFilled
+                                            ? 'bg-cyan/60 hover:bg-cyan cursor-pointer'
+                                            : 'bg-[#2a2a2d] cursor-not-allowed'
+                                }
+                                ${clickable && !isCurrent ? 'hover:scale-150' : ''}
+                            `}
+                            title={
+                                isCompleted 
+                                    ? `Step ${stepNum}: ${STEPS[idx]?.title || ''} (Completed) - Click to edit` 
+                                    : hasFilled
+                                        ? `Step ${stepNum}: ${STEPS[idx]?.title || ''} (Filled) - Click to review`
+                                        : `Step ${stepNum}: ${STEPS[idx]?.title || ''}`
+                            }
+                        />
+                    );
+                })}
             </div>
+
+            {/* Help text for clickable dots */}
+            {completedSteps.length > 0 && (
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                    Click on filled dots to jump to that question
+                </p>
+            )}
         </div>
     );
 }

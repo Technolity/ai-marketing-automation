@@ -1,15 +1,18 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Rocket, Sparkles, CheckCircle, Loader2, ArrowRight, Image as ImageIcon, ChevronDown, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import GHLCredentialsForm from '@/components/GHLCredentialsForm';
 import GHLPushProgress from '@/components/GHLPushProgress';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 /**
  * Build Funnel Page
  * Complete workflow for generating content, images, CSS, and pushing to GHL
  */
 export default function BuildFunnelPage() {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1); // 1: Setup, 2: Credentials, 3: Generate, 4: Push, 5: Complete
   const [sessionId, setSessionId] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -23,6 +26,7 @@ export default function BuildFunnelPage() {
 
   const [pushing, setPushing] = useState(false);
   const [pushOperationId, setPushOperationId] = useState(null);
+  const [funnelUrl, setFunnelUrl] = useState(null);
 
   // Load saved sessions on mount
   useEffect(() => {
@@ -205,9 +209,49 @@ export default function BuildFunnelPage() {
     }
   };
 
-  const handlePushComplete = (operation) => {
+  const handlePushComplete = async (operation) => {
     setPushing(false);
     toast.success('Push operation completed!');
+    
+    // Extract funnel URL from operation result
+    const funnelUrlFromOperation = operation?.funnelUrl || operation?.result?.funnelUrl || funnelUrl;
+    
+    // Save funnel to database
+    try {
+      const funnelData = {
+        funnel_name: selectedSession?.session_name || 'My Funnel',
+        funnel_type: 'custom', // Could be dynamic based on funnel type
+        funnel_url: funnelUrlFromOperation || `https://app.gohighlevel.com/location/${credentials?.location_id}/funnels`,
+        session_id: sessionId,
+        ghl_location_id: credentials?.location_id,
+        metadata: {
+          operationId: pushOperationId,
+          completedAt: new Date().toISOString()
+        }
+      };
+
+      const res = await fetchWithAuth('/api/ghl/funnel/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(funnelData)
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.funnel) {
+        toast.success('Funnel saved!');
+        // Redirect to funnel-live page
+        router.push(`/funnel-live?funnelId=${data.funnel.id}`);
+      } else {
+        console.error('Failed to save funnel:', data.error);
+        // Still redirect but without funnel ID
+        router.push('/funnel-live');
+      }
+    } catch (error) {
+      console.error('Error saving funnel:', error);
+      // Still redirect on error
+      router.push('/funnel-live');
+    }
   };
 
   return (
