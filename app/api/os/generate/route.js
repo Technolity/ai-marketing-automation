@@ -66,7 +66,7 @@ async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
             ],
             model: config.models.text,
             response_format: options.jsonMode ? { type: "json_object" } : undefined,
-            max_tokens: options.maxTokens || 1500,
+            max_tokens: options.maxTokens || 6000, // Increased from 1500 for large content structures
             temperature: options.temperature || 0.7,
           });
           console.log(`[AI] ${config.name} succeeded!`);
@@ -77,7 +77,7 @@ async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
           const client = getClaudeClient();
           const response = await client.messages.create({
             model: config.models.text,
-            max_tokens: options.maxTokens || 1500,
+            max_tokens: options.maxTokens || 6000, // Increased from 1500 for large content structures
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt + (options.jsonMode ? '\n\nIMPORTANT: Return ONLY valid JSON, no markdown code blocks.' : '') }],
             temperature: options.temperature || 0.7
@@ -92,7 +92,7 @@ async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
             model: config.models.text,
             generationConfig: {
               temperature: options.temperature || 0.7,
-              maxOutputTokens: options.maxTokens || 1500
+              maxOutputTokens: options.maxTokens || 6000 // Increased from 1500 for large content structures
             }
           });
           const fullPrompt = `${systemPrompt}\n\n${userPrompt}${options.jsonMode ? '\n\nIMPORTANT: Return ONLY valid JSON, no markdown code blocks.' : ''}`;
@@ -596,7 +596,7 @@ export async function POST(req) {
         // Use multi-provider AI generation with fallback
         const rawContent = await generateWithProvider(systemPrompt, prompt, {
           jsonMode: true,
-          maxTokens: 1500,
+          maxTokens: 6000, // Increased from 1500 to handle large JSON structures like offer blueprints
           temperature: 0.7
         });
 
@@ -616,7 +616,7 @@ export async function POST(req) {
           const retryContent = await generateWithProvider(
             "You are a business strategist. Return ONLY valid JSON. No markdown, no code blocks, no extra text. Ensure all strings are properly escaped and no unescaped quotes or newlines exist in string values.",
             prompt,
-            { jsonMode: true, maxTokens: 1500, temperature: 0.5 }
+            { jsonMode: true, maxTokens: 4000, temperature: 0.5 }
           );
 
           result = parseJsonSafe(retryContent, {
