@@ -2201,15 +2201,46 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                                     {sectionValue.map((item, i) => (
                                                                         <li key={i} className="text-gray-300 text-sm">
                                                                             {typeof item === 'object' ? (
-                                                                                <div className="p-2 bg-[#1b1b1d] rounded border border-[#2a2a2d]">
-                                                                                    {item.title && <p className="font-semibold text-white">{item.title}</p>}
-                                                                                    {item.name && <p className="font-semibold text-white">{item.name}</p>}
-                                                                                    {item.description && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
-                                                                                    {item.elementType && <p className="text-cyan text-xs">{item.elementType}</p>}
-                                                                                    {!item.title && !item.name && !item.description && !item.elementType && (
-                                                                                        <p>{JSON.stringify(item)}</p>
-                                                                                    )}
-                                                                                </div>
+                                                                <div className="p-3 bg-[#1b1b1d] rounded border border-[#2a2a2d]">
+                                                                    {/* Facebook Ads rendering */}
+                                                                    {item.adNumber && item.headline && (
+                                                                        <div className="space-y-2">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-xs px-2 py-1 bg-cyan/20 text-cyan rounded">Ad #{item.adNumber}</span>
+                                                                                <span className="text-xs text-gray-500">{item.angle}</span>
+                                                                            </div>
+                                                                            <p className="font-bold text-white text-base">{item.headline}</p>
+                                                                            <p className="text-gray-300 text-sm whitespace-pre-line">{item.primaryText}</p>
+                                                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#2a2a2d]">
+                                                                                <span className="text-xs text-gray-500">{item.targetAudience}</span>
+                                                                                <button className="text-xs px-3 py-1 bg-cyan/10 text-cyan rounded font-semibold">
+                                                                                    {item.callToActionButton || item.cta || 'Learn More'}
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* Image prompts rendering */}
+                                                                    {item.imageDescription && (
+                                                                        <div className="space-y-1">
+                                                                            <p className="text-xs text-gray-500">Ad #{item.adNumber} Image</p>
+                                                                            <p className="text-sm text-gray-300">{item.imageDescription}</p>
+                                                                            {item.textOverlay && <p className="text-xs text-cyan">"{item.textOverlay}"</p>}
+                                                                            {item.colorScheme && <p className="text-xs text-gray-500">{item.colorScheme}</p>}
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* Generic object properties */}
+                                                                    {item.title && <p className="font-semibold text-white">{item.title}</p>}
+                                                                    {item.name && <p className="font-semibold text-white">{item.name}</p>}
+                                                                    {item.description && !item.imageDescription && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
+                                                                    {item.elementType && <p className="text-cyan text-xs">{item.elementType}</p>}
+                                                                    
+                                                                    {/* Fallback for unrecognized structures */}
+                                                                    {!item.adNumber && !item.imageDescription && !item.title && !item.name && !item.description && !item.elementType && (
+                                                                        <p className="text-xs text-gray-400">{JSON.stringify(item, null, 2)}</p>
+                                                                    )}
+                                                                </div>
                                                                             ) : (
                                                                                 <span>• {item}</span>
                                                                             )}
@@ -2228,12 +2259,57 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                         <li key={i} className="text-gray-300 text-sm">
                                                             {typeof item === 'object' ? (
                                                                 <div className="p-2 bg-[#1b1b1d] rounded border border-[#2a2a2d]">
+                                                                    {/* Facebook Ads rendering */}
+                                                                    {item.adNumber && item.headline && (
+                                                                        <div className="space-y-2">
+                                                                            <div className="flex items-center justify-between">
+                                                                                <span className="text-xs px-2 py-1 bg-cyan/20 text-cyan rounded">Ad #{item.adNumber}</span>
+                                                                                <span className="text-xs text-gray-500">{item.angle}</span>
+                                                                            </div>
+                                                                            <p className="font-bold text-white text-base">{item.headline}</p>
+                                                                            <p className="text-gray-300 text-sm whitespace-pre-line">{item.primaryText}</p>
+                                                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#2a2a2d]">
+                                                                                <span className="text-xs text-gray-500">{item.targetAudience}</span>
+                                                                                <button className="text-xs px-3 py-1 bg-cyan/10 text-cyan rounded font-semibold">
+                                                                                    {item.callToActionButton || item.cta || 'Learn More'}
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* Image prompts rendering */}
+                                                                    {item.imageDescription && (
+                                                                        <div className="space-y-1">
+                                                                            <p className="text-xs text-gray-500">Ad #{item.adNumber} Image</p>
+                                                                            <p className="text-sm text-gray-300">{item.imageDescription}</p>
+                                                                            {item.textOverlay && <p className="text-xs text-cyan">"{item.textOverlay}"</p>}
+                                                                            {item.colorScheme && <p className="text-xs text-gray-500">{item.colorScheme}</p>}
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* Targeting recommendations rendering */}
+                                                                    {item.interests && (
+                                                                        <div className="space-y-1">
+                                                                            <p className="text-xs font-semibold text-cyan">Targeting Details</p>
+                                                                            <p className="text-xs text-gray-400">Interests: {Array.isArray(item.interests) ? item.interests.join(', ') : item.interests}</p>
+                                                                            {item.behaviors && <p className="text-xs text-gray-400">Behaviors: {Array.isArray(item.behaviors) ? item.behaviors.join(', ') : item.behaviors}</p>}
+                                                                            {item.demographics && (
+                                                                                <p className="text-xs text-gray-400">
+                                                                                    Demographics: {item.demographics.ageRange}, {item.demographics.locations}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {/* Generic object properties */}
                                                                     {item.title && <p className="font-semibold text-white">{item.title}</p>}
                                                                     {item.name && <p className="font-semibold text-white">{item.name}</p>}
-                                                                    {item.description && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
+                                                                    {item.description && !item.imageDescription && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
                                                                     {item.elementType && <p className="text-cyan text-xs">{item.elementType}</p>}
-                                                                    {!item.title && !item.name && !item.description && !item.elementType && (
-                                                                        <p>{JSON.stringify(item)}</p>
+                                                                    
+                                                                    {/* Fallback for unrecognized structures */}
+                                                                    {!item.adNumber && !item.imageDescription && !item.interests && !item.title && !item.name && !item.description && !item.elementType && (
+                                                                        <p className="text-xs text-gray-400">{JSON.stringify(item, null, 2)}</p>
                                                                     )}
                                                                 </div>
                                                             ) : (
