@@ -20,14 +20,43 @@ import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // Business Core phases - mapped to keys in saved_sessions.generated_content
+// Numeric keys correspond to osPrompts in generate/route.js:
+// 1: idealClient, 2: message, 3: story, 4: offer, 5: salesScripts, 6: leadMagnet
 const BUSINESS_CORE_PHASES = [
-    { id: 'idealClient', title: 'Ideal Client', subtitle: 'WHO you serve', icon: Users },
-    { id: 'message', title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
-    { id: 'stories', title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
-    { id: 'proof', title: 'Proof', subtitle: 'Social proof & testimonials', icon: Award },
-    { id: 'offer', title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift },
-    { id: 'scripts', title: 'Sales Script', subtitle: 'How you close', icon: Mic }
+    { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'WHO you serve', icon: Users },
+    { id: 'message', numericKey: 2, title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
+    { id: 'stories', numericKey: 3, title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
+    { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift },
+    { id: 'scripts', numericKey: 5, title: 'Sales Script', subtitle: 'How you close', icon: Mic },
+    { id: 'leadMagnet', numericKey: 6, title: 'Lead Magnet', subtitle: 'Your free offer', icon: Gift }
 ];
+
+// Helper function to normalize data structure
+// Handles both numeric keys (1, 2, 3...) and named keys (idealClient, message...)
+function normalizeBusinessCoreData(rawData) {
+    if (!rawData || typeof rawData !== 'object') return {};
+    
+    const normalized = {};
+    
+    // If data uses numeric keys (e.g., { 1: {...}, 2: {...} })
+    const hasNumericKeys = Object.keys(rawData).some(key => !isNaN(key));
+    
+    if (hasNumericKeys) {
+        // Map numeric keys to named keys
+        BUSINESS_CORE_PHASES.forEach(phase => {
+            const numKey = phase.numericKey.toString();
+            if (rawData[numKey]) {
+                // Extract the actual data from the wrapper
+                normalized[phase.id] = rawData[numKey].data || rawData[numKey];
+            }
+        });
+    } else {
+        // Data already uses named keys, just return it
+        return rawData;
+    }
+    
+    return normalized;
+}
 
 export default function BusinessCorePage() {
     const router = useRouter();
@@ -62,7 +91,11 @@ export default function BusinessCorePage() {
                 }
 
                 if (result.data && Object.keys(result.data).length > 0) {
-                    setBusinessCore(result.data);
+                    // Normalize data structure (handles both numeric and named keys)
+                    const normalizedData = normalizeBusinessCoreData(result.data);
+                    console.log('[BusinessCore] Raw data keys:', Object.keys(result.data));
+                    console.log('[BusinessCore] Normalized data keys:', Object.keys(normalizedData));
+                    setBusinessCore(normalizedData);
                     setDataSource(result.source);
                     console.log('[BusinessCore] Loaded from:', result.source);
 
