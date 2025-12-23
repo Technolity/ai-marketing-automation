@@ -560,7 +560,7 @@ export async function POST(req) {
         console.log(`[RAG PREVIEW] Knowledge base status: ${useRAG ? 'ENABLED' : 'DISABLED'} (${kbStats.total_chunks} chunks)`);
 
         let prompt;
-        let systemPrompt = "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that use proven frameworks and real-world strategies. Avoid generic advice. Return strictly valid JSON.";
+        let systemPrompt = "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that use proven frameworks and real-world strategies. Avoid generic advice. Return strictly valid JSON. CRITICAL: Your response must start with { and end with }. NO explanations, NO conversational text, NO markdown blocks, NO questions. ONLY the JSON object.";
 
         // Check if this step has a custom prompt function or uses a preset prompt
         if (previewConfig.promptFn) {
@@ -614,7 +614,7 @@ export async function POST(req) {
           // If parsing fails, retry with a simpler prompt
           console.log('[Preview] Retrying with simplified prompt...');
           const retryContent = await generateWithProvider(
-            "You are a business strategist. Return ONLY valid JSON. No markdown, no code blocks, no extra text. Ensure all strings are properly escaped and no unescaped quotes or newlines exist in string values.",
+            "You are a business strategist. CRITICAL: Your ENTIRE response must be ONLY valid JSON. First character: { Last character: } NO explanations. NO markdown blocks. NO conversational text like 'I understand' or 'Here you go'. NO questions. JUST the JSON object. START NOW with {",
             prompt,
             { jsonMode: true, maxTokens: 4000, temperature: 0.5 }
           );
