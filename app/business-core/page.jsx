@@ -69,6 +69,8 @@ export default function BusinessCorePage() {
     const [isPhaseOneComplete, setIsPhaseOneComplete] = useState(false);
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [expandedPhase, setExpandedPhase] = useState(null);
+    const [editingPhase, setEditingPhase] = useState(null);
+    const [editedContent, setEditedContent] = useState({});
 
     // Load business core data from saved_sessions via API
     useEffect(() => {
@@ -220,21 +222,116 @@ export default function BusinessCorePage() {
         router.push('/intake_form');
     };
 
-    // Format content from database for display
-    const formatContent = (content) => {
-        if (!content) return "No content generated for this section.";
-        if (typeof content === 'string') return content;
-        if (typeof content === 'object') {
-            return Object.entries(content)
-                .filter(([k, v]) => v && k !== '_contentName' && k !== 'id')
-                .map(([k, v]) => {
-                    const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-                    const value = typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v);
-                    return `**${label}:**\n${value}`;
-                })
-                .join('\n\n');
+    const handleStartEdit = (phaseId) => {
+        setEditingPhase(phaseId);
+        setEditedContent({ ...editedContent, [phaseId]: businessCore[phaseId] });
+    };
+
+    const handleCancelEdit = (phaseId) => {
+        setEditingPhase(null);
+        const newEdited = { ...editedContent };
+        delete newEdited[phaseId];
+        setEditedContent(newEdited);
+    };
+
+    const handleSaveEdit = (phaseId) => {
+        // Update the businessCore state with edited content
+        setBusinessCore({ ...businessCore, [phaseId]: editedContent[phaseId] });
+        setEditingPhase(null);
+        toast.success("Content updated! Click 'Regenerate' to improve it with AI.");
+    };
+
+    const handleRegenerateWithEdits = async (phaseId) => {
+        setIsRegenerating(true);
+        try {
+            // Use the edited content (if any) or original content
+            const currentContent = editedContent[phaseId] || businessCore[phaseId];
+            
+            toast.info("Regenerating with AI based on your edits...");
+            
+            // Call regenerate API with the current content as context
+            // TODO: Implement regeneration endpoint that accepts current content
+            
+            await handleRegenerate(phaseId);
+        } catch (error) {
+            console.error("Regeneration error:", error);
+            toast.error("Failed to regenerate");
+        } finally {
+            setIsRegenerating(false);
         }
-        return String(content);
+    };
+
+    // Render content beautifully (not as JSON)
+    const ContentRenderer = ({ content, phaseId, isEditing }) => {
+        if (!content) return <p className="text-gray-500 text-sm">No content generated for this section.</p>;
+        
+        const currentEdited = editedContent[phaseId] || content;
+        
+        // Recursive renderer for nested objects
+        const renderValue = (value, key, depth = 0) => {
+            if (value === null || value === undefined) return null;
+            
+            // Handle arrays
+            if (Array.isArray(value)) {
+                return (
+                    <div className={`${depth > 0 ? 'ml-4' : ''} space-y-2`}>
+                        {value.map((item, idx) => (
+                            <div key={idx} className="border-l-2 border-cyan/30 pl-3">
+                                {typeof item === 'object' ? renderValue(item, idx, depth + 1) : (
+                                    <p className="text-gray-300 text-sm">{String(item)}</p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+            
+            // Handle objects
+            if (typeof value === 'object') {
+                return (
+                    <div className={`${depth > 0 ? 'ml-4' : ''} space-y-3`}>
+                        {Object.entries(value)
+                            .filter(([k, v]) => v != null && k !== '_contentName' && k !== 'id')
+                            .map(([k, v]) => (
+                                <div key={k} className="space-y-1">
+                                    <h4 className="text-cyan text-xs font-semibold uppercase tracking-wide">
+                                        {k.replace(/([A-Z])/g, ' $1').trim()}
+                                    </h4>
+                                    {renderValue(v, k, depth + 1)}
+                                </div>
+                            ))}
+                    </div>
+                );
+            }
+            
+            // Handle strings/primitives
+            return (
+                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
+                    {String(value)}
+                </p>
+            );
+        };
+        
+        if (isEditing) {
+            return (
+                <textarea
+                    value={JSON.stringify(currentEdited, null, 2)}
+                    onChange={(e) => {
+                        try {
+                            const parsed = JSON.parse(e.target.value);
+                            setEditedContent({ ...editedContent, [phaseId]: parsed });
+                        } catch (err) {
+                            // Invalid JSON, just update the text
+                            setEditedContent({ ...editedContent, [phaseId]: e.target.value });
+                        }
+                    }}
+                    className="w-full h-96 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg p-4 text-gray-300 text-sm font-mono focus:outline-none focus:border-cyan/50 resize-none"
+                    placeholder="Edit content (JSON format)..."
+                />
+            );
+        }
+        
+        return <div className="space-y-4">{renderValue(currentEdited, 'root')}</div>;
     };
 
     if (authLoading || isLoading) {
@@ -406,42 +503,66 @@ export default function BusinessCorePage() {
                                         >
                                             <div className="p-4 sm:p-5 lg:p-6">
                                                 {/* Content Preview */}
-                                                <div className="bg-[#0e0e0f] rounded-lg sm:rounded-xl p-4 sm:p-5 lg:p-6 mb-4 sm:mb-6 max-h-48 sm:max-h-64 overflow-y-auto">
-                                                    <pre className="text-gray-300 whitespace-pre-wrap text-xs sm:text-sm leading-relaxed font-sans">
-                                                        {formatContent(content)}
-                                                    </pre>
+                                                <div className="bg-[#0e0e0f] rounded-lg sm:rounded-xl p-4 sm:p-5 lg:p-6 mb-4 sm:mb-6 max-h-96 overflow-y-auto">
+                                                    <ContentRenderer 
+                                                        content={content} 
+                                                        phaseId={phase.id}
+                                                        isEditing={editingPhase === phase.id}
+                                                    />
                                                 </div>
 
                                                 {/* Action Buttons */}
                                                 <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
-                                                    {status === 'current' && (
-                                                        <button
-                                                            onClick={() => handleApprove(phase.id)}
-                                                            className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg sm:rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all text-sm sm:text-base"
-                                                        >
-                                                            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
-                                                            Approve
-                                                        </button>
+                                                    {editingPhase === phase.id ? (
+                                                        // Edit mode buttons
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleSaveEdit(phase.id)}
+                                                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg sm:rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all text-sm sm:text-base"
+                                                            >
+                                                                <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                                Save Changes
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleCancelEdit(phase.id)}
+                                                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 bg-[#2a2a2d] text-white rounded-lg sm:rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm sm:text-base"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        </>
+                                                    ) : (
+                                                        // Normal mode buttons
+                                                        <>
+                                                            {status === 'current' && (
+                                                                <button
+                                                                    onClick={() => handleApprove(phase.id)}
+                                                                    className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg sm:rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all text-sm sm:text-base"
+                                                                >
+                                                                    <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                                    Approve
+                                                                </button>
+                                                            )}
+
+                                                            <button
+                                                                onClick={() => handleStartEdit(phase.id)}
+                                                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 bg-cyan/10 border border-cyan/30 text-cyan rounded-lg sm:rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-cyan/20 transition-all text-sm sm:text-base"
+                                                            >
+                                                                <Edit3 className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                                <span className="hidden sm:inline">Edit Content</span>
+                                                                <span className="sm:hidden">Edit</span>
+                                                            </button>
+
+                                                            <button
+                                                                onClick={() => handleRegenerateWithEdits(phase.id)}
+                                                                disabled={isRegenerating}
+                                                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 bg-[#2a2a2d] text-white rounded-lg sm:rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50 text-sm sm:text-base"
+                                                            >
+                                                                {isRegenerating ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />}
+                                                                <span className="hidden sm:inline">Regenerate</span>
+                                                                <span className="sm:hidden">Regen</span>
+                                                            </button>
+                                                        </>
                                                     )}
-
-                                                    <button
-                                                        onClick={() => handleRegenerate(phase.id)}
-                                                        disabled={isRegenerating}
-                                                        className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 bg-[#2a2a2d] text-white rounded-lg sm:rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50 text-sm sm:text-base"
-                                                    >
-                                                        {isRegenerating ? <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />}
-                                                        <span className="hidden sm:inline">Regenerate</span>
-                                                        <span className="sm:hidden">Regen</span>
-                                                    </button>
-
-                                                    <button
-                                                        onClick={() => handleEditRegenerate(phase.id, index)}
-                                                        className="flex-1 sm:flex-none px-4 sm:px-6 py-2.5 sm:py-3 border border-[#2a2a2d] text-gray-400 rounded-lg sm:rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#1b1b1d] transition-all text-sm sm:text-base"
-                                                    >
-                                                        <Edit3 className="w-4 h-4 sm:w-5 sm:h-5" />
-                                                        <span className="hidden sm:inline">Edit + Regenerate</span>
-                                                        <span className="sm:hidden">Edit</span>
-                                                    </button>
                                                 </div>
                                             </div>
                                         </motion.div>
