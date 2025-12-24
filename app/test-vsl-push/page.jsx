@@ -21,6 +21,23 @@ export default function TestVSLPushPage() {
     const [isPushing, setIsPushing] = useState(false);
     const [pushResult, setPushResult] = useState(null);
     const [expandedSections, setExpandedSections] = useState({});
+    
+    // Image uploads
+    const [uploadedImages, setUploadedImages] = useState({
+        logo: '',
+        bio_author: '',
+        product_mockup: '',
+        results_image: ''
+    });
+    
+    // Video URLs
+    const [videoUrls, setVideoUrls] = useState({
+        main_vsl: '',
+        testimonial_video: '',
+        thankyou_video: ''
+    });
+    
+    const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
     // Load session ID from localStorage
     useEffect(() => {
@@ -40,6 +57,15 @@ export default function TestVSLPushPage() {
         }
     }, [authSession, authLoading, router]);
 
+    const handleImageUpload = (imageType, url) => {
+        setUploadedImages(prev => ({ ...prev, [imageType]: url }));
+        toast.success(`${imageType.replace('_', ' ')} image added!`);
+    };
+
+    const handleVideoUrlChange = (videoType, url) => {
+        setVideoUrls(prev => ({ ...prev, [videoType]: url }));
+    };
+
     const handlePush = async () => {
         if (!sessionId) {
             toast.error('No session found. Please complete the intake form first.');
@@ -55,7 +81,12 @@ export default function TestVSLPushPage() {
         setPushResult(null);
 
         try {
-            console.log('[TestVSL] Starting push with:', { sessionId, locationId });
+            console.log('[TestVSL] Starting push with:', { 
+                sessionId, 
+                locationId,
+                uploadedImages: Object.keys(uploadedImages).filter(k => uploadedImages[k]),
+                videoUrls: Object.keys(videoUrls).filter(k => videoUrls[k])
+            });
 
             const res = await fetchWithAuth('/api/ghl/push-vsl', {
                 method: 'POST',
@@ -63,7 +94,9 @@ export default function TestVSLPushPage() {
                 body: JSON.stringify({
                     sessionId,
                     locationId,
-                    accessToken: apiKey
+                    accessToken: apiKey,
+                    uploadedImages: uploadedImages,
+                    videoUrls: videoUrls
                 })
             });
 
@@ -257,6 +290,150 @@ export default function TestVSLPushPage() {
                             </p>
                         </div>
                     </div>
+
+                    {/* Advanced Options Toggle */}
+                    <button
+                        onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                        className="w-full mt-6 px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-gray-400 hover:text-white hover:border-cyan/30 transition-colors flex items-center justify-between"
+                    >
+                        <span className="text-sm font-medium">
+                            {showAdvancedOptions ? '▼' : '▶'} Advanced: Upload Images & Add Videos (Optional)
+                        </span>
+                        <span className="text-xs text-gray-500">
+                            {Object.values(uploadedImages).filter(Boolean).length} images, {Object.values(videoUrls).filter(Boolean).length} videos
+                        </span>
+                    </button>
+
+                    {/* Advanced Options */}
+                    {showAdvancedOptions && (
+                        <div className="mt-4 space-y-6 p-6 bg-[#0e0e0f] border border-cyan/20 rounded-xl">
+                            {/* Image Uploads */}
+                            <div>
+                                <h3 className="text-lg font-bold mb-4 text-cyan">Upload Your Own Images</h3>
+                                <p className="text-xs text-gray-500 mb-4">
+                                    Upload image URLs (or leave empty for AI generation)
+                                </p>
+                                
+                                <div className="space-y-3">
+                                    {/* Logo */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Logo Image
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={uploadedImages.logo}
+                                            onChange={(e) => handleImageUpload('logo', e.target.value)}
+                                            placeholder="https://yourdomain.com/logo.png"
+                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
+                                        />
+                                    </div>
+
+                                    {/* Bio/Author Photo */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Bio / Author Photo
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={uploadedImages.bio_author}
+                                            onChange={(e) => handleImageUpload('bio_author', e.target.value)}
+                                            placeholder="https://yourdomain.com/author.jpg"
+                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
+                                        />
+                                    </div>
+
+                                    {/* Product Mockup */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Product Mockup
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={uploadedImages.product_mockup}
+                                            onChange={(e) => handleImageUpload('product_mockup', e.target.value)}
+                                            placeholder="https://yourdomain.com/product.png"
+                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
+                                        />
+                                    </div>
+
+                                    {/* Results Image */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Results / Proof Image
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={uploadedImages.results_image}
+                                            onChange={(e) => handleImageUpload('results_image', e.target.value)}
+                                            placeholder="https://yourdomain.com/results.png"
+                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
+                                        />
+                                    </div>
+                                </div>
+
+                                <p className="text-xs text-gray-500 mt-3">
+                                    💡 Tip: AI will only generate images you don't upload
+                                </p>
+                            </div>
+
+                            {/* Video URLs */}
+                            <div className="pt-6 border-t border-[#2a2a2d]">
+                                <h3 className="text-lg font-bold mb-4 text-cyan">Add Video URLs</h3>
+                                <p className="text-xs text-gray-500 mb-4">
+                                    Supports: YouTube, Vimeo, Wistia, Loom, or any embeddable video
+                                </p>
+                                
+                                <div className="space-y-3">
+                                    {/* Main VSL Video */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Main VSL Video (Required for VSL funnel)
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={videoUrls.main_vsl}
+                                            onChange={(e) => handleVideoUrlChange('main_vsl', e.target.value)}
+                                            placeholder="https://www.youtube.com/watch?v=... or Wistia embed URL"
+                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
+                                        />
+                                    </div>
+
+                                    {/* Testimonial Video */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Testimonial Video (Optional)
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={videoUrls.testimonial_video}
+                                            onChange={(e) => handleVideoUrlChange('testimonial_video', e.target.value)}
+                                            placeholder="https://www.youtube.com/watch?v=..."
+                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
+                                        />
+                                    </div>
+
+                                    {/* Thank You Video */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                                            Thank You Page Video (Optional)
+                                        </label>
+                                        <input
+                                            type="url"
+                                            value={videoUrls.thankyou_video}
+                                            onChange={(e) => handleVideoUrlChange('thankyou_video', e.target.value)}
+                                            placeholder="https://www.youtube.com/watch?v=..."
+                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
+                                        />
+                                    </div>
+                                </div>
+
+                                <p className="text-xs text-gray-500 mt-3">
+                                    💡 Tip: GHL will auto-embed YouTube, Vimeo, and Wistia videos
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Push Button */}
                     <button

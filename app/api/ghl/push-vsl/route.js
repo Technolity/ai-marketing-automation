@@ -16,9 +16,11 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { sessionId, locationId, accessToken } = body;
+        const { sessionId, locationId, accessToken, uploadedImages = {}, videoUrls = {} } = body;
 
         console.log('[PushVSL] Starting push for session:', sessionId);
+        console.log('[PushVSL] Uploaded images:', Object.keys(uploadedImages).filter(k => uploadedImages[k]));
+        console.log('[PushVSL] Video URLs:', Object.keys(videoUrls).filter(k => videoUrls[k]));
 
         // Step 1: Fetch session data
         const { data: session, error: sessionError } = await supabaseAdmin
@@ -32,19 +34,53 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Session not found' }, { status: 404 });
         }
 
-        // Step 2: Check if images exist, if not generate them
-        const { data: existingImages } = await supabaseAdmin
-            .from('generated_images')
-            .select('*')
-            .eq('session_id', sessionId)
-            .eq('status', 'completed');
+        // Step 2: Handle images - use uploaded or generate missing ones
+        let images = [];
+        
+        // Convert uploaded images to the format expected by mapper
+        const uploadedImageRecords = [];
+        if (uploadedImages.logo) {
+            uploadedImageRecords.push({
+                image_type: 'logo',
+                public_url: uploadedImages.logo,
+                status: 'uploaded'
+            });
+        }
+        if (uploadedImages.bio_author) {
+            uploadedImageRecords.push({
+                image_type: 'author_photo',
+                public_url: uploadedImages.bio_author,
+                status: 'uploaded'
+            });
+        }
+        if (uploadedImages.product_mockup) {
+            uploadedImageRecords.push({
+                image_type: 'product_mockup',
+                public_url: uploadedImages.product_mockup,
+                status: 'uploaded'
+            });
+        }
+        if (uploadedImages.results_image) {
+            uploadedImageRecords.push({
+                image_type: 'results_image',
+                public_url: uploadedImages.results_image,
+                status: 'uploaded'
+            });
+        }
 
-        let images = existingImages || [];
+        console.log('[PushVSL] User uploaded', uploadedImageRecords.length, 'images');
 
-        if (images.length === 0) {
-            console.log('[PushVSL] No images found, generating...');
+        // Check which images are missing
+        const requiredImages = ['author_photo', 'product_mockup', 'results_image'];
+        const uploadedTypes = uploadedImageRecords.map(img => img.image_type);
+        const missingImages = requiredImages.filter(type => !uploadedTypes.includes(type));
+
+        console.log('[PushVSL] Missing images to generate:', missingImages);
+
+        // Generate only missing images
+        if (missingImages.length > 0) {
+            console.log('[PushVSL] Generating', missingImages.length, 'missing images...');
             
-            // Generate VSL funnel images
             const imageResult = await generateFunnelImages({
                 userId,
                 sessionId,
@@ -59,17 +95,19 @@ export async function POST(req) {
                 },
                 onProgress: (progress) => {
                     console.log('[PushVSL] Image generation:', progress);
-                }
+                },
+                onlyGenerate: missingImages // Only generate missing ones
             });
 
-            images = imageResult.generated || [];
-            console.log('[PushVSL] Generated', images.length, 'images');
+            images = [...uploadedImageRecords, ...(imageResult.generated || [])];
+            console.log('[PushVSL] Total images:', images.length, '(', uploadedImageRecords.length, 'uploaded +', imageResult.generated?.length || 0, 'generated)');
         } else {
-            console.log('[PushVSL] Using', images.length, 'existing images');
+            images = uploadedImageRecords;
+            console.log('[PushVSL] Using all uploaded images, no generation needed');
         }
 
-        // Step 3: Map content to custom values
-        const customValues = mapToVSLFunnel(session, images);
+        // Step 3: Map content to custom values (including videos)
+        const customValues = mapToVSLFunnel(session, images, videoUrls);
         console.log('[PushVSL] Mapped', Object.keys(customValues).length, 'custom values');
 
         // Step 4: Validate mapping
