@@ -1736,7 +1736,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                             type="button"
                                         >
                                             <Sparkles className="w-4 h-4" />
-                                            Fill Sample Data (Demo)
+                                            Fill Sample Data (Fitness Coach)
                                         </button>
                                     </div>
                                 )}
