@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { Rocket, Loader2, CheckCircle, AlertCircle, ArrowLeft, Eye, EyeOff, Copy, Check } from 'lucide-react';
+import { Rocket, Loader2, CheckCircle, AlertCircle, ArrowLeft, Eye, EyeOff, Copy, Check, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
@@ -37,6 +37,9 @@ export default function TestVSLPushPage() {
         thankyou_video: ''
     });
     
+    // Upload states
+    const [uploadingFiles, setUploadingFiles] = useState({});
+    
     const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
     // Load session ID from localStorage
@@ -64,6 +67,65 @@ export default function TestVSLPushPage() {
 
     const handleVideoUrlChange = (videoType, url) => {
         setVideoUrls(prev => ({ ...prev, [videoType]: url }));
+    };
+
+    // Handle file upload (images or videos)
+    const handleFileUpload = async (fileType, file, isVideo = false) => {
+        if (!file) return;
+
+        // Validate file size (10MB max)
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+            toast.error(`File too large. Max size: 10MB (your file: ${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+            return;
+        }
+
+        // Show uploading state
+        setUploadingFiles(prev => ({ ...prev, [fileType]: true }));
+        toast.loading(`Uploading ${file.name}...`, { id: `upload-${fileType}` });
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', isVideo ? 'video' : 'image');
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                // Use full URL for external access
+                const uploadedUrl = data.fullUrl;
+
+                if (isVideo) {
+                    setVideoUrls(prev => ({ ...prev, [fileType]: uploadedUrl }));
+                } else {
+                    setUploadedImages(prev => ({ ...prev, [fileType]: uploadedUrl }));
+                }
+
+                toast.success(`${file.name} uploaded successfully!`, { id: `upload-${fileType}` });
+            } else {
+                throw new Error(data.error || 'Upload failed');
+            }
+        } catch (error) {
+            console.error('[Upload] Error:', error);
+            toast.error(`Failed to upload: ${error.message}`, { id: `upload-${fileType}` });
+        } finally {
+            setUploadingFiles(prev => ({ ...prev, [fileType]: false }));
+        }
+    };
+
+    // Clear uploaded file
+    const handleClearFile = (fileType, isVideo = false) => {
+        if (isVideo) {
+            setVideoUrls(prev => ({ ...prev, [fileType]: '' }));
+        } else {
+            setUploadedImages(prev => ({ ...prev, [fileType]: '' }));
+        }
+        toast.info('File cleared');
     };
 
     const handlePush = async () => {
@@ -123,6 +185,101 @@ export default function TestVSLPushPage() {
             ...prev,
             [section]: !prev[section]
         }));
+    };
+
+    // File Upload Input Component
+    const FileUploadInput = ({ label, fileType, currentValue, isVideo = false, accept }) => {
+        const isUploading = uploadingFiles[fileType];
+        const hasFile = Boolean(currentValue);
+
+        return (
+            <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                    {label}
+                </label>
+                
+                <div className="space-y-2">
+                    {/* File Upload Button */}
+                    {!hasFile && (
+                        <label className="relative block">
+                            <input
+                                type="file"
+                                accept={accept}
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleFileUpload(fileType, file, isVideo);
+                                }}
+                                className="hidden"
+                                disabled={isUploading}
+                            />
+                            <div className={`
+                                w-full px-4 py-3 border-2 border-dashed rounded-lg 
+                                text-center cursor-pointer transition-all
+                                ${isUploading 
+                                    ? 'border-cyan/50 bg-cyan/5' 
+                                    : 'border-[#2a2a2d] hover:border-cyan/30 hover:bg-[#1b1b1d]'
+                                }
+                            `}>
+                                {isUploading ? (
+                                    <div className="flex items-center justify-center gap-2 text-cyan">
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <span className="text-sm">Uploading...</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center gap-2 text-gray-400">
+                                        <Upload className="w-5 h-5" />
+                                        <span className="text-sm">Click to upload {isVideo ? 'video' : 'image'}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </label>
+                    )}
+
+                    {/* Current File Display */}
+                    {hasFile && (
+                        <div className="flex items-center gap-2 px-4 py-3 bg-cyan/5 border border-cyan/30 rounded-lg">
+                            <CheckCircle className="w-5 h-5 text-cyan flex-shrink-0" />
+                            <span className="text-sm text-gray-300 flex-1 truncate">
+                                {currentValue.split('/').pop()}
+                            </span>
+                            <button
+                                onClick={() => handleClearFile(fileType, isVideo)}
+                                className="text-gray-400 hover:text-red-500 transition-colors"
+                                title="Remove file"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* URL Input (Alternative) */}
+                    {!hasFile && (
+                        <div className="relative">
+                            <input
+                                type="url"
+                                value={currentValue}
+                                onChange={(e) => {
+                                    if (isVideo) {
+                                        handleVideoUrlChange(fileType, e.target.value);
+                                    } else {
+                                        handleImageUpload(fileType, e.target.value);
+                                    }
+                                }}
+                                placeholder={`Or paste ${isVideo ? 'video' : 'image'} URL`}
+                                className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                                URL
+                            </span>
+                        </div>
+                    )}
+                </div>
+
+                <p className="text-xs text-gray-500 mt-1">
+                    {isVideo ? 'MP4, WebM, or MOV format. Max 10MB.' : 'JPG, PNG, WebP, or GIF format. Max 10MB.'}
+                </p>
+            </div>
+        );
     };
 
     const copyToClipboard = (text) => {
@@ -309,67 +466,39 @@ export default function TestVSLPushPage() {
                         <div className="mt-4 space-y-6 p-6 bg-[#0e0e0f] border border-cyan/20 rounded-xl">
                             {/* Image Uploads */}
                             <div>
-                                <h3 className="text-lg font-bold mb-4 text-cyan">Upload Your Own Images</h3>
+                                <h3 className="text-lg font-bold mb-4 text-cyan">📸 Upload Your Own Images</h3>
                                 <p className="text-xs text-gray-500 mb-4">
-                                    Upload image URLs (or leave empty for AI generation)
+                                    Upload from computer or paste URLs (AI generates missing images)
                                 </p>
                                 
-                                <div className="space-y-3">
-                                    {/* Logo */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            Logo Image
-                                        </label>
-                                        <input
-                                            type="url"
-                                            value={uploadedImages.logo}
-                                            onChange={(e) => handleImageUpload('logo', e.target.value)}
-                                            placeholder="https://yourdomain.com/logo.png"
-                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
-                                        />
-                                    </div>
+                                <div className="space-y-4">
+                                    <FileUploadInput
+                                        label="Logo Image"
+                                        fileType="logo"
+                                        currentValue={uploadedImages.logo}
+                                        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                                    />
 
-                                    {/* Bio/Author Photo */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            Bio / Author Photo
-                                        </label>
-                                        <input
-                                            type="url"
-                                            value={uploadedImages.bio_author}
-                                            onChange={(e) => handleImageUpload('bio_author', e.target.value)}
-                                            placeholder="https://yourdomain.com/author.jpg"
-                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
-                                        />
-                                    </div>
+                                    <FileUploadInput
+                                        label="Bio / Author Photo"
+                                        fileType="bio_author"
+                                        currentValue={uploadedImages.bio_author}
+                                        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                                    />
 
-                                    {/* Product Mockup */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            Product Mockup
-                                        </label>
-                                        <input
-                                            type="url"
-                                            value={uploadedImages.product_mockup}
-                                            onChange={(e) => handleImageUpload('product_mockup', e.target.value)}
-                                            placeholder="https://yourdomain.com/product.png"
-                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
-                                        />
-                                    </div>
+                                    <FileUploadInput
+                                        label="Product Mockup"
+                                        fileType="product_mockup"
+                                        currentValue={uploadedImages.product_mockup}
+                                        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                                    />
 
-                                    {/* Results Image */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            Results / Proof Image
-                                        </label>
-                                        <input
-                                            type="url"
-                                            value={uploadedImages.results_image}
-                                            onChange={(e) => handleImageUpload('results_image', e.target.value)}
-                                            placeholder="https://yourdomain.com/results.png"
-                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
-                                        />
-                                    </div>
+                                    <FileUploadInput
+                                        label="Results / Proof Image"
+                                        fileType="results_image"
+                                        currentValue={uploadedImages.results_image}
+                                        accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                                    />
                                 </div>
 
                                 <p className="text-xs text-gray-500 mt-3">
@@ -379,53 +508,35 @@ export default function TestVSLPushPage() {
 
                             {/* Video URLs */}
                             <div className="pt-6 border-t border-[#2a2a2d]">
-                                <h3 className="text-lg font-bold mb-4 text-cyan">Add Video URLs</h3>
+                                <h3 className="text-lg font-bold mb-4 text-cyan">🎬 Upload Video Files or URLs</h3>
                                 <p className="text-xs text-gray-500 mb-4">
-                                    Supports: YouTube, Vimeo, Wistia, Loom, or any embeddable video
+                                    Upload from computer or paste URLs (YouTube, Vimeo, Wistia, etc.)
                                 </p>
                                 
-                                <div className="space-y-3">
-                                    {/* Main VSL Video */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            Main VSL Video (Required for VSL funnel)
-                                        </label>
-                                        <input
-                                            type="url"
-                                            value={videoUrls.main_vsl}
-                                            onChange={(e) => handleVideoUrlChange('main_vsl', e.target.value)}
-                                            placeholder="https://www.youtube.com/watch?v=... or Wistia embed URL"
-                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
-                                        />
-                                    </div>
+                                <div className="space-y-4">
+                                    <FileUploadInput
+                                        label="Main VSL Video (Required for VSL funnel)"
+                                        fileType="main_vsl"
+                                        currentValue={videoUrls.main_vsl}
+                                        isVideo={true}
+                                        accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                                    />
 
-                                    {/* Testimonial Video */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            Testimonial Video (Optional)
-                                        </label>
-                                        <input
-                                            type="url"
-                                            value={videoUrls.testimonial_video}
-                                            onChange={(e) => handleVideoUrlChange('testimonial_video', e.target.value)}
-                                            placeholder="https://www.youtube.com/watch?v=..."
-                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
-                                        />
-                                    </div>
+                                    <FileUploadInput
+                                        label="Testimonial Video (Optional)"
+                                        fileType="testimonial_video"
+                                        currentValue={videoUrls.testimonial_video}
+                                        isVideo={true}
+                                        accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                                    />
 
-                                    {/* Thank You Video */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                                            Thank You Page Video (Optional)
-                                        </label>
-                                        <input
-                                            type="url"
-                                            value={videoUrls.thankyou_video}
-                                            onChange={(e) => handleVideoUrlChange('thankyou_video', e.target.value)}
-                                            placeholder="https://www.youtube.com/watch?v=..."
-                                            className="w-full px-4 py-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white text-sm focus:outline-none focus:border-cyan transition-colors"
-                                        />
-                                    </div>
+                                    <FileUploadInput
+                                        label="Thank You Page Video (Optional)"
+                                        fileType="thankyou_video"
+                                        currentValue={videoUrls.thankyou_video}
+                                        isVideo={true}
+                                        accept="video/mp4,video/webm,video/quicktime,video/x-msvideo"
+                                    />
                                 </div>
 
                                 <p className="text-xs text-gray-500 mt-3">
