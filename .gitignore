@@ -41,6 +41,3 @@ docs/
 # system files
 nul
 supabase/.temp/
-
-# user uploads
-/public/uploads/

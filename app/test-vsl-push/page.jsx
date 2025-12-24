@@ -276,7 +276,9 @@ export default function TestVSLPushPage() {
                 </div>
 
                 <p className="text-xs text-gray-500 mt-1">
-                    {isVideo ? 'MP4, WebM, or MOV format. Max 10MB.' : 'JPG, PNG, WebP, or GIF format. Max 10MB.'}
+                    {isVideo 
+                        ? 'MP4, WebM, or MOV. Max 10MB. Uploads to Cloudinary CDN.' 
+                        : 'JPG, PNG, WebP, or GIF. Max 10MB. Uploads to Cloudinary CDN.'}
                 </p>
             </div>
         );
@@ -468,7 +470,7 @@ export default function TestVSLPushPage() {
                             <div>
                                 <h3 className="text-lg font-bold mb-4 text-cyan">📸 Upload Your Own Images</h3>
                                 <p className="text-xs text-gray-500 mb-4">
-                                    Upload from computer or paste URLs (AI generates missing images)
+                                    Upload to cloud (gets embedded CDN URL) or paste URLs (AI generates missing images)
                                 </p>
                                 
                                 <div className="space-y-4">
@@ -510,7 +512,7 @@ export default function TestVSLPushPage() {
                             <div className="pt-6 border-t border-[#2a2a2d]">
                                 <h3 className="text-lg font-bold mb-4 text-cyan">🎬 Upload Video Files or URLs</h3>
                                 <p className="text-xs text-gray-500 mb-4">
-                                    Upload from computer or paste URLs (YouTube, Vimeo, Wistia, etc.)
+                                    Upload to cloud CDN or paste URLs (YouTube, Vimeo, Wistia, etc.)
                                 </p>
                                 
                                 <div className="space-y-4">
