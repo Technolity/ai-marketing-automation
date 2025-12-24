@@ -143,14 +143,18 @@ export async function POST(req) {
         const ghlData = await ghlResponse.json();
         const existingValues = ghlData.customValues || [];
 
-        // Create map for quick lookup
+        // Create map for quick lookup with normalized keys
         const existingMap = new Map();
         existingValues.forEach(v => {
-            existingMap.set(v.name, v);
-            existingMap.set(v.name.toLowerCase(), v);
+            // Normalize: lowercase and remove special chars for matching
+            const normalizedKey = v.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
+            existingMap.set(v.name, v); // Original name
+            existingMap.set(v.name.toLowerCase(), v); // Lowercase
+            existingMap.set(normalizedKey, v); // Normalized
         });
 
         console.log('[PushVSL] Found', existingValues.length, 'existing custom values in GHL');
+        console.log('[PushVSL] Sample existing keys:', existingValues.slice(0, 5).map(v => v.name));
 
         // Step 6: Push all custom values to GHL
         const results = {
@@ -160,12 +164,23 @@ export async function POST(req) {
         };
 
         for (const [key, value] of Object.entries(customValues)) {
-            const existing = existingMap.get(key) || existingMap.get(key.toLowerCase());
+            // Try multiple matching strategies
+            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9_]/g, '');
+            const existing = existingMap.get(key) || 
+                            existingMap.get(key.toLowerCase()) || 
+                            existingMap.get(normalizedKey);
+            
             const existingId = existing?.id || null;
             const method = existingId ? 'PUT' : 'POST';
             const url = existingId
                 ? `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`
                 : `https://services.leadconnectorhq.com/locations/${locationId}/customValues`;
+            
+            if (existingId) {
+                console.log(`[PushVSL] UPDATE: ${key} (ID: ${existingId})`);
+            } else {
+                console.log(`[PushVSL] CREATE: ${key}`);
+            }
 
             try {
                 const pushResponse = await fetch(url, {
