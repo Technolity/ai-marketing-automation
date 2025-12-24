@@ -212,7 +212,7 @@ export async function POST(req) {
                 console.log(`[PushVSL] ✅ UPDATE: ${key} (ID: ${existingId})`);
             } else {
                 console.log(`[PushVSL] ❌ CREATE (not found): ${key}`);
-                console.log(`[PushVSL]    Tried: exact="${key}", lower="${key.toLowerCase()}", normalized="${normalizedKey}"`);
+                console.log(`[PushVSL]    Tried: exact="${key}", lower="${lowercased}", spaces→_="${spacesToUnderscores}", normalized="${normalized}"`);
             }
 
             try {
