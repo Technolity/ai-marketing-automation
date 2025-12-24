@@ -868,36 +868,62 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 return;
             }
 
-            // On step 20, generate ALL artifacts
-            const payload = {
-                step: 'all',
-                data: {
-                    ...stepData,
-                    ...currentInput
-                }
-            };
+            // Check if we have saved preview content from step-by-step generation
+            const hasPreviewContent = Object.keys(savedContent).some(key => key.startsWith('step'));
+            
+            let finalContent;
+            
+            if (hasPreviewContent) {
+                // ✅ Use accumulated preview content (faster, maintains consistency)
+                console.log('[Generate] Using accumulated preview content from', Object.keys(savedContent).length, 'steps');
+                
+                // Merge all step previews into final content
+                finalContent = {};
+                Object.keys(savedContent).forEach(key => {
+                    if (key.startsWith('step')) {
+                        const stepContent = savedContent[key];
+                        // Merge step content into final result
+                        Object.assign(finalContent, stepContent);
+                    }
+                });
+                
+                clearInterval(messageInterval);
+                setProcessingMessage('Using your approved content! 🚀');
+                await new Promise(resolve => setTimeout(resolve, 800));
+            } else {
+                // Fallback: Generate fresh if no preview content exists
+                console.log('[Generate] No preview content, generating fresh...');
+                
+                const payload = {
+                    step: 'all',
+                    data: {
+                        ...stepData,
+                        ...currentInput
+                    }
+                };
 
-            const res = await fetchWithAuth("/api/os/generate", {
-                method: "POST",
-                body: JSON.stringify(payload),
-            });
+                const res = await fetchWithAuth("/api/os/generate", {
+                    method: "POST",
+                    body: JSON.stringify(payload),
+                });
 
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
 
-            clearInterval(messageInterval);
-            setProcessingMessage('Your marketing system is ready! 🚀');
+                clearInterval(messageInterval);
+                setProcessingMessage('Your marketing system is ready! 🚀');
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                finalContent = data.result;
+            }
 
-            // Brief delay to show success message
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            setGeneratedContent(data.result);
+            setGeneratedContent(finalContent);
             setIsReviewMode(true);
 
             // Mark step 20 as completed and update saved content
             const allCompletedSteps = [...new Set([...completedSteps, 20])];
             setCompletedSteps(allCompletedSteps);
-            setSavedContent(data.result);
+            setSavedContent(finalContent);
 
             // Mark wizard as complete - locks editing until reset
             setIsWizardComplete(true);
@@ -914,7 +940,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 const progressData = {
                     completedSteps: allCompletedSteps,
                     answers: { ...stepData, ...currentInput },
-                    generatedContent: data.result,
+                    generatedContent: finalContent,
                     isComplete: true,
                     updatedAt: new Date().toISOString()
                 };
@@ -2376,7 +2402,25 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                     <RefreshCw className="w-4 h-4" /> Regenerate
                                 </button>
                                 <button
-                                    onClick={() => setShowContentPreview(false)}
+                                    onClick={() => {
+                                        setShowContentPreview(false);
+                                        
+                                        // Auto-load next step with sample data if available
+                                        const nextStep = currentStep + 1;
+                                        if (nextStep <= STEPS.length) {
+                                            const nextStepInputs = STEP_INPUTS[nextStep];
+                                            if (nextStepInputs) {
+                                                const loadedInput = {};
+                                                nextStepInputs.forEach(input => {
+                                                    // Load from stepData (which has sample data if filled)
+                                                    if (stepData[input.name]) {
+                                                        loadedInput[input.name] = stepData[input.name];
+                                                    }
+                                                });
+                                                setCurrentInput(loadedInput);
+                                            }
+                                        }
+                                    }}
                                     className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-lg text-white font-bold transition-colors flex items-center justify-center gap-2"
                                 >
                                     <CheckCircle className="w-4 h-4" /> Approve & Continue
