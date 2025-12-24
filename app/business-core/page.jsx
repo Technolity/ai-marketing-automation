@@ -456,11 +456,11 @@ export default function BusinessCorePage() {
 
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4">
                         <button
-                            onClick={() => router.push('/funnel-recommendation')}
+                            onClick={() => router.push('/test-vsl-push')}
                             className="w-full sm:w-auto px-6 sm:px-8 py-3.5 sm:py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold text-base sm:text-lg flex items-center justify-center gap-2 sm:gap-3 hover:brightness-110 transition-all shadow-xl shadow-cyan/30"
                         >
                             <Rocket className="w-5 h-5 sm:w-6 sm:h-6" />
-                            Choose My Funnel
+                            Build VSL Funnel (Test)
                         </button>
                         <button
                             onClick={() => setIsPhaseOneComplete(false)}
