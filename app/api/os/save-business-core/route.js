@@ -47,14 +47,52 @@ export async function POST(req) {
                     .eq('user_id', userId)
                     .order('created_at', { ascending: false })
                     .limit(1)
-                    .single();
+                    .maybeSingle(); // Use maybeSingle - doesn't error on no rows
                 
                 if (sessionError) {
                     console.error('[SaveBusinessCore] Error finding recent session:', sessionError);
                 }
                 
                 session = recentSession;
-                console.log('[SaveBusinessCore] Found most recent session:', session?.id);
+                
+                if (session) {
+                    console.log('[SaveBusinessCore] Found most recent session:', session.id);
+                } else {
+                    // ✅ AUTO-CREATE SESSION if none exists
+                    console.log('[SaveBusinessCore] No session found, auto-creating...');
+                    
+                    // Try to get wizard_progress for context
+                    const { data: wizardProgress } = await supabaseAdmin
+                        .from('wizard_progress')
+                        .select('answers, generated_content, completed_steps')
+                        .eq('user_id', userId)
+                        .maybeSingle();
+
+                    const { data: newSession, error: createError } = await supabaseAdmin
+                        .from('saved_sessions')
+                        .insert({
+                            user_id: userId,
+                            session_name: `Auto-saved - ${new Date().toLocaleDateString()}`,
+                            current_step: wizardProgress?.completed_steps?.length || 20,
+                            completed_steps: wizardProgress?.completed_steps || [],
+                            answers: wizardProgress?.answers || {},
+                            generated_content: wizardProgress?.generated_content || {},
+                            results_data: {},
+                            onboarding_data: wizardProgress?.answers || {},
+                            is_complete: true,
+                            status: 'in_progress',
+                            is_deleted: false
+                        })
+                        .select()
+                        .single();
+
+                    if (createError) {
+                        console.error('[SaveBusinessCore] Failed to auto-create session:', createError);
+                    } else {
+                        session = newSession;
+                        console.log('[SaveBusinessCore] Auto-created session:', session.id);
+                    }
+                }
             }
 
             if (session) {
@@ -115,15 +153,51 @@ export async function POST(req) {
             }
 
             if (!session) {
-                const { data: recentSession } = await supabaseAdmin
+                const { data: recentSession, error: sessionError } = await supabaseAdmin
                     .from('saved_sessions')
                     .select('*')
                     .eq('user_id', userId)
                     .order('created_at', { ascending: false })
                     .limit(1)
-                    .single();
+                    .maybeSingle();
                 
                 session = recentSession;
+                
+                if (!session) {
+                    // ✅ AUTO-CREATE SESSION if none exists
+                    console.log('[SaveBusinessCore] No session for businessCore, auto-creating...');
+                    
+                    const { data: wizardProgress } = await supabaseAdmin
+                        .from('wizard_progress')
+                        .select('answers, generated_content, completed_steps')
+                        .eq('user_id', userId)
+                        .maybeSingle();
+
+                    const { data: newSession, error: createError } = await supabaseAdmin
+                        .from('saved_sessions')
+                        .insert({
+                            user_id: userId,
+                            session_name: `Auto-saved - ${new Date().toLocaleDateString()}`,
+                            current_step: wizardProgress?.completed_steps?.length || 20,
+                            completed_steps: wizardProgress?.completed_steps || [],
+                            answers: wizardProgress?.answers || {},
+                            generated_content: wizardProgress?.generated_content || {},
+                            results_data: {},
+                            onboarding_data: wizardProgress?.answers || {},
+                            is_complete: true,
+                            status: 'in_progress',
+                            is_deleted: false
+                        })
+                        .select()
+                        .single();
+
+                    if (createError) {
+                        console.error('[SaveBusinessCore] Failed to auto-create session:', createError);
+                    } else {
+                        session = newSession;
+                        console.log('[SaveBusinessCore] Auto-created session:', session.id);
+                    }
+                }
             }
 
             if (session) {

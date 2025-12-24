@@ -186,13 +186,22 @@ export default function BusinessCorePage() {
     const handleRegenerate = async (phaseId) => {
         setIsRegenerating(true);
         try {
+            // ✅ Get session ID from multiple sources
+            let sessionId = dataSource?.id;
+            
+            // Fallback: Check localStorage for auto-saved session ID
+            if (!sessionId && typeof window !== 'undefined') {
+                sessionId = localStorage.getItem('ted_current_session_id');
+                console.log('[BusinessCore] Using localStorage session ID:', sessionId);
+            }
+            
             // This would call the existing AI generation endpoint
             const res = await fetchWithAuth(`/api/os/regenerate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     section: phaseId,
-                    sessionId: dataSource?.id
+                    sessionId: sessionId
                 })
             });
 
@@ -208,7 +217,7 @@ export default function BusinessCorePage() {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                sessionId: dataSource?.id,
+                                sessionId: sessionId,
                                 phaseId: phaseId,
                                 content: data.content,
                                 userId: session.user.id
@@ -216,7 +225,13 @@ export default function BusinessCorePage() {
                         });
                         
                         if (saveResponse.ok) {
-                            console.log('[BusinessCore] Content saved successfully');
+                            const saveData = await saveResponse.json();
+                            console.log('[BusinessCore] Content saved successfully to session:', saveData.sessionId);
+                            
+                            // Update localStorage with the session ID (in case it was auto-created)
+                            if (saveData.sessionId && typeof window !== 'undefined') {
+                                localStorage.setItem('ted_current_session_id', saveData.sessionId);
+                            }
                         } else {
                             const errorData = await saveResponse.json();
                             console.error('[BusinessCore] Save failed:', errorData);

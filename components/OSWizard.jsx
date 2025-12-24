@@ -1203,6 +1203,35 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 { currentStep: 20, isComplete: true }
             );
 
+            // ✅ AUTO-CREATE SAVED SESSION
+            // This ensures regeneration and future edits can find a session to save to
+            console.log('[OSWizard] Auto-creating saved session...');
+            try {
+                const sessionRes = await fetchWithAuth("/api/os/sessions", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        sessionName: `Auto-saved - ${new Date().toLocaleDateString()}`,
+                        currentStep: 20,
+                        completedSteps: completedSteps,
+                        answers: stepData,
+                        generatedContent: generatedContent,
+                        isComplete: true
+                    }),
+                });
+
+                const sessionData = await sessionRes.json();
+                if (sessionData.success && sessionData.session) {
+                    // Store session ID in localStorage for future reference
+                    localStorage.setItem('ted_current_session_id', sessionData.session.id);
+                    console.log('[OSWizard] Auto-created session:', sessionData.session.id);
+                } else {
+                    console.warn('[OSWizard] Failed to auto-create session:', sessionData);
+                }
+            } catch (sessionError) {
+                console.error('[OSWizard] Session auto-create error:', sessionError);
+                // Don't block the user flow if session creation fails
+            }
+
             // Ensure the active session flag is set for results page
             localStorage.setItem('ted_has_active_session', 'true');
             localStorage.setItem('ted_results_source', JSON.stringify({
