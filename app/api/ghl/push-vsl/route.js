@@ -154,7 +154,32 @@ export async function POST(req) {
         });
 
         console.log('[PushVSL] Found', existingValues.length, 'existing custom values in GHL');
-        console.log('[PushVSL] Sample existing keys:', existingValues.slice(0, 5).map(v => v.name));
+        console.log('[PushVSL] Sample existing keys:', existingValues.slice(0, 10).map(v => v.name));
+        console.log('[PushVSL] Our custom value keys:', Object.keys(customValues).slice(0, 10));
+        
+        // Debug: Check if any of our keys match existing ones
+        const ourKeys = Object.keys(customValues);
+        const matchCounts = {
+            exact: 0,
+            lowercase: 0,
+            normalized: 0,
+            none: 0
+        };
+        
+        ourKeys.forEach(key => {
+            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9_]/g, '');
+            if (existingMap.has(key)) {
+                matchCounts.exact++;
+            } else if (existingMap.has(key.toLowerCase())) {
+                matchCounts.lowercase++;
+            } else if (existingMap.has(normalizedKey)) {
+                matchCounts.normalized++;
+            } else {
+                matchCounts.none++;
+            }
+        });
+        
+        console.log('[PushVSL] Match statistics:', matchCounts);
 
         // Step 6: Push all custom values to GHL
         const results = {
@@ -177,9 +202,10 @@ export async function POST(req) {
                 : `https://services.leadconnectorhq.com/locations/${locationId}/customValues`;
             
             if (existingId) {
-                console.log(`[PushVSL] UPDATE: ${key} (ID: ${existingId})`);
+                console.log(`[PushVSL] ✅ UPDATE: ${key} (ID: ${existingId})`);
             } else {
-                console.log(`[PushVSL] CREATE: ${key}`);
+                console.log(`[PushVSL] ❌ CREATE (not found): ${key}`);
+                console.log(`[PushVSL]    Tried: exact="${key}", lower="${key.toLowerCase()}", normalized="${normalizedKey}"`);
             }
 
             try {
