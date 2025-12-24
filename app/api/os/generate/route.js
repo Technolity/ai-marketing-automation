@@ -693,11 +693,15 @@ export async function POST(req) {
           }
 
           // Use multi-provider AI generation with retry logic
+          // Email sequence needs more tokens due to 18 emails with full copy
+          const isEmailSequence = key === 8 || CONTENT_NAMES[key] === 'Email Sequence';
+          const tokenLimit = isEmailSequence ? 8000 : 4000;
+          
           const rawContent = await retryWithBackoff(async () => {
             return await generateWithProvider(
               "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped.",
               basePrompt,
-              { jsonMode: true, maxTokens: 4000, temperature: 0.7 }
+              { jsonMode: true, maxTokens: tokenLimit, temperature: 0.7 }
             );
           });
           const parsedResult = parseJsonSafe(rawContent, {
