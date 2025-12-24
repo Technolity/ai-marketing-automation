@@ -5,25 +5,28 @@
 -- Used by: lib/ghl/funnelImageGenerator.js
 -- ============================================
 
+-- Drop table if it exists (clean slate)
+DROP TABLE IF EXISTS generated_images CASCADE;
+
 -- Create generated_images table
-CREATE TABLE IF NOT EXISTS generated_images (
+CREATE TABLE generated_images (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL,
     session_id UUID REFERENCES saved_sessions(id) ON DELETE CASCADE,
     
     -- Image metadata
-    image_type TEXT NOT NULL,  -- e.g., 'author_photo', 'product_mockup', 'book_cover'
-    funnel_type TEXT NOT NULL,  -- e.g., 'vsl-funnel', 'free-book-funnel'
+    image_type TEXT NOT NULL,
+    funnel_type TEXT NOT NULL,
     
     -- Storage paths
-    image_url TEXT NOT NULL,     -- Storage path in Supabase
-    public_url TEXT NOT NULL,    -- Public accessible URL
-    storage_path TEXT NOT NULL,  -- Full storage path
+    image_url TEXT NOT NULL,
+    public_url TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
     
     -- Generation details
-    prompt_used TEXT,            -- DALL-E prompt used
+    prompt_used TEXT,
     status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'generating', 'completed', 'failed')),
-    error_message TEXT,          -- Error if generation failed
+    error_message TEXT,
     
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
