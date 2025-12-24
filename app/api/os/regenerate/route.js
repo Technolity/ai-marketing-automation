@@ -241,15 +241,15 @@ export async function POST(req) {
 
         // Save to database
         try {
-            // Save to slide_results table
+            // Save to slide_results table (using correct column name: ai_output)
             const { error: saveError } = await supabaseAdmin
                 .from('slide_results')
                 .upsert({
                     user_id: userId,
                     slide_id: promptConfig.key,
-                    result_json: parsedContent,
+                    ai_output: parsedContent,
                     approved: false,
-                    created_at: new Date().toISOString()
+                    updated_at: new Date().toISOString()
                 }, {
                     onConflict: 'user_id,slide_id'
                 });
