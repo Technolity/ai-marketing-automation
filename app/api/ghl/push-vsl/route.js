@@ -154,8 +154,8 @@ export async function POST(req) {
         });
 
         console.log('[PushVSL] Found', existingValues.length, 'existing custom values in GHL');
-        console.log('[PushVSL] Sample existing keys:', existingValues.slice(0, 10).map(v => v.name));
-        console.log('[PushVSL] Our custom value keys:', Object.keys(customValues).slice(0, 10));
+        console.log('[PushVSL] ALL GHL keys:', existingValues.map(v => v.name).sort());
+        console.log('[PushVSL] Our 91 keys:', Object.keys(customValues).sort());
         
         // Debug: Check if any of our keys match existing ones
         const ourKeys = Object.keys(customValues);
