@@ -146,11 +146,14 @@ export async function POST(req) {
         // Create map for quick lookup with normalized keys
         const existingMap = new Map();
         existingValues.forEach(v => {
-            // Normalize: lowercase and remove special chars for matching
-            const normalizedKey = v.name.toLowerCase().replace(/[^a-z0-9_]/g, '');
+            // Normalize: convert spaces to underscores, then lowercase
+            const spacesToUnderscores = v.name.replace(/\s+/g, '_');
+            const lowercased = spacesToUnderscores.toLowerCase();
+            
             existingMap.set(v.name, v); // Original name
-            existingMap.set(v.name.toLowerCase(), v); // Lowercase
-            existingMap.set(normalizedKey, v); // Normalized
+            existingMap.set(v.name.toLowerCase(), v); // Lowercase only
+            existingMap.set(spacesToUnderscores, v); // Spaces to underscores
+            existingMap.set(lowercased, v); // Normalized (spaces→underscores→lowercase)
         });
 
         console.log('[PushVSL] Found', existingValues.length, 'existing custom values in GHL');
@@ -190,10 +193,14 @@ export async function POST(req) {
 
         for (const [key, value] of Object.entries(customValues)) {
             // Try multiple matching strategies
-            const normalizedKey = key.toLowerCase().replace(/[^a-z0-9_]/g, '');
-            const existing = existingMap.get(key) || 
-                            existingMap.get(key.toLowerCase()) || 
-                            existingMap.get(normalizedKey);
+            const spacesToUnderscores = key.replace(/\s+/g, '_');
+            const lowercased = key.toLowerCase();
+            const normalized = spacesToUnderscores.toLowerCase();
+            
+            const existing = existingMap.get(key) ||               // Exact match
+                            existingMap.get(lowercased) ||          // Lowercase
+                            existingMap.get(spacesToUnderscores) || // Spaces to underscores
+                            existingMap.get(normalized);            // Full normalization
             
             const existingId = existing?.id || null;
             const method = existingId ? 'PUT' : 'POST';
