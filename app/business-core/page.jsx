@@ -261,24 +261,56 @@ export default function BusinessCorePage() {
         }
     };
 
-    // Render content beautifully (not as JSON)
+    // Render content beautifully (not as JSON) with inline editing
     const ContentRenderer = ({ content, phaseId, isEditing }) => {
         if (!content) return <p className="text-gray-500 text-sm">No content generated for this section.</p>;
         
         const currentEdited = editedContent[phaseId] || content;
         
-        // Recursive renderer for nested objects
-        const renderValue = (value, key, depth = 0) => {
+        // Update a nested value in the content object
+        const updateNestedValue = (obj, path, value) => {
+            const keys = path.split('.');
+            const newObj = JSON.parse(JSON.stringify(obj)); // Deep clone
+            let current = newObj;
+            
+            for (let i = 0; i < keys.length - 1; i++) {
+                if (!current[keys[i]]) current[keys[i]] = {};
+                current = current[keys[i]];
+            }
+            
+            current[keys[keys.length - 1]] = value;
+            return newObj;
+        };
+        
+        // Recursive renderer for nested objects with inline editing
+        const renderValue = (value, key, depth = 0, path = '') => {
             if (value === null || value === undefined) return null;
+            
+            const currentPath = path ? `${path}.${key}` : key;
             
             // Handle arrays
             if (Array.isArray(value)) {
                 return (
                     <div className={`${depth > 0 ? 'ml-4' : ''} space-y-2`}>
                         {value.map((item, idx) => (
-                            <div key={idx} className="border-l-2 border-cyan/30 pl-3">
-                                {typeof item === 'object' ? renderValue(item, idx, depth + 1) : (
-                                    <p className="text-gray-300 text-sm">{String(item)}</p>
+                            <div key={idx} className="border-l-2 border-cyan/30 pl-3 py-1">
+                                {typeof item === 'object' ? renderValue(item, idx, depth + 1, currentPath) : (
+                                    isEditing ? (
+                                        <input
+                                            type="text"
+                                            value={String(item)}
+                                            onChange={(e) => {
+                                                const newArray = [...value];
+                                                newArray[idx] = e.target.value;
+                                                const updated = updateNestedValue(currentEdited, currentPath, newArray);
+                                                setEditedContent({ ...editedContent, [phaseId]: updated });
+                                            }}
+                                            className="w-full bg-[#1b1b1d] border border-cyan/30 rounded px-3 py-2 text-gray-300 text-sm focus:outline-none focus:border-cyan/70 transition-all"
+                                            placeholder="Enter value..."
+                                        />
+                                    ) : (
+                                        <p className="text-gray-300 text-sm leading-relaxed">{String(item)}</p>
+                                    )
                                 )}
                             </div>
                         ))}
@@ -297,39 +329,49 @@ export default function BusinessCorePage() {
                                     <h4 className="text-cyan text-xs font-semibold uppercase tracking-wide">
                                         {k.replace(/([A-Z])/g, ' $1').trim()}
                                     </h4>
-                                    {renderValue(v, k, depth + 1)}
+                                    {renderValue(v, k, depth + 1, currentPath)}
                                 </div>
                             ))}
                     </div>
                 );
             }
             
-            // Handle strings/primitives
+            // Handle strings/primitives with inline editing
+            const stringValue = String(value);
+            const isMultiline = stringValue.length > 100 || stringValue.includes('\n');
+            
+            if (isEditing) {
+                return isMultiline ? (
+                    <textarea
+                        value={stringValue}
+                        onChange={(e) => {
+                            const updated = updateNestedValue(currentEdited, currentPath, e.target.value);
+                            setEditedContent({ ...editedContent, [phaseId]: updated });
+                        }}
+                        rows={Math.min(Math.max(3, stringValue.split('\n').length), 10)}
+                        className="w-full bg-[#1b1b1d] border border-cyan/30 rounded px-3 py-2 text-gray-300 text-sm leading-relaxed focus:outline-none focus:border-cyan/70 transition-all resize-none"
+                        placeholder="Enter text..."
+                    />
+                ) : (
+                    <input
+                        type="text"
+                        value={stringValue}
+                        onChange={(e) => {
+                            const updated = updateNestedValue(currentEdited, currentPath, e.target.value);
+                            setEditedContent({ ...editedContent, [phaseId]: updated });
+                        }}
+                        className="w-full bg-[#1b1b1d] border border-cyan/30 rounded px-3 py-2 text-gray-300 text-sm focus:outline-none focus:border-cyan/70 transition-all"
+                        placeholder="Enter value..."
+                    />
+                );
+            }
+            
             return (
                 <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
-                    {String(value)}
+                    {stringValue}
                 </p>
             );
         };
-        
-        if (isEditing) {
-            return (
-                <textarea
-                    value={JSON.stringify(currentEdited, null, 2)}
-                    onChange={(e) => {
-                        try {
-                            const parsed = JSON.parse(e.target.value);
-                            setEditedContent({ ...editedContent, [phaseId]: parsed });
-                        } catch (err) {
-                            // Invalid JSON, just update the text
-                            setEditedContent({ ...editedContent, [phaseId]: e.target.value });
-                        }
-                    }}
-                    className="w-full h-96 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg p-4 text-gray-300 text-sm font-mono focus:outline-none focus:border-cyan/50 resize-none"
-                    placeholder="Edit content (JSON format)..."
-                />
-            );
-        }
         
         return <div className="space-y-4">{renderValue(currentEdited, 'root')}</div>;
     };
