@@ -19,24 +19,29 @@ export async function POST(req) {
 
         console.log('[SaveBusinessCore] Request:', { userId, sessionId, phaseId, hasContent: !!content, hasBusinessCore: !!businessCore });
 
+        // If no sessionId provided, find the most recent session
+        let targetSessionId = sessionId;
+
         // If saving a single phase
         if (phaseId && content) {
-            // Find or create session
+            // Find session - try provided ID first, then most recent
             let session;
-            if (sessionId) {
+            
+            if (targetSessionId) {
                 const { data: existingSession } = await supabaseAdmin
                     .from('saved_sessions')
                     .select('*')
-                    .eq('id', sessionId)
+                    .eq('id', targetSessionId)
                     .eq('user_id', userId)
                     .single();
                 
                 session = existingSession;
+                console.log('[SaveBusinessCore] Found session by ID:', session?.id);
             }
 
             if (!session) {
                 // Get most recent session
-                const { data: recentSession } = await supabaseAdmin
+                const { data: recentSession, error: sessionError } = await supabaseAdmin
                     .from('saved_sessions')
                     .select('*')
                     .eq('user_id', userId)
@@ -44,7 +49,12 @@ export async function POST(req) {
                     .limit(1)
                     .single();
                 
+                if (sessionError) {
+                    console.error('[SaveBusinessCore] Error finding recent session:', sessionError);
+                }
+                
                 session = recentSession;
+                console.log('[SaveBusinessCore] Found most recent session:', session?.id);
             }
 
             if (session) {
@@ -92,11 +102,12 @@ export async function POST(req) {
         // If saving entire business core
         if (businessCore) {
             let session;
-            if (sessionId) {
+            
+            if (targetSessionId) {
                 const { data: existingSession } = await supabaseAdmin
                     .from('saved_sessions')
                     .select('*')
-                    .eq('id', sessionId)
+                    .eq('id', targetSessionId)
                     .eq('user_id', userId)
                     .single();
                 
@@ -158,7 +169,11 @@ export async function POST(req) {
             }
         }
 
-        return NextResponse.json({ error: 'No session found' }, { status: 404 });
+        console.error('[SaveBusinessCore] No session found for user:', userId);
+        return NextResponse.json({ 
+            error: 'No session found', 
+            details: 'Please complete the intake form first or generate content' 
+        }, { status: 404 });
 
     } catch (error) {
         console.error('[SaveBusinessCore] Error:', error);

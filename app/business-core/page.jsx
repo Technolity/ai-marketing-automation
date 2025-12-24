@@ -100,6 +100,11 @@ export default function BusinessCorePage() {
                     setBusinessCore(normalizedData);
                     setDataSource(result.source);
                     console.log('[BusinessCore] Loaded from:', result.source);
+                    
+                    // Store session ID in state for saving
+                    if (result.source?.id) {
+                        console.log('[BusinessCore] Session ID for saving:', result.source.id);
+                    }
 
                     // Load approvals from database (try API first, then localStorage fallback)
                     try {
@@ -199,15 +204,23 @@ export default function BusinessCorePage() {
                     
                     // Save to database/session immediately
                     try {
-                        await fetchWithAuth('/api/os/save-business-core', {
+                        const saveResponse = await fetchWithAuth('/api/os/save-business-core', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 sessionId: dataSource?.id,
                                 phaseId: phaseId,
-                                content: data.content
+                                content: data.content,
+                                userId: session.user.id
                             })
                         });
+                        
+                        if (saveResponse.ok) {
+                            console.log('[BusinessCore] Content saved successfully');
+                        } else {
+                            const errorData = await saveResponse.json();
+                            console.error('[BusinessCore] Save failed:', errorData);
+                        }
                     } catch (saveError) {
                         console.error('Failed to save regenerated content:', saveError);
                     }
