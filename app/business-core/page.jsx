@@ -194,8 +194,25 @@ export default function BusinessCorePage() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.content) {
+                    // Update local state
                     setBusinessCore(prev => ({ ...prev, [phaseId]: data.content }));
-                    toast.success("Content regenerated!");
+                    
+                    // Save to database/session immediately
+                    try {
+                        await fetchWithAuth('/api/os/save-business-core', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                sessionId: dataSource?.id,
+                                phaseId: phaseId,
+                                content: data.content
+                            })
+                        });
+                    } catch (saveError) {
+                        console.error('Failed to save regenerated content:', saveError);
+                    }
+                    
+                    toast.success("Content regenerated and saved!");
                 } else {
                     toast.error("Regeneration returned no content");
                 }
