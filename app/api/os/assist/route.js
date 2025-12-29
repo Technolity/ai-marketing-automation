@@ -62,7 +62,7 @@ Return ONLY valid JSON in this format:
                 { role: "system", content: systemPrompt },
                 { role: "user", content: "Generate 5 suggestions now." }
             ],
-            model: "gpt-4-turbo-preview",
+            model: "gpt-4o-mini", // Changed from gpt-4-turbo-preview for better rate limits
             response_format: { type: "json_object" },
         });
 
