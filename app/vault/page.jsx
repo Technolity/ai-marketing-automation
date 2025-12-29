@@ -114,11 +114,20 @@ export default function VaultPage() {
     const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
     const isVaultComplete = isPhase1Complete && isPhase2Complete;
 
-    // Load vault data from database
+    // Track if initial load is complete to prevent re-fetching on tab switch
+    const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+    // Load vault data from database - ONLY on initial mount
     useEffect(() => {
         if (authLoading) return;
         if (!session) {
             router.push("/auth/login");
+            return;
+        }
+
+        // Don't reload if we already have data - prevents tab switch from clearing regenerations
+        if (initialLoadComplete && Object.keys(vaultData).length > 0) {
+            console.log('[Vault] Skipping reload - data already loaded');
             return;
         }
 
@@ -139,6 +148,7 @@ export default function VaultPage() {
                     const normalizedData = normalizeData(result.data);
                     setVaultData(normalizedData);
                     setDataSource(result.source);
+                    setInitialLoadComplete(true);
                     console.log('[Vault] Loaded from:', result.source);
 
                     // Load approvals for this specific session if available
@@ -158,7 +168,8 @@ export default function VaultPage() {
         };
 
         loadVault();
-    }, [session, authLoading, router, searchParams]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session, authLoading]); // Removed searchParams to prevent reload on tab switch
 
     const loadApprovals = async (sId = null) => {
         const activeSessionId = sId || dataSource?.id || 'current';
