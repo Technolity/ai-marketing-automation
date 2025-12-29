@@ -35,13 +35,13 @@ const PHASE_1_SECTIONS = [
 
 // Phase 2: Funnel Assets - Locked until funnel approved
 const PHASE_2_SECTIONS = [
-    { id: 'leadMagnet', numericKey: 7, title: 'Lead Magnet Copy', subtitle: 'Value-driven gift copy', icon: Gift },
-    { id: 'vsl', numericKey: 8, title: 'VSL Script', subtitle: 'Video Sales Letter', icon: Video },
-    { id: 'emails', numericKey: 9, title: '15-Day Email Sequence', subtitle: 'Nurture series', icon: Mail },
-    { id: 'facebookAds', numericKey: 10, title: 'Facebook Ads', subtitle: 'Ad copy & prompts', icon: Megaphone },
-    { id: 'funnelCopy', numericKey: 11, title: 'Funnel Page Copy', subtitle: 'Landing pages', icon: Layout },
-    { id: 'appointmentReminders', numericKey: 12, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
-    { id: 'contentIdeas', numericKey: 13, title: 'Content Ideas', subtitle: 'Social media topics', icon: Lightbulb }
+    { id: 'vsl', numericKey: 7, title: 'VSL Script', subtitle: 'Video Sales Letter', icon: Video },
+    { id: 'emails', numericKey: 8, title: '15-Day Email Sequence', subtitle: 'Nurture series', icon: Mail },
+    { id: 'facebookAds', numericKey: 9, title: 'Facebook Ads', subtitle: 'Ad copy & prompts', icon: Megaphone },
+    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing pages', icon: Layout },
+    { id: 'contentIdeas', numericKey: 11, title: 'Content Ideas', subtitle: 'Social media topics', icon: Lightbulb },
+    { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
+    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users }
 ];
 
 // Normalize data structure (handles numeric or named keys)
