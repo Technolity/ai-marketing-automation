@@ -329,28 +329,28 @@ export default function VaultPage() {
     // Section title mapping for better display
     const SECTION_TITLES = {
         // Ideal Client sections
-        coreAudienceSnapshot: '1. Core Audience Snapshot',
-        demographics: '2. Demographics',
-        psychographics: '3. Psychographics',
-        corePainsAndProblems: '4. Core Pains & Problems',
-        desiredOutcomesAndMotivations: '5. Desired Outcomes & Motivations',
-        buyingTriggers: '6. Buying Triggers',
-        objectionsAndResistance: '7. Objections & Resistance',
-        languageAndMessagingHooks: '8. Language & Messaging Hooks',
-        whereTheySpendTimeAndWhoTheyTrust: '9. Where They Spend Time & Who They Trust',
-        summaryForMarketers: '10. Summary for Marketers',
+        coreAudienceSnapshot: 'Core Audience Snapshot',
+        demographics: 'Demographics',
+        psychographics: 'Psychographics',
+        corePainsAndProblems: 'Core Pains & Problems',
+        desiredOutcomesAndMotivations: 'Desired Outcomes & Motivations',
+        buyingTriggers: 'Buying Triggers',
+        objectionsAndResistance: 'Objections & Resistance',
+        languageAndMessagingHooks: 'Language & Messaging Hooks',
+        whereTheySpendTimeAndWhoTheyTrust: 'Where They Spend Time & Who They Trust',
+        summaryForMarketers: 'Summary for Marketers',
 
         // Million Dollar Message sections
-        oneLineMillionDollarMessage: '1. The One-Line Million-Dollar Message',
-        thisIsForYouIf: '2. "This Is For You If..." Filter',
-        coreProblemReframe: '3. Core Problem Reframe',
-        uniqueMechanism: '4. The Unique Mechanism / New Way',
-        outcomePromise: '5. The Outcome Promise (Non-Hype)',
-        proofAndCredibility: '6. Proof & Credibility Anchors',
-        objectionNeutralizers: '7. Objection-Neutralizing Message',
-        messageAnglesThatScale: '8. Message Angles That Scale',
-        ctaFraming: '9. Call-to-Action Framing',
-        messageToMillionsSummary: '10. Final "Message to Millions" Summary',
+        oneLineMillionDollarMessage: 'The One-Line Million-Dollar Message',
+        thisIsForYouIf: 'This Is For You If... Filter',
+        coreProblemReframe: 'Core Problem Reframe',
+        uniqueMechanism: 'The Unique Mechanism / New Way',
+        outcomePromise: 'The Outcome Promise (Non-Hype)',
+        proofAndCredibility: 'Proof & Credibility Anchors',
+        objectionNeutralizers: 'Objection-Neutralizing Message',
+        messageAnglesThatScale: 'Message Angles That Scale',
+        ctaFraming: 'Call-to-Action Framing',
+        messageToMillionsSummary: 'Final "Message to Millions" Summary',
 
         // Ideal Client field labels
         whoTheyAre: 'Who This Person Is',
@@ -427,13 +427,13 @@ export default function VaultPage() {
         tagline: 'Tagline',
 
         // Signature Story sections
-        originMoment: '1. The Origin Moment',
-        emotionalStruggle: '2. The Emotional Struggle',
-        discoveryBreakthrough: '3. The Discovery / Breakthrough',
-        missionAndWhy: '4. The Mission & Why',
-        clientProofResults: '5. The Client Proof / Results',
-        ctaTieIn: '6. The Call-to-Action Tie-In',
-        voiceAndTone: '7. Voice & Tone',
+        originMoment: 'The Origin Moment',
+        emotionalStruggle: 'The Emotional Struggle',
+        discoveryBreakthrough: 'The Discovery / Breakthrough',
+        missionAndWhy: 'The Mission & “Why”',
+        clientProofResults: 'Client Proof / Results',
+        ctaTieIn: 'The Call-to-Action Tie-In',
+        voiceAndTone: 'Voice & Tone',
 
         // Story field labels
         definingExperience: 'Defining Experience',
@@ -458,12 +458,12 @@ export default function VaultPage() {
         oneSentence: 'One Sentence Version',
 
         // Program Blueprint sections
-        programOverview: '1. Program Overview',
-        weeklyBreakdown: '2. Weekly Breakdown (Weeks 1-8)',
-        deliverablesAssets: '3. Deliverables & Program Assets',
-        proofCredibilityIntegration: '4. Proof & Credibility Integration',
-        ctaEnrollmentFraming: '5. CTA & Enrollment Framing',
-        programVoiceTone: '6. Voice & Tone',
+        programOverview: 'Program Overview',
+        weeklyBreakdown: 'Weekly Breakdown (Weeks 1-8)',
+        deliverablesAssets: 'Deliverables & Program Assets',
+        proofCredibilityIntegration: 'Proof & Credibility Integration',
+        ctaEnrollmentFraming: 'CTA & Enrollment Framing',
+        programVoiceTone: 'Voice & Tone',
 
         // Program field labels
         programName: 'Program Name',
@@ -498,13 +498,13 @@ export default function VaultPage() {
         bio: "Professional Bio",
 
         // Lead Magnet sections
-        leadMagnetIdea: '1. Lead Magnet Idea',
-        titleAndHook: '2. Title & Hook',
-        audienceConnection: '3. Audience Connection',
-        coreContent: '4. Core Content / Deliverables',
-        leadMagnetCopy: '5. Lead Magnet Copy',
-        ctaIntegration: '6. CTA Integration',
-        voiceAndTone_leadMagnet: '7. Voice & Tone',
+        leadMagnetIdea: 'Lead Magnet Idea',
+        titleAndHook: 'Title & Hook',
+        audienceConnection: 'Audience Connection',
+        coreContent: 'Core Content / Deliverables',
+        leadMagnetCopy: 'Lead Magnet Copy',
+        ctaIntegration: 'CTA Integration',
+        voiceAndTone_leadMagnet: 'Voice & Tone',
         // voiceAndTone already defined above for Story
 
         // Lead Magnet field labels
@@ -537,8 +537,8 @@ export default function VaultPage() {
         languageToAvoid: 'Language to Avoid',
 
         // Setter Call Script sections
-        quickOutline: '1. Quick Setter Call Outline',
-        fullWordForWordScript: '2. Full Word-for-Word Script',
+        quickOutline: 'Quick Setter Call Outline',
+        fullWordForWordScript: 'Full Word-for-Word Script',
         callGoal: 'Call Goal',
         callFlow: 'Call Flow (10 Steps)',
         setterMindset: 'Setter Mindset',
