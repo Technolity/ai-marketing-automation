@@ -27,18 +27,18 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 const PHASE_1_SECTIONS = [
     { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'WHO you serve', icon: Users },
     { id: 'message', numericKey: 2, title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
-    { id: 'stories', numericKey: 3, title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
+    { id: 'story', numericKey: 3, title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
     { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift },
-    { id: 'scripts', numericKey: 5, title: 'Sales Script', subtitle: 'How you close', icon: Mic },
+    { id: 'salesScripts', numericKey: 5, title: 'Sales Script', subtitle: 'How you close', icon: Mic },
     { id: 'leadMagnet', numericKey: 6, title: 'Lead Magnet', subtitle: 'Your free gift', icon: Magnet }
 ];
 
 // Phase 2: Funnel Assets - Locked until funnel approved
 const PHASE_2_SECTIONS = [
-    { id: 'leadMagnetCopy', numericKey: 7, title: 'Lead Magnet Copy', subtitle: 'Value-driven gift copy', icon: Gift },
-    { id: 'vslScript', numericKey: 8, title: 'VSL Script', subtitle: 'Video Sales Letter', icon: Video },
+    { id: 'leadMagnet', numericKey: 7, title: 'Lead Magnet Copy', subtitle: 'Value-driven gift copy', icon: Gift },
+    { id: 'vsl', numericKey: 8, title: 'VSL Script', subtitle: 'Video Sales Letter', icon: Video },
     { id: 'emails', numericKey: 9, title: '15-Day Email Sequence', subtitle: 'Nurture series', icon: Mail },
-    { id: 'ads', numericKey: 10, title: 'Facebook Ads', subtitle: 'Ad copy & prompts', icon: Megaphone },
+    { id: 'facebookAds', numericKey: 10, title: 'Facebook Ads', subtitle: 'Ad copy & prompts', icon: Megaphone },
     { id: 'funnelCopy', numericKey: 11, title: 'Funnel Page Copy', subtitle: 'Landing pages', icon: Layout },
     { id: 'appointmentReminders', numericKey: 12, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
     { id: 'contentIdeas', numericKey: 13, title: 'Content Ideas', subtitle: 'Social media topics', icon: Lightbulb }
@@ -222,7 +222,7 @@ export default function VaultPage() {
         try {
             const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
 
-            const res = await fetchWithAuth('/api/os/regenerate', {
+            const res = await fetchWithAuth('/api/os/regenerate/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ section: sectionId, sessionId })
@@ -235,7 +235,8 @@ export default function VaultPage() {
                     toast.success("Content regenerated!");
                 }
             } else {
-                toast.error("Regeneration failed");
+                toast.error("Regeneration failed (404). Checking endpoint...");
+                console.error("Regeneration failed with status:", res.status);
             }
         } catch (error) {
             console.error("Regeneration error:", error);
@@ -243,6 +244,43 @@ export default function VaultPage() {
         } finally {
             setIsRegenerating(false);
         }
+    };
+
+    const handleEdit = (sectionId) => {
+        setEditingSection(sectionId);
+        setEditedContent(vaultData[sectionId] || {});
+    };
+
+    const handleSaveEdit = async (sectionId) => {
+        try {
+            // Update local state
+            const updatedVaultData = { ...vaultData, [sectionId]: editedContent };
+            setVaultData(updatedVaultData);
+            setEditingSection(null);
+
+            // Optional: Save to DB immediately or wait for Save Session
+            toast.success("Changes saved locally. Use 'Save Session' to persist.");
+        } catch (error) {
+            console.error("Save edit error:", error);
+            toast.error("Failed to save changes");
+        }
+    };
+
+    const updateContentValue = (path, value) => {
+        setEditedContent(prev => {
+            const newContent = { ...prev };
+            const keys = path.split('.');
+            let current = newContent;
+
+            for (let i = 0; i < keys.length - 1; i++) {
+                if (!current[keys[i]]) current[keys[i]] = {};
+                current[keys[i]] = { ...current[keys[i]] };
+                current = current[keys[i]];
+            }
+
+            current[keys[keys.length - 1]] = value;
+            return newContent;
+        });
     };
 
     // Save session with a custom name
@@ -291,28 +329,28 @@ export default function VaultPage() {
     // Section title mapping for better display
     const SECTION_TITLES = {
         // Ideal Client sections
-        coreAudienceSnapshot: '1. Core Audience Snapshot',
-        demographics: '2. Demographics',
-        psychographics: '3. Psychographics',
-        corePainsAndProblems: '4. Core Pains & Problems',
-        desiredOutcomesAndMotivations: '5. Desired Outcomes & Motivations',
-        buyingTriggers: '6. Buying Triggers',
-        objectionsAndResistance: '7. Objections & Resistance',
-        languageAndMessagingHooks: '8. Language & Messaging Hooks',
-        whereTheySpendTimeAndWhoTheyTrust: '9. Where They Spend Time & Who They Trust',
-        summaryForMarketers: '10. Summary for Marketers',
+        coreAudienceSnapshot: 'Core Audience Snapshot',
+        demographics: 'Demographics',
+        psychographics: 'Psychographics',
+        corePainsAndProblems: 'Core Pains & Problems',
+        desiredOutcomesAndMotivations: 'Desired Outcomes & Motivations',
+        buyingTriggers: 'Buying Triggers',
+        objectionsAndResistance: 'Objections & Resistance',
+        languageAndMessagingHooks: 'Language & Messaging Hooks',
+        whereTheySpendTimeAndWhoTheyTrust: 'Where They Spend Time & Who They Trust',
+        summaryForMarketers: 'Summary for Marketers',
 
         // Million Dollar Message sections
-        oneLineMillionDollarMessage: '1. The One-Line Million-Dollar Message',
-        thisIsForYouIf: '2. This Is For You If…',
-        coreProblemReframe: '3. Core Problem Reframe',
-        uniqueMechanism: '4. The Unique Mechanism / New Way',
-        outcomePromise: '5. The Outcome Promise (Non-Hype)',
-        proofAndCredibility: '6. Proof & Credibility Anchors',
-        objectionNeutralizers: '7. Objection-Neutralizing Message',
-        messageAnglesThatScale: '8. Message Angles That Scale',
-        ctaFraming: '9. Call-to-Action Framing',
-        messageToMillionsSummary: '10. Final "Message to Millions" Summary',
+        oneLineMillionDollarMessage: 'The One-Line Million-Dollar Message',
+        thisIsForYouIf: 'This Is For You If…',
+        coreProblemReframe: 'Core Problem Reframe',
+        uniqueMechanism: 'The Unique Mechanism / New Way',
+        outcomePromise: 'The Outcome Promise (Non-Hype)',
+        proofAndCredibility: 'Proof & Credibility Anchors',
+        objectionNeutralizers: 'Objection-Neutralizing Message',
+        messageAnglesThatScale: 'Message Angles That Scale',
+        ctaFraming: 'Call-to-Action Framing',
+        messageToMillionsSummary: 'Final "Message to Millions" Summary',
 
         // Ideal Client field labels
         whoTheyAre: 'Who This Person Is',
@@ -389,13 +427,13 @@ export default function VaultPage() {
         tagline: 'Tagline',
 
         // Signature Story sections
-        originMoment: '1. The Origin Moment',
-        emotionalStruggle: '2. The Emotional Struggle',
-        discoveryBreakthrough: '3. The Discovery / Breakthrough',
-        missionAndWhy: '4. The Mission & Why',
-        clientProofResults: '5. Client Proof / Results',
-        ctaTieIn: '6. The Call-to-Action Tie-In',
-        voiceAndTone: '7. Voice & Tone',
+        originMoment: 'The Origin Moment',
+        emotionalStruggle: 'The Emotional Struggle',
+        discoveryBreakthrough: 'The Discovery / Breakthrough',
+        missionAndWhy: 'The Mission & Why',
+        clientProofResults: 'The Client Proof / Results',
+        ctaTieIn: 'The Call-to-Action Tie-In',
+        voiceAndTone: 'Voice & Tone',
 
         // Story field labels
         definingExperience: 'Defining Experience',
@@ -420,12 +458,12 @@ export default function VaultPage() {
         oneSentence: 'One Sentence Version',
 
         // Program Blueprint sections
-        programOverview: '1. Program Overview',
-        weeklyBreakdown: '2. Weekly Breakdown (Weeks 1-8)',
-        deliverablesAssets: '3. Deliverables & Program Assets',
-        proofCredibilityIntegration: '4. Proof & Credibility Integration',
-        ctaEnrollmentFraming: '5. CTA & Enrollment Framing',
-        programVoiceTone: '6. Voice & Tone',
+        programOverview: 'Program Overview',
+        weeklyBreakdown: 'Weekly Breakdown (Weeks 1-8)',
+        deliverablesAssets: 'Deliverables & Program Assets',
+        proofCredibilityIntegration: 'Proof & Credibility Integration',
+        ctaEnrollmentFraming: 'CTA & Enrollment Framing',
+        programVoiceTone: 'Voice & Tone',
 
         // Program field labels
         programName: 'Program Name',
@@ -444,13 +482,28 @@ export default function VaultPage() {
         enrollmentGuidance: 'Enrollment Guidance',
         transformationEmphasis: 'Transformation Emphasis',
 
+        // Top-level Vault sections
+        idealClient: "Ideal Client Profile",
+        message: "Million-Dollar Message",
+        story: "Signature Story",
+        tagline: "The Big Tagline",
+        offer: "8-Week Program Blueprint",
+        salesScripts: "Setter Call: Word-for-Word Script",
+        leadMagnet: "The Lead Magnet Asset",
+        vsl: "VSL Script",
+        facebookAds: "Facebook Ad Variations",
+        funnelCopy: "Funnel Page Copy",
+        appointmentReminders: "Appointment Reminders",
+        contentIdeas: "Social Media Content Ideas",
+        bio: "Professional Bio",
+
         // Lead Magnet sections
-        leadMagnetIdea: '1. Lead Magnet Idea',
-        titleAndHook: '2. Title & Hook',
-        audienceConnection: '3. Audience Connection',
-        coreContent: '4. Core Content / Deliverables',
-        leadMagnetCopy: '5. Lead Magnet Copy',
-        ctaIntegration: '6. CTA Integration',
+        leadMagnetIdea: 'Lead Magnet Idea',
+        titleAndHook: 'Title & Hook',
+        audienceConnection: 'Audience Connection',
+        coreContent: 'Core Content / Deliverables',
+        leadMagnetCopy: 'Lead Magnet Copy',
+        ctaIntegration: 'CTA Integration',
         // voiceAndTone already defined above for Story
 
         // Lead Magnet field labels
@@ -491,16 +544,16 @@ export default function VaultPage() {
         script: 'Teleprompter Script',
 
         // Call Flow step labels
-        step1: 'Step 1: Opener + Permission',
-        step2: 'Step 2: Reference Opt-In',
-        step3: 'Step 3: Low-Pressure Frame',
-        step4: 'Step 4: Current Situation',
-        step5: 'Step 5: Goal + Motivation',
-        step6: 'Step 6: Challenge + Stakes',
-        step7: 'Step 7: Authority Drop',
-        step8: 'Step 8: Qualify Fit + Readiness',
-        step9: 'Step 9: Book Consultation',
-        step10: 'Step 10: Confirm Show-Up + Wrap-Up',
+        step1: 'Opener + Permission',
+        step2: 'Reference Opt-In',
+        step3: 'Low-Pressure Frame',
+        step4: 'Current Situation',
+        step5: 'Goal + Motivation',
+        step6: 'Challenge + Stakes',
+        step7: 'Authority Drop',
+        step8: 'Qualify Fit + Readiness',
+        step9: 'Book Consultation',
+        step10: 'Confirm Show-Up + Wrap-Up',
         name: 'Step Name',
         purpose: 'Purpose',
         keyLine: 'Key Line'
@@ -511,7 +564,7 @@ export default function VaultPage() {
     };
 
     // Content Renderer with enhanced formatting
-    const ContentRenderer = ({ content, sectionId, isEditing }) => {
+    const ContentRenderer = ({ content, sectionId, isEditing, onUpdate }) => {
         if (!content) return <p className="text-gray-500 text-sm">No content generated.</p>;
 
         // Handle nested content (like idealClientProfile wrapper)
@@ -520,23 +573,34 @@ export default function VaultPage() {
             displayContent = content.idealClientProfile;
         }
 
-        const renderValue = (value, key = '', depth = 0, isMainSection = false) => {
+        const renderValue = (value, key = '', depth = 0, path = '') => {
             if (value === null || value === undefined) return null;
+
+            const currentPath = path ? `${path}.${key}` : key;
 
             // Arrays - render as bullet list
             if (Array.isArray(value)) {
                 return (
                     <div className="space-y-2 mt-2">
-                        {value.map((item, idx) => (
-                            <div key={idx} className="flex items-start gap-3">
-                                <span className="text-cyan font-bold mt-0.5">•</span>
-                                {typeof item === 'object' ? (
-                                    <div className="flex-1">{renderValue(item, '', depth + 1)}</div>
-                                ) : (
-                                    <p className="text-gray-300 text-sm leading-relaxed flex-1">{String(item)}</p>
-                                )}
-                            </div>
-                        ))}
+                        {value.map((item, idx) => {
+                            const itemPath = `${currentPath}.${idx}`;
+                            return (
+                                <div key={idx} className="flex items-start gap-3">
+                                    <span className="text-cyan font-bold mt-0.5">•</span>
+                                    {typeof item === 'object' ? (
+                                        <div className="flex-1">{renderValue(item, '', depth + 1, itemPath)}</div>
+                                    ) : isEditing ? (
+                                        <textarea
+                                            value={String(item)}
+                                            onChange={(e) => onUpdate(itemPath, e.target.value)}
+                                            className="flex-1 bg-black/40 border border-white/10 rounded p-2 text-sm text-gray-300 focus:border-cyan outline-none min-h-[60px]"
+                                        />
+                                    ) : (
+                                        <p className="text-gray-300 text-sm leading-relaxed flex-1">{String(item)}</p>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 );
             }
@@ -547,26 +611,28 @@ export default function VaultPage() {
                     k !== '_contentName' && k !== 'id' && k !== 'idealClientProfile'
                 );
 
-                // Check if this is a top-level section (numbered sections)
-                const isTopLevelSection = depth === 0 && SECTION_TITLES[key]?.startsWith(String(depth + 1));
-
+                // Render entries
                 return (
                     <div className={`${depth > 0 ? 'ml-1' : ''} space-y-4`}>
                         {entries.map(([k, v]) => {
                             const title = getSectionTitle(k);
-                            const isNumberedSection = /^\d+\./.test(title);
+                            const isMainSection = depth === 0 || [
+                                'quickOutline', 'fullWordForWordScript', 'callFlow'
+                            ].includes(k);
+
+                            const entryPath = currentPath;
 
                             return (
-                                <div key={k} className={`${isNumberedSection ? 'border-l-2 border-cyan/40 pl-4 py-2' : ''}`}>
+                                <div key={k} className={`${isMainSection ? 'border-l-2 border-cyan/40 pl-4 py-2' : ''}`}>
                                     <h4 className={`
-                                        ${isNumberedSection
+                                        ${isMainSection
                                             ? 'text-cyan text-base font-bold mb-3'
                                             : 'text-cyan/80 text-xs font-semibold uppercase tracking-wider mb-1'
                                         }
                                     `}>
                                         {title}
                                     </h4>
-                                    {renderValue(v, k, depth + 1)}
+                                    {renderValue(v, k, depth + 1, entryPath)}
                                 </div>
                             );
                         })}
@@ -575,6 +641,16 @@ export default function VaultPage() {
             }
 
             // Strings/primitives
+            if (isEditing) {
+                return (
+                    <textarea
+                        value={String(value)}
+                        onChange={(e) => onUpdate(currentPath, e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded p-2 text-sm text-gray-300 focus:border-cyan outline-none min-h-[100px]"
+                    />
+                );
+            }
+
             return (
                 <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
                     {String(value)}
@@ -672,17 +748,46 @@ export default function VaultPage() {
                         >
                             <div className="p-4">
                                 <div className="bg-[#0e0e0f] rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
-                                    <ContentRenderer content={content} isEditing={false} />
+                                    <ContentRenderer
+                                        content={editingSection === section.id ? editedContent : content}
+                                        isEditing={editingSection === section.id}
+                                        onUpdate={updateContentValue}
+                                    />
                                 </div>
                                 <div className="flex gap-3">
-                                    <button
-                                        onClick={() => handleRegenerate(section.id)}
-                                        disabled={isRegenerating}
-                                        className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50 text-sm"
-                                    >
-                                        {isRegenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                        Regenerate
-                                    </button>
+                                    {editingSection === section.id ? (
+                                        <>
+                                            <button
+                                                onClick={() => handleSaveEdit(section.id)}
+                                                className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition-all text-sm font-bold"
+                                            >
+                                                <CheckCircle className="w-4 h-4" /> Save Changes
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingSection(null)}
+                                                className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => handleEdit(section.id)}
+                                                className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                            >
+                                                <Edit3 className="w-4 h-4" /> Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleRegenerate(section.id)}
+                                                disabled={isRegenerating}
+                                                className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50 text-sm"
+                                            >
+                                                {isRegenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                                Regenerate
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </motion.div>
@@ -866,26 +971,55 @@ export default function VaultPage() {
                                             >
                                                 <div className="p-4 sm:p-6">
                                                     <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
-                                                        <ContentRenderer content={content} isEditing={false} />
+                                                        <ContentRenderer
+                                                            content={editingSection === section.id ? editedContent : content}
+                                                            isEditing={editingSection === section.id}
+                                                            onUpdate={updateContentValue}
+                                                        />
                                                     </div>
                                                     <div className="flex flex-wrap gap-3">
-                                                        {status === 'current' && (
-                                                            <button
-                                                                onClick={() => handleApprove(section.id, 1)}
-                                                                className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
-                                                            >
-                                                                <CheckCircle className="w-5 h-5" />
-                                                                Approve
-                                                            </button>
+                                                        {editingSection === section.id ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleSaveEdit(section.id)}
+                                                                    className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all text-sm"
+                                                                >
+                                                                    <CheckCircle className="w-5 h-5" /> Save Changes
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingSection(null)}
+                                                                    className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                {status === 'current' && (
+                                                                    <button
+                                                                        onClick={() => handleApprove(section.id, 1)}
+                                                                        className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+                                                                    >
+                                                                        <CheckCircle className="w-5 h-5" />
+                                                                        Approve
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => handleEdit(section.id)}
+                                                                    className="px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                                                >
+                                                                    <Edit3 className="w-5 h-5" /> Edit
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRegenerate(section.id)}
+                                                                    disabled={isRegenerating}
+                                                                    className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                                                >
+                                                                    {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                                                                    Regenerate
+                                                                </button>
+                                                            </>
                                                         )}
-                                                        <button
-                                                            onClick={() => handleRegenerate(section.id)}
-                                                            disabled={isRegenerating}
-                                                            className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                                                        >
-                                                            {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-                                                            Regenerate
-                                                        </button>
                                                     </div>
                                                 </div>
                                             </motion.div>
@@ -967,26 +1101,55 @@ export default function VaultPage() {
                                             >
                                                 <div className="p-4 sm:p-6">
                                                     <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
-                                                        <ContentRenderer content={content} isEditing={false} />
+                                                        <ContentRenderer
+                                                            content={editingSection === section.id ? editedContent : content}
+                                                            isEditing={editingSection === section.id}
+                                                            onUpdate={updateContentValue}
+                                                        />
                                                     </div>
                                                     <div className="flex flex-wrap gap-3">
-                                                        {status === 'current' && (
-                                                            <button
-                                                                onClick={() => handleApprove(section.id, 2)}
-                                                                className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
-                                                            >
-                                                                <CheckCircle className="w-5 h-5" />
-                                                                Approve
-                                                            </button>
+                                                        {editingSection === section.id ? (
+                                                            <>
+                                                                <button
+                                                                    onClick={() => handleSaveEdit(section.id)}
+                                                                    className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all text-sm"
+                                                                >
+                                                                    <CheckCircle className="w-5 h-5" /> Save Changes
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setEditingSection(null)}
+                                                                    className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                {status === 'current' && (
+                                                                    <button
+                                                                        onClick={() => handleApprove(section.id, 2)}
+                                                                        className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+                                                                    >
+                                                                        <CheckCircle className="w-5 h-5" />
+                                                                        Approve
+                                                                    </button>
+                                                                )}
+                                                                <button
+                                                                    onClick={() => handleEdit(section.id)}
+                                                                    className="px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                                                >
+                                                                    <Edit3 className="w-5 h-5" /> Edit
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRegenerate(section.id)}
+                                                                    disabled={isRegenerating}
+                                                                    className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                                                >
+                                                                    {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                                                                    Regenerate
+                                                                </button>
+                                                            </>
                                                         )}
-                                                        <button
-                                                            onClick={() => handleRegenerate(section.id)}
-                                                            disabled={isRegenerating}
-                                                            className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                                                        >
-                                                            {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-                                                            Regenerate
-                                                        </button>
                                                     </div>
                                                 </div>
                                             </motion.div>

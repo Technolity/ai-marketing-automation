@@ -20,6 +20,7 @@ import { emailsPrompt } from '@/lib/prompts/emails';
 import { facebookAdsPrompt } from '@/lib/prompts/facebookAds';
 import { funnelCopyPrompt } from '@/lib/prompts/funnelCopy';
 import { bioPrompt } from '@/lib/prompts/bio';
+import { contentIdeasPrompt } from '@/lib/prompts/contentIdeas';
 import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
 
 /**
@@ -32,7 +33,7 @@ async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
 
     for (const providerKey of providers) {
         const config = AI_PROVIDERS[providerKey];
-        
+
         // Skip if provider is not enabled or doesn't have an API key
         if (!config.enabled || !config.apiKey) {
             console.log(`[AI] Skipping ${providerKey}: enabled=${config.enabled}, hasKey=${!!config.apiKey}`);
@@ -112,7 +113,8 @@ const SECTION_PROMPTS = {
     facebookAds: { fn: facebookAdsPrompt, name: 'Facebook Ads', key: 9 },
     funnelCopy: { fn: funnelCopyPrompt, name: 'Funnel Copy', key: 10 },
     bio: { fn: bioPrompt, name: 'Professional Bio', key: 14 },
-    appointmentReminders: { fn: appointmentRemindersPrompt, name: 'Appointment Reminders', key: 15 }
+    contentIdeas: { fn: contentIdeasPrompt, name: 'Content Ideas', key: 13 },
+    appointmentReminders: { fn: appointmentRemindersPrompt, name: 'Appointment Reminders', key: 16 }
 };
 
 /**
@@ -133,15 +135,15 @@ export async function POST(req) {
 
         // Validate section
         if (!section || !SECTION_PROMPTS[section]) {
-            return NextResponse.json({ 
-                error: 'Invalid section', 
-                availableSections: Object.keys(SECTION_PROMPTS) 
+            return NextResponse.json({
+                error: 'Invalid section',
+                availableSections: Object.keys(SECTION_PROMPTS)
             }, { status: 400 });
         }
 
         // Fetch user's intake answers
         let intakeData = {};
-        
+
         if (sessionId) {
             // Load from specific saved session
             const { data: sessionData, error: sessionError } = await supabaseAdmin
@@ -173,8 +175,8 @@ export async function POST(req) {
         }
 
         if (Object.keys(intakeData).length === 0) {
-            return NextResponse.json({ 
-                error: 'No intake data found. Please complete the intake form first.' 
+            return NextResponse.json({
+                error: 'No intake data found. Please complete the intake form first.'
             }, { status: 404 });
         }
 
@@ -184,7 +186,7 @@ export async function POST(req) {
 
         // Generate the prompt
         const prompt = promptFn(intakeData);
-        
+
         console.log(`[Regenerate] Generating ${promptConfig.name}...`);
 
         // System prompt for strict JSON output
@@ -200,9 +202,9 @@ export async function POST(req) {
             });
         } catch (aiError) {
             console.error('[Regenerate] AI generation error:', aiError);
-            return NextResponse.json({ 
-                error: 'AI generation failed', 
-                details: aiError.message 
+            return NextResponse.json({
+                error: 'AI generation failed',
+                details: aiError.message
             }, { status: 500 });
         }
 
@@ -210,7 +212,7 @@ export async function POST(req) {
         let parsedContent;
         try {
             parsedContent = parseJsonSafe(rawContent);
-            
+
             if (!parsedContent || typeof parsedContent !== 'object') {
                 throw new Error('Parsed content is not a valid object');
             }
@@ -228,13 +230,13 @@ export async function POST(req) {
                     prompt,
                     { jsonMode: true, maxTokens: 4000, temperature: 0.5 }
                 );
-                
+
                 parsedContent = parseJsonSafe(rawContent);
             } catch (retryError) {
                 console.error('[Regenerate] Retry failed:', retryError);
-                return NextResponse.json({ 
-                    error: 'Failed to parse AI response', 
-                    details: parseError.message 
+                return NextResponse.json({
+                    error: 'Failed to parse AI response',
+                    details: parseError.message
                 }, { status: 500 });
             }
         }
@@ -280,7 +282,7 @@ export async function POST(req) {
 
                     await supabaseAdmin
                         .from('saved_sessions')
-                        .update({ 
+                        .update({
                             results_data: updatedResults,
                             updated_at: new Date().toISOString()
                         })
@@ -302,9 +304,9 @@ export async function POST(req) {
 
     } catch (error) {
         console.error('[Regenerate] Unexpected error:', error);
-        return NextResponse.json({ 
-            error: 'Internal server error', 
-            details: error.message 
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: error.message
         }, { status: 500 });
     }
 }

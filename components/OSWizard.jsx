@@ -140,6 +140,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     // Wizard Completion State - locks editing until reset
     const [isWizardComplete, setIsWizardComplete] = useState(false);
 
+    // Track if sample data has been loaded for testing
+    const [isSampleDataLoaded, setIsSampleDataLoaded] = useState(false);
+
     // Handle startAtStepOne prop - immediately go to Step 1 when prop is true
     // This runs separately from initialization to handle when wizard is already mounted
     useEffect(() => {
@@ -237,6 +240,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                         if (savedProgress.isComplete) {
                             console.log('[OSWizard] Wizard marked as complete');
                             setIsWizardComplete(true);
+                        }
+                        if (savedProgress.isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') {
+                            setIsSampleDataLoaded(true);
                         }
                         setIsSessionSaved(true);
                     } else {
@@ -716,14 +722,16 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 answers: SAMPLE_DATA,
                 generatedContent: savedContent,
                 isComplete: false, // Not complete until generated
-                isSampleData: true,
+                isSampleDataLoaded: true,
                 updatedAt: new Date().toISOString()
             };
             localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+            localStorage.setItem('isSampleDataLoaded', 'true');
         }
 
         setIsSessionSaved(false);
         setHasUnsavedProgress(true);
+        setIsSampleDataLoaded(true);
 
         toast.success("Sample data loaded! You can now review and edit each question, then generate content.");
     };
@@ -1120,8 +1128,24 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
         // Move to next step
         if (currentStep < STEPS.length) {
-            setCurrentStep(currentStep + 1);
-            setCurrentInput({});
+            const nextStep = currentStep + 1;
+            setCurrentStep(nextStep);
+
+            // Load saved/sample data for the next step
+            const nextStepInputs = STEP_INPUTS[nextStep];
+            if (nextStepInputs) {
+                const loadedInput = {};
+                nextStepInputs.forEach(input => {
+                    if (stepData[input.name] !== undefined) {
+                        loadedInput[input.name] = stepData[input.name];
+                    } else if ((isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
+                        loadedInput[input.name] = SAMPLE_DATA[input.name];
+                    }
+                });
+                setCurrentInput(Object.keys(loadedInput).length > 0 ? loadedInput : {});
+            } else {
+                setCurrentInput({});
+            }
             setFieldErrors({});
         } else {
             setViewMode('dashboard');
@@ -1227,6 +1251,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                     const sourceData = updatedData || stepData;
                     if (sourceData[input.name] !== undefined) {
                         loadedInput[input.name] = sourceData[input.name];
+                    } else if (isSampleDataLoaded && SAMPLE_DATA[input.name] !== undefined) {
+                        // Reliable fallback if sample data is loaded
+                        loadedInput[input.name] = SAMPLE_DATA[input.name];
                     }
                 });
                 console.log('[OSWizard] Loading next step inputs:', nextStep, loadedInput);
@@ -1249,11 +1276,13 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         if (stepInputs) {
             const loadedInput = {};
             stepInputs.forEach(input => {
-                if (stepData[input.name]) {
+                if (stepData[input.name] !== undefined) {
                     loadedInput[input.name] = stepData[input.name];
+                } else if ((isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
+                    loadedInput[input.name] = SAMPLE_DATA[input.name];
                 }
             });
-            setCurrentInput(loadedInput);
+            setCurrentInput(Object.keys(loadedInput).length > 0 ? loadedInput : {});
         } else {
             setCurrentInput({});
         }
@@ -2434,14 +2463,28 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                                                         </div>
                                                                                     )}
 
+                                                                                    {/* Strategy/Action Steps rendering */}
+                                                                                    {item.strategy && (
+                                                                                        <div className="space-y-2">
+                                                                                            <p className="font-semibold text-white">{item.strategy}</p>
+                                                                                            {item.actionSteps && Array.isArray(item.actionSteps) && (
+                                                                                                <ul className="list-disc list-inside space-y-1 text-gray-300 text-sm pl-2">
+                                                                                                    {item.actionSteps.map((step, stepIndex) => (
+                                                                                                        <li key={stepIndex}>{step}</li>
+                                                                                                    ))}
+                                                                                                </ul>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+
                                                                                     {/* Generic object properties */}
                                                                                     {item.title && <p className="font-semibold text-white">{item.title}</p>}
-                                                                                    {item.name && <p className="font-semibold text-white">{item.name}</p>}
+                                                                                    {item.name && !item.strategy && <p className="font-semibold text-white">{item.name}</p>}
                                                                                     {item.description && !item.imageDescription && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
                                                                                     {item.elementType && <p className="text-cyan text-xs">{item.elementType}</p>}
 
                                                                                     {/* Fallback for unrecognized structures */}
-                                                                                    {!item.adNumber && !item.imageDescription && !item.title && !item.name && !item.description && !item.elementType && (
+                                                                                    {!item.adNumber && !item.imageDescription && !item.title && !item.name && !item.description && !item.elementType && !item.strategy && (
                                                                                         <p className="text-xs text-gray-400">{JSON.stringify(item, null, 2)}</p>
                                                                                     )}
                                                                                 </div>
@@ -2505,14 +2548,28 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                                         </div>
                                                                     )}
 
+                                                                    {/* Strategy/Action Steps rendering */}
+                                                                    {item.strategy && (
+                                                                        <div className="space-y-2">
+                                                                            <p className="font-semibold text-white">{item.strategy}</p>
+                                                                            {item.actionSteps && Array.isArray(item.actionSteps) && (
+                                                                                <ul className="list-disc list-inside space-y-1 text-gray-300 text-sm pl-2">
+                                                                                    {item.actionSteps.map((step, stepIndex) => (
+                                                                                        <li key={stepIndex}>{step}</li>
+                                                                                    ))}
+                                                                                </ul>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+
                                                                     {/* Generic object properties */}
                                                                     {item.title && <p className="font-semibold text-white">{item.title}</p>}
-                                                                    {item.name && <p className="font-semibold text-white">{item.name}</p>}
+                                                                    {item.name && !item.strategy && <p className="font-semibold text-white">{item.name}</p>}
                                                                     {item.description && !item.imageDescription && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
                                                                     {item.elementType && <p className="text-cyan text-xs">{item.elementType}</p>}
 
                                                                     {/* Fallback for unrecognized structures */}
-                                                                    {!item.adNumber && !item.imageDescription && !item.interests && !item.title && !item.name && !item.description && !item.elementType && (
+                                                                    {!item.adNumber && !item.imageDescription && !item.interests && !item.title && !item.name && !item.description && !item.elementType && !item.strategy && (
                                                                         <p className="text-xs text-gray-400">{JSON.stringify(item, null, 2)}</p>
                                                                     )}
                                                                 </div>
@@ -2565,7 +2622,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                     // SAMPLE_DATA is guaranteed to have latest values if sample data was loaded
                                                     if (stepData[input.name] !== undefined) {
                                                         loadedInput[input.name] = stepData[input.name];
-                                                    } else if (SAMPLE_DATA[input.name] !== undefined) {
+                                                    } else if ((isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
                                                         // Fallback to SAMPLE_DATA for cases where stepData hasn't synced yet
                                                         loadedInput[input.name] = SAMPLE_DATA[input.name];
                                                     }

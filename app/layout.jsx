@@ -13,8 +13,8 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider>
-      <html lang="en">
-        <body>
+      <html lang="en" className="bg-dark">
+        <body className="bg-dark">
           <AuthProvider>
             <AppNavbar />
             <main className="pt-20">
