@@ -115,6 +115,61 @@ export async function POST(req) {
     }
 }
 
+// PATCH - Update an existing session's content or status
+export async function PATCH(req) {
+    try {
+        const { userId } = auth();
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const body = await req.json();
+        const { id, sessionName, currentStep, completedSteps, answers, generatedContent, isComplete, status } = body;
+
+        if (!id) {
+            return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
+        }
+
+        // Prepare update object
+        const updateData = {
+            updated_at: new Date().toISOString()
+        };
+
+        if (sessionName) updateData.session_name = sessionName;
+        if (currentStep !== undefined) updateData.current_step = currentStep;
+        if (completedSteps) updateData.completed_steps = completedSteps;
+        if (answers) {
+            updateData.answers = answers;
+            updateData.onboarding_data = answers;
+        }
+        if (generatedContent) {
+            updateData.generated_content = generatedContent;
+            updateData.results_data = generatedContent;
+        }
+        if (isComplete !== undefined) updateData.is_complete = isComplete;
+        if (status) updateData.status = status;
+
+        const { data, error } = await supabaseAdmin
+            .from('saved_sessions')
+            .update(updateData)
+            .eq('id', id)
+            .eq('user_id', userId)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('[Sessions API PATCH] Error:', error);
+            throw error;
+        }
+
+        return NextResponse.json({ success: true, session: data });
+
+    } catch (error) {
+        console.error('[Sessions API PATCH] Error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}
+
 // DELETE - Soft delete a saved session (keeps data for admin, hides from user)
 export async function DELETE(req) {
     try {

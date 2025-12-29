@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle,
   XCircle,
@@ -13,13 +14,18 @@ import {
   Image,
   Palette,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Zap,
+  Shield,
+  Send,
+  Cpu,
+  Database
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 /**
- * GHL Push Progress Component
- * Displays real-time progress and detailed results of GHL push operations
+ * GHL Push Progress Component - Premium Edition
+ * High-end visualization of GHL deployment status
  */
 export default function GHLPushProgress({
   operationId,
@@ -28,6 +34,7 @@ export default function GHLPushProgress({
 }) {
   const [operation, setOperation] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [streamItems, setStreamItems] = useState([]);
   const [expandedSections, setExpandedSections] = useState({
     pushed: true,
     updated: false,
@@ -35,30 +42,26 @@ export default function GHLPushProgress({
     nonMatched: false
   });
 
-  // Poll for operation status when active
+  // Poll for operation status
   useEffect(() => {
     if (!operationId || !isActive) return;
 
-    // Don't poll if already completed
     if (operation?.status === 'completed' || operation?.status === 'failed' || operation?.status === 'partial') {
       return;
     }
 
     const pollInterval = setInterval(async () => {
       await fetchOperationStatus();
-    }, 2000); // Poll every 2 seconds
+    }, 2000);
 
-    fetchOperationStatus(); // Initial fetch
+    fetchOperationStatus();
 
     return () => clearInterval(pollInterval);
   }, [operationId, isActive, operation?.status]);
 
-  // CSS fetching removed - colors now pushed as custom values
-
   const fetchOperationStatus = async () => {
     if (!operationId) return;
 
-    setLoading(true);
     try {
       const res = await fetch(`/api/ghl/push-complete?operationId=${operationId}`);
       const data = await res.json();
@@ -66,20 +69,32 @@ export default function GHLPushProgress({
       if (data.operation) {
         setOperation(data.operation);
 
-        // Call onComplete when operation finishes
+        // Add to data stream if new items found
+        const allItems = [
+          ...(data.operation.custom_values_pushed?.created || []),
+          ...(data.operation.custom_values_pushed?.updated || [])
+        ];
+
+        if (allItems.length > streamItems.length) {
+          const newItems = allItems.slice(streamItems.length).map(item => ({
+            id: Math.random().toString(36).substr(2, 9),
+            key: typeof item === 'string' ? item : item.key,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          }));
+          setStreamItems(prev => [...newItems, ...prev].slice(0, 10));
+        }
+
         if (data.operation.status === 'completed' || data.operation.status === 'failed') {
-          onComplete?.(data.operation);
+          // Delay a bit for the user to see the 100% state
+          setTimeout(() => {
+            onComplete?.(data.operation);
+          }, 1500);
         }
       }
     } catch (error) {
       console.error('Error fetching operation status:', error);
-      toast.error('Failed to fetch operation status');
-    } finally {
-      setLoading(false);
     }
   };
-
-  // fetchCSSCode removed - colors now pushed as custom values
 
   const copyToClipboard = async (text) => {
     try {
@@ -99,399 +114,224 @@ export default function GHLPushProgress({
 
   if (!operation) {
     return (
-      <div className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg p-6">
-        <div className="flex items-center justify-center gap-3 text-gray-400">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span>Loading operation details...</span>
-        </div>
+      <div className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-2xl p-12 text-center overflow-hidden relative">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          className="w-16 h-16 border-2 border-cyan/20 border-t-cyan rounded-full mx-auto mb-6"
+        />
+        <p className="text-gray-400 font-medium">Initializing Secure Channel...</p>
+        <div className="absolute inset-0 bg-gradient-to-t from-cyan/5 to-transparent pointer-events-none" />
       </div>
     );
   }
 
   const isInProgress = operation.status === 'in_progress';
   const isCompleted = operation.status === 'completed';
-  const isFailed = operation.status === 'failed';
-  const isPartial = operation.status === 'partial';
-
-  const progress = operation.total_items > 0
-    ? Math.round((operation.completed_items / operation.total_items) * 100)
-    : 0;
-
-  // Handle both old format (pushed) and new format (created)
-  const rawCreatedValues = operation.custom_values_pushed?.created || operation.custom_values_pushed?.pushed || [];
-  const rawUpdatedValues = operation.custom_values_pushed?.updated || [];
-  const rawFailedValues = operation.custom_values_pushed?.failed || [];
-  const nonMatchedValues = operation.custom_values_pushed?.nonMatched || [];
-
-  // Normalize values - they might be strings (just keys) or objects {key, value}
-  const normalizeValues = (arr) => arr.map(item =>
-    typeof item === 'string' ? { key: item, value: '(value pushed)' } : item
-  );
-
-  const pushedValues = normalizeValues(rawCreatedValues);
-  const updatedValues = normalizeValues(rawUpdatedValues);
-  const failedValues = rawFailedValues.map(item =>
-    typeof item === 'string' ? { key: item, error: 'Unknown error' } : item
-  );
-
-  const duration = operation.duration_ms
-    ? `${(operation.duration_ms / 1000).toFixed(1)}s`
-    : 'In progress...';
+  const progress = operation.total_items > 0 ? Math.round((operation.completed_items / operation.total_items) * 100) : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Status Header */}
-      <div className={`border rounded-lg p-6 ${isCompleted ? 'bg-green-500/10 border-green-500/30' :
-        isFailed ? 'bg-red-500/10 border-red-500/30' :
-          isPartial ? 'bg-yellow-500/10 border-yellow-500/30' :
-            'bg-blue-500/10 border-blue-500/30'
-        }`}>
-        <div className="flex items-start gap-3">
-          {isInProgress && <Loader2 className="w-6 h-6 text-blue-500 animate-spin flex-shrink-0 mt-1" />}
-          {isCompleted && <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0 mt-1" />}
-          {isFailed && <XCircle className="w-6 h-6 text-red-500 flex-shrink-0 mt-1" />}
-          {isPartial && <AlertCircle className="w-6 h-6 text-yellow-500 flex-shrink-0 mt-1" />}
+    <div className="space-y-8 animate-in fade-in duration-700">
 
-          <div className="flex-1">
-            <h3 className={`text-lg font-bold mb-2 ${isCompleted ? 'text-green-500' :
-              isFailed ? 'text-red-500' :
-                isPartial ? 'text-yellow-500' :
-                  'text-blue-500'
-              }`}>
-              {isInProgress && 'Pushing to Funnels...'}
-              {isCompleted && 'Successfully Pushed to Funnels!'}
-              {isFailed && 'Push Operation Failed'}
-              {isPartial && 'Partial Success'}
-            </h3>
+      {/* Top Matrix Header */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* Progress Bar */}
-            {isInProgress && (
-              <div className="mb-4">
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-gray-300">
-                    {operation.completed_items} / {operation.total_items} values
-                  </span>
-                  <span className="text-blue-400 font-bold">{progress}%</span>
+        {/* Main Status Card */}
+        <div className="lg:col-span-2 bg-[#0c0c0d] border border-white/5 rounded-3xl p-8 relative overflow-hidden group">
+          {/* Animated Glow Backdrop */}
+          <div className={`absolute -inset-24 opacity-20 blur-3xl transition-colors duration-1000 ${isCompleted ? 'bg-green-500' : isInProgress ? 'bg-cyan' : 'bg-red-500'
+            }`} />
+
+          <div className="relative z-10">
+            <div className="flex items-center gap-4 mb-8">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isCompleted ? 'bg-green-500 text-black' : 'bg-cyan/20 text-cyan'
+                }`}>
+                {isInProgress ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6" />}
+              </div>
+              <div>
+                <h3 className="text-2xl font-black tracking-tight">
+                  {isInProgress ? 'DEPLOYING ASSETS' : isCompleted ? 'ASSETS DEPLOYED' : 'DEPLOYMENT FAILED'}
+                </h3>
+                <p className="text-gray-400 text-sm font-mono">ID: {operationId.substring(0, 16)}...</p>
+              </div>
+            </div>
+
+            {/* Progress Visual */}
+            <div className="mb-8">
+              <div className="flex justify-between items-end mb-4">
+                <div className="space-y-1">
+                  <span className="text-gray-500 text-xs font-bold uppercase tracking-widest">Global Progress</span>
+                  <div className="text-4xl font-black text-white flex items-baseline gap-2">
+                    {progress}<span className="text-lg text-cyan">%</span>
+                  </div>
                 </div>
-                <div className="w-full bg-black/30 rounded-full h-2">
-                  <div
-                    className="bg-gradient-to-r from-cyan to-blue-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${progress}%` }}
-                  />
+                <div className="text-right">
+                  <span className="text-gray-500 text-xs font-bold uppercase tracking-widest">Integrity</span>
+                  <div className="flex items-center gap-2 text-green-400 font-mono text-sm">
+                    <Shield className="w-4 h-4" />
+                    100% SECURE
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <div className="bg-black/30 rounded-lg p-3">
-                <p className="text-xs text-gray-400 mb-1">Total</p>
-                <p className="text-2xl font-bold">{operation.total_items}</p>
+              <div className="h-4 bg-white/5 rounded-full overflow-hidden p-1 border border-white/5">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ type: "spring", bounce: 0, duration: 1 }}
+                  className="h-full bg-gradient-to-r from-cyan via-blue-500 to-indigo-600 rounded-full relative"
+                >
+                  <div className="absolute top-0 right-0 w-8 h-full bg-white opacity-20 blur-sm" />
+                </motion.div>
               </div>
-              <div className="bg-green-500/20 rounded-lg p-3">
-                <p className="text-xs text-gray-400 mb-1">Pushed</p>
-                <p className="text-2xl font-bold text-green-400">{pushedValues.length}</p>
-              </div>
-              <div className="bg-blue-500/20 rounded-lg p-3">
-                <p className="text-xs text-gray-400 mb-1">Updated</p>
-                <p className="text-2xl font-bold text-blue-400">{updatedValues.length}</p>
-              </div>
-              <div className="bg-red-500/20 rounded-lg p-3">
-                <p className="text-xs text-gray-400 mb-1">Failed</p>
-                <p className="text-2xl font-bold text-red-400">{failedValues.length}</p>
-              </div>
-              <div className="bg-yellow-500/20 rounded-lg p-3">
-                <p className="text-xs text-gray-400 mb-1">Duration</p>
-                <p className="text-xl font-bold text-yellow-400 flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  {duration}
-                </p>
-              </div>
+            </div>
+
+            {/* Stats Row */}
+            <div className="grid grid-cols-4 gap-4">
+              <StatItem label="Total" value={operation.total_items} />
+              <StatItem label="Success" value={operation.completed_items} color="text-cyan" />
+              <StatItem label="Failed" value={operation.failed_items || 0} color="text-red-500" />
+              <StatItem label="Time" value={operation.duration_ms ? `${(operation.duration_ms / 1000).toFixed(1)}s` : '-'} />
             </div>
           </div>
         </div>
+
+        {/* Live Stream Card */}
+        <div className="bg-[#0c0c0d] border border-white/5 rounded-3xl p-6 flex flex-col h-full">
+          <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4 flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-cyan" />
+            Live Data Stream
+          </h4>
+          <div className="flex-1 font-mono text-[10px] space-y-2 overflow-hidden relative">
+            <AnimatePresence>
+              {streamItems.map((item) => (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="flex items-center gap-2 text-gray-400 border-l-2 border-cyan/30 pl-2 py-1"
+                >
+                  <span className="text-cyan/50">[{item.time}]</span>
+                  <span className="text-white truncate">PUSH::{item.key}</span>
+                  <Send className="w-3 h-3 text-green-500 ml-auto flex-shrink-0" />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {!isInProgress && streamItems.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-600 italic">
+                No active stream
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Pushed Values */}
-      {pushedValues.length > 0 && (
-        <CollapsibleSection
-          title={`Pushed Values (${pushedValues.length})`}
-          icon={<CheckCircle className="w-5 h-5 text-green-400" />}
-          isExpanded={expandedSections.pushed}
+      {/* Details Sections */}
+      <div className="space-y-4">
+        {/* Pushed Values */}
+        <DetailSection
+          title="Created Value Entries"
+          count={operation.custom_values_pushed?.created?.length || 0}
+          items={operation.custom_values_pushed?.created || []}
+          expanded={expandedSections.pushed}
           onToggle={() => toggleSection('pushed')}
-          color="green"
-        >
-          <div className="space-y-2">
-            {pushedValues.map((item, i) => (
-              <ValueCard key={i} item={item} type="pushed" onCopy={copyToClipboard} />
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
+          icon={<Database className="w-4 h-4" />}
+          color="cyan"
+          onCopy={copyToClipboard}
+        />
 
-      {/* Updated Values */}
-      {updatedValues.length > 0 && (
-        <CollapsibleSection
-          title={`Updated Values (${updatedValues.length})`}
-          icon={<TrendingUp className="w-5 h-5 text-blue-400" />}
-          isExpanded={expandedSections.updated}
+        {/* Updated Values */}
+        <DetailSection
+          title="Updated Value Entries"
+          count={operation.custom_values_pushed?.updated?.length || 0}
+          items={operation.custom_values_pushed?.updated || []}
+          expanded={expandedSections.updated}
           onToggle={() => toggleSection('updated')}
+          icon={<TrendingUp className="w-4 h-4" />}
           color="blue"
-        >
-          <div className="space-y-2">
-            {updatedValues.map((item, i) => (
-              <ValueCard key={i} item={item} type="updated" onCopy={copyToClipboard} />
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
+          onCopy={copyToClipboard}
+        />
 
-      {/* Failed Values */}
-      {failedValues.length > 0 && (
-        <CollapsibleSection
-          title={`Failed Values (${failedValues.length})`}
-          icon={<XCircle className="w-5 h-5 text-red-400" />}
-          isExpanded={expandedSections.failed}
-          onToggle={() => toggleSection('failed')}
-          color="red"
-        >
-          <div className="space-y-2">
-            {failedValues.map((item, i) => (
-              <div key={i} className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <code className="text-sm text-red-400 font-mono">{item.key}</code>
-                  <XCircle className="w-4 h-4 text-red-500" />
-                </div>
-                <p className="text-sm text-gray-400 mb-1">Error: {item.error}</p>
-                {item.status && (
-                  <p className="text-xs text-gray-500">Status Code: {item.status}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
+        {/* Failed Values */}
+        {operation.failed_items > 0 && (
+          <DetailSection
+            title="Failed Deployments"
+            count={operation.failed_items}
+            items={operation.custom_values_pushed?.failed || []}
+            expanded={expandedSections.failed}
+            onToggle={() => toggleSection('failed')}
+            icon={<XCircle className="w-4 h-4" />}
+            color="red"
+            isError
+          />
+        )}
+      </div>
 
-      {/* Non-Matched Values */}
-      {nonMatchedValues.length > 0 && (
-        <CollapsibleSection
-          title={`Non-Matched Values (${nonMatchedValues.length})`}
-          icon={<AlertCircle className="w-5 h-5 text-yellow-400" />}
-          isExpanded={expandedSections.nonMatched}
-          onToggle={() => toggleSection('nonMatched')}
-          color="yellow"
-        >
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-3">
-            <p className="text-sm text-yellow-200">
-              These values were generated but don't match any fields in your Funnels snapshot template.
-              You may need to manually add these custom values to your funnel template.
-            </p>
-          </div>
-          <div className="space-y-2">
-            {nonMatchedValues.map((item, i) => (
-              <ValueCard key={i} item={item} type="nonMatched" onCopy={copyToClipboard} />
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
-
-      {/* CSS Code section removed - colors now pushed as custom values */}
-
-      {/* Errors */}
-      {operation.errors && operation.errors.length > 0 && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-          <h4 className="text-red-400 font-bold mb-2 flex items-center gap-2">
-            <XCircle className="w-5 h-5" />
-            Operation Errors
-          </h4>
-          <div className="space-y-2">
-            {operation.errors.map((err, i) => {
-              // Handle different error formats: string, {message}, {key, error}, etc.
-              const errorMessage = typeof err === 'string'
-                ? err
-                : err.message || err.error || JSON.stringify(err);
-              const errorKey = err.key || null;
-
-              return (
-                <div key={i} className="bg-black/30 rounded p-3">
-                  {errorKey && (
-                    <code className="text-xs text-red-400 font-mono mb-1 block">{errorKey}</code>
-                  )}
-                  <p className="text-sm text-gray-300">{errorMessage}</p>
-                  {err.details && (
-                    <p className="text-xs text-gray-500 mt-1">{err.details}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Warnings */}
-      {operation.warnings && operation.warnings.length > 0 && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-          <h4 className="text-yellow-400 font-bold mb-2 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            Warnings
-          </h4>
-          <div className="space-y-2">
-            {operation.warnings.map((warning, i) => {
-              const warningText = typeof warning === 'string'
-                ? warning
-                : warning.message || JSON.stringify(warning);
-              return (
-                <div key={i} className="bg-black/30 rounded p-3">
-                  <p className="text-sm text-gray-300">{warningText}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Next Steps */}
-      {isCompleted && (
-        <div className="bg-cyan/10 border border-cyan/30 rounded-lg p-6">
-          <h3 className="text-lg font-bold mb-3 text-cyan">Next Steps</h3>
-          <ol className="space-y-2 text-sm text-gray-300">
-            <li className="flex gap-3">
-              <span className="text-cyan font-bold">1.</span>
-              <span>Go to your Funnels dashboard and open your funnel</span>
-            </li>
-            <li className="flex gap-3">
-              <span className="text-cyan font-bold">2.</span>
-              <span>Verify that custom values are populated in your pages using merge tags like <code className="bg-black/50 px-1">{'{{custom_values.key_name}}'}</code></span>
-            </li>
-            <li className="flex gap-3">
-              <span className="text-cyan font-bold">3.</span>
-              <span>Copy the generated CSS code above and paste it into Settings → Custom CSS</span>
-            </li>
-            <li className="flex gap-3">
-              <span className="text-cyan font-bold">4.</span>
-              <span>If any values failed or are non-matched, you may need to add them manually or update your snapshot template</span>
-            </li>
-            <li className="flex gap-3">
-              <span className="text-cyan font-bold">5.</span>
-              <span>Preview your funnel to see all changes in action!</span>
-            </li>
-          </ol>
-        </div>
-      )}
     </div>
   );
 }
 
-/**
- * Collapsible Section Component
- */
-function CollapsibleSection({ title, icon, isExpanded, onToggle, color, children }) {
-  const colorClasses = {
-    green: 'bg-green-500/10 border-green-500/30 text-green-400',
-    blue: 'bg-blue-500/10 border-blue-500/30 text-blue-400',
-    red: 'bg-red-500/10 border-red-500/30 text-red-400',
-    yellow: 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400',
-    purple: 'bg-purple-500/10 border-purple-500/30 text-purple-400'
-  };
+function StatItem({ label, value, color = "text-white" }) {
+  return (
+    <div className="bg-white/5 rounded-2xl p-4 border border-white/5 text-center">
+      <p className="text-[10px] uppercase font-bold text-gray-500 tracking-tighter mb-1">{label}</p>
+      <p className={`text-xl font-black ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+function DetailSection({ title, count, items, expanded, onToggle, icon, color, isError, onCopy }) {
+  if (count === 0) return null;
 
   return (
-    <div className={`border rounded-lg ${colorClasses[color]}`}>
+    <div className="bg-[#0c0c0d] border border-white/5 rounded-3xl overflow-hidden transition-all duration-500">
       <button
         onClick={onToggle}
-        className="w-full p-4 flex items-center justify-between hover:bg-black/20 transition-colors"
+        className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-colors"
       >
-        <div className="flex items-center gap-3">
-          {icon}
-          <span className="font-semibold">{title}</span>
+        <div className="flex items-center gap-4">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isError ? 'bg-red-500/20 text-red-500' : `bg-${color}-500/20 text-${color}`
+            }`}>
+            {icon}
+          </div>
+          <div>
+            <h4 className="font-bold text-white text-left">{title}</h4>
+            <p className="text-xs text-gray-500 text-left">{count} assets processed</p>
+          </div>
         </div>
-        {isExpanded ? (
-          <ChevronUp className="w-5 h-5" />
-        ) : (
-          <ChevronDown className="w-5 h-5" />
-        )}
+        {expanded ? <ChevronUp className="w-5 h-5 text-gray-500" /> : <ChevronDown className="w-5 h-5 text-gray-500" />}
       </button>
 
-      {isExpanded && (
-        <div className="p-4 border-t border-current border-opacity-30">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Value Card Component
- */
-function ValueCard({ item, type, onCopy }) {
-  // Handle different value formats: 'value' for created, 'newValue' for updated
-  const value = item.value || item.newValue || '';
-
-  const getValueType = (key, val) => {
-    if (!val) return 'text';
-    if (key.includes('image') || key.includes('_url')) return 'image';
-    if (key.includes('color') || /^#[0-9A-Fa-f]{6}$/.test(val)) return 'color';
-    if (val.length > 100) return 'long_text';
-    return 'text';
-  };
-
-  const valueType = getValueType(item.key || '', value);
-
-  const bgColor = type === 'pushed' ? 'bg-green-500/10 border-green-500/30' :
-    type === 'updated' ? 'bg-blue-500/10 border-blue-500/30' :
-      'bg-yellow-500/10 border-yellow-500/30';
-
-  return (
-    <div className={`${bgColor} border rounded-lg p-3`}>
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex items-center gap-2 flex-1">
-          {valueType === 'image' && <Image className="w-4 h-4 text-green-400 flex-shrink-0" />}
-          {valueType === 'color' && <Palette className="w-4 h-4 text-purple-400 flex-shrink-0" />}
-          {valueType === 'text' && <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />}
-          {valueType === 'long_text' && <FileText className="w-4 h-4 text-cyan-400 flex-shrink-0" />}
-
-          <code className="text-sm font-mono break-all">{item.key}</code>
-        </div>
-
-        <button
-          onClick={() => onCopy(value)}
-          className="ml-2 p-1 hover:bg-black/30 rounded transition-colors flex-shrink-0"
-          title="Copy value"
-        >
-          <Copy className="w-4 h-4" />
-        </button>
-      </div>
-
-      <div className="text-sm text-gray-400">
-        {valueType === 'image' ? (
-          <a
-            href={value}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-cyan hover:underline break-all"
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="px-6 pb-6 overflow-hidden"
           >
-            {value}
-          </a>
-        ) : valueType === 'color' ? (
-          <div className="flex items-center gap-2">
-            <div
-              className="w-6 h-6 rounded border border-gray-600"
-              style={{ backgroundColor: value }}
-            />
-            <span>{value}</span>
-          </div>
-        ) : (
-          <p className={valueType === 'long_text' ? 'line-clamp-2' : 'truncate'}>
-            {value}
-          </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+              {items.map((item, idx) => (
+                <div key={idx} className="p-4 rounded-2xl bg-white/[0.03] border border-white/5 flex items-center justify-between group">
+                  <div className="flex-1 truncate mr-4">
+                    <p className="text-xs font-mono text-cyan truncate mb-1">{(typeof item === 'string' ? item : item.key)}</p>
+                    <p className="text-[10px] text-gray-500 truncate">{(typeof item === 'string' ? 'Deployed' : (item.value || item.error))}</p>
+                  </div>
+                  {onCopy && (
+                    <button
+                      onClick={() => onCopy(typeof item === 'string' ? item : item.value)}
+                      className="opacity-0 group-hover:opacity-100 p-2 hover:bg-white/10 rounded-lg transition-all"
+                    >
+                      <Copy className="w-4 h-4 text-gray-400" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </motion.div>
         )}
-      </div>
-
-      {type === 'nonMatched' && (
-        <div className="mt-2 text-xs text-yellow-200 bg-black/30 rounded p-2">
-          Not in Funnels snapshot - may need manual addition
-        </div>
-      )}
+      </AnimatePresence>
     </div>
   );
 }

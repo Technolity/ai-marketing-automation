@@ -264,8 +264,26 @@ export default function VaultPage() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.content) {
-                    setVaultData(prev => ({ ...prev, [sectionId]: data.content }));
-                    toast.success("Content regenerated!");
+                    const newVaultData = { ...vaultData, [sectionId]: data.content };
+                    setVaultData(newVaultData);
+
+                    // Persist to database automatically
+                    if (sessionId && dataSource?.type === 'loaded') {
+                        try {
+                            await fetchWithAuth('/api/os/sessions', {
+                                method: 'PATCH',
+                                body: JSON.stringify({
+                                    id: sessionId,
+                                    generatedContent: newVaultData
+                                })
+                            });
+                            console.log(`[Vault] Persisted regeneration for ${sectionId} to session ${sessionId}`);
+                        } catch (saveError) {
+                            console.error("[Vault] Failed to persist regeneration:", saveError);
+                        }
+                    }
+
+                    toast.success("Content regenerated and saved!");
                 }
             } else {
                 toast.error(`Regeneration failed (${res.status}).`);
@@ -291,8 +309,25 @@ export default function VaultPage() {
             setVaultData(updatedVaultData);
             setEditingSection(null);
 
-            // Optional: Save to DB immediately or wait for Save Session
-            toast.success("Changes saved locally. Use 'Save Session' to persist.");
+            // Persist to database automatically if in a loaded session
+            const sessionId = dataSource?.id || searchParams.get('session_id');
+            if (sessionId && dataSource?.type === 'loaded') {
+                try {
+                    await fetchWithAuth('/api/os/sessions', {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            id: sessionId,
+                            generatedContent: updatedVaultData
+                        })
+                    });
+                    toast.success("Changes saved to session!");
+                } catch (saveError) {
+                    console.error("[Vault] Failed to persist edit:", saveError);
+                    toast.error("Saved locally, but failed to sync with database.");
+                }
+            } else {
+                toast.success("Changes saved locally. Use 'Save Session' to persist to a new session.");
+            }
         } catch (error) {
             console.error("Save edit error:", error);
             toast.error("Failed to save changes");

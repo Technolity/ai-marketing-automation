@@ -16,7 +16,7 @@ import {
     Rocket, ChevronDown, CheckCircle, Loader2, Sparkles,
     BookOpen, Video, Mail, Gift, Megaphone, Layout, Star,
     ArrowRight, ArrowLeft, Lock, AlertTriangle, Wrench,
-    Upload, X, Eye, EyeOff, Copy, Check
+    Upload, X, Eye, EyeOff, Copy, Check, Clock, Shield, Zap
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -315,23 +315,23 @@ export default function FunnelRecommendationPage() {
     };
 
     const handlePushComplete = async () => {
+        // Move to complete step immediately
         setDeployStep('complete');
 
         // Capture approvals in the Vault for this funnel
         try {
+            const sessId = sessionId || localStorage.getItem('ted_current_session_id');
             await fetchWithAuth('/api/os/approvals', {
                 method: 'POST',
                 body: JSON.stringify({
-                    sessionId: sessionId || 'current',
+                    sessionId: sessId || 'current',
                     funnelApproved: true
                 })
             });
-
-            console.log('Saved funnel approval to localStorage');
+            console.log('[Funnel] Funnel approval persisted to database');
         } catch (error) {
             console.error("Error updating funnel approval:", error);
         }
-
         toast.success("🎉 Funnel deployed! Phase 2 unlocked.");
 
         // Redirect to vault phase 2
@@ -637,27 +637,85 @@ export default function FunnelRecommendationPage() {
                 )}
 
                 {/* Step: Complete */}
-                {deployStep === 'complete' && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        className="text-center py-12"
-                    >
-                        <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
-                            <CheckCircle className="w-12 h-12 text-white" />
-                        </div>
-                        <h2 className="text-3xl font-black mb-4">Funnel Deployed! 🎉</h2>
-                        <p className="text-gray-400 mb-8">Phase 2 is now unlocked. Redirecting to your assets...</p>
-                        <button
-                            onClick={() => router.push(`/vault?phase=2${sessionId ? `&session_id=${sessionId}` : ''}`)}
-                            className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center gap-3 mx-auto hover:brightness-110 transition-all"
-                        >
-                            Go to Marketing Assets
-                            <ArrowRight className="w-5 h-5" />
-                        </button>
-                    </motion.div>
-                )}
+                <StepComplete
+                    isActive={deployStep === 'complete'}
+                    sessionId={sessionId}
+                    router={router}
+                />
             </div>
         </div>
+    );
+}
+
+/**
+ * Premium Success View with Countdown Redirection
+ */
+function StepComplete({ isActive, sessionId, router }) {
+    const [countdown, setCountdown] = useState(5);
+
+    useEffect(() => {
+        if (!isActive) return;
+
+        const timer = setInterval(() => {
+            setCountdown(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    router.push(`/vault?phase=2${sessionId ? `&session_id=${sessionId}` : ''}`);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [isActive, sessionId, router]);
+
+    if (!isActive) return null;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-16 px-8 bg-[#0c0c0d] border border-white/5 rounded-[2.5rem] relative overflow-hidden"
+        >
+            <div className="absolute inset-0 bg-gradient-to-t from-green-500/5 to-transparent pointer-events-none" />
+
+            <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", damping: 12, stiffness: 200 }}
+                className="w-24 h-24 mx-auto mb-8 rounded-full bg-green-500 text-black flex items-center justify-center shadow-[0_0_50px_rgba(34,197,94,0.3)]"
+            >
+                <CheckCircle className="w-12 h-12" />
+            </motion.div>
+
+            <h2 className="text-4xl font-black mb-4 tracking-tight">MISSION ACCOMPLISHED</h2>
+            <p className="text-gray-400 mb-12 max-w-md mx-auto leading-relaxed text-lg">
+                Your marketing funnel has been successfully deployed to GoHighLevel. All assets are synchronized and ready for use.
+            </p>
+
+            <div className="flex flex-col items-center gap-6">
+                <button
+                    onClick={() => router.push(`/vault?phase=2${sessionId ? `&session_id=${sessionId}` : ''}`)}
+                    className="px-10 py-5 bg-white text-black rounded-2xl font-black flex items-center gap-3 hover:scale-105 transition-all shadow-xl"
+                >
+                    Proceed to Assets
+                    <ArrowRight className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    <Clock className="w-4 h-4" />
+                    Auto-redirecting in {countdown}s...
+                </div>
+            </div>
+
+            {/* Matrix Decoration */}
+            <div className="absolute top-10 right-10 opacity-10">
+                <Shield className="w-20 h-20 text-green-400" />
+            </div>
+            <div className="absolute bottom-10 left-10 opacity-10">
+                <Zap className="w-20 h-20 text-cyan" />
+            </div>
+        </motion.div>
     );
 }
