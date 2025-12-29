@@ -389,41 +389,33 @@ export default function VaultPage() {
         whatBuildsTrustAndAuthority: 'What Builds Trust & Authority',
 
         // Message field labels
-        headline: 'Headline',
-        whoItsFor: 'Who It\'s For',
-        problemItSolves: 'Problem It Solves',
-        outcomeDelivered: 'Outcome Delivered',
-        whyDifferent: 'Why Different',
-        qualifierBullets: 'Qualifier Bullets',
-        notForYouIf: 'Not For You If…',
-        howTheyExplainIt: 'How They Explain It',
-        whyItsIncomplete: 'Why It\'s Incomplete',
-        deeperTruth: 'The Deeper Truth',
+        headline: 'A single, clear sentence',
+        whoItsFor: 'Who this is for',
+        problemItSolves: 'What problem it solves',
+        outcomeDelivered: 'What outcome it delivers',
+        whyDifferent: 'Why different',
+        qualifierBullets: 'Qualifiers',
+        makeWrongPeopleSelfDisqualify: 'Makes the wrong people self-disqualify',
+        howTheyExplainIt: 'How the audience currently explains their problem',
+        whyItsIncomplete: 'Why that explanation is incomplete or misleading',
+        deeperTruth: 'The deeper truth you help them see',
         methodName: 'Method Name',
-        whatItIs: 'What It Is',
-        whyItWorks: 'Why It Works',
-        keySteps: 'Key Steps',
-        missingPiece: 'The Missing Piece',
-        realisticExpectation: 'Realistic Expectation',
-        tangibleResults: 'Tangible Results',
-        noHypeDisclaimer: 'Honest Disclaimer',
-        howToUseProof: 'How To Use Proof',
-        fastestTrustBuilders: 'Fastest Trust Builders',
-        founderCredibility: 'Founder Credibility',
+        whatItIs: 'What it is',
+        whyItWorks: 'Why it works when others fail',
+        missingPiece: 'Position it as the missing piece',
+        realisticExpectation: 'What people can realistically expect',
+        tangibleResults: 'Tangible results',
+        howToUseProof: 'How proof, results, experience, or story should be used',
+        typeOfEvidence: 'What type of evidence builds trust fastest',
+        objection1: 'Objection 1',
+        objection2: 'Objection 2',
+        objection3: 'Objection 3',
         theObjection: 'The Objection',
-        howToDissolve: 'How To Dissolve It',
-        adAngles: 'Ad Angles',
-        contentThemes: 'Content Themes',
-        emailHooks: 'Email Hooks',
-        webinarVslNarrative: 'Webinar/VSL Narrative',
-        socialMediaAngles: 'Social Media Angles',
-        howToPosition: 'How To Position',
-        emotionalStateNeeded: 'Emotional State Needed',
-        primaryCta: 'Primary CTA',
-        whatHappensNext: 'What Happens Next',
-        whyActNow: 'Why Act Now',
-        fullParagraph: 'Full Summary',
-        elevatorPitch: 'Elevator Pitch',
+        howToDissolve: 'How it dissolves it',
+        angles: 'High-leverage angles',
+        howToPosition: 'How the CTA should be positioned',
+        emotionalStateNeeded: 'Emotional state needed',
+        fullParagraph: 'Summary Paragraph',
         tagline: 'Tagline',
 
         // Signature Story sections
@@ -560,6 +552,39 @@ export default function VaultPage() {
         keyLine: 'Key Line'
     };
 
+    const SECTION_SORT_ORDER = {
+        message: [
+            'oneLineMillionDollarMessage',
+            'thisIsForYouIf',
+            'coreProblemReframe',
+            'uniqueMechanism',
+            'outcomePromise',
+            'proofAndCredibility',
+            'objectionNeutralizers',
+            'messageAnglesThatScale',
+            'ctaFraming',
+            'messageToMillionsSummary'
+        ],
+        story: [
+            'originMoment',
+            'emotionalStruggle',
+            'discoveryBreakthrough',
+            'missionAndWhy',
+            'clientProofResults',
+            'ctaTieIn',
+            'voiceAndTone'
+        ],
+        leadMagnet: [
+            'leadMagnetIdea',
+            'titleAndHook',
+            'audienceConnection',
+            'coreContent',
+            'leadMagnetCopy',
+            'ctaIntegration',
+            'voiceAndTone_leadMagnet'
+        ]
+    };
+
     const getSectionTitle = (key) => {
         return SECTION_TITLES[key] || key.replace(/([A-Z])/g, ' $1').trim();
     };
@@ -619,9 +644,24 @@ export default function VaultPage() {
 
             // Objects - render sections
             if (typeof value === 'object') {
-                const entries = Object.entries(value).filter(([k]) =>
+                let keys = Object.keys(value).filter((k) =>
                     k !== '_contentName' && k !== 'id' && k !== 'idealClientProfile'
                 );
+
+                // Apply custom sort order if exists for this sectionId
+                if (sectionId && SECTION_SORT_ORDER[sectionId]) {
+                    const order = SECTION_SORT_ORDER[sectionId];
+                    keys = keys.sort((a, b) => {
+                        const indexA = order.indexOf(a);
+                        const indexB = order.indexOf(b);
+                        if (indexA === -1 && indexB === -1) return 0;
+                        if (indexA === -1) return 1;
+                        if (indexB === -1) return -1;
+                        return indexA - indexB;
+                    });
+                }
+
+                const entries = keys.map(k => [k, value[k]]);
 
                 // Render entries
                 return (
