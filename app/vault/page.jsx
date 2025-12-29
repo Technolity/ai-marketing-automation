@@ -1354,13 +1354,13 @@ export default function VaultPage() {
                             onClick={() => { setActiveTab('dna'); setShowMediaLibrary(false); }}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'dna' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
                         >
-                            Business DNA
+                            Phase 1
                         </button>
                         <button
                             onClick={() => { setActiveTab('assets'); setShowMediaLibrary(false); }}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'assets' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
                         >
-                            Marketing Assets
+                            Phase 2
                         </button>
                     </div>
 
@@ -1376,7 +1376,7 @@ export default function VaultPage() {
                 {/* Content Header */}
                 <div className="text-center mb-10">
                     <h1 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Business DNA' : 'Marketing Assets')}
+                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Phase 1' : 'Phase 2')}
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto">
                         {showMediaLibrary
