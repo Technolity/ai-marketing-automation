@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { auth, currentUser } from '@clerk/nextjs';
 
+// Force dynamic rendering - this route uses auth headers
+export const dynamic = 'force-dynamic';
+
 // Service Role client to create profiles
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
