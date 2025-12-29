@@ -158,8 +158,8 @@ export default function GHLPushProgress({
                 isPartial ? 'text-yellow-500' :
                   'text-blue-500'
               }`}>
-              {isInProgress && 'Pushing to GoHighLevel...'}
-              {isCompleted && 'Successfully Pushed to GHL!'}
+              {isInProgress && 'Pushing to Funnels...'}
+              {isCompleted && 'Successfully Pushed to Funnels!'}
               {isFailed && 'Push Operation Failed'}
               {isPartial && 'Partial Success'}
             </h3>
@@ -283,7 +283,7 @@ export default function GHLPushProgress({
         >
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-3">
             <p className="text-sm text-yellow-200">
-              These values were generated but don't match any fields in your GHL snapshot template.
+              These values were generated but don't match any fields in your Funnels snapshot template.
               You may need to manually add these custom values to your funnel template.
             </p>
           </div>
@@ -357,7 +357,7 @@ export default function GHLPushProgress({
           <ol className="space-y-2 text-sm text-gray-300">
             <li className="flex gap-3">
               <span className="text-cyan font-bold">1.</span>
-              <span>Go to your GHL dashboard and open your funnel</span>
+              <span>Go to your Funnels dashboard and open your funnel</span>
             </li>
             <li className="flex gap-3">
               <span className="text-cyan font-bold">2.</span>
@@ -489,7 +489,7 @@ function ValueCard({ item, type, onCopy }) {
 
       {type === 'nonMatched' && (
         <div className="mt-2 text-xs text-yellow-200 bg-black/30 rounded p-2">
-          Not in GHL snapshot - may need manual addition
+          Not in Funnels snapshot - may need manual addition
         </div>
       )}
     </div>

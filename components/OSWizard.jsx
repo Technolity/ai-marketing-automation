@@ -125,7 +125,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         'Designing your high-ticket offer...',
         'Creating sales scripts...',
         'Generating lead magnets...',
-        'Writing your VSL script...',
+        'Writing your marketing funnel script...',
         'Composing email sequences...',
         'Crafting ad copy...',
         'Building your funnel...',

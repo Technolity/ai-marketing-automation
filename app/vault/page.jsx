@@ -35,7 +35,7 @@ const PHASE_1_SECTIONS = [
 
 // Phase 2: Funnel Assets - Locked until funnel approved
 const PHASE_2_SECTIONS = [
-    { id: 'vsl', numericKey: 7, title: 'VSL Script', subtitle: 'Video Sales Letter', icon: Video },
+    { id: 'vsl', numericKey: 7, title: 'Marketing Funnel', subtitle: 'Video Sales Letter', icon: Video },
     { id: 'emails', numericKey: 8, title: '15-Day Email Sequence', subtitle: 'Nurture series', icon: Mail },
     { id: 'facebookAds', numericKey: 9, title: 'Facebook Ads', subtitle: 'Ad copy & prompts', icon: Megaphone },
     { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing pages', icon: Layout },
@@ -482,7 +482,7 @@ export default function VaultPage() {
         offer: "8-Week Program Blueprint",
         salesScripts: "Setter Call: Word-for-Word Script",
         leadMagnet: "The Lead Magnet Asset",
-        vsl: "VSL Script",
+        vsl: "Marketing Funnel",
         facebookAds: "Facebook Ad Variations",
         funnelCopy: "Funnel Page Copy",
         appointmentReminders: "Appointment Reminders",

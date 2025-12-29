@@ -27,11 +27,11 @@ import GHLPushProgress from "@/components/GHLPushProgress";
 const FUNNEL_TYPES = [
     {
         id: 'vsl',
-        title: 'VSL Funnel',
+        title: 'Marketing Funnel',
         icon: Video,
         description: 'Video sales letter to convert viewers into buyers',
         bestFor: ['courses', 'high-ticket', 'digital products'],
-        features: ['VSL Page', 'Order Form', 'Upsell Pages', 'Email Follow-up'],
+        features: ['Marketing Funnel Page', 'Order Form', 'Upsell Pages', 'Email Follow-up'],
         locked: false
     },
     {
@@ -170,7 +170,7 @@ export default function FunnelRecommendationPage() {
         }
 
         // Get access token
-        const accessToken = prompt('Enter your GHL Access Token to deploy:');
+        const accessToken = prompt('Enter your Access Token to deploy:');
         if (!accessToken) {
             toast.error('Access token required');
             return;
@@ -387,14 +387,14 @@ export default function FunnelRecommendationPage() {
 
                     <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 tracking-tighter">
                         {deployStep === 'select' ? 'Choose Your Funnel' :
-                            deployStep === 'credentials' ? 'Connect to GHL' :
+                            deployStep === 'credentials' ? 'Connect Funnels' :
                                 deployStep === 'deploying' ? 'Deploying...' :
                                     'Funnel Deployed!'}
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto">
                         {deployStep === 'select' ? 'Select the funnel type that fits your business.' :
-                            deployStep === 'credentials' ? 'Enter your GoHighLevel credentials to deploy.' :
-                                deployStep === 'deploying' ? 'Pushing your content to GHL...' :
+                            deployStep === 'credentials' ? 'Enter your credentials to deploy the funnel.' :
+                                deployStep === 'deploying' ? 'Pushing your content to Funnels...' :
                                     'Your funnel is live! Phase 2 is now unlocked.'}
                     </p>
                 </div>
@@ -507,7 +507,7 @@ export default function FunnelRecommendationPage() {
                                 <ArrowRight className="w-6 h-6" />
                             </button>
                             <p className="text-sm text-gray-500 mt-4">
-                                This will push all your content to GoHighLevel
+                                This will push all your content to Funnels
                             </p>
                         </motion.div>
                     </>

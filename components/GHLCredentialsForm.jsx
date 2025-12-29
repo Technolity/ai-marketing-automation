@@ -175,9 +175,9 @@ export default function GHLCredentialsForm({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold mb-2">GoHighLevel Credentials</h2>
+        <h2 className="text-2xl font-bold mb-2">Funnel Credentials</h2>
         <p className="text-gray-400 text-sm">
-          Connect your GHL account to push generated content to your funnels
+          Connect your account to push generated content to your funnels
         </p>
       </div>
 
@@ -246,7 +246,7 @@ export default function GHLCredentialsForm({
             className="w-full px-4 py-3 bg-[#0a0a0b] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors font-mono text-sm"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Your GHL Location ID (found in Settings → Business Profile)
+            Your Funnel Location ID (found in Settings → Business Profile)
           </p>
         </div>
 
@@ -286,11 +286,10 @@ export default function GHLCredentialsForm({
 
         {/* Validation Result */}
         {validationResult && (
-          <div className={`border rounded-lg p-4 ${
-            validationResult.valid
+          <div className={`border rounded-lg p-4 ${validationResult.valid
               ? 'bg-green-500/10 border-green-500/30'
               : 'bg-red-500/10 border-red-500/30'
-          }`}>
+            }`}>
             <div className="flex items-start gap-3">
               {validationResult.valid ? (
                 <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -298,9 +297,8 @@ export default function GHLCredentialsForm({
                 <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               )}
               <div>
-                <p className={`font-semibold ${
-                  validationResult.valid ? 'text-green-400' : 'text-red-400'
-                }`}>
+                <p className={`font-semibold ${validationResult.valid ? 'text-green-400' : 'text-red-400'
+                  }`}>
                   {validationResult.message}
                 </p>
                 {validationResult.valid && (
@@ -385,7 +383,7 @@ export default function GHLCredentialsForm({
         <p className="text-xs text-yellow-200">
           <strong>Security:</strong> Your credentials are encrypted and stored securely.
           We never share your credentials with third parties. The access token is only used
-          to push content to your GHL account.
+          to push content to your funnels.
         </p>
       </div>
     </div>
