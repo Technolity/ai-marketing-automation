@@ -149,8 +149,8 @@ export async function POST(req) {
         // Fetch user's intake answers
         let intakeData = {};
 
-        if (sessionId) {
-            // Load from specific saved session
+        if (sessionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) {
+            // Load from specific saved session (only if valid UUID)
             const { data: sessionData, error: sessionError } = await supabaseAdmin
                 .from('saved_sessions')
                 .select('intake_data, answers')
@@ -163,7 +163,10 @@ export async function POST(req) {
             } else {
                 intakeData = sessionData?.intake_data || sessionData?.answers || {};
             }
-        } else {
+        }
+
+        // If still no intake data, try latest intake_answers
+        if (Object.keys(intakeData).length === 0) {
             // Load from current intake answers
             const { data: intakeAnswers, error: intakeError } = await supabaseAdmin
                 .from('intake_answers')
@@ -176,6 +179,22 @@ export async function POST(req) {
                 console.error('[Regenerate] Intake fetch error:', intakeError);
             } else if (intakeAnswers && intakeAnswers.length > 0) {
                 intakeData = intakeAnswers[0].answers || {};
+            }
+        }
+
+        // Final fallback: Try latest saved_session if intake_answers is empty
+        if (Object.keys(intakeData).length === 0) {
+            console.log('[Regenerate] No direct intake data found, trying latest session fallback...');
+            const { data: latestSession } = await supabaseAdmin
+                .from('saved_sessions')
+                .select('intake_data, answers')
+                .eq('user_id', userId)
+                .order('updated_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (latestSession) {
+                intakeData = latestSession.intake_data || latestSession.answers || {};
             }
         }
 

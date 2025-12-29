@@ -235,7 +235,7 @@ export default function VaultPage() {
                     toast.success("Content regenerated!");
                 }
             } else {
-                toast.error("Regeneration failed (404). Checking endpoint...");
+                toast.error(`Regeneration failed (${res.status}).`);
                 console.error("Regeneration failed with status:", res.status);
             }
         } catch (error) {
