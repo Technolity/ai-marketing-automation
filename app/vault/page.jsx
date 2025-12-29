@@ -291,23 +291,29 @@ export default function VaultPage() {
             return;
         }
 
+        console.log(`[Vault] Attempting to save changes to session ${sessionId}`);
+        console.log(`[Vault] Data to save:`, Object.keys(vaultData));
+
         setIsSaving(true);
         try {
             const res = await fetchWithAuth('/api/os/sessions', {
                 method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     id: sessionId,
                     generatedContent: vaultData
                 })
             });
 
-            if (res.ok) {
+            const responseData = await res.json();
+
+            if (res.ok && responseData.success) {
                 setUnsavedChanges(false);
                 toast.success("Changes saved to database!");
-                console.log(`[Vault] Saved all changes to session ${sessionId}`);
+                console.log(`[Vault] Successfully saved to session ${sessionId}`, responseData);
             } else {
-                const errorData = await res.json();
-                toast.error(`Save failed: ${errorData.error || 'Unknown error'}`);
+                toast.error(`Save failed: ${responseData.error || 'Unknown error'}`);
+                console.error('[Vault] Save failed:', responseData);
             }
         } catch (error) {
             console.error("[Vault] Save error:", error);
@@ -1390,42 +1396,6 @@ export default function VaultPage() {
                             Update Assets
                         </button>
                     </div>
-                )}
-
-                {/* Save Changes Bar - Shows when there are unsaved regenerations */}
-                {unsavedChanges && !showMediaLibrary && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-8 p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4"
-                    >
-                        <div className="flex items-center gap-3 text-center sm:text-left">
-                            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                                <Save className="w-5 h-5 text-amber-400" />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-bold text-amber-400">Unsaved Changes</h3>
-                                <p className="text-xs text-gray-400">You have regenerated content that needs to be saved.</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleSaveChanges}
-                            disabled={isSaving}
-                            className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black rounded-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                        >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Saving...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="w-4 h-4" />
-                                    Save Changes
-                                </>
-                            )}
-                        </button>
-                    </motion.div>
                 )}
 
                 {/* Progress Bar (Hide in Media Library) */}
