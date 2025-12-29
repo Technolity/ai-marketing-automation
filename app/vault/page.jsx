@@ -86,6 +86,7 @@ export default function VaultPage() {
     const [editingSection, setEditingSection] = useState(null);
     const [editedContent, setEditedContent] = useState({});
     const [isRegenerating, setIsRegenerating] = useState(false);
+    const [unsavedChanges, setUnsavedChanges] = useState(false); // Track if there are unsaved regenerations
 
     // Save Session states
     const [showSaveModal, setShowSaveModal] = useState(false);
@@ -266,25 +267,8 @@ export default function VaultPage() {
                 if (data.content) {
                     const newVaultData = { ...vaultData, [sectionId]: data.content };
                     setVaultData(newVaultData);
-
-                    // Persist to database automatically
-                    const isPersistable = dataSource?.type === 'loaded' || dataSource?.type === 'latest_session';
-                    if (sessionId && isPersistable) {
-                        try {
-                            await fetchWithAuth('/api/os/sessions', {
-                                method: 'PATCH',
-                                body: JSON.stringify({
-                                    id: sessionId,
-                                    generatedContent: newVaultData
-                                })
-                            });
-                            console.log(`[Vault] Persisted regeneration for ${sectionId} to session ${sessionId}`);
-                        } catch (saveError) {
-                            console.error("[Vault] Failed to persist regeneration:", saveError);
-                        }
-                    }
-
-                    toast.success("Content regenerated and saved!");
+                    setUnsavedChanges(true); // Mark as having unsaved changes
+                    toast.success("Content regenerated! Click 'Save Changes' to persist.");
                 }
             } else {
                 toast.error(`Regeneration failed (${res.status}).`);
@@ -295,6 +279,41 @@ export default function VaultPage() {
             toast.error("Failed to regenerate");
         } finally {
             setIsRegenerating(false);
+        }
+    };
+
+    // Explicit save handler for regenerated content
+    const handleSaveChanges = async () => {
+        const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
+        if (!sessionId) {
+            toast.error("No active session. Please save your session first.");
+            setShowSaveModal(true);
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const res = await fetchWithAuth('/api/os/sessions', {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    id: sessionId,
+                    generatedContent: vaultData
+                })
+            });
+
+            if (res.ok) {
+                setUnsavedChanges(false);
+                toast.success("Changes saved to database!");
+                console.log(`[Vault] Saved all changes to session ${sessionId}`);
+            } else {
+                const errorData = await res.json();
+                toast.error(`Save failed: ${errorData.error || 'Unknown error'}`);
+            }
+        } catch (error) {
+            console.error("[Vault] Save error:", error);
+            toast.error("Failed to save changes");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -1351,6 +1370,42 @@ export default function VaultPage() {
                             Update Assets
                         </button>
                     </div>
+                )}
+
+                {/* Save Changes Bar - Shows when there are unsaved regenerations */}
+                {unsavedChanges && !showMediaLibrary && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-8 p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4"
+                    >
+                        <div className="flex items-center gap-3 text-center sm:text-left">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                                <Save className="w-5 h-5 text-amber-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-sm font-bold text-amber-400">Unsaved Changes</h3>
+                                <p className="text-xs text-gray-400">You have regenerated content that needs to be saved.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleSaveChanges}
+                            disabled={isSaving}
+                            className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black rounded-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-4 h-4" />
+                                    Save Changes
+                                </>
+                            )}
+                        </button>
+                    </motion.div>
                 )}
 
                 {/* Progress Bar (Hide in Media Library) */}
