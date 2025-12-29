@@ -97,7 +97,9 @@ async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
     }
 
     // All providers failed
-    throw lastError || new Error('No AI providers available. Please configure at least one provider in .env.local');
+    const errorMsg = lastError ? lastError.message : 'No AI providers available. Please configure at least one provider (OpenAI, Claude, or Gemini) in your environment variables.';
+    console.error(`[AI] All providers failed. Last error: ${errorMsg}`);
+    throw new Error(errorMsg);
 }
 
 // Map phase IDs to their prompt functions and names
@@ -112,8 +114,11 @@ const SECTION_PROMPTS = {
     emails: { fn: emailsPrompt, name: 'Email Sequence', key: 8 },
     facebookAds: { fn: facebookAdsPrompt, name: 'Facebook Ads', key: 9 },
     funnelCopy: { fn: funnelCopyPrompt, name: 'Funnel Copy', key: 10 },
-    bio: { fn: bioPrompt, name: 'Professional Bio', key: 14 },
-    contentIdeas: { fn: contentIdeasPrompt, name: 'Content Ideas', key: 13 },
+    contentIdeas: { fn: contentIdeasPrompt, name: 'Content Ideas', key: 11 },
+    program12Month: { fn: (data) => `Please generate a 12-month program blueprint based on: ${JSON.stringify(data)}`, name: '12-Month Program', key: 12 },
+    youtubeShow: { fn: (data) => `Please generate a YouTube show strategy based on: ${JSON.stringify(data)}`, name: 'YouTube Show', key: 13 },
+    personalBrandBio: { fn: bioPrompt, name: 'Personal Brand Bio', key: 14 },
+    bio: { fn: bioPrompt, name: 'Professional Bio', key: 15 },
     appointmentReminders: { fn: appointmentRemindersPrompt, name: 'Appointment Reminders', key: 16 }
 };
 
@@ -201,10 +206,11 @@ export async function POST(req) {
                 temperature: 0.7
             });
         } catch (aiError) {
-            console.error('[Regenerate] AI generation error:', aiError);
+            console.error(`[Regenerate] AI generation error for ${section}:`, aiError);
             return NextResponse.json({
-                error: 'AI generation failed',
-                details: aiError.message
+                error: `AI generation failed for ${promptConfig.name}`,
+                details: aiError.message,
+                section: section
             }, { status: 500 });
         }
 
@@ -233,10 +239,11 @@ export async function POST(req) {
 
                 parsedContent = parseJsonSafe(rawContent);
             } catch (retryError) {
-                console.error('[Regenerate] Retry failed:', retryError);
+                console.error(`[Regenerate] Retry parse failed for ${section}:`, retryError);
                 return NextResponse.json({
-                    error: 'Failed to parse AI response',
-                    details: parseError.message
+                    error: `Failed to parse AI response for ${promptConfig.name}`,
+                    details: retryError.message,
+                    rawContent: rawContent?.substring(0, 200)
                 }, { status: 500 });
             }
         }
