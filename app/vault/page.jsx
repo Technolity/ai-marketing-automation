@@ -1,10 +1,12 @@
 "use client";
 /**
- * Vault Page
+ * Vault Page - Unified Results Hub
  * 
- * Connected to existing database schema.
- * Uses /api/os/results to read from saved_sessions.generated_content
- * No mock data - displays actual AI-generated content from database.
+ * Phase 1: Business Core (6 items) - Always accessible
+ * Phase 2: Funnel Assets (7 items) - Locked until funnel approved
+ * 
+ * After all phases approved, user sees filled vault on every visit.
+ * Reset only when business is reset.
  */
 
 import { useEffect, useState } from "react";
@@ -12,95 +14,88 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    Loader2, ChevronRight, Copy, RefreshCw, Download, Search,
-    Megaphone, Gift, Layout, Video, Mail, MessageSquare,
-    Users, MessageCircle, BookOpen, Award, Mic, Palette,
-    X, CheckCircle, Menu, ArrowLeft, ChevronDown
+    Loader2, ChevronRight, RefreshCw, CheckCircle, Lock,
+    Users, MessageSquare, BookOpen, Gift, Mic, Magnet,
+    Video, Mail, Megaphone, Layout, Bell, Lightbulb,
+    Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
+    ChevronDown, ChevronUp, Save
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-// Asset categories mapped to saved_sessions.generated_content keys
-const VAULT_CATEGORIES = [
-    {
-        id: 'businessCore',
-        title: 'Business Core',
-        icon: Users,
-        items: [
-            { id: 'idealClient', name: 'Ideal Client', icon: Users },
-            { id: 'message', name: 'Message', icon: MessageCircle },
-            { id: 'stories', name: 'Story', icon: BookOpen },
-            { id: 'proof', name: 'Proof', icon: Award },
-            { id: 'offer', name: 'Offer & Pricing', icon: Gift },
-            { id: 'scripts', name: 'Sales Script', icon: Mic }
-        ]
-    },
-    {
-        id: 'ads',
-        title: 'Ad Copy',
-        icon: Megaphone,
-        items: [
-            { id: 'ads', name: 'All Ad Variations', icon: Megaphone },
-            { id: 'adHeadlines', name: 'Headlines', icon: Megaphone },
-            { id: 'adCopy', name: 'Body Copy', icon: Megaphone }
-        ]
-    },
-    {
-        id: 'pages',
-        title: 'Pages',
-        icon: Layout,
-        items: [
-            { id: 'optinPage', name: 'Opt-in Page', icon: Layout },
-            { id: 'salesPage', name: 'Sales Page', icon: Video },
-            { id: 'thankYouPage', name: 'Thank You Page', icon: CheckCircle }
-        ]
-    },
-    {
-        id: 'sequences',
-        title: 'Sequences',
-        icon: Mail,
-        items: [
-            { id: 'emails', name: 'Email Sequence', icon: Mail },
-            { id: 'sms', name: 'SMS Sequence', icon: MessageSquare }
-        ]
-    },
-    {
-        id: 'brand',
-        title: 'Brand Assets',
-        icon: Palette,
-        items: [
-            { id: 'brandColors', name: 'Color Palette', icon: Palette },
-            { id: 'brandFonts', name: 'Typography', icon: Palette },
-            { id: 'logo', name: 'Logo Concepts', icon: Palette }
-        ]
-    }
+// Phase 1: Business Core - Always accessible
+const PHASE_1_SECTIONS = [
+    { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'WHO you serve', icon: Users },
+    { id: 'message', numericKey: 2, title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
+    { id: 'stories', numericKey: 3, title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
+    { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift },
+    { id: 'scripts', numericKey: 5, title: 'Sales Script', subtitle: 'How you close', icon: Mic },
+    { id: 'leadMagnet', numericKey: 6, title: 'Lead Magnet', subtitle: 'Your free gift', icon: Magnet }
 ];
+
+// Phase 2: Funnel Assets - Locked until funnel approved
+const PHASE_2_SECTIONS = [
+    { id: 'leadMagnetCopy', numericKey: 7, title: 'Lead Magnet Copy', subtitle: 'Value-driven gift copy', icon: Gift },
+    { id: 'vslScript', numericKey: 8, title: 'VSL Script', subtitle: 'Video Sales Letter', icon: Video },
+    { id: 'emails', numericKey: 9, title: '15-Day Email Sequence', subtitle: 'Nurture series', icon: Mail },
+    { id: 'ads', numericKey: 10, title: 'Facebook Ads', subtitle: 'Ad copy & prompts', icon: Megaphone },
+    { id: 'funnelCopy', numericKey: 11, title: 'Funnel Page Copy', subtitle: 'Landing pages', icon: Layout },
+    { id: 'appointmentReminders', numericKey: 12, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
+    { id: 'contentIdeas', numericKey: 13, title: 'Content Ideas', subtitle: 'Social media topics', icon: Lightbulb }
+];
+
+// Normalize data structure (handles numeric or named keys)
+function normalizeData(rawData) {
+    if (!rawData || typeof rawData !== 'object') return {};
+
+    const normalized = {};
+    const allSections = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS];
+    const hasNumericKeys = Object.keys(rawData).some(key => !isNaN(key));
+
+    if (hasNumericKeys) {
+        allSections.forEach(section => {
+            const numKey = section.numericKey.toString();
+            if (rawData[numKey]) {
+                normalized[section.id] = rawData[numKey].data || rawData[numKey];
+            }
+        });
+    } else {
+        return rawData;
+    }
+
+    return normalized;
+}
 
 export default function VaultPage() {
     const router = useRouter();
     const { session, loading: authLoading } = useAuth();
 
     const [isLoading, setIsLoading] = useState(true);
-    const [allAssets, setAllAssets] = useState({});
+    const [vaultData, setVaultData] = useState({});
     const [dataSource, setDataSource] = useState(null);
-    const [selectedCategory, setSelectedCategory] = useState(VAULT_CATEGORIES[0].id);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [searchQuery, setSearchQuery] = useState("");
+
+    // Approval states
+    const [approvedPhase1, setApprovedPhase1] = useState([]);
+    const [funnelApproved, setFunnelApproved] = useState(false);
+    const [approvedPhase2, setApprovedPhase2] = useState([]);
+
+    // UI states
+    const [expandedSection, setExpandedSection] = useState(null);
+    const [editingSection, setEditingSection] = useState(null);
+    const [editedContent, setEditedContent] = useState({});
     const [isRegenerating, setIsRegenerating] = useState(false);
 
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [expandedCategories, setExpandedCategories] = useState([VAULT_CATEGORIES[0].id]);
+    // Save Session states
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [sessionName, setSessionName] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
 
-    useEffect(() => {
-        const checkScreenSize = () => {
-            setIsSidebarOpen(window.innerWidth >= 1024);
-        };
-        checkScreenSize();
-        window.addEventListener('resize', checkScreenSize);
-        return () => window.removeEventListener('resize', checkScreenSize);
-    }, []);
+    // Computed states
+    const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
+    const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
+    const isVaultComplete = isPhase1Complete && isPhase2Complete;
 
-    // Load all assets from database via /api/os/results
+    // Load vault data from database
     useEffect(() => {
         if (authLoading) return;
         if (!session) {
@@ -108,89 +103,139 @@ export default function VaultPage() {
             return;
         }
 
-        const loadAllAssets = async () => {
+        const loadVault = async () => {
             try {
-                // Fetch from saved_sessions.generated_content via API
                 const res = await fetchWithAuth('/api/os/results');
                 const result = await res.json();
 
                 if (result.error) {
                     console.error("API error:", result.error);
-                    toast.error("Failed to load assets");
+                    toast.error("Failed to load vault");
                     return;
                 }
 
                 if (result.data && Object.keys(result.data).length > 0) {
-                    setAllAssets(result.data);
+                    const normalizedData = normalizeData(result.data);
+                    setVaultData(normalizedData);
                     setDataSource(result.source);
-                    console.log('[Vault] Loaded assets from:', result.source);
+                    console.log('[Vault] Loaded from:', result.source);
                 } else {
-                    toast.info("No generated content yet. Complete the intake form first.");
+                    toast.info("No content yet. Complete the intake form first.");
+                    router.push('/intake_form');
+                    return;
                 }
+
+                // Load approvals
+                await loadApprovals();
+
             } catch (error) {
-                console.error("Failed to load assets:", error);
-                toast.error("Failed to load assets");
+                console.error("Failed to load vault:", error);
+                toast.error("Failed to load vault");
             } finally {
                 setIsLoading(false);
             }
         };
 
-        loadAllAssets();
+        loadVault();
     }, [session, authLoading, router]);
 
-    const toggleCategory = (categoryId) => {
-        setExpandedCategories(prev =>
-            prev.includes(categoryId)
-                ? prev.filter(id => id !== categoryId)
-                : [...prev, categoryId]
-        );
-        setSelectedCategory(categoryId);
-    };
-
-    const getAssetContent = (itemId) => {
-        const content = allAssets[itemId];
-        if (!content) return null;
-
-        if (typeof content === 'string') return content;
-        if (typeof content === 'object') {
-            return Object.entries(content)
-                .filter(([k]) => k !== '_contentName' && k !== 'id')
-                .map(([k, v]) => {
-                    const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
-                    const value = typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v);
-                    return `**${label}:**\n${value}`;
-                })
-                .join('\n\n');
+    const loadApprovals = async () => {
+        try {
+            const approvalsRes = await fetchWithAuth('/api/os/approvals');
+            if (approvalsRes.ok) {
+                const data = await approvalsRes.json();
+                if (data.approvals) {
+                    setApprovedPhase1(data.approvals.phase1 || data.approvals.businessCore || []);
+                    setApprovedPhase2(data.approvals.phase2 || []);
+                    setFunnelApproved(data.approvals.funnelApproved || false);
+                }
+            }
+        } catch (e) {
+            // Fallback to localStorage
+            const saved = localStorage.getItem(`vault_approvals_${session.user.id}`);
+            if (saved) {
+                const approvals = JSON.parse(saved);
+                setApprovedPhase1(approvals.phase1 || []);
+                setApprovedPhase2(approvals.phase2 || []);
+                setFunnelApproved(approvals.funnelApproved || false);
+            }
         }
-        return String(content);
     };
 
-    const handleCopy = (content) => {
-        navigator.clipboard.writeText(content);
-        toast.success("Copied to clipboard!");
+    const saveApprovals = async (phase1, phase2, funnel) => {
+        const approvals = { phase1, phase2, funnelApproved: funnel };
+        localStorage.setItem(`vault_approvals_${session.user.id}`, JSON.stringify(approvals));
+
+        try {
+            await fetchWithAuth('/api/os/approvals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'vault', approvals })
+            });
+        } catch (e) {
+            console.log('Approvals saved to localStorage');
+        }
     };
 
-    // Regenerate via existing API
-    const handleRegenerate = async (itemId) => {
+    const getSectionStatus = (sectionId, phaseNumber, approvedList, index) => {
+        if (approvedList.includes(sectionId)) return 'approved';
+
+        // Phase 2 locked until funnel approved
+        if (phaseNumber === 2 && !funnelApproved) return 'locked';
+
+        // First item or previous approved
+        const sections = phaseNumber === 1 ? PHASE_1_SECTIONS : PHASE_2_SECTIONS;
+        if (index === 0 || approvedList.includes(sections[index - 1].id)) {
+            return 'current';
+        }
+        return 'locked';
+    };
+
+    const handleApprove = async (sectionId, phaseNumber) => {
+        if (phaseNumber === 1) {
+            const newApprovals = [...approvedPhase1, sectionId];
+            setApprovedPhase1(newApprovals);
+            await saveApprovals(newApprovals, approvedPhase2, funnelApproved);
+
+            if (newApprovals.length >= PHASE_1_SECTIONS.length) {
+                toast.success("🎉 Phase 1 Complete! Choose your funnel.");
+                setTimeout(() => router.push('/funnel-recommendation'), 1500);
+            } else {
+                toast.success("Section approved!");
+            }
+        } else {
+            const newApprovals = [...approvedPhase2, sectionId];
+            setApprovedPhase2(newApprovals);
+            await saveApprovals(approvedPhase1, newApprovals, funnelApproved);
+
+            if (newApprovals.length >= PHASE_2_SECTIONS.length) {
+                toast.success("🎉 Your Vault is Complete!");
+            } else {
+                toast.success("Section approved!");
+            }
+        }
+        setExpandedSection(null);
+    };
+
+    const handleRegenerate = async (sectionId) => {
         setIsRegenerating(true);
         try {
+            const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
+
             const res = await fetchWithAuth('/api/os/regenerate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    section: itemId,
-                    sessionId: dataSource?.id
-                })
+                body: JSON.stringify({ section: sectionId, sessionId })
             });
 
             if (res.ok) {
                 const data = await res.json();
                 if (data.content) {
-                    setAllAssets(prev => ({ ...prev, [itemId]: data.content }));
+                    setVaultData(prev => ({ ...prev, [sectionId]: data.content }));
                     toast.success("Content regenerated!");
                 }
             } else {
-                toast.error("Regeneration failed - check API logs");
+                toast.error("Regeneration failed");
             }
         } catch (error) {
             console.error("Regeneration error:", error);
@@ -200,19 +245,345 @@ export default function VaultPage() {
         }
     };
 
-    const handleItemSelect = (itemId) => {
-        setSelectedItem(itemId);
-        if (window.innerWidth < 1024) {
-            setIsSidebarOpen(false);
+    // Save session with a custom name
+    const handleSaveSession = async () => {
+        if (!sessionName.trim()) {
+            toast.error("Please enter a session name");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            // Get user answers from localStorage
+            const progressKey = `wizard_progress_${session.user.id}`;
+            const savedProgress = localStorage.getItem(progressKey);
+            const progressData = savedProgress ? JSON.parse(savedProgress) : {};
+
+            const res = await fetchWithAuth('/api/os/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionName: sessionName.trim(),
+                    currentStep: 20,
+                    completedSteps: Array.from({ length: 20 }, (_, i) => i + 1),
+                    answers: progressData.answers || {},
+                    generatedContent: vaultData,
+                    isComplete: true
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                toast.success(`Session saved as "${sessionName}"`);
+                setShowSaveModal(false);
+                setSessionName('');
+            } else {
+                toast.error(data.error || "Failed to save session");
+            }
+        } catch (error) {
+            console.error("Save session error:", error);
+            toast.error("Failed to save session");
+        } finally {
+            setIsSaving(false);
         }
     };
 
-    const filteredCategories = VAULT_CATEGORIES.map(cat => ({
-        ...cat,
-        items: cat.items.filter(item =>
-            item.name.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-    })).filter(cat => cat.items.length > 0);
+    // Section title mapping for better display
+    const SECTION_TITLES = {
+        // Ideal Client sections
+        coreAudienceSnapshot: '1. Core Audience Snapshot',
+        demographics: '2. Demographics',
+        psychographics: '3. Psychographics',
+        corePainsAndProblems: '4. Core Pains & Problems',
+        desiredOutcomesAndMotivations: '5. Desired Outcomes & Motivations',
+        buyingTriggers: '6. Buying Triggers',
+        objectionsAndResistance: '7. Objections & Resistance',
+        languageAndMessagingHooks: '8. Language & Messaging Hooks',
+        whereTheySpendTimeAndWhoTheyTrust: '9. Where They Spend Time & Who They Trust',
+        summaryForMarketers: '10. Summary for Marketers',
+
+        // Million Dollar Message sections
+        oneLineMillionDollarMessage: '1. The One-Line Million-Dollar Message',
+        thisIsForYouIf: '2. This Is For You If…',
+        coreProblemReframe: '3. Core Problem Reframe',
+        uniqueMechanism: '4. The Unique Mechanism / New Way',
+        outcomePromise: '5. The Outcome Promise (Non-Hype)',
+        proofAndCredibility: '6. Proof & Credibility Anchors',
+        objectionNeutralizers: '7. Objection-Neutralizing Message',
+        messageAnglesThatScale: '8. Message Angles That Scale',
+        ctaFraming: '9. Call-to-Action Framing',
+        messageToMillionsSummary: '10. Final "Message to Millions" Summary',
+
+        // Ideal Client field labels
+        whoTheyAre: 'Who This Person Is',
+        lifeOrBusinessStage: 'Stage of Life/Business',
+        whyNow: 'Why Now Is The Moment',
+        ageRange: 'Age Range',
+        gender: 'Gender',
+        location: 'Location',
+        incomeOrRevenue: 'Income/Revenue',
+        jobTitleOrRole: 'Job Title/Role',
+        currentFrustrations: 'Current Frustrations',
+        whatKeepsThemStuck: 'What Keeps Them Stuck',
+        secretWorries: 'Secret Worries',
+        successInTheirWords: 'Success In Their Words',
+        tiredOfTrying: 'Tired of Trying',
+        surfaceProblem: 'Surface Problem',
+        deeperEmotionalProblem: 'Deeper Emotional Problem',
+        costOfNotSolving: 'Cost of Not Solving',
+        practicalResults: 'Practical Results',
+        emotionalOutcomes: 'Emotional Outcomes',
+        statusIdentityLifestyle: 'Status/Identity/Lifestyle',
+        momentsThatPushAction: 'Moments That Push Action',
+        needHelpNowMoments: 'I Need Help NOW Moments',
+        messagingThatGrabsAttention: 'Messaging That Grabs Attention',
+        reasonsToHesitate: 'Reasons They Hesitate',
+        pastBadExperiences: 'Past Bad Experiences',
+        whatTheyNeedToBelieve: 'What They Need to Believe',
+        phrasesTheyUse: 'Phrases They Use',
+        emotionallyResonantWords: 'Emotionally Resonant Words',
+        authenticAngles: 'Authentic Angles',
+        platforms: 'Platforms',
+        trustedVoices: 'Trusted Voices',
+        contentFormatsTheyRespondTo: 'Content Formats',
+        howToSpeakToThem: 'How To Speak To Them',
+        whatToAvoid: 'What To Avoid',
+        whatBuildsTrustAndAuthority: 'What Builds Trust & Authority',
+
+        // Message field labels
+        headline: 'Headline',
+        whoItsFor: 'Who It\'s For',
+        problemItSolves: 'Problem It Solves',
+        outcomeDelivered: 'Outcome Delivered',
+        whyDifferent: 'Why Different',
+        qualifierBullets: 'Qualifier Bullets',
+        notForYouIf: 'Not For You If…',
+        howTheyExplainIt: 'How They Explain It',
+        whyItsIncomplete: 'Why It\'s Incomplete',
+        deeperTruth: 'The Deeper Truth',
+        methodName: 'Method Name',
+        whatItIs: 'What It Is',
+        whyItWorks: 'Why It Works',
+        keySteps: 'Key Steps',
+        missingPiece: 'The Missing Piece',
+        realisticExpectation: 'Realistic Expectation',
+        tangibleResults: 'Tangible Results',
+        noHypeDisclaimer: 'Honest Disclaimer',
+        howToUseProof: 'How To Use Proof',
+        fastestTrustBuilders: 'Fastest Trust Builders',
+        founderCredibility: 'Founder Credibility',
+        theObjection: 'The Objection',
+        howToDissolve: 'How To Dissolve It',
+        adAngles: 'Ad Angles',
+        contentThemes: 'Content Themes',
+        emailHooks: 'Email Hooks',
+        webinarVslNarrative: 'Webinar/VSL Narrative',
+        socialMediaAngles: 'Social Media Angles',
+        howToPosition: 'How To Position',
+        emotionalStateNeeded: 'Emotional State Needed',
+        primaryCta: 'Primary CTA',
+        whatHappensNext: 'What Happens Next',
+        whyActNow: 'Why Act Now',
+        fullParagraph: 'Full Summary',
+        elevatorPitch: 'Elevator Pitch',
+        tagline: 'Tagline',
+
+        // Signature Story sections
+        originMoment: '1. The Origin Moment',
+        emotionalStruggle: '2. The Emotional Struggle',
+        discoveryBreakthrough: '3. The Discovery / Breakthrough',
+        missionAndWhy: '4. The Mission & Why',
+        clientProofResults: '5. Client Proof / Results',
+        ctaTieIn: '6. The Call-to-Action Tie-In',
+        voiceAndTone: '7. Voice & Tone',
+
+        // Story field labels
+        definingExperience: 'Defining Experience',
+        relatableStruggle: 'Relatable Struggle',
+        turningPoint: 'Turning Point',
+        obstaclesFaced: 'Obstacles Faced',
+        fearsAndDoubts: 'Fears & Doubts',
+        connectionToAudience: 'Connection to Audience',
+        howSolutionWasFound: 'How Solution Was Found',
+        uniqueInsight: 'Unique Insight',
+        whyItsLearnable: 'Why It\'s Learnable',
+        whyYouHelp: 'Why You Help',
+        deeperPurpose: 'Deeper Purpose',
+        authenticityMarkers: 'Authenticity Markers',
+        naturalTransition: 'Natural Transition',
+        nextStepInvitation: 'Next Step Invitation',
+        continuingTransformation: 'Continuing the Transformation',
+        brandVoiceDescription: 'Brand Voice',
+        emotionalTone: 'Emotional Tone',
+        fullStoryScript: 'Full Story Script',
+        shortVersion: 'Short Version',
+        oneSentence: 'One Sentence Version',
+
+        // Program Blueprint sections
+        programOverview: '1. Program Overview',
+        weeklyBreakdown: '2. Weekly Breakdown (Weeks 1-8)',
+        deliverablesAssets: '3. Deliverables & Program Assets',
+        proofCredibilityIntegration: '4. Proof & Credibility Integration',
+        ctaEnrollmentFraming: '5. CTA & Enrollment Framing',
+        programVoiceTone: '6. Voice & Tone',
+
+        // Program field labels
+        programName: 'Program Name',
+        primaryOutcome: 'Primary Outcome',
+        uniqueFramework: 'Unique Framework',
+        whoItsFor: 'Who It\'s For',
+        weekTheme: 'Theme / Focus',
+        weekObjective: 'Objective / Outcome',
+        coreLessons: 'Core Lessons',
+        activities: 'Activities / Exercises',
+        toolsResources: 'Tools & Resources',
+        checkpoints: 'Checkpoints',
+        deliverables: 'Deliverables',
+        proofIntegration: 'How to Weave in Proof',
+        keyProofMoments: 'Key Proof Moments',
+        enrollmentGuidance: 'Enrollment Guidance',
+        transformationEmphasis: 'Transformation Emphasis',
+
+        // Lead Magnet sections
+        leadMagnetIdea: '1. Lead Magnet Idea',
+        titleAndHook: '2. Title & Hook',
+        audienceConnection: '3. Audience Connection',
+        coreContent: '4. Core Content / Deliverables',
+        leadMagnetCopy: '5. Lead Magnet Copy',
+        ctaIntegration: '6. CTA Integration',
+        // voiceAndTone already defined above for Story
+
+        // Lead Magnet field labels
+        concept: 'Concept',
+        coreProblemSolved: 'Core Problem Solved',
+        keyOutcomeDelivered: 'Key Outcome Delivered',
+        alignmentWithMethod: 'Alignment with Method',
+        format: 'Format',
+        mainTitle: 'Main Title',
+        subtitle: 'Subtitle',
+        alternativeTitles: 'Alternative Titles',
+        whyItsIrresistible: 'Why It\'s Irresistible',
+        openingHook: 'Opening Hook',
+        painAcknowledgment: 'Pain Acknowledgment',
+        desireValidation: 'Desire Validation',
+        trustBuilder: 'Trust Builder',
+        transitionToValue: 'Transition to Value',
+        immediateValue: 'Immediate Value',
+        uniquePerspective: 'Unique Perspective',
+        bulletPoints: 'Bullet Points',
+        softCta: 'Soft CTA',
+        ctaButtonText: 'CTA Button Text',
+        socialProof: 'Social Proof',
+        privacyNote: 'Privacy Note',
+        connectionToOffer: 'Connection to Offer',
+        hintAtDeeperTransformation: 'Hint at Deeper Transformation',
+        nextStepInvitation: 'Next Step Invitation',
+        emailOptInValue: 'Email Opt-In Value',
+        languageToUse: 'Language to Use',
+        languageToAvoid: 'Language to Avoid',
+
+        // Setter Call Script sections
+        quickOutline: 'Quick Setter Call Outline',
+        fullWordForWordScript: 'Full Word-for-Word Script',
+        callGoal: 'Call Goal',
+        callFlow: 'Call Flow (10 Steps)',
+        setterMindset: 'Setter Mindset',
+        script: 'Teleprompter Script',
+
+        // Call Flow step labels
+        step1: 'Step 1: Opener + Permission',
+        step2: 'Step 2: Reference Opt-In',
+        step3: 'Step 3: Low-Pressure Frame',
+        step4: 'Step 4: Current Situation',
+        step5: 'Step 5: Goal + Motivation',
+        step6: 'Step 6: Challenge + Stakes',
+        step7: 'Step 7: Authority Drop',
+        step8: 'Step 8: Qualify Fit + Readiness',
+        step9: 'Step 9: Book Consultation',
+        step10: 'Step 10: Confirm Show-Up + Wrap-Up',
+        name: 'Step Name',
+        purpose: 'Purpose',
+        keyLine: 'Key Line'
+    };
+
+    const getSectionTitle = (key) => {
+        return SECTION_TITLES[key] || key.replace(/([A-Z])/g, ' $1').trim();
+    };
+
+    // Content Renderer with enhanced formatting
+    const ContentRenderer = ({ content, sectionId, isEditing }) => {
+        if (!content) return <p className="text-gray-500 text-sm">No content generated.</p>;
+
+        // Handle nested content (like idealClientProfile wrapper)
+        let displayContent = content;
+        if (content.idealClientProfile) {
+            displayContent = content.idealClientProfile;
+        }
+
+        const renderValue = (value, key = '', depth = 0, isMainSection = false) => {
+            if (value === null || value === undefined) return null;
+
+            // Arrays - render as bullet list
+            if (Array.isArray(value)) {
+                return (
+                    <div className="space-y-2 mt-2">
+                        {value.map((item, idx) => (
+                            <div key={idx} className="flex items-start gap-3">
+                                <span className="text-cyan font-bold mt-0.5">•</span>
+                                {typeof item === 'object' ? (
+                                    <div className="flex-1">{renderValue(item, '', depth + 1)}</div>
+                                ) : (
+                                    <p className="text-gray-300 text-sm leading-relaxed flex-1">{String(item)}</p>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+
+            // Objects - render sections
+            if (typeof value === 'object') {
+                const entries = Object.entries(value).filter(([k]) =>
+                    k !== '_contentName' && k !== 'id' && k !== 'idealClientProfile'
+                );
+
+                // Check if this is a top-level section (numbered sections)
+                const isTopLevelSection = depth === 0 && SECTION_TITLES[key]?.startsWith(String(depth + 1));
+
+                return (
+                    <div className={`${depth > 0 ? 'ml-1' : ''} space-y-4`}>
+                        {entries.map(([k, v]) => {
+                            const title = getSectionTitle(k);
+                            const isNumberedSection = /^\d+\./.test(title);
+
+                            return (
+                                <div key={k} className={`${isNumberedSection ? 'border-l-2 border-cyan/40 pl-4 py-2' : ''}`}>
+                                    <h4 className={`
+                                        ${isNumberedSection
+                                            ? 'text-cyan text-base font-bold mb-3'
+                                            : 'text-cyan/80 text-xs font-semibold uppercase tracking-wider mb-1'
+                                        }
+                                    `}>
+                                        {title}
+                                    </h4>
+                                    {renderValue(v, k, depth + 1)}
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            }
+
+            // Strings/primitives
+            return (
+                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
+                    {String(value)}
+                </p>
+            );
+        };
+
+        return <div className="space-y-6">{renderValue(displayContent)}</div>;
+    };
 
     if (authLoading || isLoading) {
         return (
@@ -222,261 +593,411 @@ export default function VaultPage() {
         );
     }
 
-    const currentCategory = VAULT_CATEGORIES.find(c => c.id === selectedCategory);
-    const currentItem = selectedItem ?
-        VAULT_CATEGORIES.flatMap(c => c.items).find(i => i.id === selectedItem) : null;
-    const currentContent = currentItem ? getAssetContent(currentItem.id) : null;
-
-    return (
-        <div className="min-h-screen bg-[#0e0e0f] text-white flex flex-col lg:flex-row">
-
-            {/* Mobile Header */}
-            <div className="lg:hidden flex items-center justify-between p-4 border-b border-[#2a2a2d] bg-[#131314]">
-                <button
-                    onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                    className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
-                >
-                    <Menu className="w-6 h-6" />
-                </button>
-                <h1 className="text-xl font-bold">Vault</h1>
-                <button
-                    onClick={() => router.push('/dashboard')}
-                    className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
-                >
-                    <ArrowLeft className="w-6 h-6" />
-                </button>
-            </div>
-
-            {/* Sidebar Overlay */}
-            <AnimatePresence>
-                {isSidebarOpen && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setIsSidebarOpen(false)}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* Sidebar */}
-            <AnimatePresence>
-                {isSidebarOpen && (
-                    <motion.aside
-                        initial={{ x: "-100%" }}
-                        animate={{ x: 0 }}
-                        exit={{ x: "-100%" }}
-                        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                        className="fixed lg:relative z-50 h-full lg:h-auto w-[280px] sm:w-[320px] lg:w-80 bg-[#131314] border-r border-[#2a2a2d] flex flex-col lg:sticky lg:top-0 lg:max-h-screen"
+    // Vault Complete View
+    if (isVaultComplete) {
+        return (
+            <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8">
+                <div className="max-w-4xl mx-auto">
+                    <button
+                        onClick={() => router.push('/dashboard')}
+                        className="mb-6 p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
                     >
-                        <div className="p-4 sm:p-6 border-b border-[#2a2a2d] flex items-center justify-between">
-                            <div>
-                                <h1 className="text-xl sm:text-2xl font-bold">Vault</h1>
-                                {dataSource && (
-                                    <p className="text-xs text-gray-500 mt-1">From: {dataSource.name || dataSource.type}</p>
-                                )}
-                            </div>
-                            <button
-                                onClick={() => setIsSidebarOpen(false)}
-                                className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors lg:hidden"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
+                        <ArrowLeft className="w-4 h-4" />
+                        Back to Dashboard
+                    </button>
+
+                    <div className="text-center mb-10">
+                        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
+                            <PartyPopper className="w-10 h-10 text-white" />
                         </div>
+                        <h1 className="text-4xl font-black mb-4">Your Complete Vault</h1>
+                        <p className="text-gray-400">All your content is ready. Edit or regenerate anytime.</p>
+                    </div>
 
-                        <div className="p-4 border-b border-[#2a2a2d]">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                <input
-                                    type="text"
-                                    placeholder="Search assets..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-cyan"
-                                />
-                            </div>
+                    {/* Phase 1 */}
+                    <div className="mb-8">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                            Phase 1: Business Core
+                        </h2>
+                        <div className="grid gap-3">
+                            {PHASE_1_SECTIONS.map((section) => renderCompletedSection(section, 1))}
                         </div>
+                    </div>
 
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                            {filteredCategories.map((category) => {
-                                const CatIcon = category.icon;
-                                const isExpanded = expandedCategories.includes(category.id);
-
-                                return (
-                                    <div key={category.id}>
-                                        <button
-                                            onClick={() => toggleCategory(category.id)}
-                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${isExpanded ? 'bg-cyan/10 text-cyan' : 'text-gray-400 hover:text-white hover:bg-[#1b1b1d]'
-                                                }`}
-                                        >
-                                            <CatIcon className="w-5 h-5 flex-shrink-0" />
-                                            <span className="font-medium flex-1">{category.title}</span>
-                                            <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                                        </button>
-
-                                        <AnimatePresence>
-                                            {isExpanded && (
-                                                <motion.div
-                                                    initial={{ opacity: 0, height: 0 }}
-                                                    animate={{ opacity: 1, height: 'auto' }}
-                                                    exit={{ opacity: 0, height: 0 }}
-                                                    className="mt-1 ml-4 space-y-1 overflow-hidden"
-                                                >
-                                                    {category.items.map((item) => {
-                                                        const ItemIcon = item.icon;
-                                                        const hasContent = !!allAssets[item.id];
-                                                        const isItemActive = selectedItem === item.id;
-
-                                                        return (
-                                                            <button
-                                                                key={item.id}
-                                                                onClick={() => handleItemSelect(item.id)}
-                                                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-sm transition-all ${isItemActive
-                                                                        ? 'bg-cyan text-black font-medium'
-                                                                        : hasContent
-                                                                            ? 'text-gray-300 hover:bg-[#1b1b1d]'
-                                                                            : 'text-gray-600 hover:bg-[#1b1b1d]'
-                                                                    }`}
-                                                            >
-                                                                <ItemIcon className="w-4 h-4 flex-shrink-0" />
-                                                                <span className="flex-1 truncate">{item.name}</span>
-                                                                {hasContent && !isItemActive && (
-                                                                    <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                                                                )}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-                                );
-                            })}
+                    {/* Phase 2 */}
+                    <div>
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                            Phase 2: Funnel Assets
+                        </h2>
+                        <div className="grid gap-3">
+                            {PHASE_2_SECTIONS.map((section) => renderCompletedSection(section, 2))}
                         </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
-                        <div className="p-4 border-t border-[#2a2a2d]">
-                            <button
-                                onClick={() => router.push('/dashboard')}
-                                className="w-full py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-gray-400 hover:text-white hover:bg-[#252528] transition-all text-sm font-medium"
-                            >
-                                Back to Dashboard
-                            </button>
-                        </div>
-                    </motion.aside>
-                )}
-            </AnimatePresence>
+    // Helper to render completed sections
+    const renderCompletedSection = (section, phaseNumber) => {
+        const Icon = section.icon;
+        const content = vaultData[section.id];
+        const isExpanded = expandedSection === section.id;
 
-            {/* Toggle Sidebar Button (Desktop) */}
-            <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="hidden lg:flex fixed left-4 top-20 z-30 bg-[#1b1b1d] p-2 rounded-lg border border-[#2a2a2d] hover:bg-[#2a2a2d] transition-colors"
-            >
-                {isSidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-            </button>
+        return (
+            <div key={section.id} className="rounded-xl border border-green-500/30 bg-green-500/5 overflow-hidden">
+                <button
+                    onClick={() => setExpandedSection(isExpanded ? null : section.id)}
+                    className="w-full p-4 flex items-center gap-4 text-left hover:bg-green-500/10 transition-colors"
+                >
+                    <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
+                        <Icon className="w-5 h-5 text-green-400" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-bold text-green-400">{section.title}</h3>
+                        <p className="text-xs text-gray-500">{section.subtitle}</p>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
 
-            {/* Main Content */}
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto min-h-[calc(100vh-60px)] lg:min-h-screen">
-                <AnimatePresence mode="wait">
-                    {!selectedItem ? (
+                <AnimatePresence>
+                    {isExpanded && (
                         <motion.div
-                            key="placeholder"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="h-full flex items-center justify-center min-h-[400px]"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="border-t border-green-500/20"
                         >
-                            <div className="text-center max-w-md px-4">
-                                <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-6 rounded-full bg-[#1b1b1d] flex items-center justify-center">
-                                    <Search className="w-8 h-8 sm:w-10 sm:h-10 text-gray-600" />
+                            <div className="p-4">
+                                <div className="bg-[#0e0e0f] rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
+                                    <ContentRenderer content={content} isEditing={false} />
                                 </div>
-                                <h2 className="text-xl sm:text-2xl font-bold mb-2">Select an Asset</h2>
-                                <p className="text-gray-500 text-sm sm:text-base">
-                                    {isSidebarOpen
-                                        ? "Click on any item in the sidebar to view your generated content."
-                                        : "Tap the menu button to browse your assets."}
-                                </p>
-                                {!isSidebarOpen && (
+                                <div className="flex gap-3">
                                     <button
-                                        onClick={() => setIsSidebarOpen(true)}
-                                        className="mt-6 px-6 py-3 bg-cyan text-black rounded-lg font-bold flex items-center gap-2 mx-auto hover:brightness-110 transition-all"
-                                    >
-                                        <Menu className="w-5 h-5" />
-                                        Browse Assets
-                                    </button>
-                                )}
-                            </div>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key={selectedItem}
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: -20 }}
-                            className="max-w-4xl mx-auto"
-                        >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-                                <div className="flex items-center gap-3 sm:gap-4">
-                                    <button
-                                        onClick={() => setSelectedItem(null)}
-                                        className="lg:hidden p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors"
-                                    >
-                                        <ArrowLeft className="w-5 h-5" />
-                                    </button>
-                                    {currentItem && (
-                                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-cyan/10 flex items-center justify-center flex-shrink-0">
-                                            <currentItem.icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />
-                                        </div>
-                                    )}
-                                    <div className="min-w-0">
-                                        <h2 className="text-2xl sm:text-3xl font-bold truncate">{currentItem?.name}</h2>
-                                        <p className="text-gray-500 text-sm">{currentCategory?.title}</p>
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => handleCopy(currentContent || '')}
-                                        disabled={!currentContent}
-                                        className="flex-1 sm:flex-none px-4 py-2.5 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-gray-400 hover:text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-sm"
-                                    >
-                                        <Copy className="w-4 h-4" /> <span className="hidden sm:inline">Copy</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleRegenerate(selectedItem)}
+                                        onClick={() => handleRegenerate(section.id)}
                                         disabled={isRegenerating}
-                                        className="flex-1 sm:flex-none px-4 py-2.5 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-gray-400 hover:text-white flex items-center justify-center gap-2 transition-all disabled:opacity-50 text-sm"
+                                        className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50 text-sm"
                                     >
-                                        {isRegenerating ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <RefreshCw className="w-4 h-4" />
-                                        )}
-                                        <span className="hidden sm:inline">Regenerate</span>
+                                        {isRegenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                                        Regenerate
                                     </button>
                                 </div>
-                            </div>
-
-                            <div className="bg-[#131314] border border-[#2a2a2d] rounded-xl sm:rounded-2xl p-4 sm:p-6 lg:p-8">
-                                {currentContent ? (
-                                    <pre className="text-gray-200 whitespace-pre-wrap text-sm sm:text-base lg:text-lg leading-relaxed font-sans overflow-x-auto">
-                                        {currentContent}
-                                    </pre>
-                                ) : (
-                                    <div className="text-center py-8 sm:py-12">
-                                        <p className="text-gray-500 mb-4 text-sm sm:text-base">
-                                            No content generated for this item yet.
-                                        </p>
-                                        <p className="text-gray-600 text-xs">
-                                            Complete the intake form to generate content.
-                                        </p>
-                                    </div>
-                                )}
                             </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </main>
+            </div>
+        );
+    };
+
+    // Active Flow View (approval process)
+    return (
+        <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8">
+            <div className="max-w-4xl mx-auto">
+
+                {/* Back Button */}
+                <button
+                    onClick={() => router.push('/dashboard')}
+                    className="mb-6 p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Dashboard
+                </button>
+
+                {/* Header */}
+                <div className="text-center mb-10">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan/10 text-cyan text-sm font-medium mb-6">
+                        <Sparkles className="w-4 h-4" />
+                        {isPhase1Complete ? 'Phase 2 of 2' : 'Phase 1 of 2'}
+                    </div>
+                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 tracking-tighter">
+                        Your Vault
+                    </h1>
+                    <p className="text-gray-400 max-w-xl mx-auto mb-4">
+                        {isPhase1Complete
+                            ? 'Review and approve your funnel assets.'
+                            : 'Review and approve each section. Approval unlocks the next step.'}
+                    </p>
+
+                    {/* Save Session Button */}
+                    <button
+                        onClick={() => setShowSaveModal(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] border border-[#2a2a2d] rounded-lg text-sm font-medium transition-colors"
+                    >
+                        <Save className="w-4 h-4 text-cyan" />
+                        Save Session
+                    </button>
+                </div>
+
+                {/* Save Session Modal */}
+                <AnimatePresence>
+                    {showSaveModal && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                            onClick={() => setShowSaveModal(false)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.95 }}
+                                animate={{ scale: 1 }}
+                                exit={{ scale: 0.95 }}
+                                className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-2xl p-6 w-full max-w-md"
+                                onClick={e => e.stopPropagation()}
+                            >
+                                <h3 className="text-xl font-bold mb-4">Save Session</h3>
+                                <p className="text-gray-400 mb-4">Give your session a name to easily identify it later.</p>
+
+                                <input
+                                    type="text"
+                                    value={sessionName}
+                                    onChange={(e) => setSessionName(e.target.value)}
+                                    placeholder="e.g., Fitness Coach Marketing Plan"
+                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan mb-6"
+                                    autoFocus
+                                />
+
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowSaveModal(false)}
+                                        className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSaveSession}
+                                        disabled={isSaving}
+                                        className="flex-1 px-4 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {isSaving ? (
+                                            <>
+                                                <Loader2 className="w-5 h-5 animate-spin" /> Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="w-5 h-5" /> Save
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Progress */}
+                <div className="mb-10">
+                    <div className="flex justify-between text-sm mb-2">
+                        <span className="text-gray-500">
+                            {isPhase1Complete ? 'Phase 2 Progress' : 'Phase 1 Progress'}
+                        </span>
+                        <span className="text-cyan font-medium">
+                            {isPhase1Complete
+                                ? `${approvedPhase2.length} of ${PHASE_2_SECTIONS.length}`
+                                : `${approvedPhase1.length} of ${PHASE_1_SECTIONS.length}`}
+                        </span>
+                    </div>
+                    <div className="h-2 bg-[#1b1b1d] rounded-full overflow-hidden">
+                        <motion.div
+                            initial={{ width: 0 }}
+                            animate={{
+                                width: `${isPhase1Complete
+                                    ? (approvedPhase2.length / PHASE_2_SECTIONS.length) * 100
+                                    : (approvedPhase1.length / PHASE_1_SECTIONS.length) * 100}%`
+                            }}
+                            className="h-full bg-gradient-to-r from-cyan to-green-500 rounded-full"
+                        />
+                    </div>
+                </div>
+
+                {/* Phase 1 Sections */}
+                {!isPhase1Complete && (
+                    <div className="space-y-4">
+                        {PHASE_1_SECTIONS.map((section, index) => {
+                            const status = getSectionStatus(section.id, 1, approvedPhase1, index);
+                            const Icon = section.icon;
+                            const isExpanded = expandedSection === section.id;
+                            const content = vaultData[section.id];
+
+                            return (
+                                <motion.div
+                                    key={section.id}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                    className={`rounded-xl border overflow-hidden transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
+                                        status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
+                                            'bg-[#131314] border-[#2a2a2d] opacity-60'
+                                        }`}
+                                >
+                                    <button
+                                        onClick={() => status !== 'locked' && setExpandedSection(isExpanded ? null : section.id)}
+                                        disabled={status === 'locked'}
+                                        className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
+                                    >
+                                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-green-500/20' :
+                                            status === 'current' ? 'bg-cyan/20' : 'bg-gray-700/50'
+                                            }`}>
+                                            {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" /> :
+                                                status === 'locked' ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /> :
+                                                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-green-400' :
+                                                status === 'current' ? 'text-white' : 'text-gray-500'
+                                                }`}>{section.title}</h3>
+                                            <p className="text-xs sm:text-sm text-gray-500">{section.subtitle}</p>
+                                        </div>
+                                        {status !== 'locked' && (
+                                            <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                        )}
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {isExpanded && status !== 'locked' && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="border-t border-[#2a2a2d]"
+                                            >
+                                                <div className="p-4 sm:p-6">
+                                                    <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
+                                                        <ContentRenderer content={content} isEditing={false} />
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {status === 'current' && (
+                                                            <button
+                                                                onClick={() => handleApprove(section.id, 1)}
+                                                                className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+                                                            >
+                                                                <CheckCircle className="w-5 h-5" />
+                                                                Approve
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleRegenerate(section.id)}
+                                                            disabled={isRegenerating}
+                                                            className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                                        >
+                                                            {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                                                            Regenerate
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Phase 2 - Locked Message or Sections */}
+                {isPhase1Complete && !funnelApproved && (
+                    <div className="text-center py-12">
+                        <Lock className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                        <h2 className="text-2xl font-bold mb-2">Phase 2 Locked</h2>
+                        <p className="text-gray-500 mb-6">Select and approve a funnel to unlock Phase 2.</p>
+                        <button
+                            onClick={() => router.push('/funnel-recommendation')}
+                            className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center gap-3 mx-auto hover:brightness-110 transition-all shadow-xl shadow-cyan/30"
+                        >
+                            <Sparkles className="w-6 h-6" />
+                            Choose Your Funnel
+                            <ArrowRight className="w-6 h-6" />
+                        </button>
+                    </div>
+                )}
+
+                {/* Phase 2 Sections */}
+                {isPhase1Complete && funnelApproved && (
+                    <div className="space-y-4">
+                        {PHASE_2_SECTIONS.map((section, index) => {
+                            const status = getSectionStatus(section.id, 2, approvedPhase2, index);
+                            const Icon = section.icon;
+                            const isExpanded = expandedSection === section.id;
+                            const content = vaultData[section.id];
+
+                            return (
+                                <motion.div
+                                    key={section.id}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                    className={`rounded-xl border overflow-hidden transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
+                                        status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
+                                            'bg-[#131314] border-[#2a2a2d] opacity-60'
+                                        }`}
+                                >
+                                    <button
+                                        onClick={() => status !== 'locked' && setExpandedSection(isExpanded ? null : section.id)}
+                                        disabled={status === 'locked'}
+                                        className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
+                                    >
+                                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-green-500/20' :
+                                            status === 'current' ? 'bg-cyan/20' : 'bg-gray-700/50'
+                                            }`}>
+                                            {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" /> :
+                                                status === 'locked' ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /> :
+                                                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-green-400' :
+                                                status === 'current' ? 'text-white' : 'text-gray-500'
+                                                }`}>{section.title}</h3>
+                                            <p className="text-xs sm:text-sm text-gray-500">{section.subtitle}</p>
+                                        </div>
+                                        {status !== 'locked' && (
+                                            <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                                        )}
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {isExpanded && status !== 'locked' && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="border-t border-[#2a2a2d]"
+                                            >
+                                                <div className="p-4 sm:p-6">
+                                                    <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
+                                                        <ContentRenderer content={content} isEditing={false} />
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        {status === 'current' && (
+                                                            <button
+                                                                onClick={() => handleApprove(section.id, 2)}
+                                                                className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+                                                            >
+                                                                <CheckCircle className="w-5 h-5" />
+                                                                Approve
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleRegenerate(section.id)}
+                                                            disabled={isRegenerating}
+                                                            className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                                        >
+                                                            {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                                                            Regenerate
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

@@ -46,7 +46,7 @@ async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
 
   for (const providerKey of providers) {
     const config = AI_PROVIDERS[providerKey];
-    
+
     // Skip if provider is not enabled or doesn't have an API key
     if (!config.enabled || !config.apiKey) {
       console.log(`[AI] Skipping ${providerKey}: enabled=${config.enabled}, hasKey=${!!config.apiKey}`);
@@ -654,6 +654,124 @@ export async function POST(req) {
       }
     }
 
+    // Handle 'fill-missing' - generate only specified missing sections
+    if (step === 'fill-missing') {
+      const { missingSections, existingContent } = await req.json().then(r => ({
+        missingSections: r.missingSections || [],
+        existingContent: r.existingContent || {},
+        data: r.data
+      })).catch(() => ({}));
+
+      // Re-parse to get data
+      const body = await req.clone().json();
+      const userData = body.data || data;
+      const sectionsToGenerate = body.missingSections || [];
+
+      if (!sectionsToGenerate || sectionsToGenerate.length === 0) {
+        return NextResponse.json({
+          error: 'No missing sections specified',
+          result: {}
+        }, { status: 400 });
+      }
+
+      console.log(`[FILL-MISSING] Generating ${sectionsToGenerate.length} missing sections:`, sectionsToGenerate);
+
+      // Check if RAG knowledge base is available
+      const kbStats = await getKnowledgeBaseStats();
+      const useRAG = kbStats.is_ready && kbStats.total_chunks > 0;
+
+      const results = {};
+      const successfulItems = [];
+      const failedItems = [];
+
+      // Generate only the missing sections
+      const promises = sectionsToGenerate.map(async (key) => {
+        const numKey = parseInt(key);
+        if (!osPrompts[numKey]) {
+          console.warn(`[FILL-MISSING] No prompt found for section ${numKey}`);
+          return { key: numKey, success: false, error: 'No prompt available' };
+        }
+
+        try {
+          let basePrompt = osPrompts[numKey](userData);
+
+          // RAG Enhancement
+          if (useRAG && CONTENT_TYPE_MAP[numKey]) {
+            try {
+              const ragContext = await getRelevantContext(CONTENT_TYPE_MAP[numKey], userData);
+              if (ragContext && ragContext.hasContext) {
+                basePrompt = injectContextIntoPrompt(basePrompt, ragContext);
+                console.log(`[FILL-MISSING] Enhanced prompt ${numKey} with RAG`);
+              }
+            } catch (ragError) {
+              console.error(`[FILL-MISSING] RAG failed for ${numKey}:`, ragError.message);
+            }
+          }
+
+          // Generate content with retry
+          const rawContent = await retryWithBackoff(async () => {
+            return await generateWithProvider(
+              "You are an elite business growth strategist and expert copywriter. Generate HIGHLY SPECIFIC, ACTIONABLE content. CRITICAL: Return ONLY valid JSON with properly escaped strings.",
+              basePrompt,
+              { jsonMode: true, maxTokens: 4000, temperature: 0.7 }
+            );
+          });
+
+          const parsedResult = parseJsonSafe(rawContent, {
+            throwOnError: false,
+            logErrors: true,
+            defaultValue: null
+          });
+
+          if (!parsedResult) {
+            throw new Error(`Failed to parse JSON for section ${numKey}`);
+          }
+
+          return {
+            key: numKey,
+            result: parsedResult,
+            name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
+            success: true
+          };
+        } catch (err) {
+          console.error(`[FILL-MISSING] Error generating section ${numKey}:`, err.message);
+          return {
+            key: numKey,
+            result: null,
+            name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
+            success: false,
+            error: err.message
+          };
+        }
+      });
+
+      const allResults = await Promise.all(promises);
+
+      allResults.forEach(({ key, result, name, success, error }) => {
+        if (success && result) {
+          results[key] = {
+            name,
+            data: result
+          };
+          successfulItems.push(name);
+        } else {
+          failedItems.push({ name, key, error });
+        }
+      });
+
+      console.log(`[FILL-MISSING] Completed: ${successfulItems.length}/${sectionsToGenerate.length} successful`);
+
+      return NextResponse.json({
+        result: results,
+        metadata: {
+          requested: sectionsToGenerate.length,
+          successful: successfulItems.length,
+          failed: failedItems.length,
+          failedItems: failedItems.length > 0 ? failedItems : undefined
+        }
+      });
+    }
+
     // Handle 'all' - generate all content at once for business growth
     if (step === 'all') {
       await supabaseAdmin
@@ -696,7 +814,7 @@ export async function POST(req) {
           // Email sequence needs more tokens due to 18 emails with full copy
           const isEmailSequence = key === 8 || CONTENT_NAMES[key] === 'Email Sequence';
           const tokenLimit = isEmailSequence ? 8000 : 4000;
-          
+
           const rawContent = await retryWithBackoff(async () => {
             return await generateWithProvider(
               "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped.",

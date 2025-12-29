@@ -107,10 +107,10 @@ function NoFunnelsBanner() {
                 </div>
 
                 <button
-                    onClick={() => router.push('/build-funnel')}
+                    onClick={() => router.push('/vault')}
                     className="bg-cyan hover:brightness-110 text-black px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-all"
                 >
-                    Build Funnel
+                    Open Vault
                     <ChevronRight className="w-4 h-4" />
                 </button>
             </div>
@@ -205,7 +205,7 @@ export default function Dashboard() {
         try {
             const res = await fetchWithAuth('/api/ghl/funnels?status=active');
             const data = await res.json();
-            
+
             if (data.success && data.funnels) {
                 setFunnels(data.funnels);
             }

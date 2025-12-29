@@ -37,6 +37,13 @@ next-env.d.ts
 # documentation
 docs/
 *.md
+!README.md
+
+# database migrations (run manually in Supabase)
+database/
+
+# claude context
+.claude/
 
 # system files
 nul

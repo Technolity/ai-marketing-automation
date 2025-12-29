@@ -21,7 +21,7 @@ export default function TestVSLPushPage() {
     const [isPushing, setIsPushing] = useState(false);
     const [pushResult, setPushResult] = useState(null);
     const [expandedSections, setExpandedSections] = useState({});
-    
+
     // Image uploads
     const [uploadedImages, setUploadedImages] = useState({
         logo: '',
@@ -29,17 +29,17 @@ export default function TestVSLPushPage() {
         product_mockup: '',
         results_image: ''
     });
-    
+
     // Video URLs
     const [videoUrls, setVideoUrls] = useState({
         main_vsl: '',
         testimonial_video: '',
         thankyou_video: ''
     });
-    
+
     // Upload states
     const [uploadingFiles, setUploadingFiles] = useState({});
-    
+
     const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
     // Load session ID from localStorage
@@ -143,8 +143,8 @@ export default function TestVSLPushPage() {
         setPushResult(null);
 
         try {
-            console.log('[TestVSL] Starting push with:', { 
-                sessionId, 
+            console.log('[TestVSL] Starting push with:', {
+                sessionId,
                 locationId,
                 uploadedImages: Object.keys(uploadedImages).filter(k => uploadedImages[k]),
                 videoUrls: Object.keys(videoUrls).filter(k => videoUrls[k])
@@ -197,7 +197,7 @@ export default function TestVSLPushPage() {
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                     {label}
                 </label>
-                
+
                 <div className="space-y-2">
                     {/* File Upload Button */}
                     {!hasFile && (
@@ -215,8 +215,8 @@ export default function TestVSLPushPage() {
                             <div className={`
                                 w-full px-4 py-3 border-2 border-dashed rounded-lg 
                                 text-center cursor-pointer transition-all
-                                ${isUploading 
-                                    ? 'border-cyan/50 bg-cyan/5' 
+                                ${isUploading
+                                    ? 'border-cyan/50 bg-cyan/5'
                                     : 'border-[#2a2a2d] hover:border-cyan/30 hover:bg-[#1b1b1d]'
                                 }
                             `}>
@@ -276,8 +276,8 @@ export default function TestVSLPushPage() {
                 </div>
 
                 <p className="text-xs text-gray-500 mt-1">
-                    {isVideo 
-                        ? 'MP4, WebM, or MOV. Max 10MB. Uploads to Cloudinary CDN.' 
+                    {isVideo
+                        ? 'MP4, WebM, or MOV. Max 10MB. Uploads to Cloudinary CDN.'
                         : 'JPG, PNG, WebP, or GIF. Max 10MB. Uploads to Cloudinary CDN.'}
                 </p>
             </div>
@@ -314,7 +314,7 @@ export default function TestVSLPushPage() {
 
         allItems.forEach(item => {
             const key = item.key.toLowerCase();
-            
+
             if (key.includes('optin')) {
                 categories['Optin Page'].push(item);
             } else if (key.includes('vsl_hero')) {
@@ -362,13 +362,13 @@ export default function TestVSLPushPage() {
                 {/* Header */}
                 <div className="mb-8">
                     <button
-                        onClick={() => router.push('/business-core')}
+                        onClick={() => router.push('/vault')}
                         className="flex items-center gap-2 text-gray-400 hover:text-white mb-4 transition-colors"
                     >
                         <ArrowLeft className="w-4 h-4" />
                         Back to Business Core
                     </button>
-                    
+
                     <h1 className="text-5xl font-black mb-3 bg-gradient-to-r from-cyan via-blue-400 to-purple-500 bg-clip-text text-transparent">
                         Test VSL Funnel Push
                     </h1>
@@ -405,7 +405,7 @@ export default function TestVSLPushPage() {
                 {/* Credentials Form */}
                 <div className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl p-8 mb-6">
                     <h2 className="text-2xl font-bold mb-6">GoHighLevel Credentials</h2>
-                    
+
                     <div className="space-y-4">
                         {/* Location ID */}
                         <div>
@@ -472,7 +472,7 @@ export default function TestVSLPushPage() {
                                 <p className="text-xs text-gray-500 mb-4">
                                     Upload to cloud (gets embedded CDN URL) or paste URLs (AI generates missing images)
                                 </p>
-                                
+
                                 <div className="space-y-4">
                                     <FileUploadInput
                                         label="Logo Image"
@@ -514,7 +514,7 @@ export default function TestVSLPushPage() {
                                 <p className="text-xs text-gray-500 mb-4">
                                     Upload to cloud CDN or paste URLs (YouTube, Vimeo, Wistia, etc.)
                                 </p>
-                                
+
                                 <div className="space-y-4">
                                     <FileUploadInput
                                         label="Main VSL Video (Required for VSL funnel)"
@@ -613,7 +613,7 @@ export default function TestVSLPushPage() {
                                 {/* Detailed Mapping by Category */}
                                 <div className="space-y-4">
                                     <h3 className="text-xl font-bold">Custom Values by Page</h3>
-                                    
+
                                     {groupCustomValuesByCategory(pushResult.details).map(([category, items]) => (
                                         <div key={category} className="border border-[#2a2a2d] rounded-lg overflow-hidden">
                                             <button
@@ -629,7 +629,7 @@ export default function TestVSLPushPage() {
                                                     ▼
                                                 </span>
                                             </button>
-                                            
+
                                             {expandedSections[category] && (
                                                 <div className="px-6 py-4 space-y-3">
                                                     {items.map((item, idx) => (
@@ -646,7 +646,7 @@ export default function TestVSLPushPage() {
                                                                         </button>
                                                                     </div>
                                                                     <div className="text-sm text-gray-400 break-words">
-                                                                        {String(item.value).length > 200 
+                                                                        {String(item.value).length > 200
                                                                             ? String(item.value).substring(0, 200) + '...'
                                                                             : String(item.value)
                                                                         }

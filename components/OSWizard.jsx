@@ -23,7 +23,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS } from "@/lib/os-wizard-data";
+import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS, BUSINESS_TYPE_OPTIONS } from "@/lib/os-wizard-data";
 import { SAMPLE_DATA } from "@/lib/sampleData";
 
 // Import modular components and utilities
@@ -31,6 +31,15 @@ import { QuestionProgressBar } from "./OSWizard/components";
 import BuildingAnimation from "./BuildingAnimation";
 import { formatFieldName, formatValue, formatContentForDisplay } from "./OSWizard/utils/formatters";
 import { validateStepInputs as validateInputs } from "./OSWizard/utils/validators";
+import {
+    inventoryContent,
+    logContentInventory,
+    isBusinessCoreComplete,
+    getMissingSectionKeys,
+    mergeStepPreviews,
+    CONTENT_SECTIONS,
+    BUSINESS_CORE_KEYS
+} from "@/lib/utils/contentInventory";
 
 export default function OSWizard({ mode = 'dashboard', startAtStepOne = false }) {
     const router = useRouter();
@@ -678,14 +687,14 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     // Fill form with sample data for testing/demo purposes
     const fillSampleData = () => {
         console.log('[OSWizard] Filling sample data...');
-        
+
         // Set all the sample data to stepData
         setStepData(SAMPLE_DATA);
-        
+
         // Mark all steps as completed
         const allSteps = Array.from({ length: 20 }, (_, i) => i + 1);
         setCompletedSteps(allSteps);
-        
+
         // Load current step's sample data into currentInput
         const stepInputs = STEP_INPUTS[currentStep];
         if (stepInputs) {
@@ -697,7 +706,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
             });
             setCurrentInput(loadedInput);
         }
-        
+
         // Save to localStorage
         if (session) {
             const progressData = {
@@ -712,28 +721,28 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
             };
             localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
         }
-        
+
         setIsSessionSaved(false);
         setHasUnsavedProgress(true);
-        
+
         toast.success("Sample data loaded! You can now review and edit each question, then generate content.");
     };
 
     // Handle click on progress bar dots to navigate to specific question
     const handleProgressDotClick = (stepNum) => {
         console.log('[OSWizard] Progress dot clicked:', stepNum);
-        
+
         // Merge current input with stepData first
         const mergedData = { ...stepData, ...currentInput };
-        
+
         // Save current input before navigating
         if (Object.keys(currentInput).length > 0) {
             setStepData(mergedData);
         }
-        
+
         // Navigate to the clicked step
         setCurrentStep(stepNum);
-        
+
         // Load the data for the clicked step (use merged data to get latest)
         const stepInputs = STEP_INPUTS[stepNum];
         if (stepInputs) {
@@ -746,10 +755,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
             });
             setCurrentInput(loadedInput);
         }
-        
+
         // Clear any errors
         setFieldErrors({});
-        
+
         // Clear generated content and review mode when navigating
         setGeneratedContent(null);
         setIsReviewMode(false);
@@ -868,54 +877,164 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 return;
             }
 
+            // ============================================
+            // PHASE 1: INVENTORY - What content do we already have?
+            // ============================================
+            console.group('🔍 [Generate] Phase 1: Content Inventory');
+
             // Check if we have saved preview content from step-by-step generation
             const hasPreviewContent = Object.keys(savedContent).some(key => key.startsWith('step'));
-            
-            let finalContent;
-            
-            if (hasPreviewContent) {
-                // ✅ Use accumulated preview content (faster, maintains consistency)
-                console.log('[Generate] Using accumulated preview content from', Object.keys(savedContent).length, 'steps');
-                
-                // Merge all step previews into final content
-                finalContent = {};
-                Object.keys(savedContent).forEach(key => {
-                    if (key.startsWith('step')) {
-                        const stepContent = savedContent[key];
-                        // Merge step content into final result
-                        Object.assign(finalContent, stepContent);
-                    }
-                });
-                
-                clearInterval(messageInterval);
+            console.log('[Generate] Has step preview content:', hasPreviewContent);
+            console.log('[Generate] Saved content keys:', Object.keys(savedContent));
+
+            // Merge step previews into section-keyed structure
+            let existingContent = hasPreviewContent ? mergeStepPreviews(savedContent) : {};
+
+            // Log existing content inventory
+            const beforeInventory = logContentInventory(existingContent, 'Before Generation');
+            console.log('[Generate] Missing required sections:', getMissingSectionKeys(existingContent, 'required'));
+            console.groupEnd();
+
+            // ============================================
+            // PHASE 2: GENERATE - Fill in missing content
+            // ============================================
+            console.group('⚡ [Generate] Phase 2: Content Generation');
+
+            let finalContent = { ...existingContent };
+            const missingSections = getMissingSectionKeys(existingContent, 'required');
+
+            if (missingSections.length === 0) {
+                // All required content exists from step previews
+                console.log('[Generate] ✅ All required sections already exist from step previews!');
                 setProcessingMessage('Using your approved content! 🚀');
                 await new Promise(resolve => setTimeout(resolve, 800));
             } else {
-                // Fallback: Generate fresh if no preview content exists
-                console.log('[Generate] No preview content, generating fresh...');
-                
-                const payload = {
-                    step: 'all',
-                    data: {
-                        ...stepData,
-                        ...currentInput
+                // Need to generate missing sections
+                console.log(`[Generate] ⚠️ Missing ${missingSections.length} required sections:`, missingSections);
+                setProcessingMessage(`Generating ${missingSections.length} missing sections...`);
+
+                // If too many missing, do full generation
+                if (missingSections.length >= 6) {
+                    console.log('[Generate] Many sections missing - running full generation...');
+                    setProcessingMessage('Building your marketing system...');
+
+                    const payload = {
+                        step: 'all',
+                        data: {
+                            ...stepData,
+                            ...currentInput
+                        }
+                    };
+
+                    const res = await fetchWithAuth("/api/os/generate", {
+                        method: "POST",
+                        body: JSON.stringify(payload),
+                    });
+
+                    const data = await res.json();
+
+                    if (data.error) {
+                        console.error('[Generate] API error:', data.error);
+                        throw new Error(data.error);
                     }
-                };
 
-                const res = await fetchWithAuth("/api/os/generate", {
-                    method: "POST",
-                    body: JSON.stringify(payload),
-                });
+                    // Log generation results
+                    console.log('[Generate] API response metadata:', data.metadata);
+                    if (data.metadata?.failedItems?.length > 0) {
+                        console.warn('[Generate] Some sections failed:', data.metadata.failedItems);
+                    }
 
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
+                    finalContent = data.result || {};
+                } else {
+                    // Generate only missing sections
+                    console.log('[Generate] Generating only missing sections...');
+                    setProcessingMessage(`Filling ${missingSections.length} gaps...`);
 
-                clearInterval(messageInterval);
-                setProcessingMessage('Your marketing system is ready! 🚀');
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                
-                finalContent = data.result;
+                    const payload = {
+                        step: 'fill-missing',
+                        missingSections: missingSections,
+                        existingContent: existingContent,
+                        data: {
+                            ...stepData,
+                            ...currentInput
+                        }
+                    };
+
+                    const res = await fetchWithAuth("/api/os/generate", {
+                        method: "POST",
+                        body: JSON.stringify(payload),
+                    });
+
+                    const data = await res.json();
+
+                    if (data.error) {
+                        // Fallback to full generation if fill-missing fails
+                        console.warn('[Generate] Fill-missing failed, trying full generation...');
+                        const fallbackRes = await fetchWithAuth("/api/os/generate", {
+                            method: "POST",
+                            body: JSON.stringify({ step: 'all', data: { ...stepData, ...currentInput } }),
+                        });
+                        const fallbackData = await fallbackRes.json();
+                        if (fallbackData.error) throw new Error(fallbackData.error);
+                        finalContent = fallbackData.result || {};
+                    } else {
+                        // Merge new content with existing
+                        finalContent = { ...existingContent, ...(data.result || {}) };
+                    }
+                }
             }
+
+            console.groupEnd();
+
+            // ============================================
+            // PHASE 3: VALIDATE - Ensure we have what we need
+            // ============================================
+            console.group('✅ [Generate] Phase 3: Validation');
+
+            const afterInventory = logContentInventory(finalContent, 'After Generation');
+
+            // Check if Business Core is complete
+            const businessCoreComplete = isBusinessCoreComplete(finalContent);
+            console.log('[Generate] Business Core complete:', businessCoreComplete);
+
+            if (!businessCoreComplete) {
+                const stillMissing = getMissingSectionKeys(finalContent, 'businessCore');
+                console.warn('[Generate] ⚠️ Business Core still missing sections:', stillMissing);
+
+                // Try one more time to generate just the missing Business Core sections
+                setProcessingMessage('Finalizing Business Core...');
+                try {
+                    const retryRes = await fetchWithAuth("/api/os/generate", {
+                        method: "POST",
+                        body: JSON.stringify({
+                            step: 'fill-missing',
+                            missingSections: stillMissing,
+                            data: { ...stepData, ...currentInput }
+                        }),
+                    });
+                    const retryData = await retryRes.json();
+                    if (retryData.result) {
+                        finalContent = { ...finalContent, ...retryData.result };
+                        console.log('[Generate] Retry successful, merged additional content');
+                    }
+                } catch (retryError) {
+                    console.error('[Generate] Retry failed:', retryError);
+                }
+            }
+
+            // Final validation
+            const finalInventory = inventoryContent(finalContent);
+            console.log('[Generate] Final stats:', finalInventory.stats);
+            console.groupEnd();
+
+            // ============================================
+            // PHASE 4: SAVE & COMPLETE
+            // ============================================
+            console.group('💾 [Generate] Phase 4: Save & Complete');
+
+            clearInterval(messageInterval);
+            setProcessingMessage('Your marketing system is ready! 🚀');
+            await new Promise(resolve => setTimeout(resolve, 1000));
 
             setGeneratedContent(finalContent);
             setIsReviewMode(true);
@@ -947,12 +1066,23 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
             }
 
-            toast.success("All content generated successfully!");
+            // Log final summary
+            console.log('[Generate] ✅ Generation complete!');
+            console.log('[Generate] Total sections:', finalInventory.stats.complete, '/', finalInventory.stats.total);
+            console.log('[Generate] Business Core:', finalInventory.byCategory.businessCore.complete.length, '/6');
+            console.groupEnd();
 
+            // Show appropriate success message
+            if (finalInventory.stats.requiredMissing > 0) {
+                toast.warning(`Generated ${finalInventory.stats.complete}/${finalInventory.stats.total} sections. Some sections may need regeneration.`);
+            } else {
+                toast.success("All content generated successfully!");
+            }
 
         } catch (error) {
-            console.error(error);
-            toast.error("Failed to generate content. Please try again.");
+            console.error('[Generate] ❌ Error:', error);
+            console.error('[Generate] Stack:', error.stack);
+            toast.error(`Failed to generate content: ${error.message}`);
             clearInterval(messageInterval);
         } finally {
             setIsGenerating(false);
@@ -1084,8 +1214,26 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         }
 
         if (currentStep < STEPS.length) {
-            setCurrentStep(currentStep + 1);
-            setCurrentInput({});
+            const nextStep = currentStep + 1;
+            setCurrentStep(nextStep);
+
+            // Load saved/sample data for the next step from stepData
+            // stepData contains ALL answers including sample data loaded via fillSampleData
+            const nextStepInputs = STEP_INPUTS[nextStep];
+            if (nextStepInputs) {
+                const loadedInput = {};
+                nextStepInputs.forEach(input => {
+                    // Check both updatedData (current merge) and stepData (which has sample data)
+                    const sourceData = updatedData || stepData;
+                    if (sourceData[input.name] !== undefined) {
+                        loadedInput[input.name] = sourceData[input.name];
+                    }
+                });
+                console.log('[OSWizard] Loading next step inputs:', nextStep, loadedInput);
+                setCurrentInput(Object.keys(loadedInput).length > 0 ? loadedInput : {});
+            } else {
+                setCurrentInput({});
+            }
         }
     };
 
@@ -1265,14 +1413,14 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                 name: 'Current Session'
             }));
 
-            toast.success("Your Business Core is ready! Let's review it.");
+            toast.success("Your Vault is ready! Let's review it.");
 
             // Wait a brief moment before redirecting to ensure all saves are complete
             await new Promise(resolve => setTimeout(resolve, 500));
 
-            // Redirect to Business Core dashboard (Phase 1 of new UX flow)
-            console.log('[OSWizard] Redirecting to /business-core');
-            router.push("/business-core");
+            // Redirect to Vault (Phase 1 of new UX flow)
+            console.log('[OSWizard] Redirecting to /vault');
+            router.push("/vault");
         } catch (error) {
             console.error('[OSWizard] Approve error:', error);
             toast.error("Failed to save. Please try again.");
@@ -1354,10 +1502,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
                         {isWizardComplete && (
                             <button
-                                onClick={() => router.push("/business-core")}
+                                onClick={() => router.push("/vault")}
                                 className="px-6 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg shadow-cyan/20"
                             >
-                                <Eye className="w-5 h-5" /> View Business Core
+                                <Eye className="w-5 h-5" /> View Vault
                             </button>
                         )}
 
@@ -1772,24 +1920,24 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                     currentStep={currentStep}
                                     completedSteps={completedSteps}
                                     onDotClick={handleProgressDotClick}
-                                stepData={stepData}
-                            />
-                        </div>
-
-                        {/* Info Box removed */}
-
-                        {/* Input Fields */}
-                        <div className="space-y-8 glass-card p-10 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
-                            {/* Interactive glow effect in the corner */}
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan/5 blur-3xl rounded-full pointer-events-none"></div>
-                            
-                            {/* Question Title and Description */}
-                            <div className="mb-6">
-                                <h1 className="text-4xl md:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
-                                    {STEPS[currentStep - 1].title}
-                                </h1>
-                                <p className="text-gray-400 text-lg font-light leading-relaxed">{STEPS[currentStep - 1].description}</p>
+                                    stepData={stepData}
+                                />
                             </div>
+
+                            {/* Info Box removed */}
+
+                            {/* Input Fields */}
+                            <div className="space-y-8 glass-card p-10 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
+                                {/* Interactive glow effect in the corner */}
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-cyan/5 blur-3xl rounded-full pointer-events-none"></div>
+
+                                {/* Question Title and Description */}
+                                <div className="mb-6">
+                                    <h1 className="text-4xl md:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
+                                        {STEPS[currentStep - 1].title}
+                                    </h1>
+                                    <p className="text-gray-400 text-lg font-light leading-relaxed">{STEPS[currentStep - 1].description}</p>
+                                </div>
                                 {STEP_INPUTS[currentStep]?.filter((input) => {
                                     // Hide conditional fields if their condition isn't met
                                     if (input.conditionalOn) {
@@ -1846,11 +1994,12 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                     <option value="" className="text-gray-500">{input.placeholder}</option>
                                                     {(input.options === 'REVENUE_OPTIONS' ? REVENUE_OPTIONS :
                                                         input.options === 'BUSINESS_STAGE_OPTIONS' ? BUSINESS_STAGE_OPTIONS :
-                                                            []).map(option => (
-                                                                <option key={option.value} value={option.value} className="bg-[#0e0e0f]">
-                                                                    {option.label}
-                                                                </option>
-                                                            ))}
+                                                            input.options === 'BUSINESS_TYPE_OPTIONS' ? BUSINESS_TYPE_OPTIONS :
+                                                                []).map(option => (
+                                                                    <option key={option.value} value={option.value} className="bg-[#0e0e0f]">
+                                                                        {option.label}
+                                                                    </option>
+                                                                ))}
                                                 </select>
                                             ) : input.type === 'multiselect' ? (
                                                 /* Multi-select checkboxes */
@@ -2055,7 +2204,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                 ) : (
                                                     <>
                                                         <Sparkles className="w-5 h-5" />
-                                                        Generate My Business Core
+                                                        Generate My Vault
                                                     </>
                                                 )}
                                             </button>
@@ -2256,46 +2405,46 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                                     {sectionValue.map((item, i) => (
                                                                         <li key={i} className="text-gray-300 text-sm">
                                                                             {typeof item === 'object' ? (
-                                                                <div className="p-3 bg-[#1b1b1d] rounded border border-[#2a2a2d]">
-                                                                    {/* Facebook Ads rendering */}
-                                                                    {item.adNumber && item.headline && (
-                                                                        <div className="space-y-2">
-                                                                            <div className="flex items-center justify-between">
-                                                                                <span className="text-xs px-2 py-1 bg-cyan/20 text-cyan rounded">Ad #{item.adNumber}</span>
-                                                                                <span className="text-xs text-gray-500">{item.angle}</span>
-                                                                            </div>
-                                                                            <p className="font-bold text-white text-base">{item.headline}</p>
-                                                                            <p className="text-gray-300 text-sm whitespace-pre-line">{item.primaryText}</p>
-                                                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#2a2a2d]">
-                                                                                <span className="text-xs text-gray-500">{item.targetAudience}</span>
-                                                                                <button className="text-xs px-3 py-1 bg-cyan/10 text-cyan rounded font-semibold">
-                                                                                    {item.callToActionButton || item.cta || 'Learn More'}
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {/* Image prompts rendering */}
-                                                                    {item.imageDescription && (
-                                                                        <div className="space-y-1">
-                                                                            <p className="text-xs text-gray-500">Ad #{item.adNumber} Image</p>
-                                                                            <p className="text-sm text-gray-300">{item.imageDescription}</p>
-                                                                            {item.textOverlay && <p className="text-xs text-cyan">"{item.textOverlay}"</p>}
-                                                                            {item.colorScheme && <p className="text-xs text-gray-500">{item.colorScheme}</p>}
-                                                                        </div>
-                                                                    )}
-                                                                    
-                                                                    {/* Generic object properties */}
-                                                                    {item.title && <p className="font-semibold text-white">{item.title}</p>}
-                                                                    {item.name && <p className="font-semibold text-white">{item.name}</p>}
-                                                                    {item.description && !item.imageDescription && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
-                                                                    {item.elementType && <p className="text-cyan text-xs">{item.elementType}</p>}
-                                                                    
-                                                                    {/* Fallback for unrecognized structures */}
-                                                                    {!item.adNumber && !item.imageDescription && !item.title && !item.name && !item.description && !item.elementType && (
-                                                                        <p className="text-xs text-gray-400">{JSON.stringify(item, null, 2)}</p>
-                                                                    )}
-                                                                </div>
+                                                                                <div className="p-3 bg-[#1b1b1d] rounded border border-[#2a2a2d]">
+                                                                                    {/* Facebook Ads rendering */}
+                                                                                    {item.adNumber && item.headline && (
+                                                                                        <div className="space-y-2">
+                                                                                            <div className="flex items-center justify-between">
+                                                                                                <span className="text-xs px-2 py-1 bg-cyan/20 text-cyan rounded">Ad #{item.adNumber}</span>
+                                                                                                <span className="text-xs text-gray-500">{item.angle}</span>
+                                                                                            </div>
+                                                                                            <p className="font-bold text-white text-base">{item.headline}</p>
+                                                                                            <p className="text-gray-300 text-sm whitespace-pre-line">{item.primaryText}</p>
+                                                                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#2a2a2d]">
+                                                                                                <span className="text-xs text-gray-500">{item.targetAudience}</span>
+                                                                                                <button className="text-xs px-3 py-1 bg-cyan/10 text-cyan rounded font-semibold">
+                                                                                                    {item.callToActionButton || item.cta || 'Learn More'}
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Image prompts rendering */}
+                                                                                    {item.imageDescription && (
+                                                                                        <div className="space-y-1">
+                                                                                            <p className="text-xs text-gray-500">Ad #{item.adNumber} Image</p>
+                                                                                            <p className="text-sm text-gray-300">{item.imageDescription}</p>
+                                                                                            {item.textOverlay && <p className="text-xs text-cyan">"{item.textOverlay}"</p>}
+                                                                                            {item.colorScheme && <p className="text-xs text-gray-500">{item.colorScheme}</p>}
+                                                                                        </div>
+                                                                                    )}
+
+                                                                                    {/* Generic object properties */}
+                                                                                    {item.title && <p className="font-semibold text-white">{item.title}</p>}
+                                                                                    {item.name && <p className="font-semibold text-white">{item.name}</p>}
+                                                                                    {item.description && !item.imageDescription && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
+                                                                                    {item.elementType && <p className="text-cyan text-xs">{item.elementType}</p>}
+
+                                                                                    {/* Fallback for unrecognized structures */}
+                                                                                    {!item.adNumber && !item.imageDescription && !item.title && !item.name && !item.description && !item.elementType && (
+                                                                                        <p className="text-xs text-gray-400">{JSON.stringify(item, null, 2)}</p>
+                                                                                    )}
+                                                                                </div>
                                                                             ) : (
                                                                                 <span>• {item}</span>
                                                                             )}
@@ -2331,7 +2480,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                                             </div>
                                                                         </div>
                                                                     )}
-                                                                    
+
                                                                     {/* Image prompts rendering */}
                                                                     {item.imageDescription && (
                                                                         <div className="space-y-1">
@@ -2341,7 +2490,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                                             {item.colorScheme && <p className="text-xs text-gray-500">{item.colorScheme}</p>}
                                                                         </div>
                                                                     )}
-                                                                    
+
                                                                     {/* Targeting recommendations rendering */}
                                                                     {item.interests && (
                                                                         <div className="space-y-1">
@@ -2355,13 +2504,13 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                                             )}
                                                                         </div>
                                                                     )}
-                                                                    
+
                                                                     {/* Generic object properties */}
                                                                     {item.title && <p className="font-semibold text-white">{item.title}</p>}
                                                                     {item.name && <p className="font-semibold text-white">{item.name}</p>}
                                                                     {item.description && !item.imageDescription && <p className="text-gray-400 text-xs mt-1">{item.description}</p>}
                                                                     {item.elementType && <p className="text-cyan text-xs">{item.elementType}</p>}
-                                                                    
+
                                                                     {/* Fallback for unrecognized structures */}
                                                                     {!item.adNumber && !item.imageDescription && !item.interests && !item.title && !item.name && !item.description && !item.elementType && (
                                                                         <p className="text-xs text-gray-400">{JSON.stringify(item, null, 2)}</p>
@@ -2404,7 +2553,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                 <button
                                     onClick={() => {
                                         setShowContentPreview(false);
-                                        
+
                                         // Auto-load next step with sample data if available
                                         const nextStep = currentStep + 1;
                                         if (nextStep <= STEPS.length) {
@@ -2412,12 +2561,17 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                             if (nextStepInputs) {
                                                 const loadedInput = {};
                                                 nextStepInputs.forEach(input => {
-                                                    // Load from stepData (which has sample data if filled)
-                                                    if (stepData[input.name]) {
+                                                    // Check stepData first, then SAMPLE_DATA as fallback
+                                                    // SAMPLE_DATA is guaranteed to have latest values if sample data was loaded
+                                                    if (stepData[input.name] !== undefined) {
                                                         loadedInput[input.name] = stepData[input.name];
+                                                    } else if (SAMPLE_DATA[input.name] !== undefined) {
+                                                        // Fallback to SAMPLE_DATA for cases where stepData hasn't synced yet
+                                                        loadedInput[input.name] = SAMPLE_DATA[input.name];
                                                     }
                                                 });
-                                                setCurrentInput(loadedInput);
+                                                console.log('[OSWizard] Approve & Continue - loading next step:', nextStep, loadedInput);
+                                                setCurrentInput(Object.keys(loadedInput).length > 0 ? loadedInput : {});
                                             }
                                         }
                                     }}
