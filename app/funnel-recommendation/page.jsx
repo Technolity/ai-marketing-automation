@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { useSearchParams } from "next/navigation";
 import GHLCredentialsForm from "@/components/GHLCredentialsForm";
 import GHLPushProgress from "@/components/GHLPushProgress";
 
@@ -79,6 +80,7 @@ const FUNNEL_TYPES = [
 export default function FunnelRecommendationPage() {
     const router = useRouter();
     const { session, loading: authLoading } = useAuth();
+    const searchParams = useSearchParams();
 
     const [isLoading, setIsLoading] = useState(true);
     const [businessData, setBusinessData] = useState(null);
@@ -115,8 +117,9 @@ export default function FunnelRecommendationPage() {
         }
 
         const loadData = async () => {
+            const sId = searchParams.get('session_id');
             try {
-                const res = await fetchWithAuth('/api/os/results');
+                const res = await fetchWithAuth(`/api/os/results${sId ? `?session_id=${sId}` : ''}`);
                 const data = await res.json();
 
                 if (data.data) {
@@ -140,7 +143,7 @@ export default function FunnelRecommendationPage() {
         };
 
         loadData();
-    }, [session, authLoading, router]);
+    }, [session, authLoading, router, searchParams]);
 
     const handleSelectFunnel = (funnel) => {
         if (funnel.locked) {
@@ -311,33 +314,22 @@ export default function FunnelRecommendationPage() {
         );
     };
 
-    const handlePushComplete = async (operation) => {
-        setIsPushing(false);
+    const handlePushComplete = async () => {
         setDeployStep('complete');
 
-        // Save funnel approval to vault
-        const sessId = sessionId || localStorage.getItem('ted_current_session_id');
+        // Capture approvals in the Vault for this funnel
         try {
             await fetchWithAuth('/api/os/approvals', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    sessionId: sessId,
+                    sessionId: sessionId || 'current',
                     funnelApproved: true
                 })
             });
 
-            // Also save to localStorage
-            const userId = session?.user?.id;
-            if (userId) {
-                const saved = localStorage.getItem(`vault_approvals_${userId}`);
-                const approvals = saved ? JSON.parse(saved) : {};
-                approvals.funnelApproved = true;
-                approvals.funnelType = selectedFunnel.id;
-                localStorage.setItem(`vault_approvals_${userId}`, JSON.stringify(approvals));
-            }
-        } catch (e) {
             console.log('Saved funnel approval to localStorage');
+        } catch (error) {
+            console.error("Error updating funnel approval:", error);
         }
 
         toast.success("🎉 Funnel deployed! Phase 2 unlocked.");
@@ -657,7 +649,7 @@ export default function FunnelRecommendationPage() {
                         <h2 className="text-3xl font-black mb-4">Funnel Deployed! 🎉</h2>
                         <p className="text-gray-400 mb-8">Phase 2 is now unlocked. Redirecting to your assets...</p>
                         <button
-                            onClick={() => router.push('/vault?phase=2')}
+                            onClick={() => router.push(`/vault?phase=2${sessionId ? `&session_id=${sessionId}` : ''}`)}
                             className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center gap-3 mx-auto hover:brightness-110 transition-all"
                         >
                             Go to Marketing Assets

@@ -122,8 +122,10 @@ export default function VaultPage() {
         }
 
         const loadVault = async () => {
+            const sessionId = searchParams.get('session_id');
+            setIsLoading(true);
             try {
-                const res = await fetchWithAuth('/api/os/results');
+                const res = await fetchWithAuth(`/api/os/results${sessionId ? `?session_id=${sessionId}` : ''}`);
                 const result = await res.json();
 
                 if (result.error) {
@@ -155,7 +157,7 @@ export default function VaultPage() {
         };
 
         loadVault();
-    }, [session, authLoading, router]);
+    }, [session, authLoading, router, searchParams]);
 
     const loadApprovals = async (sId = null) => {
         const activeSessionId = sId || dataSource?.id || 'current';
@@ -342,10 +344,17 @@ export default function VaultPage() {
             });
 
             const data = await res.json();
-            if (data.success) {
+            if (data.success && data.session) {
                 toast.success(`Session saved as "${sessionName}"`);
                 setShowSaveModal(false);
                 setSessionName('');
+
+                // Update dataSource to the newly saved session
+                setDataSource({ type: 'loaded', name: data.session.session_name, id: data.session.id });
+
+                // Update URL to include the new session ID
+                const currentPhase = activeTab === 'assets' ? '2' : '1';
+                router.push(`/vault?session_id=${data.session.id}&phase=${currentPhase}`, { scroll: false });
             } else {
                 toast.error(data.error || "Failed to save session");
             }
@@ -1355,6 +1364,32 @@ export default function VaultPage() {
                                 {isPhase1Complete ? (
                                     <div className="grid gap-3">
                                         {PHASE_1_SECTIONS.map((section) => renderCompletedSection(section, 1))}
+
+                                        {!funnelApproved && (
+                                            <motion.div
+                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-cyan/20 text-center shadow-2xl shadow-cyan/5"
+                                            >
+                                                <div className="w-16 h-16 bg-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <Sparkles className="w-8 h-8 text-cyan" />
+                                                </div>
+                                                <h3 className="text-xl font-bold mb-2">Business DNA Complete!</h3>
+                                                <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+                                                    Your core business assets are approved. Now, let's see which marketing funnel will work best for your offer.
+                                                </p>
+                                                <button
+                                                    onClick={() => {
+                                                        const sessionId = dataSource?.id || searchParams.get('session_id');
+                                                        router.push(`/funnel-recommendation${sessionId ? `?session_id=${sessionId}` : ''}`);
+                                                    }}
+                                                    className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
+                                                >
+                                                    Show Recommended Funnel
+                                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                </button>
+                                            </motion.div>
+                                        )}
                                     </div>
                                 ) : (
                                     PHASE_1_SECTIONS.map((section, index) => {
