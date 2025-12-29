@@ -1177,6 +1177,16 @@ export default function VaultPage() {
                                                 {isRegenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                                                 Regenerate
                                             </button>
+                                            {unsavedChanges && (
+                                                <button
+                                                    onClick={handleSaveChanges}
+                                                    disabled={isSaving}
+                                                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black rounded-lg flex items-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 text-sm font-bold"
+                                                >
+                                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                                    Save
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -1286,6 +1296,16 @@ export default function VaultPage() {
                                                 {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
                                                 Regenerate
                                             </button>
+                                            {unsavedChanges && (
+                                                <button
+                                                    onClick={handleSaveChanges}
+                                                    disabled={isSaving}
+                                                    className="px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 font-bold"
+                                                >
+                                                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                                                    Save
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                 </div>
