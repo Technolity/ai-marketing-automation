@@ -15,7 +15,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     Rocket, ChevronDown, CheckCircle, Loader2, Sparkles,
     BookOpen, Video, Mail, Gift, Megaphone, Layout, Star,
-    ArrowRight, ArrowLeft, Lock, AlertTriangle, Wrench
+    ArrowRight, ArrowLeft, Lock, AlertTriangle, Wrench,
+    Upload, X, Eye, EyeOff, Copy, Check
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -89,6 +90,22 @@ export default function FunnelRecommendationPage() {
     const [credentials, setCredentials] = useState(null);
     const [isPushing, setIsPushing] = useState(false);
     const [pushOperationId, setPushOperationId] = useState(null);
+    const [sessionId, setSessionId] = useState(null);
+
+    // Asset States
+    const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+    const [uploadingFiles, setUploadingFiles] = useState({});
+    const [uploadedImages, setUploadedImages] = useState({
+        logo: '',
+        bio_author: '',
+        product_mockup: '',
+        results_image: ''
+    });
+    const [videoUrls, setVideoUrls] = useState({
+        main_vsl: '',
+        testimonial_video: '',
+        thankyou_video: ''
+    });
 
     useEffect(() => {
         if (authLoading) return;
@@ -106,6 +123,14 @@ export default function FunnelRecommendationPage() {
                     setBusinessData(data.data);
                     // Default to VSL since it's the only active funnel
                     setSelectedFunnel(FUNNEL_TYPES.find(f => f.id === 'vsl'));
+
+                    // Set session ID from source if available, otherwise fallback
+                    if (data.source?.id) {
+                        setSessionId(data.source.id);
+                    } else {
+                        const stored = localStorage.getItem('ted_current_session_id');
+                        if (stored) setSessionId(stored);
+                    }
                 }
             } catch (error) {
                 console.error("Failed to load data:", error);
@@ -160,9 +185,12 @@ export default function FunnelRecommendationPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ghlLocationId: credentials.location_id,
-                    ghlAccessToken: accessToken,
-                    funnelType: selectedFunnel.id
+                    sessionId: sessionId,
+                    locationId: credentials.location_id,
+                    accessToken: accessToken,
+                    funnelType: selectedFunnel.id,
+                    uploadedImages: uploadedImages,
+                    videoUrls: videoUrls
                 })
             });
 
@@ -180,6 +208,107 @@ export default function FunnelRecommendationPage() {
             setIsPushing(false);
             setDeployStep('credentials');
         }
+    };
+
+    // Asset Handlers
+    const handleFileUpload = async (fileType, file, isVideo = false) => {
+        if (!file) return;
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+            toast.error(`File too large. Max size: 10MB`);
+            return;
+        }
+
+        setUploadingFiles(prev => ({ ...prev, [fileType]: true }));
+        const toastId = toast.loading(`Uploading ${file.name}...`);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', isVideo ? 'video' : 'image');
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                if (isVideo) {
+                    setVideoUrls(prev => ({ ...prev, [fileType]: data.fullUrl }));
+                } else {
+                    setUploadedImages(prev => ({ ...prev, [fileType]: data.fullUrl }));
+                }
+                toast.success(`${file.name} uploaded!`, { id: toastId });
+            } else {
+                throw new Error(data.error || 'Upload failed');
+            }
+        } catch (error) {
+            console.error('[Upload] Error:', error);
+            toast.error(`Upload failed: ${error.message}`, { id: toastId });
+        } finally {
+            setUploadingFiles(prev => ({ ...prev, [fileType]: false }));
+        }
+    };
+
+    const handleClearFile = (fileType, isVideo = false) => {
+        if (isVideo) setVideoUrls(prev => ({ ...prev, [fileType]: '' }));
+        else setUploadedImages(prev => ({ ...prev, [fileType]: '' }));
+    };
+
+    const FileUploadInput = ({ label, fileType, currentValue, isVideo = false, accept }) => {
+        const isUploading = uploadingFiles[fileType];
+        const hasFile = Boolean(currentValue);
+
+        return (
+            <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-400 mb-2">{label}</label>
+                {!hasFile ? (
+                    <div className="space-y-2">
+                        <label className="relative block group">
+                            <input
+                                type="file"
+                                accept={accept}
+                                onChange={(e) => handleFileUpload(fileType, e.target.files?.[0], isVideo)}
+                                className="hidden"
+                                disabled={isUploading}
+                            />
+                            <div className={`w-full px-4 py-3 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all ${isUploading ? 'border-cyan/50 bg-cyan/5' : 'border-[#2a2a2d] hover:border-cyan/50 hover:bg-[#1b1b1d]'
+                                }`}>
+                                {isUploading ? (
+                                    <div className="flex items-center justify-center gap-2 text-cyan">
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <span className="text-sm font-medium">Uploading...</span>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center gap-2 text-gray-500 group-hover:text-gray-300">
+                                        <Upload className="w-5 h-5" />
+                                        <span className="text-sm font-medium">Upload {isVideo ? 'video' : 'image'}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </label>
+                        <div className="relative">
+                            <input
+                                type="url"
+                                value={currentValue}
+                                onChange={(e) => isVideo ? setVideoUrls(prev => ({ ...prev, [fileType]: e.target.value })) : setUploadedImages(prev => ({ ...prev, [fileType]: e.target.value }))}
+                                placeholder="Or paste public URL"
+                                className="w-full px-4 py-2.5 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-white text-sm focus:border-cyan focus:outline-none"
+                            />
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-3 px-4 py-3 bg-cyan/5 border border-cyan/30 rounded-xl">
+                        <CheckCircle className="w-5 h-5 text-cyan flex-shrink-0" />
+                        <span className="text-sm text-gray-300 flex-1 truncate">{currentValue.split('/').pop()}</span>
+                        <button onClick={() => handleClearFile(fileType, isVideo)} className="text-gray-500 hover:text-red-500 transition-colors">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
     };
 
     const handlePushComplete = async (operation) => {
@@ -279,8 +408,8 @@ export default function FunnelRecommendationPage() {
                             animate={{ opacity: 1, y: 0 }}
                             onClick={() => handleSelectFunnel(vslFunnel)}
                             className={`p-6 rounded-2xl border-2 mb-6 cursor-pointer transition-all ${selectedFunnel?.id === 'vsl'
-                                    ? 'bg-cyan/10 border-cyan shadow-xl shadow-cyan/20'
-                                    : 'bg-[#1b1b1d] border-[#2a2a2d] hover:border-cyan/50'
+                                ? 'bg-cyan/10 border-cyan shadow-xl shadow-cyan/20'
+                                : 'bg-[#1b1b1d] border-[#2a2a2d] hover:border-cyan/50'
                                 }`}
                         >
                             <div className="flex items-start gap-6">
@@ -394,6 +523,93 @@ export default function FunnelRecommendationPage() {
                                 autoValidate={false}
                             />
                         </div>
+
+                        {/* Advanced Options Toggle */}
+                        <button
+                            onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                            className="w-full px-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-gray-400 hover:text-white hover:border-cyan/30 transition-colors flex items-center justify-between"
+                        >
+                            <span className="text-sm font-medium flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-cyan" />
+                                {showAdvancedOptions ? 'Hide' : 'Add'} Custom Images & Videos (Optional)
+                            </span>
+                            <span className="text-xs text-gray-500">
+                                {Object.values(uploadedImages).filter(Boolean).length} images, {Object.values(videoUrls).filter(Boolean).length} videos
+                            </span>
+                        </button>
+
+                        {/* Advanced Options */}
+                        <AnimatePresence>
+                            {showAdvancedOptions && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="p-6 bg-[#131314] border border-cyan/20 rounded-xl space-y-8">
+                                        <div>
+                                            <h3 className="text-sm font-bold text-cyan uppercase tracking-wider mb-4">📸 Custom Images</h3>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <FileUploadInput
+                                                    label="Business Logo"
+                                                    fileType="logo"
+                                                    currentValue={uploadedImages.logo}
+                                                    accept="image/*"
+                                                />
+                                                <FileUploadInput
+                                                    label="Bio / Author Photo"
+                                                    fileType="bio_author"
+                                                    currentValue={uploadedImages.bio_author}
+                                                    accept="image/*"
+                                                />
+                                                <FileUploadInput
+                                                    label="Product Mockup"
+                                                    fileType="product_mockup"
+                                                    currentValue={uploadedImages.product_mockup}
+                                                    accept="image/*"
+                                                />
+                                                <FileUploadInput
+                                                    label="Results / Proof"
+                                                    fileType="results_image"
+                                                    currentValue={uploadedImages.results_image}
+                                                    accept="image/*"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-6 border-t border-[#2a2a2d]">
+                                            <h3 className="text-sm font-bold text-cyan uppercase tracking-wider mb-4">🎬 Custom Videos</h3>
+                                            <div className="space-y-4">
+                                                <FileUploadInput
+                                                    label="Main VSL Video URL"
+                                                    fileType="main_vsl"
+                                                    currentValue={videoUrls.main_vsl}
+                                                    isVideo={true}
+                                                    accept="video/*"
+                                                />
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                    <FileUploadInput
+                                                        label="Testimonial Video"
+                                                        fileType="testimonial_video"
+                                                        currentValue={videoUrls.testimonial_video}
+                                                        isVideo={true}
+                                                        accept="video/*"
+                                                    />
+                                                    <FileUploadInput
+                                                        label="Thank You Video"
+                                                        fileType="thankyou_video"
+                                                        currentValue={videoUrls.thankyou_video}
+                                                        isVideo={true}
+                                                        accept="video/*"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
                         <div className="flex gap-4">
                             <button
