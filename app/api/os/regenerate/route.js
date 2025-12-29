@@ -153,7 +153,7 @@ export async function POST(req) {
             // Load from specific saved session (only if valid UUID)
             const { data: sessionData, error: sessionError } = await supabaseAdmin
                 .from('saved_sessions')
-                .select('intake_data, answers')
+                .select('*') // Better to select all and pick what we need than to fail on missing column
                 .eq('id', sessionId)
                 .eq('user_id', userId)
                 .single();

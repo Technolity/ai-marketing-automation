@@ -56,7 +56,7 @@ export async function POST(req) {
         const { sessionId, businessCoreApprovals, funnelAssetsApprovals, funnelApproved } = body;
 
         // Upsert approvals
-        const { error } = await supabaseAdmin
+        let { error } = await supabaseAdmin
             .from('phase_approvals')
             .upsert({
                 user_id: userId,
@@ -68,6 +68,23 @@ export async function POST(req) {
             }, {
                 onConflict: 'user_id,session_id'
             });
+
+        // Fallback: If funnel_approved column is missing, try saving without it
+        if (error && error.message?.includes('funnel_approved')) {
+            console.warn('[Approvals API] Falling back: funnel_approved column missing');
+            const { error: fallbackError } = await supabaseAdmin
+                .from('phase_approvals')
+                .upsert({
+                    user_id: userId,
+                    session_id: sessionId || 'current',
+                    business_core_approvals: businessCoreApprovals || [],
+                    funnel_assets_approvals: funnelAssetsApprovals || [],
+                    updated_at: new Date().toISOString()
+                }, {
+                    onConflict: 'user_id,session_id'
+                });
+            error = fallbackError;
+        }
 
         if (error) {
             console.error('[Approvals API] Error saving:', error);

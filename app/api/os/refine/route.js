@@ -175,7 +175,7 @@ export async function POST(req) {
         if (sessionId) {
             const { data: sessionData, error } = await supabaseAdmin
                 .from('saved_sessions')
-                .select('intake_data, answers')
+                .select('*')
                 .eq('id', sessionId)
                 .eq('user_id', userId)
                 .single();
