@@ -511,7 +511,7 @@ export default function VaultPage() {
         concept: 'Concept',
         coreProblemSolved: 'Core Problem Solved',
         keyOutcomeDelivered: 'Key Outcome Delivered',
-        alignmentWithMethod: 'Alignment with Method',
+        alignmentWithMethod: 'Alignment with Method / Approach',
         format: 'Format',
         mainTitle: 'Main Title',
         subtitle: 'Subtitle',
