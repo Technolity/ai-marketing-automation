@@ -31,7 +31,8 @@ export async function GET(req) {
 
         return NextResponse.json({
             businessCoreApprovals: data?.business_core_approvals || [],
-            funnelAssetsApprovals: data?.funnel_assets_approvals || []
+            funnelAssetsApprovals: data?.funnel_assets_approvals || [],
+            funnelApproved: data?.funnel_approved || false
         });
 
     } catch (error) {
@@ -52,7 +53,7 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { sessionId, businessCoreApprovals, funnelAssetsApprovals } = body;
+        const { sessionId, businessCoreApprovals, funnelAssetsApprovals, funnelApproved } = body;
 
         // Upsert approvals
         const { error } = await supabaseAdmin
@@ -62,6 +63,7 @@ export async function POST(req) {
                 session_id: sessionId || 'current',
                 business_core_approvals: businessCoreApprovals || [],
                 funnel_assets_approvals: funnelAssetsApprovals || [],
+                funnel_approved: funnelApproved || false,
                 updated_at: new Date().toISOString()
             }, {
                 onConflict: 'user_id,session_id'

@@ -18,9 +18,11 @@ import {
     Users, MessageSquare, BookOpen, Gift, Mic, Magnet,
     Video, Mail, Megaphone, Layout, Bell, Lightbulb,
     Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
-    ChevronDown, ChevronUp, Save
+    ChevronDown, ChevronUp, Save, Image as ImageIcon, Video as VideoIcon, Plus, Trash2 as TrashIcon, ExternalLink,
+    Upload, X
 } from "lucide-react";
 import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // Phase 1: Business Core - Always accessible
@@ -90,6 +92,22 @@ export default function VaultPage() {
     const [sessionName, setSessionName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
+    // Tab Management
+    const searchParams = useSearchParams();
+    const initialTab = searchParams.get('phase') === '2' ? 'assets' : 'dna';
+    const [activeTab, setActiveTab] = useState(initialTab); // 'dna' or 'assets'
+
+    // Asset Management States
+    const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+    const [uploadedImages, setUploadedImages] = useState({
+        logo: '', bio_author: '', product_mockup: '', results_image: ''
+    });
+    const [videoUrls, setVideoUrls] = useState({
+        main_vsl: '', testimonial_video: '', thankyou_video: ''
+    });
+    const [isUpdatingAssets, setIsUpdatingAssets] = useState(false);
+    const [uploadingFiles, setUploadingFiles] = useState({});
+
     // Computed states
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
@@ -119,15 +137,15 @@ export default function VaultPage() {
                     setVaultData(normalizedData);
                     setDataSource(result.source);
                     console.log('[Vault] Loaded from:', result.source);
+
+                    // Load approvals for this specific session if available
+                    const activeSessionId = result.source?.id || 'current';
+                    await loadApprovals(activeSessionId);
                 } else {
                     toast.info("No content yet. Complete the intake form first.");
                     router.push('/intake_form');
                     return;
                 }
-
-                // Load approvals
-                await loadApprovals();
-
             } catch (error) {
                 console.error("Failed to load vault:", error);
                 toast.error("Failed to load vault");
@@ -139,20 +157,27 @@ export default function VaultPage() {
         loadVault();
     }, [session, authLoading, router]);
 
-    const loadApprovals = async () => {
+    const loadApprovals = async (sId = null) => {
+        const activeSessionId = sId || dataSource?.id || 'current';
         try {
-            const approvalsRes = await fetchWithAuth('/api/os/approvals');
+            const approvalsRes = await fetchWithAuth(`/api/os/approvals?session_id=${activeSessionId}`);
             if (approvalsRes.ok) {
                 const data = await approvalsRes.json();
-                if (data.approvals) {
-                    setApprovedPhase1(data.approvals.phase1 || data.approvals.businessCore || []);
-                    setApprovedPhase2(data.approvals.phase2 || []);
-                    setFunnelApproved(data.approvals.funnelApproved || false);
-                }
+                setApprovedPhase1(data.businessCoreApprovals || []);
+                setApprovedPhase2(data.funnelAssetsApprovals || []);
+                setFunnelApproved(data.funnelApproved || false);
+
+                // Keep local storage in sync
+                const approvals = {
+                    phase1: data.businessCoreApprovals || [],
+                    phase2: data.funnelAssetsApprovals || [],
+                    funnelApproved: data.funnelApproved || false
+                };
+                localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
             }
         } catch (e) {
             // Fallback to localStorage
-            const saved = localStorage.getItem(`vault_approvals_${session.user.id}`);
+            const saved = localStorage.getItem(`vault_approvals_${session.user.id}_${activeSessionId}`);
             if (saved) {
                 const approvals = JSON.parse(saved);
                 setApprovedPhase1(approvals.phase1 || []);
@@ -163,14 +188,20 @@ export default function VaultPage() {
     };
 
     const saveApprovals = async (phase1, phase2, funnel) => {
+        const activeSessionId = dataSource?.id || 'current';
         const approvals = { phase1, phase2, funnelApproved: funnel };
-        localStorage.setItem(`vault_approvals_${session.user.id}`, JSON.stringify(approvals));
+        localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
 
         try {
             await fetchWithAuth('/api/os/approvals', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'vault', approvals })
+                body: JSON.stringify({
+                    sessionId: activeSessionId,
+                    businessCoreApprovals: phase1,
+                    funnelAssetsApprovals: phase2,
+                    funnelApproved: funnel
+                })
             });
         } catch (e) {
             console.log('Approvals saved to localStorage');
@@ -326,12 +357,243 @@ export default function VaultPage() {
         }
     };
 
-    // Section title mapping for better display
+    // Asset Management Handlers
+    const handleFileUpload = async (fileType, file, isVideo = false) => {
+        if (!file) return;
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+            toast.error(`File too large. Max size: 10MB`);
+            return;
+        }
+
+        setUploadingFiles(prev => ({ ...prev, [fileType]: true }));
+        const toastId = toast.loading(`Uploading ${file.name}...`);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type', isVideo ? 'video' : 'image');
+
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                if (isVideo) {
+                    setVideoUrls(prev => ({ ...prev, [fileType]: data.fullUrl }));
+                } else {
+                    setUploadedImages(prev => ({ ...prev, [fileType]: data.fullUrl }));
+                }
+                toast.success(`${file.name} uploaded!`, { id: toastId });
+            } else {
+                throw new Error(data.error || 'Upload failed');
+            }
+        } catch (error) {
+            console.error('[Upload] Error:', error);
+            toast.error(`Upload failed: ${error.message}`, { id: toastId });
+        } finally {
+            setUploadingFiles(prev => ({ ...prev, [fileType]: false }));
+        }
+    };
+
+    const handleUpdateAssets = async () => {
+        setIsUpdatingAssets(true);
+        const toastId = toast.loading("Updating your funnel assets...");
+
+        try {
+            // Get credentials from GHL API
+            const credsRes = await fetchWithAuth('/api/ghl/credentials');
+            const credsData = await credsRes.json();
+
+            if (!credsData.location_id || !credsData.access_token) {
+                toast.error("Funnel credentials not found. Please connect your account first.", { id: toastId });
+                setIsUpdatingAssets(false);
+                return;
+            }
+
+            const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
+
+            const res = await fetchWithAuth('/api/ghl/update-assets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId,
+                    locationId: credsData.location_id,
+                    accessToken: credsData.access_token,
+                    uploadedImages,
+                    videoUrls
+                })
+            });
+
+            const result = await res.json();
+            if (res.ok && result.success) {
+                toast.success(`Success! ${result.summary.updated} assets updated in your funnel.`, { id: toastId });
+                setShowMediaLibrary(false);
+            } else {
+                throw new Error(result.error || 'Failed to update assets');
+            }
+        } catch (error) {
+            console.error('[Assets] Update error:', error);
+            toast.error(`Failed to update: ${error.message}`, { id: toastId });
+        } finally {
+            setIsUpdatingAssets(false);
+        }
+    };
+
+
+
+    const MediaLibrary = () => (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-2xl overflow-hidden shadow-2xl"
+        >
+            <div className="p-6 border-b border-[#2a2a2d] flex items-center justify-between bg-gradient-to-r from-cyan/10 to-transparent">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-cyan/20 rounded-lg">
+                        <ImageIcon className="w-5 h-5 text-cyan" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold">Media Library</h3>
+                        <p className="text-sm text-gray-400">Update logos, images and videos in your funnel</p>
+                    </div>
+                </div>
+                <button
+                    onClick={() => setShowMediaLibrary(false)}
+                    className="p-2 hover:bg-[#2a2a2d] rounded-full transition-colors"
+                >
+                    <X className="w-5 h-5 text-gray-400" />
+                </button>
+            </div>
+
+            <div className="p-8 space-y-10">
+                {/* Images Section */}
+                <div>
+                    <h4 className="text-xs font-black text-cyan uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                        <ImageIcon className="w-3 h-3" /> Visual Assets
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {[
+                            { id: 'logo', label: 'Business Logo', icon: ImageIcon },
+                            { id: 'bio_author', label: 'Bio / Author Photo', icon: Users },
+                            { id: 'product_mockup', label: 'Product Mockup', icon: Gift },
+                            { id: 'results_image', label: 'Results / Proof Image', icon: CheckCircle }
+                        ].map(asset => (
+                            <div key={asset.id} className="space-y-3">
+                                <label className="text-sm font-bold text-gray-300 flex items-center gap-2">
+                                    <asset.icon className="w-4 h-4 text-cyan/70" /> {asset.label}
+                                </label>
+                                <div className="group relative">
+                                    <input
+                                        type="text"
+                                        value={uploadedImages[asset.id]}
+                                        onChange={(e) => setUploadedImages(prev => ({ ...prev, [asset.id]: e.target.value }))}
+                                        placeholder="Paste image URL..."
+                                        className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white text-sm focus:border-cyan focus:outline-none transition-all pr-24"
+                                    />
+                                    <div className="absolute right-2 top-1.5 flex gap-1">
+                                        <label className="p-1.5 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-cyan rounded-lg cursor-pointer transition-colors">
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept="image/*"
+                                                onChange={(e) => handleFileUpload(asset.id, e.target.files?.[0])}
+                                                disabled={uploadingFiles[asset.id]}
+                                            />
+                                            {uploadingFiles[asset.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                        </label>
+                                        {uploadedImages[asset.id] && (
+                                            <button
+                                                onClick={() => setUploadedImages(prev => ({ ...prev, [asset.id]: '' }))}
+                                                className="p-1.5 bg-[#1b1b1d] hover:bg-red-500/20 text-gray-500 hover:text-red-500 rounded-lg transition-colors"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Videos Section */}
+                <div className="pt-8 border-t border-[#2a2a2d]">
+                    <h4 className="text-xs font-black text-cyan uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                        <VideoIcon className="w-3 h-3" /> Video Content
+                    </h4>
+                    <div className="space-y-6">
+                        {[
+                            { id: 'main_vsl', label: 'Main VSL Video', icon: VideoIcon },
+                            { id: 'testimonial_video', label: 'Testimonial Video', icon: Users },
+                            { id: 'thankyou_video', label: 'Thank You Video', icon: CheckCircle }
+                        ].map(asset => (
+                            <div key={asset.id} className="space-y-3">
+                                <label className="text-sm font-bold text-gray-300 flex items-center gap-2">
+                                    <asset.icon className="w-4 h-4 text-cyan/70" /> {asset.label}
+                                </label>
+                                <div className="group relative">
+                                    <input
+                                        type="text"
+                                        value={videoUrls[asset.id]}
+                                        onChange={(e) => setVideoUrls(prev => ({ ...prev, [asset.id]: e.target.value }))}
+                                        placeholder="Paste video URL (YouTube, Vimeo, etc.)..."
+                                        className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white text-sm focus:border-cyan focus:outline-none transition-all pr-24"
+                                    />
+                                    <div className="absolute right-2 top-1.5 flex gap-1">
+                                        <label className="p-1.5 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-cyan rounded-lg cursor-pointer transition-colors">
+                                            <input
+                                                type="file"
+                                                className="hidden"
+                                                accept="video/*"
+                                                onChange={(e) => handleFileUpload(asset.id, e.target.files?.[0], true)}
+                                                disabled={uploadingFiles[asset.id]}
+                                            />
+                                            {uploadingFiles[asset.id] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                        </label>
+                                        {videoUrls[asset.id] && (
+                                            <button
+                                                onClick={() => setVideoUrls(prev => ({ ...prev, [asset.id]: '' }))}
+                                                className="p-1.5 bg-[#1b1b1d] hover:bg-red-500/20 text-gray-500 hover:text-red-500 rounded-lg transition-colors"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-8 border-t border-[#2a2a2d] flex justify-end gap-4">
+                    <button
+                        onClick={() => setShowMediaLibrary(false)}
+                        className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium hover:bg-[#3a3a3d] transition-all"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleUpdateAssets}
+                        disabled={isUpdatingAssets}
+                        className="px-8 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center gap-2 hover:brightness-110 transition-all disabled:opacity-50"
+                    >
+                        {isUpdatingAssets ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                        Update All Assets in Funnel
+                    </button>
+                </div>
+            </div>
+        </motion.div>
+    );
+
     const SECTION_TITLES = {
         // Ideal Client sections
         coreAudienceSnapshot: 'Core Audience Snapshot',
-        demographics: 'Demographics',
-        psychographics: 'Psychographics',
+        demographics: 'Demographics (only where relevant)',
+        psychographics: 'Psychographics (THIS IS THE MOST IMPORTANT SECTION)',
         corePainsAndProblems: 'Core Pains & Problems',
         desiredOutcomesAndMotivations: 'Desired Outcomes & Motivations',
         buyingTriggers: 'Buying Triggers',
@@ -353,40 +615,40 @@ export default function VaultPage() {
         messageToMillionsSummary: 'Final "Message to Millions" Summary',
 
         // Ideal Client field labels
-        whoTheyAre: 'Who This Person Is',
-        lifeOrBusinessStage: 'Stage of Life/Business',
-        whyNow: 'Why Now Is The Moment',
-        ageRange: 'Age Range',
-        gender: 'Gender',
-        location: 'Location',
-        incomeOrRevenue: 'Income/Revenue',
-        jobTitleOrRole: 'Job Title/Role',
-        currentFrustrations: 'Current Frustrations',
-        whatKeepsThemStuck: 'What Keeps Them Stuck',
-        secretWorries: 'Secret Worries',
-        successInTheirWords: 'Success In Their Words',
-        tiredOfTrying: 'Tired of Trying',
-        surfaceProblem: 'Surface Problem',
-        deeperEmotionalProblem: 'Deeper Emotional Problem',
-        costOfNotSolving: 'Cost of Not Solving',
-        practicalResults: 'Practical Results',
-        emotionalOutcomes: 'Emotional Outcomes',
-        statusIdentityLifestyle: 'Status/Identity/Lifestyle',
-        momentsThatPushAction: 'Moments That Push Action',
-        needHelpNowMoments: 'I Need Help NOW Moments',
-        messagingThatGrabsAttention: 'Messaging That Grabs Attention',
-        reasonsToHesitate: 'Reasons They Hesitate',
-        pastBadExperiences: 'Past Bad Experiences',
-        whatTheyNeedToBelieve: 'What They Need to Believe',
-        phrasesTheyUse: 'Phrases They Use',
-        emotionallyResonantWords: 'Emotionally Resonant Words',
-        authenticAngles: 'Authentic Angles',
-        platforms: 'Platforms',
-        trustedVoices: 'Trusted Voices',
-        contentFormatsTheyRespondTo: 'Content Formats',
-        howToSpeakToThem: 'How To Speak To Them',
-        whatToAvoid: 'What To Avoid',
-        whatBuildsTrustAndAuthority: 'What Builds Trust & Authority',
+        whoTheyAre: 'Who this person is in one clear sentence',
+        lifeOrBusinessStage: 'What stage of life or business they are in',
+        whyNow: 'Why now is the moment they’re looking for a solution',
+        ageRange: 'Age range',
+        gender: 'Gender (if applicable)',
+        location: 'Location (if implied)',
+        incomeOrRevenue: 'Income or business revenue range',
+        jobTitleOrRole: 'Job title or role',
+        currentFrustrations: 'What they are frustrated about right now',
+        whatKeepsThemStuck: 'What keeps them stuck or overwhelmed',
+        secretWorries: 'What they secretly worry might never change',
+        successInTheirWords: 'What success looks like in their own words',
+        tiredOfTrying: 'What they’re tired of trying or hearing',
+        surfaceProblem: 'The surface problem they complain about',
+        deeperEmotionalProblem: 'The deeper, emotional problem underneath',
+        costOfNotSolving: 'The real cost of not solving this problem',
+        practicalResults: 'Practical results they want',
+        emotionalOutcomes: 'Emotional outcomes they’re chasing',
+        statusIdentityLifestyle: 'Status, identity, or lifestyle signals they care about',
+        momentsThatPushAction: 'What moments push them to finally take action',
+        needHelpNowMoments: 'What makes them say “I need help with this now”',
+        messagingThatGrabsAttention: 'What type of messaging gets their attention instantly',
+        reasonsToHesitate: 'Common reasons they hesitate to buy',
+        pastBadExperiences: 'Past bad experiences that made them skeptical',
+        whatTheyNeedToBelieve: 'What they need to believe before saying yes',
+        phrasesTheyUse: 'Phrases they likely use to describe their problem',
+        emotionallyResonantWords: 'Words that resonate emotionally',
+        authenticAngles: 'Angles that would feel authentic, not salesy',
+        platforms: 'Platforms they actively consume content on',
+        trustedVoices: 'Types of creators, brands, or voices they trust',
+        contentFormatsTheyRespondTo: 'Content formats they respond to best',
+        howToSpeakToThem: 'How this ICP should be spoken to',
+        whatToAvoid: 'What to avoid saying',
+        whatBuildsTrustAndAuthority: 'What will immediately build trust and authority',
 
         // Message field labels
         headline: 'A single, clear sentence',
@@ -553,6 +815,18 @@ export default function VaultPage() {
     };
 
     const SECTION_SORT_ORDER = {
+        idealClient: [
+            'coreAudienceSnapshot',
+            'demographics',
+            'psychographics',
+            'corePainsAndProblems',
+            'desiredOutcomesAndMotivations',
+            'buyingTriggers',
+            'objectionsAndResistance',
+            'languageAndMessagingHooks',
+            'whereTheySpendTimeAndWhoTheyTrust',
+            'summaryForMarketers'
+        ],
         message: [
             'oneLineMillionDollarMessage',
             'thisIsForYouIf',
@@ -849,43 +1123,285 @@ export default function VaultPage() {
         );
     };
 
-    // Active Flow View (approval process)
+    // Helper to render sections
+    const renderSection = (section, status, index, phase) => {
+        const Icon = section.icon;
+        const isExpanded = expandedSection === section.id;
+        const content = vaultData[section.id];
+        const isEditing = editingSection === section.id;
+
+        return (
+            <motion.div
+                key={section.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className={`rounded-xl border overflow-hidden transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
+                    status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
+                        'bg-[#131314] border-[#2a2a2d] opacity-60'
+                    }`}
+            >
+                <button
+                    onClick={() => status !== 'locked' && setExpandedSection(isExpanded ? null : section.id)}
+                    disabled={status === 'locked'}
+                    className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
+                >
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-green-500/20' :
+                        status === 'current' ? 'bg-cyan/20' : 'bg-gray-700/50'
+                        }`}>
+                        {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" /> :
+                            status === 'locked' ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /> :
+                                <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-green-400' :
+                            status === 'current' ? 'text-white' : 'text-gray-500'
+                            }`}>{section.title}</h3>
+                        <p className="text-xs sm:text-sm text-gray-500">{section.subtitle}</p>
+                    </div>
+                    {status !== 'locked' && (
+                        <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                    )}
+                </button>
+
+                <AnimatePresence>
+                    {isExpanded && status !== 'locked' && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="border-t border-[#2a2a2d]"
+                        >
+                            <div className="p-4 sm:p-6">
+                                <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
+                                    <ContentRenderer
+                                        content={isEditing ? editedContent : content}
+                                        isEditing={isEditing}
+                                        onUpdate={updateContentValue}
+                                    />
+                                </div>
+                                <div className="flex flex-wrap gap-3">
+                                    {isEditing ? (
+                                        <>
+                                            <button
+                                                onClick={() => handleSaveEdit(section.id)}
+                                                className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all text-sm"
+                                            >
+                                                <CheckCircle className="w-5 h-5" /> Save Changes
+                                            </button>
+                                            <button
+                                                onClick={() => setEditingSection(null)}
+                                                className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {status === 'current' && (
+                                                <button
+                                                    onClick={() => handleApprove(section.id, phase)}
+                                                    className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+                                                >
+                                                    <CheckCircle className="w-5 h-5" />
+                                                    Approve
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => handleEdit(section.id)}
+                                                className="px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                            >
+                                                <Edit3 className="w-5 h-5" /> Edit
+                                            </button>
+                                            <button
+                                                onClick={() => handleRegenerate(section.id)}
+                                                disabled={isRegenerating}
+                                                className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                            >
+                                                {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
+                                                Regenerate
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </motion.div>
+        );
+    };
+
+    // Unified Tabbed View
     return (
         <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8">
             <div className="max-w-4xl mx-auto">
 
-                {/* Back Button */}
-                <button
-                    onClick={() => router.push('/dashboard')}
-                    className="mb-6 p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to Dashboard
-                </button>
+                {/* Navigation & Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-12">
+                    <button
+                        onClick={() => router.push('/dashboard')}
+                        className="w-fit p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        Back to Dashboard
+                    </button>
 
-                {/* Header */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan/10 text-cyan text-sm font-medium mb-6">
-                        <Sparkles className="w-4 h-4" />
-                        {isPhase1Complete ? 'Phase 2 of 2' : 'Phase 1 of 2'}
+                    <div className="flex items-center gap-2 bg-[#131314] p-1.5 rounded-xl border border-[#2a2a2d]">
+                        <button
+                            onClick={() => { setActiveTab('dna'); setShowMediaLibrary(false); }}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'dna' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
+                        >
+                            Business DNA
+                        </button>
+                        <button
+                            onClick={() => { setActiveTab('assets'); setShowMediaLibrary(false); }}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'assets' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
+                        >
+                            Marketing Assets
+                        </button>
                     </div>
-                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 tracking-tighter">
-                        Your Vault
-                    </h1>
-                    <p className="text-gray-400 max-w-xl mx-auto mb-4">
-                        {isPhase1Complete
-                            ? 'Review and approve your funnel assets.'
-                            : 'Review and approve each section. Approval unlocks the next step.'}
-                    </p>
 
-                    {/* Save Session Button */}
                     <button
                         onClick={() => setShowSaveModal(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] border border-[#2a2a2d] rounded-lg text-sm font-medium transition-colors"
+                        className="w-fit inline-flex items-center gap-2 px-4 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] border border-[#2a2a2d] rounded-lg text-sm font-medium transition-colors"
                     >
                         <Save className="w-4 h-4 text-cyan" />
                         Save Session
                     </button>
+                </div>
+
+                {/* Content Header */}
+                <div className="text-center mb-10">
+                    <h1 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
+                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Business DNA' : 'Marketing Assets')}
+                    </h1>
+                    <p className="text-gray-400 max-w-xl mx-auto">
+                        {showMediaLibrary
+                            ? 'Update your funnel images and videos.'
+                            : (activeTab === 'dna'
+                                ? 'Your core business intelligence. The foundation for all marketing.'
+                                : 'Deployable assets for your funnels, emails, and ads.')}
+                    </p>
+                </div>
+
+                {/* Media Library Toggle (Only for Assets Tab) */}
+                {activeTab === 'assets' && funnelApproved && !showMediaLibrary && (
+                    <div className="mb-8 p-6 bg-gradient-to-br from-cyan/10 to-blue-600/10 border border-cyan/20 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div className="flex items-center gap-4 text-center md:text-left">
+                            <div className="w-12 h-12 rounded-xl bg-cyan/20 flex items-center justify-center">
+                                <ImageIcon className="w-6 h-6 text-cyan" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold">Media Library</h3>
+                                <p className="text-sm text-gray-400">Update images and videos in your deployed funnel instantly.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowMediaLibrary(true)}
+                            className="w-full md:w-auto px-6 py-3 bg-cyan text-black font-black rounded-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                        >
+                            <Edit3 className="w-4 h-4" />
+                            Update Assets
+                        </button>
+                    </div>
+                )}
+
+                {/* Progress Bar (Hide in Media Library) */}
+                {!showMediaLibrary && (
+                    <div className="mb-12 bg-[#131314] p-6 rounded-2xl border border-[#2a2a2d]">
+                        <div className="flex justify-between text-sm mb-3">
+                            <span className="text-gray-400 font-medium">Completion Progress</span>
+                            <span className="text-cyan font-bold">
+                                {activeTab === 'dna'
+                                    ? `${approvedPhase1.length} of ${PHASE_1_SECTIONS.length}`
+                                    : `${approvedPhase2.length} of ${PHASE_2_SECTIONS.length}`}
+                            </span>
+                        </div>
+                        <div className="h-2.5 bg-[#0e0e0f] rounded-full overflow-hidden border border-white/5">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{
+                                    width: `${activeTab === 'dna'
+                                        ? (approvedPhase1.length / PHASE_1_SECTIONS.length) * 100
+                                        : (approvedPhase2.length / PHASE_2_SECTIONS.length) * 100}%`
+                                }}
+                                className="h-full bg-gradient-to-r from-cyan via-blue-500 to-indigo-600 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.5)]"
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Main Content Area */}
+                <div className="relative">
+                    <AnimatePresence mode="wait">
+                        {showMediaLibrary ? (
+                            <motion.div
+                                key="media-library"
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -20 }}
+                            >
+                                <MediaLibrary />
+                            </motion.div>
+                        ) : activeTab === 'dna' ? (
+                            <motion.div
+                                key="dna-content"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                                className="space-y-4"
+                            >
+                                {isPhase1Complete ? (
+                                    <div className="grid gap-3">
+                                        {PHASE_1_SECTIONS.map((section) => renderCompletedSection(section, 1))}
+                                    </div>
+                                ) : (
+                                    PHASE_1_SECTIONS.map((section, index) => {
+                                        const status = getSectionStatus(section.id, 1, approvedPhase1, index);
+                                        return renderSection(section, status, index, 1);
+                                    })
+                                )}
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="assets-content"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="space-y-4"
+                            >
+                                {funnelApproved ? (
+                                    isPhase2Complete ? (
+                                        <div className="grid gap-3">
+                                            {PHASE_2_SECTIONS.map((section) => renderCompletedSection(section, 2))}
+                                        </div>
+                                    ) : (
+                                        PHASE_2_SECTIONS.map((section, index) => {
+                                            const status = getSectionStatus(section.id, 2, approvedPhase2, index);
+                                            return renderSection(section, status, index, 2);
+                                        })
+                                    )
+                                ) : (
+                                    <div className="text-center py-16 bg-[#131314] rounded-3xl border border-dashed border-[#2a2a2d]">
+                                        <Lock className="w-16 h-16 text-gray-700 mx-auto mb-6" />
+                                        <h2 className="text-2xl font-bold mb-3">Marketing Assets Locked</h2>
+                                        <p className="text-gray-500 max-w-sm mx-auto mb-8">
+                                            Finish your Business DNA and deploy your first funnel to unlock these professional marketing assets.
+                                        </p>
+                                        <button
+                                            onClick={() => router.push('/funnel-recommendation')}
+                                            className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center gap-3 mx-auto hover:brightness-110 transition-all shadow-xl shadow-cyan/30"
+                                        >
+                                            <Sparkles className="w-5 h-5" />
+                                            Go to Funnel Deployment
+                                            <ArrowRight className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 {/* Save Session Modal */}
@@ -895,323 +1411,54 @@ export default function VaultPage() {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                            className="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] flex items-center justify-center p-4"
                             onClick={() => setShowSaveModal(false)}
                         >
                             <motion.div
-                                initial={{ scale: 0.95 }}
-                                animate={{ scale: 1 }}
-                                exit={{ scale: 0.95 }}
-                                className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-2xl p-6 w-full max-w-md"
+                                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                                className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-3xl p-8 w-full max-w-md shadow-2xl"
                                 onClick={e => e.stopPropagation()}
                             >
-                                <h3 className="text-xl font-bold mb-4">Save Session</h3>
-                                <p className="text-gray-400 mb-4">Give your session a name to easily identify it later.</p>
+                                <div className="p-3 bg-cyan/10 rounded-2xl w-fit mb-6">
+                                    <Save className="w-6 h-6 text-cyan" />
+                                </div>
+                                <h3 className="text-2xl font-black mb-2">Save This Session</h3>
+                                <p className="text-gray-400 mb-8">Give your strategy a name so you can load it later in the dashboard.</p>
 
-                                <input
-                                    type="text"
-                                    value={sessionName}
-                                    onChange={(e) => setSessionName(e.target.value)}
-                                    placeholder="e.g., Fitness Coach Marketing Plan"
-                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan mb-6"
-                                    autoFocus
-                                />
+                                <div className="space-y-4 mb-8">
+                                    <label className="text-sm font-bold text-gray-500 uppercase tracking-widest pl-1">Session Name</label>
+                                    <input
+                                        type="text"
+                                        value={sessionName}
+                                        onChange={(e) => setSessionName(e.target.value)}
+                                        placeholder="e.g. Real Estate Growth Plan"
+                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl px-4 py-4 text-white focus:outline-none focus:border-cyan transition-all text-lg font-medium"
+                                        autoFocus
+                                    />
+                                </div>
 
-                                <div className="flex gap-3">
+                                <div className="grid grid-cols-2 gap-4">
                                     <button
                                         onClick={() => setShowSaveModal(false)}
-                                        className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-all"
+                                        className="px-4 py-4 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-xl font-bold transition-all"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={handleSaveSession}
                                         disabled={isSaving}
-                                        className="flex-1 px-4 py-3 bg-cyan hover:brightness-110 text-black rounded-lg font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                        className="px-4 py-4 bg-cyan hover:brightness-110 text-black rounded-xl font-black transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                     >
-                                        {isSaving ? (
-                                            <>
-                                                <Loader2 className="w-5 h-5 animate-spin" /> Saving...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save className="w-5 h-5" /> Save
-                                            </>
-                                        )}
+                                        {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                                        {isSaving ? 'Saving...' : 'Save Now'}
                                     </button>
                                 </div>
                             </motion.div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-
-                {/* Progress */}
-                <div className="mb-10">
-                    <div className="flex justify-between text-sm mb-2">
-                        <span className="text-gray-500">
-                            {isPhase1Complete ? 'Phase 2 Progress' : 'Phase 1 Progress'}
-                        </span>
-                        <span className="text-cyan font-medium">
-                            {isPhase1Complete
-                                ? `${approvedPhase2.length} of ${PHASE_2_SECTIONS.length}`
-                                : `${approvedPhase1.length} of ${PHASE_1_SECTIONS.length}`}
-                        </span>
-                    </div>
-                    <div className="h-2 bg-[#1b1b1d] rounded-full overflow-hidden">
-                        <motion.div
-                            initial={{ width: 0 }}
-                            animate={{
-                                width: `${isPhase1Complete
-                                    ? (approvedPhase2.length / PHASE_2_SECTIONS.length) * 100
-                                    : (approvedPhase1.length / PHASE_1_SECTIONS.length) * 100}%`
-                            }}
-                            className="h-full bg-gradient-to-r from-cyan to-green-500 rounded-full"
-                        />
-                    </div>
-                </div>
-
-                {/* Phase 1 Sections */}
-                {!isPhase1Complete && (
-                    <div className="space-y-4">
-                        {PHASE_1_SECTIONS.map((section, index) => {
-                            const status = getSectionStatus(section.id, 1, approvedPhase1, index);
-                            const Icon = section.icon;
-                            const isExpanded = expandedSection === section.id;
-                            const content = vaultData[section.id];
-
-                            return (
-                                <motion.div
-                                    key={section.id}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    className={`rounded-xl border overflow-hidden transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
-                                        status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
-                                            'bg-[#131314] border-[#2a2a2d] opacity-60'
-                                        }`}
-                                >
-                                    <button
-                                        onClick={() => status !== 'locked' && setExpandedSection(isExpanded ? null : section.id)}
-                                        disabled={status === 'locked'}
-                                        className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
-                                    >
-                                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-green-500/20' :
-                                            status === 'current' ? 'bg-cyan/20' : 'bg-gray-700/50'
-                                            }`}>
-                                            {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" /> :
-                                                status === 'locked' ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /> :
-                                                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-green-400' :
-                                                status === 'current' ? 'text-white' : 'text-gray-500'
-                                                }`}>{section.title}</h3>
-                                            <p className="text-xs sm:text-sm text-gray-500">{section.subtitle}</p>
-                                        </div>
-                                        {status !== 'locked' && (
-                                            <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                                        )}
-                                    </button>
-
-                                    <AnimatePresence>
-                                        {isExpanded && status !== 'locked' && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                className="border-t border-[#2a2a2d]"
-                                            >
-                                                <div className="p-4 sm:p-6">
-                                                    <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
-                                                        <ContentRenderer
-                                                            content={editingSection === section.id ? editedContent : content}
-                                                            isEditing={editingSection === section.id}
-                                                            onUpdate={updateContentValue}
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-3">
-                                                        {editingSection === section.id ? (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => handleSaveEdit(section.id)}
-                                                                    className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all text-sm"
-                                                                >
-                                                                    <CheckCircle className="w-5 h-5" /> Save Changes
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setEditingSection(null)}
-                                                                    className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                {status === 'current' && (
-                                                                    <button
-                                                                        onClick={() => handleApprove(section.id, 1)}
-                                                                        className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
-                                                                    >
-                                                                        <CheckCircle className="w-5 h-5" />
-                                                                        Approve
-                                                                    </button>
-                                                                )}
-                                                                <button
-                                                                    onClick={() => handleEdit(section.id)}
-                                                                    className="px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
-                                                                >
-                                                                    <Edit3 className="w-5 h-5" /> Edit
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleRegenerate(section.id)}
-                                                                    disabled={isRegenerating}
-                                                                    className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                                                                >
-                                                                    {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-                                                                    Regenerate
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* Phase 2 - Locked Message or Sections */}
-                {isPhase1Complete && !funnelApproved && (
-                    <div className="text-center py-12">
-                        <Lock className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                        <h2 className="text-2xl font-bold mb-2">Phase 2 Locked</h2>
-                        <p className="text-gray-500 mb-6">Select and approve a funnel to unlock Phase 2.</p>
-                        <button
-                            onClick={() => router.push('/funnel-recommendation')}
-                            className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center gap-3 mx-auto hover:brightness-110 transition-all shadow-xl shadow-cyan/30"
-                        >
-                            <Sparkles className="w-6 h-6" />
-                            Choose Your Funnel
-                            <ArrowRight className="w-6 h-6" />
-                        </button>
-                    </div>
-                )}
-
-                {/* Phase 2 Sections */}
-                {isPhase1Complete && funnelApproved && (
-                    <div className="space-y-4">
-                        {PHASE_2_SECTIONS.map((section, index) => {
-                            const status = getSectionStatus(section.id, 2, approvedPhase2, index);
-                            const Icon = section.icon;
-                            const isExpanded = expandedSection === section.id;
-                            const content = vaultData[section.id];
-
-                            return (
-                                <motion.div
-                                    key={section.id}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    className={`rounded-xl border overflow-hidden transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
-                                        status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
-                                            'bg-[#131314] border-[#2a2a2d] opacity-60'
-                                        }`}
-                                >
-                                    <button
-                                        onClick={() => status !== 'locked' && setExpandedSection(isExpanded ? null : section.id)}
-                                        disabled={status === 'locked'}
-                                        className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
-                                    >
-                                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-green-500/20' :
-                                            status === 'current' ? 'bg-cyan/20' : 'bg-gray-700/50'
-                                            }`}>
-                                            {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" /> :
-                                                status === 'locked' ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /> :
-                                                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-green-400' :
-                                                status === 'current' ? 'text-white' : 'text-gray-500'
-                                                }`}>{section.title}</h3>
-                                            <p className="text-xs sm:text-sm text-gray-500">{section.subtitle}</p>
-                                        </div>
-                                        {status !== 'locked' && (
-                                            <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                                        )}
-                                    </button>
-
-                                    <AnimatePresence>
-                                        {isExpanded && status !== 'locked' && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                className="border-t border-[#2a2a2d]"
-                                            >
-                                                <div className="p-4 sm:p-6">
-                                                    <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
-                                                        <ContentRenderer
-                                                            content={editingSection === section.id ? editedContent : content}
-                                                            isEditing={editingSection === section.id}
-                                                            onUpdate={updateContentValue}
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-3">
-                                                        {editingSection === section.id ? (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => handleSaveEdit(section.id)}
-                                                                    className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all text-sm"
-                                                                >
-                                                                    <CheckCircle className="w-5 h-5" /> Save Changes
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setEditingSection(null)}
-                                                                    className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                {status === 'current' && (
-                                                                    <button
-                                                                        onClick={() => handleApprove(section.id, 2)}
-                                                                        className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
-                                                                    >
-                                                                        <CheckCircle className="w-5 h-5" />
-                                                                        Approve
-                                                                    </button>
-                                                                )}
-                                                                <button
-                                                                    onClick={() => handleEdit(section.id)}
-                                                                    className="px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
-                                                                >
-                                                                    <Edit3 className="w-5 h-5" /> Edit
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleRegenerate(section.id)}
-                                                                    disabled={isRegenerating}
-                                                                    className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                                                                >
-                                                                    {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-                                                                    Regenerate
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
-                )}
             </div>
         </div>
     );

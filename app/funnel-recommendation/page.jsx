@@ -316,13 +316,14 @@ export default function FunnelRecommendationPage() {
         setDeployStep('complete');
 
         // Save funnel approval to vault
+        const sessId = sessionId || localStorage.getItem('ted_current_session_id');
         try {
             await fetchWithAuth('/api/os/approvals', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'vault',
-                    approvals: { funnelApproved: true, funnelType: selectedFunnel.id }
+                    sessionId: sessId,
+                    funnelApproved: true
                 })
             });
 
@@ -341,13 +342,8 @@ export default function FunnelRecommendationPage() {
 
         toast.success("🎉 Funnel deployed! Phase 2 unlocked.");
 
-        // Redirect to vault or funnel-live
-        const funnelUrl = operation?.funnelUrl || operation?.result?.funnelUrl;
-        if (funnelUrl) {
-            setTimeout(() => router.push(`/funnel-live?url=${encodeURIComponent(funnelUrl)}`), 2000);
-        } else {
-            setTimeout(() => router.push('/vault'), 2000);
-        }
+        // Redirect to vault phase 2
+        setTimeout(() => router.push('/vault?phase=2'), 2000);
     };
 
     if (authLoading || isLoading) {
@@ -659,12 +655,12 @@ export default function FunnelRecommendationPage() {
                             <CheckCircle className="w-12 h-12 text-white" />
                         </div>
                         <h2 className="text-3xl font-black mb-4">Funnel Deployed! 🎉</h2>
-                        <p className="text-gray-400 mb-8">Phase 2 is now unlocked in your Vault.</p>
+                        <p className="text-gray-400 mb-8">Phase 2 is now unlocked. Redirecting to your assets...</p>
                         <button
-                            onClick={() => router.push('/vault')}
+                            onClick={() => router.push('/vault?phase=2')}
                             className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center gap-3 mx-auto hover:brightness-110 transition-all"
                         >
-                            Return to Vault
+                            Go to Marketing Assets
                             <ArrowRight className="w-5 h-5" />
                         </button>
                     </motion.div>
