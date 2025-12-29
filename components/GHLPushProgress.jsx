@@ -84,7 +84,11 @@ export default function GHLPushProgress({
           setStreamItems(prev => [...newItems, ...prev].slice(0, 10));
         }
 
-        if (data.operation.status === 'completed' || data.operation.status === 'failed') {
+        const isFinished = data.operation.status === 'completed' ||
+          data.operation.status === 'failed' ||
+          data.operation.status === 'partial';
+
+        if (isFinished) {
           // Delay a bit for the user to see the 100% state
           setTimeout(() => {
             onComplete?.(data.operation);
@@ -128,6 +132,10 @@ export default function GHLPushProgress({
 
   const isInProgress = operation.status === 'in_progress';
   const isCompleted = operation.status === 'completed';
+  const isPartial = operation.status === 'partial';
+  const isFailed = operation.status === 'failed';
+  const isDone = isCompleted || isPartial || isFailed;
+
   const progress = operation.total_items > 0 ? Math.round((operation.completed_items / operation.total_items) * 100) : 0;
 
   return (

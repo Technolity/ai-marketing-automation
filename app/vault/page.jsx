@@ -268,7 +268,8 @@ export default function VaultPage() {
                     setVaultData(newVaultData);
 
                     // Persist to database automatically
-                    if (sessionId && dataSource?.type === 'loaded') {
+                    const isPersistable = dataSource?.type === 'loaded' || dataSource?.type === 'latest_session';
+                    if (sessionId && isPersistable) {
                         try {
                             await fetchWithAuth('/api/os/sessions', {
                                 method: 'PATCH',
@@ -311,7 +312,8 @@ export default function VaultPage() {
 
             // Persist to database automatically if in a loaded session
             const sessionId = dataSource?.id || searchParams.get('session_id');
-            if (sessionId && dataSource?.type === 'loaded') {
+            const isPersistable = dataSource?.type === 'loaded' || dataSource?.type === 'latest_session';
+            if (sessionId && isPersistable) {
                 try {
                     await fetchWithAuth('/api/os/sessions', {
                         method: 'PATCH',
