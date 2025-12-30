@@ -24,7 +24,7 @@ export default function AppNavbar() {
   }
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 h-20 border-b border-white/5 bg-dark/60 backdrop-blur-2xl">
+    <nav className="fixed top-0 left-0 right-0 z-50 h-20 border-b border-white/5 bg-[#0e0e0f]/60 backdrop-blur-2xl">
       <div className="max-w-7xl mx-auto px-6 h-full flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="text-2xl font-bold tracking-tight flex items-center group">
@@ -37,7 +37,7 @@ export default function AppNavbar() {
             {/* Dashboard Link */}
             <Link
               href="/dashboard"
-              className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-cyan transition-all duration-300"
+              className="flex items-center gap-2 text-sm font-black text-gray-400 hover:text-cyan transition-all duration-300 uppercase tracking-widest"
             >
               <LayoutDashboard className="w-4 h-4" />
               <span>Dashboard</span>

@@ -8,6 +8,15 @@
         "iad1"
     ],
     "functions": {
+        "app/api/os/generate-stream/route.js": {
+            "maxDuration": 300
+        },
+        "app/api/os/regenerate/route.js": {
+            "maxDuration": 120
+        },
+        "app/api/os/refine/route.js": {
+            "maxDuration": 120
+        },
         "app/api/**/*.js": {
             "maxDuration": 60
         }

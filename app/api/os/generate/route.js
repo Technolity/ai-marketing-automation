@@ -880,78 +880,66 @@ export async function POST(req) {
         console.log('[GENERATION PHASE 1] Failed items:', failedItems.map(f => f.name).join(', '));
       }
 
-      // PHASE 2: Master Aggregation and Polishing
-      // Generate comprehensive final marketing system using master prompt
-      let masterSystem = null;
+      // Get funnel_id from the request data if available
+      const funnelId = data.funnel_id || data.funnelId;
 
-      if (successCount >= 10) { // Only run master prompt if we have at least 10 sections
-        try {
-          console.log('[GENERATION PHASE 2] Starting master aggregation...');
+      // Save individual sections to vault_content table (new schema)
+      if (successCount > 0 && funnelId) {
+        console.log(`[SAVE] Saving ${successCount} sections to vault_content for funnel ${funnelId}`);
 
-          // Get RAG context for master prompt (general business strategy context)
-          let masterRagContext = null;
-          if (useRAG) {
-            try {
-              masterRagContext = await getRelevantContext('master-strategy', data);
-              if (masterRagContext && masterRagContext.hasContext) {
-                console.log(`[GENERATION PHASE 2] Enhanced master prompt with ${masterRagContext.sources?.length || 0} frameworks`);
-              }
-            } catch (ragError) {
-              console.error(`[GENERATION PHASE 2] Failed to enhance master prompt:`, ragError.message);
+        const savePromises = Object.entries(results).map(async ([key, { name, data: sectionData }]) => {
+          try {
+            // Determine phase based on section key
+            const numKey = parseInt(key);
+            const phase = numKey <= 6 ? 'phase1' : 'phase2'; // First 6 sections are Phase 1 (Business Assets)
+
+            // Upsert content (update if exists, insert if not)
+            const { error } = await supabaseAdmin
+              .from('vault_content')
+              .upsert({
+                funnel_id: funnelId,
+                user_id: user.id,
+                section_id: name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
+                section_title: name,
+                numeric_key: numKey,
+                phase: phase,
+                content: sectionData,
+                is_current_version: true,
+                status: 'draft',
+                model_used: 'gpt-4o-mini'
+              }, {
+                onConflict: 'funnel_id,section_id',
+                ignoreDuplicates: false
+              });
+
+            if (error) {
+              console.error(`[SAVE] Error saving ${name}:`, error.message);
+              return { key, success: false, error: error.message };
             }
+            return { key, success: true };
+          } catch (err) {
+            console.error(`[SAVE] Exception saving ${name}:`, err.message);
+            return { key, success: false, error: err.message };
           }
+        });
 
-          // Generate master prompt with all individual sections
-          const masterPromptText = masterPrompt(data, results, masterRagContext);
+        const saveResults = await Promise.all(savePromises);
+        const savedCount = saveResults.filter(r => r.success).length;
+        console.log(`[SAVE] Saved ${savedCount}/${successCount} sections to database`);
 
-          // Generate master marketing system using multi-provider
-          const masterRawContent = await retryWithBackoff(async () => {
-            return await generateWithProvider(
-              "You are Ted McGrath, an elite business growth strategist and master synthesizer. You take individual marketing components and create comprehensive, cohesive marketing systems that are greater than the sum of their parts. You ensure every element works together perfectly and is grounded in proven frameworks. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped.",
-              masterPromptText,
-              { jsonMode: true, maxTokens: 4000, temperature: 0.7 }
-            );
-          });
-          masterSystem = parseJsonSafe(masterRawContent, {
-            throwOnError: false,
-            logErrors: true,
-            defaultValue: null
-          });
-
-          if (masterSystem) {
-            console.log('[GENERATION PHASE 2] Master marketing system generated successfully');
-          } else {
-            console.error('[GENERATION PHASE 2] Failed to parse master system JSON');
-            throw new Error('Master system JSON parsing failed');
-          }
-
-          // Add master system to results
-          results['master'] = {
-            name: 'Complete Marketing System',
-            data: masterSystem
-          };
-
-        } catch (masterError) {
-          console.error('[GENERATION PHASE 2] Master aggregation failed:', masterError.message);
-          // Continue without master system if it fails - individual sections still available
-        }
-      } else {
-        console.log('[GENERATION PHASE 2] Skipped - not enough successful sections for master aggregation');
-      }
-
-      // Save successful results to database (including master system if generated)
-      if (successCount > 0) {
+        // Update funnel vault status
         await supabaseAdmin
-          .from('slide_results')
-          .insert({
-            user_id: user.id,
-            slide_id: 99,
-            ai_output: results,
-            approved: true
-          });
+          .from('user_funnels')
+          .update({
+            vault_generated: true,
+            vault_generation_status: 'completed',
+            vault_generated_at: new Date().toISOString()
+          })
+          .eq('id', funnelId)
+          .eq('user_id', user.id);
       }
 
-      // Return results with metadata about success/failure
+      // Return results with metadata
       return NextResponse.json({
         result: results,
         metadata: {
@@ -960,9 +948,7 @@ export async function POST(req) {
           failed: failCount,
           failedItems: failedItems.length > 0 ? failedItems : undefined,
           partialSave: failCount > 0 && successCount > 0,
-          hasMasterSystem: masterSystem !== null,
-          phase1Complete: true,
-          phase2Complete: masterSystem !== null
+          phase1Complete: true
         }
       });
     }

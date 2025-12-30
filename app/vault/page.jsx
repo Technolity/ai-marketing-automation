@@ -24,24 +24,25 @@ import {
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import FeedbackChatModal from "@/components/FeedbackChatModal";
 
-// Phase 1: Business Core - Always accessible
+// Phase 1: Business Assets - Core business foundations (always accessible)
 const PHASE_1_SECTIONS = [
     { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'WHO you serve', icon: Users },
     { id: 'message', numericKey: 2, title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
     { id: 'story', numericKey: 3, title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
     { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift },
-    { id: 'salesScripts', numericKey: 5, title: 'Sales Script', subtitle: 'How you close', icon: Mic },
-    { id: 'leadMagnet', numericKey: 6, title: 'Lead Magnet', subtitle: 'Your free gift', icon: Magnet }
+    { id: 'salesScripts', numericKey: 5, title: 'Sales Script', subtitle: 'How you close deals', icon: Mic },
+    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell }
 ];
 
-// Phase 2: Funnel Assets - Locked until funnel approved
+// Phase 2: Marketing Assets - Funnel & marketing materials (locked until Phase 1 approved)
 const PHASE_2_SECTIONS = [
-    { id: 'vsl', numericKey: 7, title: 'Marketing Funnel', subtitle: 'Video Sales Letter', icon: Video },
-    { id: 'emails', numericKey: 8, title: '15-Day Email Sequence', subtitle: 'Nurture series', icon: Mail },
-    { id: 'facebookAds', numericKey: 9, title: 'Facebook Ads', subtitle: 'Ad copy & prompts', icon: Megaphone },
-    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing pages', icon: Layout },
-    { id: 'contentIdeas', numericKey: 11, title: 'Content Ideas', subtitle: 'Social media topics', icon: Lightbulb },
+    { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet },
+    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout },
+    { id: 'vsl', numericKey: 7, title: 'Video Script', subtitle: 'Video Sales Letter (VSL)', icon: Video },
+    { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone },
+    { id: 'emails', numericKey: 8, title: 'Email & SMS Sequences', subtitle: '15-day nurture series', icon: Mail },
     { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
     { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users }
 ];
@@ -109,6 +110,10 @@ export default function VaultPage() {
     const [isUpdatingAssets, setIsUpdatingAssets] = useState(false);
     const [uploadingFiles, setUploadingFiles] = useState({});
 
+    // AI Feedback Chat states
+    const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+    const [feedbackSection, setFeedbackSection] = useState(null);
+
     // Computed states
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
@@ -172,7 +177,8 @@ export default function VaultPage() {
     }, [session, authLoading]); // Removed searchParams to prevent reload on tab switch
 
     const loadApprovals = async (sId = null) => {
-        const activeSessionId = sId || dataSource?.id || 'current';
+        // Robust session ID handling to prevent cross-contamination
+        const activeSessionId = sId || dataSource?.id || searchParams.get('funnel_id') || searchParams.get('session_id') || 'current';
         try {
             const approvalsRes = await fetchWithAuth(`/api/os/approvals?session_id=${activeSessionId}`);
             if (approvalsRes.ok) {
@@ -223,16 +229,28 @@ export default function VaultPage() {
     };
 
     const getSectionStatus = (sectionId, phaseNumber, approvedList, index) => {
+        // 1. Already approved sections stay approved
         if (approvedList.includes(sectionId)) return 'approved';
 
-        // Phase 2 locked until funnel approved
+        // 2. Unapproved Phase 2 sections are ALWAYS locked until Phase 1 is fully approved AND chosen
         if (phaseNumber === 2 && !funnelApproved) return 'locked';
 
-        // First item or previous approved
+        // 3. Check if this section has generated content
+        const hasContent = vaultData && vaultData[sectionId] && Object.keys(vaultData[sectionId]).length > 0;
+
+        // 4. First section of a phase is 'current' if it has content, otherwise 'locked'
         const sections = phaseNumber === 1 ? PHASE_1_SECTIONS : PHASE_2_SECTIONS;
-        if (index === 0 || approvedList.includes(sections[index - 1].id)) {
-            return 'current';
+        if (index === 0) {
+            return hasContent ? 'current' : 'locked';
         }
+
+        // 5. Normal sections: unlocked only if ALL previous sections are approved AND this has content
+        // This ensures the user cannot skip steps
+        const previousIsApproved = approvedList.includes(sections[index - 1].id);
+        if (previousIsApproved) {
+            return hasContent ? 'current' : 'locked';
+        }
+
         return 'locked';
     };
 
@@ -262,36 +280,8 @@ export default function VaultPage() {
         setExpandedSection(null);
     };
 
-    const handleRegenerate = async (sectionId) => {
-        setIsRegenerating(true);
-        try {
-            const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
-
-            const res = await fetchWithAuth('/api/os/regenerate/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ section: sectionId, sessionId })
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                if (data.content) {
-                    const newVaultData = { ...vaultData, [sectionId]: data.content };
-                    setVaultData(newVaultData);
-                    setUnsavedChanges(true); // Mark as having unsaved changes
-                    toast.success("Content regenerated! Click 'Save Changes' to persist.");
-                }
-            } else {
-                toast.error(`Regeneration failed (${res.status}).`);
-                console.error("Regeneration failed with status:", res.status);
-            }
-        } catch (error) {
-            console.error("Regeneration error:", error);
-            toast.error("Failed to regenerate");
-        } finally {
-            setIsRegenerating(false);
-        }
-    };
+    // REMOVED: handleRegenerate function - replaced by AI Feedback Chat
+    // Old regeneration was blind - new Feedback system uses user input for targeted refinement
 
     // Explicit save handler for regenerated content
     const handleSaveChanges = async () => {
@@ -672,29 +662,19 @@ export default function VaultPage() {
     );
 
     const SECTION_TITLES = {
-        // Ideal Client sections
-        coreAudienceSnapshot: 'Core Audience Snapshot',
-        demographics: 'Demographics (only where relevant)',
-        psychographics: 'Psychographics (THIS IS THE MOST IMPORTANT SECTION)',
-        corePainsAndProblems: 'Core Pains & Problems',
-        desiredOutcomesAndMotivations: 'Desired Outcomes & Motivations',
-        buyingTriggers: 'Buying Triggers',
-        objectionsAndResistance: 'Objections & Resistance',
-        languageAndMessagingHooks: 'Language & Messaging Hooks',
-        whereTheySpendTimeAndWhoTheyTrust: 'Where They Spend Time & Who They Trust',
-        summaryForMarketers: 'Summary for Marketers',
+        // Ideal Client sections (NEW - Premium Buyer Framework)
+        // Ideal Client Snapshot sections
+        bestIdealClient: 'Best Ideal Client (1 sentence):',
+        topChallenges: 'Top 3 Challenges:',
+        whatTheyWant: 'What They Want (3 bullets):',
+        whatMakesThemPay: 'What Makes Them Pay (2 bullets):',
+        howToTalkToThem: 'How to Talk to Them (3 coffee-talk lines):',
+        idealClientSnapshot: 'IDEAL CLIENT SNAPSHOT',
 
-        // Million Dollar Message sections
-        oneLineMillionDollarMessage: 'The One-Line Million-Dollar Message',
-        thisIsForYouIf: 'This Is For You If... Filter',
-        coreProblemReframe: 'Core Problem Reframe',
-        uniqueMechanism: 'The Unique Mechanism / New Way',
-        outcomePromise: 'The Outcome Promise (Non-Hype)',
-        proofAndCredibility: 'Proof & Credibility Anchors',
-        objectionNeutralizers: 'Objection-Neutralizing Message',
-        messageAnglesThatScale: 'Message Angles That Scale',
-        ctaFraming: 'Call-to-Action Framing',
-        messageToMillionsSummary: 'Final "Message to Millions" Summary',
+        // Million Dollar Message sections (NEW - Signature Message)
+        signatureMessage: 'Signature Message',
+        oneLiner: 'Signature Message (One-Liner)',
+        spokenVersion: '30-Second Spoken Version',
 
         // Ideal Client field labels
         whoTheyAre: 'Who this person is in one clear sentence',
@@ -762,36 +742,48 @@ export default function VaultPage() {
         fullParagraph: 'Summary Paragraph',
         tagline: 'Tagline',
 
-        // Signature Story sections
-        originMoment: '1. The Origin Moment',
-        emotionalStruggle: '2. The Emotional Struggle',
-        discoveryBreakthrough: '3. The Discovery / Breakthrough',
-        missionAndWhy: '4. The Mission & “Why”',
-        clientProofResults: '5. Client Proof / Results',
-        ctaTieIn: '6. The Call-to-Action Tie-In',
-        voiceAndTone: '7. Voice & Tone',
+        // Signature Story sections (NEW - 6-Phase Framework)
+        signatureStory: 'Signature Story',
+        storyBlueprint: 'Story Blueprint (6 Phases)',
+        thePit: '1. The Pit',
+        theSearch: '2. The Search',
+        theDrop: '3. The Drop',
+        searchAgain: '4. Search Again',
+        theBreakthrough: '5. The Breakthrough',
+        theOutcome: '6. The Outcome',
+        coreLessonExtracted: 'Core Lesson',
+        networkingStory: '60-90s Networking Story',
+        stageStory: '3-5 min Stage/Podcast Story',
+        oneLinerStory: '15-25s One-Liner Story',
+        socialPostVersion: 'Social Post Version',
+        emailStory: 'Email Story',
+        subjectLine: 'Subject Line',
+        body: 'Email Body',
+        pullQuotes: 'Signature Pull Quotes',
 
-        // Story field labels
-        definingExperience: 'The defining personal or professional experience that led the founder to this mission',
-        relatableStruggle: 'Highlight a relatable struggle, pain point, or turning point',
-        turningPoint: 'The specific moment or event that changed everything',
-        obstaclesFaced: 'The obstacles, fears, or frustrations the founder faced',
-        fearsAndDoubts: 'Show vulnerability and authenticity',
-        connectionToAudience: 'Connect these struggles to the audience’s own pain',
-        howSolutionWasFound: 'How the founder found a solution',
-        uniqueInsight: 'The unique method, approach, or insight that changed everything',
-        whyItsLearnable: 'Position it as relatable and learnable, not mystical',
-        whyYouHelp: 'Why the founder now helps this audience',
-        deeperPurpose: 'The deeper purpose beyond money or status',
-        authenticityMarkers: 'Show authenticity, empathy, and authority',
-        naturalTransition: 'Transition from story to the audience’s next step naturally',
-        nextStepInvitation: 'The invitation to join the program, service, or community',
-        continuingTransformation: 'Show how joining the program, service, or community continues the transformation',
-        brandVoiceDescription: 'Keep story aligned with brand voice (direct, bold, compassionate, humorous, etc.)',
-        emotionalTone: 'Maintain readability and emotional resonance',
-        fullStoryScript: 'Full Story Script',
-        shortVersion: 'Short Version',
-        oneSentence: 'One Sentence Version',
+        // Signature Offer sections (NEW - 7-Step Blueprint)
+        signatureOffer: 'Signature Offer',
+        offerName: 'Offer Name',
+        whoItsFor: 'Who It\'s For',
+        thePromise: 'The Promise',
+        offerMode: 'Offer Mode',
+        sevenStepBlueprint: '7-Step Blueprint',
+        stepNumber: 'Step',
+        stepName: 'Step Name',
+        whatItIs: 'What It Is',
+        problemSolved: 'Problem Solved',
+        outcomeCreated: 'Outcome Created',
+        toolAsset: 'Tool/Asset Produced',
+        tier1SignatureOffer: 'Tier 1 Signature Offer',
+        delivery: 'Delivery',
+        whatTheyGet: 'What They Get',
+        recommendedPrice: 'Recommended Price',
+        ascensionLadder: 'Ascension Ladder',
+        tier0: 'Tier 0 ($37)',
+        tier05: 'Tier 0.5 ($97)',
+        course: 'Course ($1K-$2K)',
+        tier2: 'Tier 2 (Premium)',
+        cta: 'CTA',
 
         // Program Blueprint sections
         programOverview: 'Program Overview',
@@ -823,27 +815,28 @@ export default function VaultPage() {
         message: "Million-Dollar Message",
         story: "Signature Story",
         tagline: "The Big Tagline",
-        offer: "8-Week Program Blueprint",
+        offer: "Business Assets",
         salesScripts: "Setter Call: Word-for-Word Script",
-        leadMagnet: "The Lead Magnet Asset",
-        vsl: "Marketing Funnel",
+        leadMagnet: "Free Gift Asset",
+        vsl: "VSL Video Script",
         facebookAds: "Facebook Ad Variations",
         funnelCopy: "Funnel Page Copy",
         appointmentReminders: "Appointment Reminders",
         contentIdeas: "Social Media Content Ideas",
         bio: "Professional Bio",
+        emails: "Email & SMS Sequences",
 
-        // Lead Magnet sections
-        leadMagnetIdea: 'Lead Magnet Idea',
+        // Free Gift sections
+        leadMagnetIdea: 'Free Gift Idea',
         titleAndHook: 'Title & Hook',
         audienceConnection: 'Audience Connection',
         coreContent: 'Core Content / Deliverables',
-        leadMagnetCopy: 'Lead Magnet Copy',
+        leadMagnetCopy: 'Free Gift Copy',
         ctaIntegration: 'CTA Integration',
         voiceAndTone_leadMagnet: 'Voice & Tone',
         // voiceAndTone already defined above for Story
 
-        // Lead Magnet field labels
+        // Free Gift field labels
         concept: 'Concept',
         coreProblemSolved: 'Core Problem Solved',
         keyOutcomeDelivered: 'Key Outcome Delivered',
@@ -898,37 +891,27 @@ export default function VaultPage() {
 
     const SECTION_SORT_ORDER = {
         idealClient: [
-            'coreAudienceSnapshot',
-            'demographics',
-            'psychographics',
-            'corePainsAndProblems',
-            'desiredOutcomesAndMotivations',
-            'buyingTriggers',
-            'objectionsAndResistance',
-            'languageAndMessagingHooks',
-            'whereTheySpendTimeAndWhoTheyTrust',
-            'summaryForMarketers'
+            'bestIdealClient',
+            'topChallenges',
+            'whatTheyWant',
+            'whatMakesThemPay',
+            'howToTalkToThem'
         ],
         message: [
-            'oneLineMillionDollarMessage',
-            'thisIsForYouIf',
-            'coreProblemReframe',
-            'uniqueMechanism',
-            'outcomePromise',
-            'proofAndCredibility',
-            'objectionNeutralizers',
-            'messageAnglesThatScale',
-            'ctaFraming',
-            'messageToMillionsSummary'
+            'signatureMessage',
+            'oneLiner',
+            'spokenVersion'
         ],
         story: [
-            'originMoment',
-            'emotionalStruggle',
-            'discoveryBreakthrough',
-            'missionAndWhy',
-            'clientProofResults',
-            'ctaTieIn',
-            'voiceAndTone'
+            'signatureStory',
+            'storyBlueprint',
+            'coreLessonExtracted',
+            'networkingStory',
+            'stageStory',
+            'oneLinerStory',
+            'socialPostVersion',
+            'emailStory',
+            'pullQuotes'
         ],
         leadMagnet: [
             'leadMagnetIdea',
@@ -938,11 +921,76 @@ export default function VaultPage() {
             'leadMagnetCopy',
             'ctaIntegration',
             'voiceAndTone_leadMagnet'
+        ],
+        offer: [
+            'offerName',
+            'whoItsFor',
+            'thePromise',
+            'offerMode',
+            'sevenStepBlueprint',
+            'tier1SignatureOffer',
+            'ascensionLadder',
+            'cta'
+        ],
+        salesScripts: [
+            'quickOutline',
+            'fullWordForWordScript',
+            'objectionHandlingGuide'
+        ],
+        setterScript: [
+            'quickOutline',
+            'fullWordForWordScript'
+        ],
+        vsl: [
+            'fullScript',
+            'estimatedLength',
+            'hookOptions',
+            'threeTips',
+            'stepsToSuccess',
+            'callToActionName',
+            'objectionHandlers',
+            'urgencyElements',
+            'socialProofMentions',
+            'guarantee',
+            'closingSequence'
+        ],
+        funnelCopy: [
+            'optInHeadlines',
+            'optInPageCopy',
+            'thankYouPageCopy',
+            'confirmationPageScript',
+            'faqs',
+            'stepsToSuccess',
+            'salesPageCopy'
+        ],
+        bio: [
+            'oneLiner',
+            'shortBio',
+            'fullBio',
+            'speakerBio',
+            'keyAchievements',
+            'personalTouch',
+            'socialMediaVersions'
+        ],
+        emails: [
+            'tips',
+            'stepsToSuccess',
+            'faqs',
+            'successStory',
+            'emails'
         ]
     };
 
     const getSectionTitle = (key) => {
-        return SECTION_TITLES[key] || key.replace(/([A-Z])/g, ' $1').trim();
+        let title = SECTION_TITLES[key] || key.replace(/([A-Z])/g, ' $1').trim();
+
+        // Capitalize acronyms correctly
+        return title
+            .replace(/\bCta\b/g, 'CTA')
+            .replace(/\bVsl\b/g, 'VSL')
+            .replace(/\bSms\b/g, 'SMS')
+            .replace(/\bFaq\b/g, 'FAQ')
+            .replace(/\bIcp\b/g, 'ICP');
     };
 
     // Content Renderer with enhanced formatting
@@ -953,8 +1001,11 @@ export default function VaultPage() {
         let displayContent = content;
         const wrappers = [
             'idealClientProfile',
+            'idealClientSnapshot',
             'millionDollarMessage',
+            'signatureMessage',
             'signatureStory',
+            'signatureOffer',
             'programBlueprint',
             'setterCallScript',
             'leadMagnet'
@@ -1038,9 +1089,9 @@ export default function VaultPage() {
                                             : 'text-cyan/80 text-xs font-semibold uppercase tracking-wider mb-1'
                                         }
                                     `}>
-                                        {title}
+                                        {k === 'stepNumber' || k === 'step' ? <span className="text-cyan font-black">Step {v}</span> : title}
                                     </h4>
-                                    {renderValue(v, k, depth + 1, entryPath)}
+                                    {k !== 'stepNumber' && k !== 'step' && renderValue(v, k, depth + 1, entryPath)}
                                 </div>
                             );
                         })}
@@ -1087,7 +1138,7 @@ export default function VaultPage() {
                         className="mb-6 p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
                     >
                         <ArrowLeft className="w-4 h-4" />
-                        Back to Dashboard
+                        Back to Mission Control
                     </button>
 
                     <div className="text-center mb-10">
@@ -1095,14 +1146,14 @@ export default function VaultPage() {
                             <PartyPopper className="w-10 h-10 text-white" />
                         </div>
                         <h1 className="text-4xl font-black mb-4">Your Complete Vault</h1>
-                        <p className="text-gray-400">All your content is ready. Edit or regenerate anytime.</p>
+                        <p className="text-gray-400">All your content is ready. Use Feedback to refine anytime.</p>
                     </div>
 
                     {/* Phase 1 */}
                     <div className="mb-8">
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                             <CheckCircle className="w-5 h-5 text-green-500" />
-                            Phase 1: Business Core
+                            Phase 1: Business Assets
                         </h2>
                         <div className="grid gap-3">
                             {PHASE_1_SECTIONS.map((section) => renderCompletedSection(section, 1))}
@@ -1113,7 +1164,7 @@ export default function VaultPage() {
                     <div>
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                             <CheckCircle className="w-5 h-5 text-green-500" />
-                            Phase 2: Funnel Assets
+                            Phase 2: Marketing Assets
                         </h2>
                         <div className="grid gap-3">
                             {PHASE_2_SECTIONS.map((section) => renderCompletedSection(section, 2))}
@@ -1125,7 +1176,7 @@ export default function VaultPage() {
     }
 
     // Helper to render completed sections
-    const renderCompletedSection = (section, phaseNumber) => {
+    function renderCompletedSection(section, phaseNumber) {
         const Icon = section.icon;
         const content = vaultData[section.id];
         const isExpanded = expandedSection === section.id;
@@ -1158,6 +1209,7 @@ export default function VaultPage() {
                                 <div className="bg-[#0e0e0f] rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
                                     <ContentRenderer
                                         content={editingSection === section.id ? editedContent : content}
+                                        sectionId={section.id}
                                         isEditing={editingSection === section.id}
                                         onUpdate={updateContentValue}
                                     />
@@ -1181,18 +1233,13 @@ export default function VaultPage() {
                                     ) : (
                                         <>
                                             <button
-                                                onClick={() => handleEdit(section.id)}
-                                                className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                                onClick={() => {
+                                                    setFeedbackSection(section);
+                                                    setFeedbackModalOpen(true);
+                                                }}
+                                                className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-500 text-black rounded-lg flex items-center gap-2 hover:brightness-110 transition-all text-sm font-medium"
                                             >
-                                                <Edit3 className="w-4 h-4" /> Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleRegenerate(section.id)}
-                                                disabled={isRegenerating}
-                                                className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50 text-sm"
-                                            >
-                                                {isRegenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                                                Regenerate
+                                                <MessageSquare className="w-4 h-4" /> Feedback
                                             </button>
                                             {unsavedChanges && (
                                                 <button
@@ -1216,7 +1263,7 @@ export default function VaultPage() {
     };
 
     // Helper to render sections
-    const renderSection = (section, status, index, phase) => {
+    function renderSection(section, status, index, phase) {
         const Icon = section.icon;
         const isExpanded = expandedSection === section.id;
         const content = vaultData[section.id];
@@ -1268,6 +1315,7 @@ export default function VaultPage() {
                                 <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
                                     <ContentRenderer
                                         content={isEditing ? editedContent : content}
+                                        sectionId={section.id}
                                         isEditing={isEditing}
                                         onUpdate={updateContentValue}
                                     />
@@ -1300,18 +1348,13 @@ export default function VaultPage() {
                                                 </button>
                                             )}
                                             <button
-                                                onClick={() => handleEdit(section.id)}
-                                                className="px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                                onClick={() => {
+                                                    setFeedbackSection(section);
+                                                    setFeedbackModalOpen(true);
+                                                }}
+                                                className="flex-1 sm:flex-none px-4 py-3 bg-gradient-to-r from-cyan to-blue-500 text-black rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all font-medium"
                                             >
-                                                <Edit3 className="w-5 h-5" /> Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleRegenerate(section.id)}
-                                                disabled={isRegenerating}
-                                                className="flex-1 sm:flex-none px-4 py-3 bg-[#2a2a2d] text-white rounded-xl flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                                            >
-                                                {isRegenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-                                                Regenerate
+                                                <MessageSquare className="w-5 h-5" /> Feedback
                                             </button>
                                             {unsavedChanges && (
                                                 <button
@@ -1346,7 +1389,7 @@ export default function VaultPage() {
                         className="w-fit p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
                     >
                         <ArrowLeft className="w-4 h-4" />
-                        Back to Dashboard
+                        Back to Mission Control
                     </button>
 
                     <div className="flex items-center gap-2 bg-[#131314] p-1.5 rounded-xl border border-[#2a2a2d]">
@@ -1354,13 +1397,13 @@ export default function VaultPage() {
                             onClick={() => { setActiveTab('dna'); setShowMediaLibrary(false); }}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'dna' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
                         >
-                            Phase 1
+                            Business Assets
                         </button>
                         <button
                             onClick={() => { setActiveTab('assets'); setShowMediaLibrary(false); }}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'assets' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
                         >
-                            Phase 2
+                            Marketing Assets
                         </button>
                     </div>
 
@@ -1376,14 +1419,14 @@ export default function VaultPage() {
                 {/* Content Header */}
                 <div className="text-center mb-10">
                     <h1 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Phase 1' : 'Phase 2')}
+                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Business Assets' : 'Marketing Assets')}
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto">
                         {showMediaLibrary
                             ? 'Update your funnel images and videos.'
                             : (activeTab === 'dna'
-                                ? 'Your core business intelligence. The foundation for all marketing.'
-                                : 'Deployable assets for your funnels, emails, and ads.')}
+                                ? 'Your core business foundations. The foundation for all marketing.'
+                                : 'Deployable assets for your marketing funnels, emails, and ads.')}
                     </p>
                 </div>
 
@@ -1467,7 +1510,7 @@ export default function VaultPage() {
                                                 <div className="w-16 h-16 bg-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                                     <Sparkles className="w-8 h-8 text-cyan" />
                                                 </div>
-                                                <h3 className="text-xl font-bold mb-2">Business DNA Complete!</h3>
+                                                <h3 className="text-xl font-bold mb-2">Business Assets Complete!</h3>
                                                 <p className="text-gray-400 mb-6 max-w-sm mx-auto">
                                                     Your core business assets are approved. Now, let's see which marketing funnel will work best for your offer.
                                                 </p>
@@ -1515,7 +1558,7 @@ export default function VaultPage() {
                                         <Lock className="w-16 h-16 text-gray-700 mx-auto mb-6" />
                                         <h2 className="text-2xl font-bold mb-3">Marketing Assets Locked</h2>
                                         <p className="text-gray-500 max-w-sm mx-auto mb-8">
-                                            Finish your Business DNA and deploy your first funnel to unlock these professional marketing assets.
+                                            Finish your Business Assets and deploy your first funnel to unlock these professional marketing assets.
                                         </p>
                                         <button
                                             onClick={() => router.push('/funnel-recommendation')}
@@ -1587,6 +1630,31 @@ export default function VaultPage() {
                         </motion.div>
                     )}
                 </AnimatePresence>
+
+                {/* AI Feedback Chat Modal */}
+                {feedbackSection && (
+                    <FeedbackChatModal
+                        isOpen={feedbackModalOpen}
+                        onClose={() => {
+                            setFeedbackModalOpen(false);
+                            setFeedbackSection(null);
+                        }}
+                        sectionId={feedbackSection.id}
+                        sectionTitle={feedbackSection.title}
+                        currentContent={vaultData[feedbackSection.id]}
+                        sessionId={dataSource?.id}
+                        onSave={(refinedContent) => {
+                            // Update vault data with refined content
+                            setVaultData(prev => ({
+                                ...prev,
+                                [feedbackSection.id]: refinedContent
+                            }));
+                            setUnsavedChanges(true);
+                            setFeedbackModalOpen(false);
+                            setFeedbackSection(null);
+                        }}
+                    />
+                )}
             </div>
         </div>
     );

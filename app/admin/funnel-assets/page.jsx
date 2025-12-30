@@ -22,7 +22,7 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 // Funnel asset types - mapped to saved_sessions.generated_content keys
 const FUNNEL_ASSETS = [
     { id: 'ads', title: 'Ad Copy', subtitle: 'Ad variations', icon: Megaphone },
-    { id: 'leadMagnet', title: 'Lead Magnet', subtitle: 'Value proposition', icon: Gift },
+    { id: 'leadMagnet', title: 'Free Gift', subtitle: 'Value proposition', icon: Gift },
     { id: 'optinPage', title: 'Opt-in Page', subtitle: 'Lead capture', icon: Layout },
     { id: 'salesPage', title: 'Sales Page', subtitle: 'Complete copy', icon: Video },
     { id: 'emails', title: 'Email Sequence', subtitle: 'Nurture sequence', icon: Mail },

@@ -140,7 +140,10 @@ async function generateSection(sectionKey, intakeData, voiceContext = null) {
         temperature: 0.7
     });
 
-    return parseJsonSafe(rawContent);
+    return {
+        content: parseJsonSafe(rawContent),
+        prompt_used: prompt // Return the prompt used
+    };
 }
 
 /**
@@ -262,10 +265,34 @@ export async function POST(req) {
         // Regenerate all affected sections in parallel (batch processing)
         const regenerationPromises = sectionsToRegenerate.map(async (sectionKey) => {
             try {
-                const content = await generateSection(sectionKey, mergedAnswers, voiceContext);
+                const { content, prompt_used } = await generateSection(sectionKey, mergedAnswers, voiceContext);
                 const sectionMeta = CONTENT_SECTIONS[sectionKey];
 
-                // Save to slide_results
+                const funnelId = sessionId;
+
+                // 1. Sync with vault_content
+                if (funnelId) {
+                    await supabaseAdmin
+                        .from('vault_content')
+                        .update({ is_current_version: false })
+                        .eq('funnel_id', funnelId)
+                        .eq('section_id', sectionKey);
+
+                    await supabaseAdmin.from('vault_content').insert({
+                        funnel_id: funnelId,
+                        user_id: userId,
+                        section_id: sectionKey,
+                        section_title: sectionMeta?.name || sectionKey,
+                        content: content,
+                        prompt_used: prompt_used,
+                        phase: [1, 2, 3, 4, 5, 17].includes(sectionMeta?.key) ? 1 : 2,
+                        status: 'generated',
+                        numeric_key: sectionMeta?.key || 0,
+                        is_current_version: true
+                    });
+                }
+
+                // 2. Save to slide_results
                 await supabaseAdmin
                     .from('slide_results')
                     .upsert({

@@ -12,7 +12,10 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      afterSignInUrl="/redirect"
+      afterSignUpUrl="/redirect"
+    >
       <html lang="en" className="bg-dark">
         <body className="bg-dark">
           <AuthProvider>

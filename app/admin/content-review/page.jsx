@@ -29,7 +29,7 @@ const CONTENT_NAMES = {
     3: "Signature Story",
     4: "Offer & Program",
     5: "Sales Scripts",
-    6: "Lead Magnet",
+    6: "Free Gift",
     7: "Video Sales Letter (VSL)",
     8: "Email Sequences",
     9: "Facebook Ads",

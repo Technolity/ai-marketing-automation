@@ -27,7 +27,7 @@ const CONTENT_TYPE_OPTIONS = [
   'Email Sequence',
   'Social Media Ads',
   'Sales Page',
-  'Lead Magnet',
+  'Free Gift',
   'Story',
   'Webinar Script',
   'Landing Page',

@@ -2,6 +2,16 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+/**
+ * GET /api/os/results
+ * Fetch generated vault content for a user's funnel
+ * 
+ * Query params:
+ * - funnel_id: (optional) specific funnel to get results for
+ * 
+ * Schema: vault_content table stores content per section with versioning
+ * This API aggregates all current versions into a single object
+ */
 export async function GET(req) {
     try {
         const { userId } = auth();
@@ -10,79 +20,102 @@ export async function GET(req) {
         }
 
         const { searchParams } = new URL(req.url);
-        const sessionId = searchParams.get('session_id');
+        const funnelId = searchParams.get('funnel_id');
 
-        console.log(`[Results API] Fetching results for user ${userId} ${sessionId ? `(session: ${sessionId})` : ''}`);
+        console.log(`[Results API] Fetching results for user ${userId}${funnelId ? ` (funnel: ${funnelId})` : ''}`);
 
-        // 1. If session_id provided, fetch specific session
-        if (sessionId) {
-            const { data: sessionData, error: sessionError } = await supabaseAdmin
-                .from('saved_sessions')
-                .select('*')
-                .eq('id', sessionId)
+        let targetFunnelId = funnelId;
+
+        // If no funnel_id provided, get the user's active funnel
+        if (!targetFunnelId) {
+            const { data: activeFunnel, error } = await supabaseAdmin
+                .from('user_funnels')
+                .select('id, funnel_name')
                 .eq('user_id', userId)
+                .eq('is_active', true)
                 .eq('is_deleted', false)
                 .single();
 
-            if (sessionError) throw sessionError;
+            if (error && error.code !== 'PGRST116') {
+                console.error('[Results API] Active funnel error:', error);
+            }
 
-            if (sessionData) {
-                return NextResponse.json({
-                    source: { type: 'loaded', name: sessionData.session_name, id: sessionData.id },
-                    data: sessionData.results_data || sessionData.generated_content || {}
-                });
+            if (activeFunnel) {
+                targetFunnelId = activeFunnel.id;
+            } else {
+                // Fallback: get latest funnel
+                const { data: latestFunnel } = await supabaseAdmin
+                    .from('user_funnels')
+                    .select('id, funnel_name')
+                    .eq('user_id', userId)
+                    .eq('is_deleted', false)
+                    .order('updated_at', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                if (latestFunnel) {
+                    targetFunnelId = latestFunnel.id;
+                }
             }
         }
 
-        // 2. Try fetching Approved Results (slide_id 99)
-        const { data: slideData, error: slideError } = await supabaseAdmin
-            .from('slide_results')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('slide_id', 99)
-            .eq('approved', true)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-        if (slideError) {
-            console.error('[Results API] Slide results error:', slideError);
-        }
-
-        if (slideData && slideData.length > 0) {
-            // Return approved results
-            const aiOutput = slideData[0].ai_output;
+        if (!targetFunnelId) {
+            console.log('[Results API] No funnel found for user');
             return NextResponse.json({
-                source: { type: 'approved', name: 'Approved Results' },
-                data: aiOutput
+                source: null,
+                data: {}
             });
         }
 
-        // 3. Fallback: Fetch latest Saved Session
-        console.log('[Results API] No approved results, falling back to latest session');
-        const { data: latestSession, error: fallbackError } = await supabaseAdmin
-            .from('saved_sessions')
-            .select('*')
+        // Fetch funnel details
+        const { data: funnel } = await supabaseAdmin
+            .from('user_funnels')
+            .select('id, funnel_name, vault_generated, phase1_approved, phase2_unlocked')
+            .eq('id', targetFunnelId)
             .eq('user_id', userId)
-            .eq('is_deleted', false)
-            .order('updated_at', { ascending: false })
-            .limit(1)
             .single();
 
-        if (fallbackError && fallbackError.code !== 'PGRST116') { // Ignore "no rows" error
-            console.error('[Results API] Fallback error:', fallbackError);
+        // Fetch all current vault content for this funnel
+        const { data: vaultContent, error: vaultError } = await supabaseAdmin
+            .from('vault_content')
+            .select('section_id, section_title, content, phase, status, is_locked')
+            .eq('funnel_id', targetFunnelId)
+            .eq('user_id', userId)
+            .eq('is_current_version', true)
+            .order('numeric_key', { ascending: true });
+
+        if (vaultError) {
+            console.error('[Results API] Vault content error:', vaultError);
+            // If table doesn't exist, return empty
+            if (vaultError.code === 'PGRST205') {
+                return NextResponse.json({
+                    source: funnel ? { type: 'funnel', name: funnel.funnel_name, id: funnel.id } : null,
+                    data: {}
+                });
+            }
+            throw vaultError;
         }
 
-        if (latestSession) {
-            return NextResponse.json({
-                source: { type: 'latest_session', name: latestSession.session_name, id: latestSession.id },
-                data: latestSession.results_data || latestSession.generated_content || {}
-            });
+        // Aggregate content by section_id
+        const aggregatedData = {};
+        if (vaultContent && vaultContent.length > 0) {
+            for (const item of vaultContent) {
+                aggregatedData[item.section_id] = item.content;
+            }
         }
 
-        // 4. No data found
+        console.log(`[Results API] Found ${vaultContent?.length || 0} vault sections`);
+
         return NextResponse.json({
-            source: null,
-            data: {}
+            source: funnel ? {
+                type: 'funnel',
+                name: funnel.funnel_name,
+                id: funnel.id,
+                vault_generated: funnel.vault_generated,
+                phase1_approved: funnel.phase1_approved,
+                phase2_unlocked: funnel.phase2_unlocked
+            } : null,
+            data: aggregatedData
         });
 
     } catch (error) {

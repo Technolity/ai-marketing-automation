@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useAuth as useClerkAuth } from "@clerk/nextjs";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS, BUSINESS_TYPE_OPTIONS } from "@/lib/os-wizard-data";
 import { SAMPLE_DATA } from "@/lib/sampleData";
@@ -41,9 +42,10 @@ import {
     BUSINESS_CORE_KEYS
 } from "@/lib/utils/contentInventory";
 
-export default function OSWizard({ mode = 'dashboard', startAtStepOne = false }) {
+export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, funnelId = null }) {
     const router = useRouter();
     const { session, user, loading: authLoading } = useAuth();
+    const { getToken } = useClerkAuth();
 
     // Ref to prevent re-initialization on session changes
     const hasInitializedRef = useRef(false);
@@ -124,7 +126,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
         'Building your signature story...',
         'Designing your high-ticket offer...',
         'Creating sales scripts...',
-        'Generating lead magnets...',
+        'Generating free gifts...',
         'Writing your marketing funnel script...',
         'Composing email sequences...',
         'Crafting ad copy...',
@@ -137,11 +139,22 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     // Manage Data Dropdown
     const [showManageDataDropdown, setShowManageDataDropdown] = useState(false);
 
+    // Accordion state for grouped questions (like Story)
+    const [expandedField, setExpandedField] = useState(null);
+
     // Wizard Completion State - locks editing until reset
     const [isWizardComplete, setIsWizardComplete] = useState(false);
 
     // Track if sample data has been loaded for testing
     const [isSampleDataLoaded, setIsSampleDataLoaded] = useState(false);
+
+    // Real-time generation progress tracking
+    const [generationProgress, setGenerationProgress] = useState({
+        completedCount: 0,
+        totalCount: 13,
+        currentSection: null,
+        completedSections: []
+    });
 
     // Handle startAtStepOne prop - immediately go to Step 1 when prop is true
     // This runs separately from initialization to handle when wizard is already mounted
@@ -825,9 +838,21 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
     // Select a suggestion from the modal
     const handleSelectSuggestion = (suggestion) => {
+        console.log('[OSWizard] handleSelectSuggestion called');
+        console.log('[OSWizard] currentFieldForSuggestion:', currentFieldForSuggestion);
+        console.log('[OSWizard] suggestion:', suggestion);
+        console.log('[OSWizard] currentInput BEFORE:', currentInput[currentFieldForSuggestion]);
+
         if (currentFieldForSuggestion) {
-            handleInputChange(currentFieldForSuggestion, suggestion);
-            toast.success("Suggestion selected!");
+            // Update the input value
+            setCurrentInput(prev => {
+                const updated = { ...prev, [currentFieldForSuggestion]: suggestion };
+                console.log('[OSWizard] currentInput AFTER update:', updated[currentFieldForSuggestion]);
+                return updated;
+            });
+            setIsSessionSaved(false);
+            setHasUnsavedProgress(true);
+            toast.success("Suggestion applied!");
         }
         setShowSuggestionsModal(false);
         setAiSuggestions([]);
@@ -865,234 +890,162 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
     };
 
     const handleGenerate = async () => {
+        console.log('[Generate] 🚀 Button clicked - isGenerating:', isGenerating);
+        if (isGenerating) return;
+
         setIsGenerating(true);
         setShowProcessingAnimation(true);
 
-        // Start cycling through processing messages
-        let messageIndex = 0;
-        setProcessingMessage(processingMessages[0]);
-        const messageInterval = setInterval(() => {
-            messageIndex = (messageIndex + 1) % processingMessages.length;
-            setProcessingMessage(processingMessages[messageIndex]);
-        }, 2000);
+        // Reset progress state
+        setGenerationProgress({
+            completedCount: 0,
+            totalCount: 13,
+            currentSection: null,
+            completedSections: []
+        });
 
         try {
             if (!session) {
+                console.error('[Generate] No session object found in AuthContext');
                 toast.error("You must be logged in to generate content.");
                 setIsGenerating(false);
                 setShowProcessingAnimation(false);
-                clearInterval(messageInterval);
                 return;
             }
 
-            // ============================================
-            // PHASE 1: INVENTORY - What content do we already have?
-            // ============================================
-            console.group('🔍 [Generate] Phase 1: Content Inventory');
+            if (!funnelId) {
+                console.error('[Generate] No funnelId provided to wizard');
+                toast.error("No funnel selected. Please ensure you are working on a specific business.");
+                setIsGenerating(false);
+                setShowProcessingAnimation(false);
+                return;
+            }
 
-            // Check if we have saved preview content from step-by-step generation
-            const hasPreviewContent = Object.keys(savedContent).some(key => key.startsWith('step'));
-            console.log('[Generate] Has step preview content:', hasPreviewContent);
-            console.log('[Generate] Saved content keys:', Object.keys(savedContent));
+            // Get token for authenticated SSE request
+            console.log('[Generate] Requesting Clerk token...');
+            const token = await getToken().catch(err => {
+                console.error('[Generate] Token retrieval failed:', err);
+                throw new Error("Could not retrieve auth token. Please refresh the page.");
+            });
 
-            // Merge step previews into section-keyed structure
-            let existingContent = hasPreviewContent ? mergeStepPreviews(savedContent) : {};
+            console.log('[Generate] 📡 Starting SSE streaming for funnel:', funnelId);
 
-            // Log existing content inventory
-            const beforeInventory = logContentInventory(existingContent, 'Before Generation');
-            console.log('[Generate] Missing required sections:', getMissingSectionKeys(existingContent, 'required'));
-            console.groupEnd();
+            // Prepare payload with all questionnaire data
+            const payload = {
+                funnel_id: funnelId,
+                data: {
+                    ...stepData,
+                    ...currentInput
+                }
+            };
 
-            // ============================================
-            // PHASE 2: GENERATE - Fill in missing content
-            // ============================================
-            console.group('⚡ [Generate] Phase 2: Content Generation');
+            // Use fetch with streaming since EventSource doesn't support headers easily
+            console.log('[Generate] Posting to /api/os/generate-stream...');
+            const response = await fetch('/api/os/generate-stream', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream',
+                },
+                body: JSON.stringify(payload)
+            });
 
-            let finalContent = { ...existingContent };
-            const missingSections = getMissingSectionKeys(existingContent, 'required');
+            console.log('[Generate] Response received:', response.status, response.statusText);
 
-            if (missingSections.length === 0) {
-                // All required content exists from step previews
-                console.log('[Generate] ✅ All required sections already exist from step previews!');
-                setProcessingMessage('Using your approved content! 🚀');
-                await new Promise(resolve => setTimeout(resolve, 800));
-            } else {
-                // Need to generate missing sections
-                console.log(`[Generate] ⚠️ Missing ${missingSections.length} required sections:`, missingSections);
-                setProcessingMessage(`Generating ${missingSections.length} missing sections...`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('[Generate] Response error data:', errorData);
+                throw new Error(errorData.error || `Generation failed: ${response.statusText}`);
+            }
 
-                // If too many missing, do full generation
-                if (missingSections.length >= 6) {
-                    console.log('[Generate] Many sections missing - running full generation...');
-                    setProcessingMessage('Building your marketing system...');
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-                    const payload = {
-                        step: 'all',
-                        data: {
-                            ...stepData,
-                            ...currentInput
+            console.log('[Generate] 📗 Stream reader initialized, starting playback...');
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Parse SSE messages
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+                let currentEvent = '';
+                for (const line of lines) {
+                    if (line.startsWith('event: ')) {
+                        currentEvent = line.slice(7).trim();
+                    } else if (line.startsWith('data: ') && currentEvent) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+
+                            if (currentEvent === 'progress') {
+                                setGenerationProgress(prev => ({
+                                    ...prev,
+                                    completedCount: data.completed,
+                                    totalCount: data.total,
+                                    currentSection: data.current?.replace('Generating ', '').replace('...', '') || null
+                                }));
+                                setProcessingMessage(data.current || 'Generating...');
+                            } else if (currentEvent === 'section') {
+                                if (data.success) {
+                                    setGenerationProgress(prev => ({
+                                        ...prev,
+                                        completedSections: [...prev.completedSections, data.name]
+                                    }));
+                                }
+                                console.log(`[Generate] Section: ${data.name} - ${data.success ? '✓' : '✗'}`);
+                            } else if (currentEvent === 'complete') {
+                                console.log('[Generate] ✅ Generation complete!', data.metadata);
+
+                                // Show success message
+                                if (data.metadata.failed > 0) {
+                                    toast.warning(`Generated ${data.metadata.successful}/${data.metadata.total} sections`);
+                                } else {
+                                    toast.success("All content generated successfully!");
+                                }
+                            } else if (currentEvent === 'error') {
+                                console.error('[Generate] Stream error:', data.message);
+                                throw new Error(data.message);
+                            }
+                        } catch (parseError) {
+                            console.warn('[Generate] Failed to parse SSE data:', parseError);
                         }
-                    };
-
-                    const res = await fetchWithAuth("/api/os/generate", {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                    });
-
-                    const data = await res.json();
-
-                    if (data.error) {
-                        console.error('[Generate] API error:', data.error);
-                        throw new Error(data.error);
-                    }
-
-                    // Log generation results
-                    console.log('[Generate] API response metadata:', data.metadata);
-                    if (data.metadata?.failedItems?.length > 0) {
-                        console.warn('[Generate] Some sections failed:', data.metadata.failedItems);
-                    }
-
-                    finalContent = data.result || {};
-                } else {
-                    // Generate only missing sections
-                    console.log('[Generate] Generating only missing sections...');
-                    setProcessingMessage(`Filling ${missingSections.length} gaps...`);
-
-                    const payload = {
-                        step: 'fill-missing',
-                        missingSections: missingSections,
-                        existingContent: existingContent,
-                        data: {
-                            ...stepData,
-                            ...currentInput
-                        }
-                    };
-
-                    const res = await fetchWithAuth("/api/os/generate", {
-                        method: "POST",
-                        body: JSON.stringify(payload),
-                    });
-
-                    const data = await res.json();
-
-                    if (data.error) {
-                        // Fallback to full generation if fill-missing fails
-                        console.warn('[Generate] Fill-missing failed, trying full generation...');
-                        const fallbackRes = await fetchWithAuth("/api/os/generate", {
-                            method: "POST",
-                            body: JSON.stringify({ step: 'all', data: { ...stepData, ...currentInput } }),
-                        });
-                        const fallbackData = await fallbackRes.json();
-                        if (fallbackData.error) throw new Error(fallbackData.error);
-                        finalContent = fallbackData.result || {};
-                    } else {
-                        // Merge new content with existing
-                        finalContent = { ...existingContent, ...(data.result || {}) };
+                        currentEvent = '';
                     }
                 }
             }
 
-            console.groupEnd();
+            // Show completion state
+            console.log('[Generate] Stream finished. Setting final completion state.');
+            setGenerationProgress(prev => ({
+                ...prev,
+                completedCount: 13,
+                currentSection: null
+            }));
+            setProcessingMessage("Complete! Opening your vault...");
 
-            // ============================================
-            // PHASE 3: VALIDATE - Ensure we have what we need
-            // ============================================
-            console.group('✅ [Generate] Phase 3: Validation');
+            // Brief delay to show completion, then redirect
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
-            const afterInventory = logContentInventory(finalContent, 'After Generation');
+            const vaultUrl = `/vault?funnel_id=${funnelId}`;
+            console.log('[Generate] Redirecting to vault:', vaultUrl);
 
-            // Check if Business Core is complete
-            const businessCoreComplete = isBusinessCoreComplete(finalContent);
-            console.log('[Generate] Business Core complete:', businessCoreComplete);
-
-            if (!businessCoreComplete) {
-                const stillMissing = getMissingSectionKeys(finalContent, 'businessCore');
-                console.warn('[Generate] ⚠️ Business Core still missing sections:', stillMissing);
-
-                // Try one more time to generate just the missing Business Core sections
-                setProcessingMessage('Finalizing Business Core...');
-                try {
-                    const retryRes = await fetchWithAuth("/api/os/generate", {
-                        method: "POST",
-                        body: JSON.stringify({
-                            step: 'fill-missing',
-                            missingSections: stillMissing,
-                            data: { ...stepData, ...currentInput }
-                        }),
-                    });
-                    const retryData = await retryRes.json();
-                    if (retryData.result) {
-                        finalContent = { ...finalContent, ...retryData.result };
-                        console.log('[Generate] Retry successful, merged additional content');
-                    }
-                } catch (retryError) {
-                    console.error('[Generate] Retry failed:', retryError);
-                }
-            }
-
-            // Final validation
-            const finalInventory = inventoryContent(finalContent);
-            console.log('[Generate] Final stats:', finalInventory.stats);
-            console.groupEnd();
-
-            // ============================================
-            // PHASE 4: SAVE & COMPLETE
-            // ============================================
-            console.group('💾 [Generate] Phase 4: Save & Complete');
-
-            clearInterval(messageInterval);
-            setProcessingMessage('Your marketing system is ready! 🚀');
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            setGeneratedContent(finalContent);
-            setIsReviewMode(true);
-
-            // Mark step 20 as completed and update saved content
-            const allCompletedSteps = [...new Set([...completedSteps, 20])];
-            setCompletedSteps(allCompletedSteps);
-            setSavedContent(finalContent);
-
-            // Mark wizard as complete - locks editing until reset
+            // Set states as complete before redirect
+            setIsGenerating(false);
+            setShowProcessingAnimation(false);
             setIsWizardComplete(true);
 
-            // Set active session flag for Results page
-            localStorage.setItem('ted_has_active_session', 'true');
-            localStorage.setItem('ted_results_source', JSON.stringify({
-                type: 'current',
-                name: 'Current Session'
-            }));
-
-            // Save completion state to localStorage
-            if (session) {
-                const progressData = {
-                    completedSteps: allCompletedSteps,
-                    answers: { ...stepData, ...currentInput },
-                    generatedContent: finalContent,
-                    isComplete: true,
-                    updatedAt: new Date().toISOString()
-                };
-                localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
-            }
-
-            // Log final summary
-            console.log('[Generate] ✅ Generation complete!');
-            console.log('[Generate] Total sections:', finalInventory.stats.complete, '/', finalInventory.stats.total);
-            console.log('[Generate] Business Core:', finalInventory.byCategory.businessCore.complete.length, '/6');
-            console.groupEnd();
-
-            // Show appropriate success message
-            if (finalInventory.stats.requiredMissing > 0) {
-                toast.warning(`Generated ${finalInventory.stats.complete}/${finalInventory.stats.total} sections. Some sections may need regeneration.`);
-            } else {
-                toast.success("All content generated successfully!");
-            }
+            // Redirect
+            router.push(vaultUrl);
 
         } catch (error) {
             console.error('[Generate] ❌ Error:', error);
-            console.error('[Generate] Stack:', error.stack);
             toast.error(`Failed to generate content: ${error.message}`);
-            clearInterval(messageInterval);
-        } finally {
             setIsGenerating(false);
             setShowProcessingAnimation(false);
         }
@@ -1192,50 +1145,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
         toast.success(`Step ${currentStep} saved!`);
 
-        // Generate content preview
-        setGeneratingPreview(true);
-        try {
-            // Session is available from useAuth hook
-            if (session) {
-                const res = await fetchWithAuth("/api/os/generate", {
-                    method: "POST",
-                    body: JSON.stringify({
-                        step: 'preview',
-                        data: updatedData,
-                        completedSteps: currentStep // Use current step number, not total completed count
-                    }),
-                });
+        // REMOVED: AI preview generation during intake (was slowing down questionnaire)
+        // Per TedOS roadmap: "Remove all AI generation during intake - make flow simple → fast → zero popups"
+        // AI generation now only happens when user clicks "Generate My Vault" at step 20
 
-                const data = await res.json();
-                if (!data.error && data.result) {
-                    setPreviewContent(data.result);
-
-                    // Save the preview content for this step
-                    const newSavedContent = {
-                        ...savedContent,
-                        [`step${currentStep}`]: data.result
-                    };
-                    setSavedContent(newSavedContent);
-
-                    setShowContentPreview(true);
-
-                    // Calculate next step (clamp to max steps)
-                    const nextStep = currentStep < STEPS.length ? currentStep + 1 : currentStep;
-
-                    // Save progress to localStorage and Supabase
-                    await saveProgressToStorage(
-                        newCompletedSteps,
-                        updatedData,
-                        newSavedContent,
-                        { currentStep: nextStep }
-                    );
-                }
-            }
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setGeneratingPreview(false);
-        }
 
         if (currentStep < STEPS.length) {
             const nextStep = currentStep + 1;
@@ -1402,8 +1315,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
             await saveProgressToStorage(
                 completedSteps,
                 stepData,
-                { ...savedContent, final: generatedContent },
-                { currentStep: 20, isComplete: true }
+                { ...savedContent }, // Remove automatic 'final: generatedContent'
+                { currentStep: 20, isComplete: false } // Change isComplete to false
             );
 
             // ✅ AUTO-CREATE SAVED SESSION
@@ -1417,8 +1330,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                         currentStep: 20,
                         completedSteps: completedSteps,
                         answers: stepData,
-                        generatedContent: generatedContent,
-                        isComplete: true
+                        generatedContent: {}, // Don't pass generatedContent here to avoid auto-approval
+                        isComplete: false // Mark session as NOT complete yet
                     }),
                 });
 
@@ -1469,7 +1382,16 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
 
     // Processing Animation Overlay - Using BuildingAnimation component
     if (showProcessingAnimation) {
-        return <BuildingAnimation processingMessage={processingMessage} isGenerating={isGenerating} />;
+        return (
+            <BuildingAnimation
+                processingMessage={processingMessage}
+                isGenerating={isGenerating}
+                completedCount={generationProgress.completedCount}
+                totalCount={generationProgress.totalCount}
+                currentSection={generationProgress.currentSection}
+                completedSections={generationProgress.completedSections}
+            />
+        );
     }
 
     // Mission Control View
@@ -1491,7 +1413,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-32 bg-cyan/5 blur-3xl rounded-full -z-10"></div>
 
                         <h1 className="text-5xl md:text-6xl font-black mb-4 bg-gradient-to-br from-white via-white to-gray-500 bg-clip-text text-transparent tracking-tighter">
-                            Mission Control
+                            TMB
                         </h1>
                         <p className="text-gray-400 text-lg max-w-2xl mx-auto font-light leading-relaxed">
                             {isFirstTimeUser
@@ -1867,7 +1789,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                 onClick={handleBackToDashboard}
                                 className="text-sm text-gray-400 hover:text-white flex items-center gap-2 mb-4"
                             >
-                                <ChevronLeft className="w-4 h-4" /> Mission Control
+                                <ChevronLeft className="w-4 h-4" /> TMB
                             </button>
                             <h2 className="text-xl font-bold">Steps</h2>
                         </div>
@@ -1930,8 +1852,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                         >
                             {/* Header with Progress Bar */}
                             <div className="mb-8">
-                                {/* Sample Data Button - Only show if form is mostly empty */}
-                                {completedSteps.length < 3 && (
+                                {/* Sample Data Button - Show on first few steps for easy testing */}
+                                {(currentStep === 1 || (currentStep <= 3 && completedSteps.length < 2)) && (
                                     <div className="flex justify-end mb-4">
                                         <button
                                             onClick={fillSampleData}
@@ -1967,131 +1889,200 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                     </h1>
                                     <p className="text-gray-400 text-lg font-light leading-relaxed">{STEPS[currentStep - 1].description}</p>
                                 </div>
-                                {STEP_INPUTS[currentStep]?.filter((input) => {
-                                    // Hide conditional fields if their condition isn't met
-                                    if (input.conditionalOn) {
-                                        const parentValue = currentInput[input.conditionalOn] || [];
-                                        return parentValue.includes(input.conditionalValue);
-                                    }
-                                    return true;
-                                }).map((input, idx) => (
-                                    <div key={input.name}>
-                                        {/* Help button for additional context */}
-                                        {input.helpText && (
-                                            <div className="flex justify-end mb-2">
-                                                <button
-                                                    onClick={() => setShowHelpFor(showHelpFor === input.name ? null : input.name)}
-                                                    className="text-cyan hover:text-cyan transition-colors text-sm flex items-center gap-1"
-                                                    type="button"
-                                                >
-                                                    <Info className="w-4 h-4" />
-                                                    <span>Help</span>
-                                                </button>
+                                {(() => {
+                                    const stepInputs = STEP_INPUTS[currentStep] || [];
+                                    const filteredInputs = stepInputs.filter((input) => {
+                                        // Hide conditional fields if their condition isn't met
+                                        if (input.conditionalOn) {
+                                            const parentValue = currentInput[input.conditionalOn] || [];
+                                            return parentValue.includes(input.conditionalValue);
+                                        }
+                                        return true;
+                                    });
+
+                                    // Special handling for Step 7 (Story) - Accordion Style
+                                    if (currentStep === 7) {
+                                        return (
+                                            <div className="space-y-4">
+                                                {filteredInputs.map((input, idx) => {
+                                                    const isExpanded = expandedField === input.name || (expandedField === null && idx === 0);
+                                                    const labelParts = input.label.split('(');
+                                                    const mainLabel = labelParts[0].trim();
+                                                    const subLabel = labelParts[1] ? `(${labelParts[1]}` : '';
+
+                                                    return (
+                                                        <div
+                                                            key={input.name}
+                                                            className={`
+                                                                border rounded-2xl transition-all duration-300 overflow-hidden
+                                                                ${isExpanded ? 'bg-white/5 border-cyan/30 shadow-lg shadow-cyan/5' : 'bg-transparent border-white/5 hover:border-white/10'}
+                                                            `}
+                                                        >
+                                                            <button
+                                                                onClick={() => setExpandedField(isExpanded ? null : input.name)}
+                                                                className="w-full px-6 py-5 flex items-center justify-between text-left group"
+                                                                type="button"
+                                                            >
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className={`
+                                                                        w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
+                                                                        ${isExpanded ? 'bg-cyan text-black' : 'bg-white/10 text-gray-400 group-hover:bg-white/20'}
+                                                                    `}>
+                                                                        {idx + 1}
+                                                                    </div>
+                                                                    <span className={`font-semibold text-lg transition-colors ${isExpanded ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                                                                        {mainLabel}
+                                                                        {subLabel && (
+                                                                            <span className="text-gray-500 text-sm font-normal ml-2 hidden md:inline">
+                                                                                {subLabel}
+                                                                            </span>
+                                                                        )}
+                                                                    </span>
+                                                                </div>
+                                                                <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-cyan' : ''}`} />
+                                                            </button>
+
+                                                            <AnimatePresence>
+                                                                {isExpanded && (
+                                                                    <motion.div
+                                                                        initial={{ height: 0, opacity: 0 }}
+                                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                                        exit={{ height: 0, opacity: 0 }}
+                                                                        transition={{ duration: 0.3 }}
+                                                                    >
+                                                                        <div className="px-6 pb-6 pt-2">
+                                                                            <textarea
+                                                                                className={`
+                                                                                    w-full bg-[#0e0e0f] border rounded-xl p-4 text-white placeholder-gray-600 
+                                                                                    focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all
+                                                                                    ${fieldErrors[input.name] ? 'border-red-500' : 'border-white/10'}
+                                                                                `}
+                                                                                rows={input.rows || 4}
+                                                                                placeholder={input.placeholder}
+                                                                                value={currentInput[input.name] || ""}
+                                                                                onChange={(e) => handleInputChange(input.name, e.target.value)}
+                                                                            />
+                                                                            {input.helpText && (
+                                                                                <p className="mt-3 text-sm text-gray-500 flex items-start gap-2">
+                                                                                    <Info className="w-4 h-4 mt-0.5 text-cyan/50" />
+                                                                                    {input.helpText}
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </motion.div>
+                                                                )}
+                                                            </AnimatePresence>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
-                                        )}
+                                        );
+                                    }
 
-                                        {showHelpFor === input.name && input.helpText && (
-                                            <motion.div
-                                                initial={{ opacity: 0, height: 0 }}
-                                                animate={{ opacity: 1, height: 'auto' }}
-                                                exit={{ opacity: 0, height: 0 }}
-                                                className="mb-3 p-4 bg-cyan/10 border border-cyan/30 rounded-lg"
-                                            >
-                                                <p className="text-sm text-cyan leading-relaxed">
-                                                    {input.helpText}
-                                                </p>
-                                            </motion.div>
-                                        )}
-
-                                        <div className="space-y-2">
-                                            {/* Field Label - Only show if not the first primary input */}
-                                            {idx > 0 && (
-                                                <label className="block text-sm font-medium text-gray-300 mb-2">
-                                                    {input.label}
-                                                </label>
+                                    // Default rendering for other steps
+                                    return filteredInputs.map((input, idx) => (
+                                        <div key={input.name} className="space-y-4">
+                                            {/* Help button for additional context */}
+                                            {input.helpText && (
+                                                <div className="flex justify-end mb-2">
+                                                    <button
+                                                        onClick={() => setShowHelpFor(showHelpFor === input.name ? null : input.name)}
+                                                        className="text-cyan hover:text-cyan transition-colors text-sm flex items-center gap-1"
+                                                        type="button"
+                                                    >
+                                                        <Info className="w-4 h-4" />
+                                                        <span>Help</span>
+                                                    </button>
+                                                </div>
                                             )}
 
-                                            {/* Render based on input type */}
-                                            {input.type === 'select' ? (
-                                                /* Select dropdown */
-                                                <select
-                                                    className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all cursor-pointer ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
-                                                        }`}
-                                                    value={currentInput[input.name] || ""}
-                                                    onChange={(e) => handleInputChange(input.name, e.target.value)}
+                                            {showHelpFor === input.name && input.helpText && (
+                                                <motion.div
+                                                    initial={{ opacity: 0, height: 0 }}
+                                                    animate={{ opacity: 1, height: 'auto' }}
+                                                    exit={{ opacity: 0, height: 0 }}
+                                                    className="mb-3 p-4 bg-cyan/10 border border-cyan/30 rounded-lg"
                                                 >
-                                                    <option value="" className="text-gray-500">{input.placeholder}</option>
-                                                    {(input.options === 'REVENUE_OPTIONS' ? REVENUE_OPTIONS :
-                                                        input.options === 'BUSINESS_STAGE_OPTIONS' ? BUSINESS_STAGE_OPTIONS :
-                                                            input.options === 'BUSINESS_TYPE_OPTIONS' ? BUSINESS_TYPE_OPTIONS :
-                                                                []).map(option => (
-                                                                    <option key={option.value} value={option.value} className="bg-[#0e0e0f]">
-                                                                        {option.label}
-                                                                    </option>
-                                                                ))}
-                                                </select>
-                                            ) : input.type === 'multiselect' ? (
-                                                /* Multi-select checkboxes */
-                                                <div className={`bg-[#0e0e0f] border rounded-lg p-4 ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
-                                                    }`}>
-                                                    <p className="text-gray-400 text-sm mb-3">{input.placeholder}</p>
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        {(input.options === 'ASSET_OPTIONS' ? ASSET_OPTIONS :
-                                                            input.options === 'PLATFORM_OPTIONS' ? PLATFORM_OPTIONS :
-                                                                []).map(option => {
-                                                                    const selectedValues = currentInput[input.name] || [];
-                                                                    const isSelected = selectedValues.includes(option.value);
-                                                                    return (
-                                                                        <label
-                                                                            key={option.value}
-                                                                            className={`
-                                                                        flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all
-                                                                        ${isSelected
-                                                                                    ? 'bg-cyan/20 border border-cyan/50 text-cyan'
-                                                                                    : 'bg-[#1b1b1d] border border-[#2a2a2d] text-gray-300 hover:border-gray-500'
-                                                                                }
-                                                                    `}
-                                                                        >
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                checked={isSelected}
-                                                                                onChange={(e) => {
-                                                                                    const newValues = e.target.checked
-                                                                                        ? [...selectedValues, option.value]
-                                                                                        : selectedValues.filter(v => v !== option.value);
-                                                                                    handleInputChange(input.name, newValues);
-                                                                                }}
-                                                                                className="w-4 h-4 accent-cyan"
-                                                                            />
-                                                                            <span className="text-sm font-medium">{option.label}</span>
-                                                                        </label>
-                                                                    );
-                                                                })}
-                                                    </div>
-                                                    {/* Show "Other" text input if other is selected */}
-                                                    {input.hasOtherInput && (currentInput[input.name] || []).includes('other') && (
-                                                        <div className="mt-4">
-                                                            <input
-                                                                type="text"
-                                                                className="w-full bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg p-3 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all"
-                                                                placeholder="Specify other platforms..."
-                                                                value={currentInput[`${input.name}Other`] || ""}
-                                                                onChange={(e) => handleInputChange(`${input.name}Other`, e.target.value)}
-                                                            />
+                                                    <p className="text-sm text-cyan leading-relaxed">
+                                                        {input.helpText}
+                                                    </p>
+                                                </motion.div>
+                                            )}
+
+                                            <div className="space-y-2">
+                                                {/* Field Label - Only show if not the first primary input (idx > 0) */}
+                                                {idx > 0 && (
+                                                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                                                        {input.label}
+                                                    </label>
+                                                )}
+
+                                                {/* Render based on input type */}
+                                                {input.type === 'select' ? (
+                                                    <select
+                                                        className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all cursor-pointer ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'}`}
+                                                        value={currentInput[input.name] || ""}
+                                                        onChange={(e) => handleInputChange(input.name, e.target.value)}
+                                                    >
+                                                        <option value="" className="text-gray-500">{input.placeholder}</option>
+                                                        {(input.options === 'REVENUE_OPTIONS' ? REVENUE_OPTIONS :
+                                                            input.options === 'BUSINESS_STAGE_OPTIONS' ? BUSINESS_STAGE_OPTIONS :
+                                                                input.options === 'BUSINESS_TYPE_OPTIONS' ? BUSINESS_TYPE_OPTIONS :
+                                                                    []).map(option => (
+                                                                        <option key={option.value} value={option.value} className="bg-[#0e0e0f]">
+                                                                            {option.label}
+                                                                        </option>
+                                                                    ))}
+                                                    </select>
+                                                ) : input.type === 'multiselect' ? (
+                                                    <div className={`bg-[#0e0e0f] border rounded-lg p-4 ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'}`}>
+                                                        <p className="text-gray-400 text-sm mb-3">{input.placeholder}</p>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            {(input.options === 'ASSET_OPTIONS' ? ASSET_OPTIONS :
+                                                                input.options === 'PLATFORM_OPTIONS' ? PLATFORM_OPTIONS :
+                                                                    []).map(option => {
+                                                                        const selectedValues = currentInput[input.name] || [];
+                                                                        const isSelected = selectedValues.includes(option.value);
+                                                                        return (
+                                                                            <label
+                                                                                key={option.value}
+                                                                                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-cyan/20 border border-cyan/50 text-cyan' : 'bg-[#1b1b1d] border border-[#2a2a2d] text-gray-300 hover:border-gray-500'}`}
+                                                                            >
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={isSelected}
+                                                                                    onChange={(e) => {
+                                                                                        const newValues = e.target.checked
+                                                                                            ? [...selectedValues, option.value]
+                                                                                            : selectedValues.filter(v => v !== option.value);
+                                                                                        handleInputChange(input.name, newValues);
+                                                                                    }}
+                                                                                    className="w-4 h-4 accent-cyan"
+                                                                                />
+                                                                                <span className="text-sm font-medium">{option.label}</span>
+                                                                            </label>
+                                                                        );
+                                                                    })}
                                                         </div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                /* Default textarea */
-                                                <>
+                                                        {input.hasOtherInput && (currentInput[input.name] || []).includes('other') && (
+                                                            <div className="mt-4">
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg p-3 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all"
+                                                                    placeholder="Specify other platforms..."
+                                                                    value={currentInput[`${input.name}Other`] || ""}
+                                                                    onChange={(e) => handleInputChange(`${input.name}Other`, e.target.value)}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
                                                     <textarea
-                                                        className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'
-                                                            }`}
+                                                        className={`w-full bg-[#0e0e0f] border rounded-lg p-4 text-white focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all resize-y leading-relaxed whitespace-pre-wrap overflow-y-auto ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'}`}
                                                         placeholder={input.placeholder}
                                                         value={currentInput[input.name] || input.defaultValue || ""}
                                                         onChange={(e) => {
                                                             handleInputChange(input.name, e.target.value);
-                                                            // Auto-expand based on content up to max
                                                             const minHeight = (input.rows || 5) * 28;
                                                             const maxHeight = 400;
                                                             e.target.style.height = 'auto';
@@ -2103,25 +2094,24 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                             maxHeight: '400px'
                                                         }}
                                                     />
-                                                </>
-                                            )}
+                                                )}
 
-                                            {/* Validation Error Message */}
-                                            {fieldErrors[input.name] && (
-                                                <motion.p
-                                                    initial={{ opacity: 0, y: -10 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    className="text-red-500 text-sm mt-1 flex items-center gap-1"
-                                                >
-                                                    <AlertTriangle className="w-4 h-4" />
-                                                    {fieldErrors[input.name]}
-                                                </motion.p>
-                                            )}
+                                                {fieldErrors[input.name] && (
+                                                    <motion.p
+                                                        initial={{ opacity: 0, y: -10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        className="text-red-500 text-sm mt-1 flex items-center gap-1"
+                                                    >
+                                                        <AlertTriangle className="w-4 h-4" />
+                                                        {fieldErrors[input.name]}
+                                                    </motion.p>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    ));
+                                })()}
 
-                                <div className="pt-4 flex gap-3">
+                                < div className="pt-4 flex gap-3">
                                     {isEditMode ? (
                                         /* Edit mode buttons */
                                         <>
@@ -2165,25 +2155,47 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                                                     </button>
                                                 )}
 
-                                                {/* Polish with AI Button */}
-                                                <button
-                                                    onClick={() => {
-                                                        const stepInputs = STEP_INPUTS[currentStep];
-                                                        if (stepInputs && stepInputs[0]) {
-                                                            handleAiAssist(stepInputs[0].name, stepInputs[0].label);
+                                                {/* Polish with AI Button - Only for textarea inputs */}
+                                                {(() => {
+                                                    const stepInputs = STEP_INPUTS[currentStep] || [];
+                                                    const filteredInputs = stepInputs.filter((input) => {
+                                                        if (input.conditionalOn) {
+                                                            const parentValue = currentInput[input.conditionalOn] || [];
+                                                            return parentValue.includes(input.conditionalValue);
                                                         }
-                                                    }}
-                                                    disabled={aiAssisting}
-                                                    type="button"
-                                                    className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all disabled:opacity-50"
-                                                >
-                                                    {aiAssisting ? (
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                    ) : (
-                                                        <Sparkles className="w-4 h-4" />
-                                                    )}
-                                                    Polish with AI
-                                                </button>
+                                                        return true;
+                                                    });
+
+                                                    // Find the target input for AI Assist
+                                                    let targetInput;
+                                                    if (currentStep === 7) {
+                                                        // For Story section, target the expanded/active field
+                                                        targetInput = filteredInputs.find(input =>
+                                                            expandedField === input.name || (expandedField === null && filteredInputs.indexOf(input) === 0)
+                                                        );
+                                                    } else {
+                                                        // Default: Find the first textarea input
+                                                        targetInput = filteredInputs.find(input => input.type === 'textarea');
+                                                    }
+
+                                                    if (!targetInput) return null;
+
+                                                    return (
+                                                        <button
+                                                            onClick={() => handleAiAssist(targetInput.name, targetInput.label)}
+                                                            disabled={aiAssisting}
+                                                            type="button"
+                                                            className="bg-cyan/20 hover:bg-cyan/30 text-cyan px-5 py-3 rounded-lg font-medium flex items-center gap-2 transition-all disabled:opacity-50"
+                                                        >
+                                                            {aiAssisting ? (
+                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                            ) : (
+                                                                <Sparkles className="w-4 h-4" />
+                                                            )}
+                                                            Polish with AI
+                                                        </button>
+                                                    );
+                                                })()}
                                             </div>
 
                                             {/* Right side - Next button */}
@@ -2309,10 +2321,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
+            </div >
 
             {/* AI Suggestions Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showSuggestionsModal && (
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -2361,11 +2373,12 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                             </button>
                         </motion.div>
                     </motion.div>
-                )}
-            </AnimatePresence>
+                )
+                }
+            </AnimatePresence >
 
             {/* Content Preview Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showContentPreview && previewContent && (
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -2640,7 +2653,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false })
                         </motion.div>
                     </motion.div>
                 )}
-            </AnimatePresence>
-        </div>
+            </AnimatePresence >
+        </div >
     );
 }

@@ -269,7 +269,32 @@ export async function POST(req) {
 
         // Save to database
         try {
-            // Save to slide_results table (using correct column name: ai_output)
+            // 1. Sync with vault_content table (Primary storage for new Vault UI)
+            const funnelId = sessionId; // Assuming sessionId is funnelId for this context
+            if (funnelId) {
+                // Mark existing as not current
+                await supabaseAdmin
+                    .from('vault_content')
+                    .update({ is_current_version: false })
+                    .eq('funnel_id', funnelId)
+                    .eq('section_id', section);
+
+                // Insert new version
+                await supabaseAdmin.from('vault_content').insert({
+                    funnel_id: funnelId,
+                    user_id: userId,
+                    section_id: section,
+                    section_title: promptConfig.name,
+                    content: parsedContent,
+                    prompt_used: prompt, // Save the prompt
+                    phase: [1, 2, 3, 4, 5, 17].includes(promptConfig.key) ? 1 : 2,
+                    status: 'generated', // Mark as generated so it needs manual approval
+                    numeric_key: promptConfig.key,
+                    is_current_version: true
+                });
+            }
+
+            // 2. Save to slide_results table (Legacy/Compatibility)
             const { error: saveError } = await supabaseAdmin
                 .from('slide_results')
                 .upsert({
@@ -284,10 +309,9 @@ export async function POST(req) {
 
             if (saveError) {
                 console.error('[Regenerate] Save error:', saveError);
-                // Don't fail the request, just log the error
             }
 
-            // If session provided, also update session results
+            // 3. Update session results_data (Legacy/Compatibility)
             if (sessionId) {
                 const { data: sessionData } = await supabaseAdmin
                     .from('saved_sessions')
@@ -318,7 +342,6 @@ export async function POST(req) {
             }
         } catch (dbError) {
             console.error('[Regenerate] Database save error:', dbError);
-            // Continue anyway, content is generated
         }
 
         return NextResponse.json({
