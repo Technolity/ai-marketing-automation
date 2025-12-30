@@ -20,7 +20,8 @@ export async function GET(req) {
         }
 
         const { searchParams } = new URL(req.url);
-        const funnelId = searchParams.get('funnel_id');
+        // Support both funnel_id and session_id for backwards compatibility
+        const funnelId = searchParams.get('funnel_id') || searchParams.get('session_id');
 
         console.log(`[Results API] Fetching results for user ${userId}${funnelId ? ` (funnel: ${funnelId})` : ''}`);
 

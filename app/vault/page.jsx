@@ -131,18 +131,37 @@ function parseAndCleanContent(content) {
  * Deep merge with intelligent field matching
  * Finds the correct location for updated fields even if nested differently
  */
-function deepMerge(target, source) {
+function deepMerge(target, source, depth = 0) {
+    // Handle raw content flag from API
+    if (source && source._rawContent) {
+        console.log('[DeepMerge] Raw content detected, returning as-is');
+        return source._rawContent;
+    }
+    
     if (!source || typeof source !== 'object') return target;
     if (!target || typeof target !== 'object') return source;
+    
+    // Prevent infinite recursion
+    if (depth > 10) {
+        console.warn('[DeepMerge] Max depth reached');
+        return { ...target, ...source };
+    }
 
-    const result = { ...target };
+    const result = JSON.parse(JSON.stringify(target)); // Deep clone to avoid mutations
 
     for (const [key, value] of Object.entries(source)) {
+        // Skip internal keys
+        if (key.startsWith('_')) continue;
+        
+        console.log(`[DeepMerge] Processing key: ${key}, depth: ${depth}`);
+        
         // First, check if this key exists directly in target
         if (key in result) {
             if (value && typeof value === 'object' && !Array.isArray(value)) {
-                result[key] = deepMerge(result[key] || {}, value);
+                result[key] = deepMerge(result[key] || {}, value, depth + 1);
             } else if (value !== undefined && value !== null) {
+                // Direct replacement for primitives and arrays
+                console.log(`[DeepMerge] Replacing ${key} at depth ${depth}`);
                 result[key] = value;
             }
         } else {
@@ -150,7 +169,10 @@ function deepMerge(target, source) {
             const found = findAndReplaceInObject(result, key, value);
             if (!found) {
                 // If not found anywhere, add it at this level
+                console.log(`[DeepMerge] Adding new key ${key} at depth ${depth}`);
                 result[key] = value;
+            } else {
+                console.log(`[DeepMerge] Found and replaced ${key} in nested object`);
             }
         }
     }
@@ -1753,40 +1775,92 @@ export default function VaultPage() {
                         currentContent={vaultData[feedbackSection.id]}
                         sessionId={dataSource?.id}
                         onSave={async (refinedContent) => {
+                            console.log('[Vault] onSave called with:', JSON.stringify(refinedContent).substring(0, 200));
+                            
                             // Parse and clean the refined content
                             const cleanContent = parseAndCleanContent(refinedContent);
+                            console.log('[Vault] Cleaned content:', JSON.stringify(cleanContent).substring(0, 200));
 
-                            // Deep merge into existing content instead of replacing
+                            // Get existing content for this section
                             const existing = vaultData[feedbackSection.id] || {};
-                            const merged = deepMerge(existing, cleanContent);
+                            console.log('[Vault] Existing content keys:', Object.keys(existing));
+                            
+                            // Deep merge into existing content
+                            // This handles both full section updates and sub-section updates
+                            let merged;
+                            
+                            // Check if cleanContent has keys that exist in existing content
+                            const cleanKeys = Object.keys(cleanContent);
+                            const existingKeys = Object.keys(existing);
+                            const hasMatchingKeys = cleanKeys.some(k => existingKeys.includes(k));
+                            
+                            if (hasMatchingKeys || cleanKeys.length === 0) {
+                                // Normal merge - keys match or cleanContent is empty
+                                merged = deepMerge(existing, cleanContent);
+                            } else {
+                                // Check if clean keys exist nested inside existing
+                                let foundNested = false;
+                                for (const existingKey of existingKeys) {
+                                    if (existing[existingKey] && typeof existing[existingKey] === 'object') {
+                                        const nestedKeys = Object.keys(existing[existingKey]);
+                                        if (cleanKeys.some(k => nestedKeys.includes(k))) {
+                                            // Merge into nested object
+                                            console.log(`[Vault] Merging into nested key: ${existingKey}`);
+                                            merged = {
+                                                ...existing,
+                                                [existingKey]: deepMerge(existing[existingKey], cleanContent)
+                                            };
+                                            foundNested = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if (!foundNested) {
+                                    // Just merge at top level
+                                    merged = deepMerge(existing, cleanContent);
+                                }
+                            }
+                            
+                            console.log('[Vault] Merged content keys:', Object.keys(merged));
 
-                            // Update local state
+                            // Update local state IMMEDIATELY for instant UI feedback
                             setVaultData(prev => ({
                                 ...prev,
                                 [feedbackSection.id]: merged
                             }));
+                            
+                            // Mark that we have unsaved changes (for the Save button)
+                            setUnsavedChanges(true);
 
                             // Persist to database
                             try {
+                                const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
+                                console.log('[Vault] Saving to session:', sessionId);
+                                
                                 const response = await fetchWithAuth('/api/os/vault-section', {
                                     method: 'PATCH',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
                                         sectionId: feedbackSection.id,
                                         content: merged,
-                                        funnelId: dataSource?.id
+                                        funnelId: sessionId
                                     })
                                 });
 
                                 if (response.ok) {
-                                    toast.success('Changes saved to database!');
+                                    const result = await response.json();
+                                    console.log('[Vault] Database save result:', result);
+                                    toast.success('Changes saved!');
+                                    setUnsavedChanges(false);
                                 } else {
-                                    console.error('[Vault] Failed to persist to database');
-                                    toast.error('Saved locally, but failed to sync with database.');
+                                    const errorData = await response.json().catch(() => ({}));
+                                    console.error('[Vault] Failed to persist to database:', errorData);
+                                    toast.error('Saved locally. Click Save to sync to database.');
                                 }
                             } catch (error) {
                                 console.error('[Vault] Database save error:', error);
-                                toast.error('Saved locally, but failed to sync with database.');
+                                toast.error('Saved locally. Click Save to sync to database.');
                             }
 
                             setFeedbackModalOpen(false);

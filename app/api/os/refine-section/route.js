@@ -118,14 +118,37 @@ export async function POST(req) {
             throw new Error('No response from AI');
         }
 
-        // Parse the response (try JSON first, then raw text)
+        // Parse the response with robust error handling
         let refinedContent;
         try {
-            refinedContent = JSON.parse(refinedText);
-        } catch {
+            // Clean up common AI formatting issues
+            let cleanedText = refinedText
+                .replace(/^```(?:json)?[\s\n]*/gi, '')  // Remove opening code blocks
+                .replace(/[\s\n]*```$/gi, '')           // Remove closing code blocks
+                .trim();
+            
+            // Try to find JSON object in the response if it's wrapped in text
+            const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                cleanedText = jsonMatch[0];
+            }
+            
+            refinedContent = JSON.parse(cleanedText);
+            
+            // Ensure the content is properly keyed if it's a sub-section update
+            if (subSection && subSection !== 'all') {
+                // If AI returned content without the subSection key, wrap it
+                if (!refinedContent[subSection] && Object.keys(refinedContent).length > 0) {
+                    // Check if AI returned the content directly (e.g., returned the array/object itself)
+                    refinedContent = { [subSection]: refinedContent };
+                }
+            }
+            
+        } catch (parseError) {
+            console.log('[RefineSection] JSON parse failed, wrapping raw text:', parseError.message);
             // If not JSON, wrap in object
-            refinedContent = subSection === 'all'
-                ? { [sectionId]: refinedText }
+            refinedContent = subSection === 'all' || !subSection
+                ? { _rawContent: refinedText }  // Flag as raw content for special handling
                 : { [subSection]: refinedText };
         }
 
@@ -189,6 +212,9 @@ function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent
         ? `\n\nNOTE: This is attempt #${iteration}. Please provide a DIFFERENT variation than before.`
         : '';
 
+    // Determine if we're updating a sub-section or full section
+    const isSubSection = subSection && subSection !== 'all';
+    
     return `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
 ${currentContentStr}
 ${context}
@@ -197,15 +223,24 @@ USER'S FEEDBACK:
 ${feedback}
 
 TASK:
-${subSection && subSection !== 'all'
+${isSubSection
             ? `Update ONLY the "${subSection}" portion based on the feedback above. Keep everything else unchanged.`
             : `Update the entire section based on the feedback above.`
         }
 ${iterationNote}
 
-OUTPUT FORMAT:
-Provide the improved content. If updating a specific sub-section, output only that portion.
-If the content was JSON, maintain the same structure.
+OUTPUT REQUIREMENTS:
+1. You MUST return valid JSON that can be parsed with JSON.parse()
+2. ${isSubSection 
+        ? `Return a JSON object with the key "${subSection}" containing the updated content, like: {"${subSection}": <updated_content>}`
+        : `Return the complete updated JSON structure for the entire ${sectionId} section`}
+3. Preserve the original data types - if a field was an array, keep it as an array
+4. Do NOT wrap the output in markdown code blocks
+5. Do NOT add any text before or after the JSON
+
+Example output format for sub-section update:
+{"${subSection || 'fieldName'}": {"key1": "value1", "key2": ["item1", "item2"]}}
+
 Focus on addressing the user's specific feedback while maintaining consistency with the business context.`;
 }
 
