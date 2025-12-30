@@ -11,12 +11,16 @@ import { getRelevantContext, injectContextIntoPrompt, getKnowledgeBaseStats } fr
 // Import JSON parser with error recovery
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 
+// Import vault schemas for validation
+import { validateVaultContent, stripExtraFields } from '@/lib/schemas/vaultSchemas';
+
 // Import individual prompts from the prompts directory
 import { idealClientPrompt } from '@/lib/prompts/idealClient';
 import { messagePrompt } from '@/lib/prompts/message';
 import { storyPrompt } from '@/lib/prompts/story';
 import { offerPrompt } from '@/lib/prompts/offer';
 import { salesScriptsPrompt } from '@/lib/prompts/salesScripts';
+import { setterScriptPrompt } from '@/lib/prompts/setterScript';
 import { leadMagnetPrompt } from '@/lib/prompts/leadMagnet';
 import { vslPrompt } from '@/lib/prompts/vsl';
 import { emailsPrompt } from '@/lib/prompts/emails';
@@ -49,7 +53,8 @@ const osPrompts = {
   13: youtubeShowPrompt,
   14: contentPillarsPrompt,
   15: bioPrompt,
-  16: appointmentRemindersPrompt
+  16: appointmentRemindersPrompt,
+  17: setterScriptPrompt
 };
 
 // Map content keys to RAG content types
@@ -70,6 +75,23 @@ const CONTENT_TYPE_MAP = {
   14: 'message',
   15: 'message',
   16: 'email'
+};
+
+// Map numeric keys to vault section IDs for schema validation
+const NUMERIC_KEY_TO_SECTION_ID = {
+  1: 'idealClient',
+  2: 'message',
+  3: 'story',
+  4: 'offer',
+  5: 'salesScripts',
+  6: 'leadMagnet',
+  7: 'vsl',
+  8: 'emails',
+  9: 'facebookAds',
+  10: 'funnelCopy',
+  15: 'bio',
+  16: 'appointmentReminders',
+  17: 'setterScript'
 };
 
 // CORRECTED: Map each step to what content CAN be properly generated with available data
@@ -606,7 +628,7 @@ export async function POST(req) {
             );
           });
 
-          const parsedResult = parseJsonSafe(rawContent, {
+          let parsedResult = parseJsonSafe(rawContent, {
             throwOnError: false,
             logErrors: true,
             defaultValue: null
@@ -614,6 +636,22 @@ export async function POST(req) {
 
           if (!parsedResult) {
             throw new Error(`Failed to parse JSON for section ${numKey}`);
+          }
+
+          // SCHEMA VALIDATION: Validate and strip extra fields
+          const sectionId = NUMERIC_KEY_TO_SECTION_ID[numKey];
+          if (sectionId) {
+            const validation = validateVaultContent(sectionId, parsedResult);
+
+            if (!validation.success) {
+              console.warn(`[FILL-MISSING Schema] Section ${numKey} (${sectionId}) failed:`, validation.errors);
+              // Strip extra fields to match schema
+              parsedResult = stripExtraFields(sectionId, parsedResult);
+              console.log(`[FILL-MISSING Schema] Stripped extra fields from section ${numKey}`);
+            } else {
+              console.log(`[FILL-MISSING Schema] Section ${numKey} (${sectionId}) passed validation`);
+              parsedResult = validation.data; // Use validated data
+            }
           }
 
           return {
@@ -711,7 +749,7 @@ export async function POST(req) {
               { jsonMode: true, maxTokens: tokenLimit, temperature: 0.7 }
             );
           });
-          const parsedResult = parseJsonSafe(rawContent, {
+          let parsedResult = parseJsonSafe(rawContent, {
             throwOnError: false,
             logErrors: true,
             defaultValue: null
@@ -719,6 +757,22 @@ export async function POST(req) {
 
           if (!parsedResult) {
             throw new Error(`Failed to parse JSON for ${CONTENT_NAMES[key]}`);
+          }
+
+          // SCHEMA VALIDATION: Validate and strip extra fields
+          const sectionId = NUMERIC_KEY_TO_SECTION_ID[key];
+          if (sectionId) {
+            const validation = validateVaultContent(sectionId, parsedResult);
+
+            if (!validation.success) {
+              console.warn(`[Schema Validation] Section ${key} (${sectionId}) failed:`, validation.errors);
+              // Strip extra fields to match schema
+              parsedResult = stripExtraFields(sectionId, parsedResult);
+              console.log(`[Schema Validation] Stripped extra fields from section ${key}`);
+            } else {
+              console.log(`[Schema Validation] Section ${key} (${sectionId}) passed validation`);
+              parsedResult = validation.data; // Use validated data
+            }
           }
 
           return {

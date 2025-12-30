@@ -23,34 +23,64 @@ const CHAT_OPENERS = [
 ];
 
 // Sub-section options for different vault sections
+// IMPORTANT: IDs must match schema field names exactly
 const SECTION_OPTIONS = {
     idealClient: [
-        { id: 'demographics', label: 'Demographics & Age Range' },
-        { id: 'psychographics', label: 'Psychographics & Mindset' },
-        { id: 'painPoints', label: 'Pain Points & Frustrations' },
-        { id: 'desires', label: 'Desires & Dream Outcomes' },
-        { id: 'objections', label: 'Common Objections' },
+        { id: 'bestIdealClient', label: 'Best Ideal Client' },
+        { id: 'topChallenges', label: 'Top 3 Challenges' },
+        { id: 'whatTheyWant', label: 'What They Want' },
+        { id: 'whatMakesThemPay', label: 'What Makes Them Pay' },
+        { id: 'howToTalkToThem', label: 'How to Talk to Them' },
         { id: 'all', label: 'Update the entire section' }
     ],
     message: [
-        { id: 'headline', label: 'Main Headline' },
-        { id: 'subheadline', label: 'Subheadline' },
-        { id: 'uniqueMechanism', label: 'Unique Mechanism' },
-        { id: 'bigPromise', label: 'Big Promise' },
+        { id: 'oneLiner', label: 'One-Liner Message' },
+        { id: 'spokenVersion', label: '30-Second Spoken Version' },
         { id: 'all', label: 'Update the entire section' }
     ],
     story: [
-        { id: 'hook', label: 'Story Hook / Opening' },
-        { id: 'struggle', label: 'Struggle / Low Point' },
-        { id: 'breakthrough', label: 'Breakthrough Moment' },
-        { id: 'transformation', label: 'Transformation & Results' },
+        { id: 'storyBlueprint', label: 'Story Blueprint (6 Phases)' },
+        { id: 'networkingStory', label: '60-90s Networking Story' },
+        { id: 'stageStory', label: '3-5 min Stage/Podcast Story' },
+        { id: 'oneLinerStory', label: '15-25s One-Liner Story' },
+        { id: 'socialPostVersion', label: 'Social Post Version' },
+        { id: 'emailStory', label: 'Short Email Story' },
+        { id: 'pullQuotes', label: 'Signature Pull Quotes' },
         { id: 'all', label: 'Update the entire section' }
     ],
     offer: [
-        { id: 'name', label: 'Offer Name' },
-        { id: 'modules', label: 'Modules / Components' },
-        { id: 'bonuses', label: 'Bonuses' },
-        { id: 'pricing', label: 'Pricing & Guarantees' },
+        { id: 'offerName', label: 'Offer Name' },
+        { id: 'whoItsFor', label: 'Who It\'s For' },
+        { id: 'thePromise', label: 'The Promise' },
+        { id: 'offerMode', label: 'Offer Mode' },
+        { id: 'sevenStepBlueprint', label: '7-Step Blueprint' },
+        { id: 'tier1SignatureOffer', label: 'Tier 1 Signature Offer' },
+        { id: 'cta', label: 'Call to Action' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+    salesScripts: [
+        { id: 'callGoal', label: 'Call Goal' },
+        { id: 'part1_openingPermission', label: 'Part 1: Opening + Permission' },
+        { id: 'part2_discovery', label: 'Part 2: Discovery' },
+        { id: 'part3_challengesStakes', label: 'Part 3: Challenges + Stakes' },
+        { id: 'part4_recapConfirmation', label: 'Part 4: Recap + Confirmation' },
+        { id: 'part5_threeStepPlan', label: 'Part 5: 3-Step Plan' },
+        { id: 'part6_closeNextSteps', label: 'Part 6: Close + Next Steps' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+    setterScript: [
+        { id: 'callGoal', label: 'Call Goal' },
+        { id: 'step1_openerPermission', label: 'Step 1: Opener + Permission' },
+        { id: 'step2_referenceOptIn', label: 'Step 2: Reference Opt-In' },
+        { id: 'step3_lowPressureFrame', label: 'Step 3: Low-Pressure Frame' },
+        { id: 'step4_currentSituation', label: 'Step 4: Current Situation' },
+        { id: 'step5_goalMotivation', label: 'Step 5: Goal + Motivation' },
+        { id: 'step6_challengeStakes', label: 'Step 6: Challenge + Stakes' },
+        { id: 'step7_authorityDrop', label: 'Step 7: Authority Drop' },
+        { id: 'step8_qualifyFit', label: 'Step 8: Qualify Fit + Readiness' },
+        { id: 'step9_bookConsultation', label: 'Step 9: Book Consultation' },
+        { id: 'step10_confirmShowUp', label: 'Step 10: Confirm Show-Up' },
+        { id: 'setterMindset', label: 'Setter Mindset' },
         { id: 'all', label: 'Update the entire section' }
     ],
     default: [

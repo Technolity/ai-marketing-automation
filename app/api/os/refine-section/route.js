@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import OpenAI from 'openai';
+import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 
 /**
  * POST /api/os/refine-section
@@ -126,15 +127,15 @@ export async function POST(req) {
                 .replace(/^```(?:json)?[\s\n]*/gi, '')  // Remove opening code blocks
                 .replace(/[\s\n]*```$/gi, '')           // Remove closing code blocks
                 .trim();
-            
+
             // Try to find JSON object in the response if it's wrapped in text
             const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 cleanedText = jsonMatch[0];
             }
-            
+
             refinedContent = JSON.parse(cleanedText);
-            
+
             // Ensure the content is properly keyed if it's a sub-section update
             if (subSection && subSection !== 'all') {
                 // If AI returned content without the subSection key, wrap it
@@ -143,13 +144,48 @@ export async function POST(req) {
                     refinedContent = { [subSection]: refinedContent };
                 }
             }
-            
+
         } catch (parseError) {
             console.log('[RefineSection] JSON parse failed, wrapping raw text:', parseError.message);
             // If not JSON, wrap in object
             refinedContent = subSection === 'all' || !subSection
                 ? { _rawContent: refinedText }  // Flag as raw content for special handling
                 : { [subSection]: refinedText };
+        }
+
+        // SCHEMA VALIDATION: Ensure AI only filled schema-defined fields
+        // If updating full section, validate against schema and strip extra fields
+        if (subSection === 'all' || !subSection) {
+            const validation = validateVaultContent(sectionId, refinedContent);
+
+            if (!validation.success) {
+                console.warn('[RefineSection] Schema validation failed:', validation.errors);
+                // Strip extra fields to match schema
+                refinedContent = stripExtraFields(sectionId, refinedContent);
+            } else {
+                console.log('[RefineSection] Schema validation passed');
+                refinedContent = validation.data;
+            }
+        } else {
+            // For partial updates, validate the sub-section matches expected structure
+            // Create a temporary full structure to validate
+            const tempFullContent = {
+                ...currentContent,
+                ...refinedContent
+            };
+
+            const validation = validateVaultContent(sectionId, tempFullContent);
+
+            if (!validation.success) {
+                console.warn('[RefineSection] Partial update schema validation failed:', validation.errors);
+                // Extract only the valid sub-section from validated data
+                if (validation.data && refinedContent[subSection]) {
+                    // Keep only schema-valid version
+                    refinedContent = { [subSection]: validation.data[subSection] || refinedContent[subSection] };
+                }
+            } else {
+                console.log('[RefineSection] Partial update schema validation passed');
+            }
         }
 
         // Log to content_edit_history for tracking
@@ -214,7 +250,21 @@ function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent
 
     // Determine if we're updating a sub-section or full section
     const isSubSection = subSection && subSection !== 'all';
-    
+
+    // Get schema information for this section
+    const schema = VAULT_SCHEMAS[sectionId];
+    let schemaInstructions = '';
+
+    if (schema) {
+        schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS:
+- You MUST output ONLY the fields defined in the schema for this section
+- Do NOT add any new fields, keys, or properties beyond what exists in the current content
+- Do NOT remove any required fields from the schema
+- Preserve exact field names and structure
+- Arrays must have the exact count specified in the schema (e.g., exactly 3 items, not 2 or 4)
+- All content must be complete and specific - NO placeholders like "[insert]", "TBD", "[LINK]", etc.`;
+    }
+
     return `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
 ${currentContentStr}
 ${context}
@@ -228,19 +278,23 @@ ${isSubSection
             : `Update the entire section based on the feedback above.`
         }
 ${iterationNote}
+${schemaInstructions}
 
 OUTPUT REQUIREMENTS:
 1. You MUST return valid JSON that can be parsed with JSON.parse()
-2. ${isSubSection 
+2. ${isSubSection
         ? `Return a JSON object with the key "${subSection}" containing the updated content, like: {"${subSection}": <updated_content>}`
         : `Return the complete updated JSON structure for the entire ${sectionId} section`}
 3. Preserve the original data types - if a field was an array, keep it as an array
-4. Do NOT wrap the output in markdown code blocks
-5. Do NOT add any text before or after the JSON
+4. Maintain exact array lengths from the original (e.g., if there are 3 items, keep 3 items)
+5. Do NOT add any new fields that don't exist in the current content
+6. Do NOT wrap the output in markdown code blocks
+7. Do NOT add any text before or after the JSON
 
 Example output format for sub-section update:
 {"${subSection || 'fieldName'}": {"key1": "value1", "key2": ["item1", "item2"]}}
 
+CRITICAL: Only modify the content based on feedback. Do NOT add new fields or change the structure.
 Focus on addressing the user's specific feedback while maintaining consistency with the business context.`;
 }
 

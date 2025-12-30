@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { validateVaultContent, stripExtraFields } from '@/lib/schemas/vaultSchemas';
 
 /**
  * PATCH /api/os/vault-section
@@ -16,7 +17,7 @@ export async function PATCH(req) {
 
         const body = await req.json();
         const { sectionId, content, funnelId, sessionId } = body;
-        
+
         // Support both funnelId and sessionId
         const providedId = funnelId || sessionId;
 
@@ -26,6 +27,20 @@ export async function PATCH(req) {
             return NextResponse.json({
                 error: 'Missing required fields: sectionId and content'
             }, { status: 400 });
+        }
+
+        // SCHEMA VALIDATION: Validate content against schema and strip extra fields
+        let validatedContent = content;
+        const validation = validateVaultContent(sectionId, content);
+
+        if (!validation.success) {
+            console.warn(`[VaultSection] Schema validation failed for ${sectionId}:`, validation.errors);
+            // Strip extra fields to match schema
+            validatedContent = stripExtraFields(sectionId, content);
+            console.log(`[VaultSection] Stripped extra fields from section ${sectionId}`);
+        } else {
+            console.log(`[VaultSection] Schema validation passed for ${sectionId}`);
+            validatedContent = validation.data; // Use validated/sanitized data
         }
 
         // Find the target funnel (use provided ID or get active funnel)
@@ -77,7 +92,7 @@ export async function PATCH(req) {
                 const existingData = session.results_data || {};
                 const updatedData = {
                     ...existingData,
-                    [sectionId]: { data: content }
+                    [sectionId]: { data: validatedContent }
                 };
                 
                 const { error: updateError } = await supabaseAdmin
@@ -126,7 +141,7 @@ export async function PATCH(req) {
             const { error: updateError } = await supabaseAdmin
                 .from('vault_content')
                 .update({
-                    content: content,
+                    content: validatedContent,
                     updated_at: new Date().toISOString(),
                     version: (existing.version || 1) + 1
                 })
@@ -147,7 +162,7 @@ export async function PATCH(req) {
                     user_id: userId,
                     section_id: sectionId,
                     section_title: sectionId,
-                    content: content,
+                    content: validatedContent,
                     phase: 1,
                     status: 'generated',
                     is_current_version: true
