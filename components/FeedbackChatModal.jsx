@@ -61,6 +61,82 @@ const SECTION_OPTIONS = {
     ]
 };
 
+/**
+ * Format AI-generated content for human-readable display
+ * Converts JSON objects/strings into clean, formatted text
+ */
+function formatPreviewContent(content) {
+    if (!content) return '';
+
+    // If it's a string that looks like JSON, try to parse it
+    if (typeof content === 'string') {
+        // Remove markdown code blocks if present
+        let cleaned = content.replace(/^```(?:json)?\n?/g, '').replace(/\n?```$/g, '').trim();
+
+        // Try to parse as JSON
+        try {
+            const parsed = JSON.parse(cleaned);
+            return formatObject(parsed);
+        } catch {
+            // Not JSON, return as-is but clean up escape sequences
+            return cleaned.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        }
+    }
+
+    // If it's already an object, format it
+    if (typeof content === 'object') {
+        return formatObject(content);
+    }
+
+    return String(content);
+}
+
+/**
+ * Recursively format an object into readable text
+ */
+function formatObject(obj, depth = 0) {
+    if (!obj || typeof obj !== 'object') return String(obj || '');
+
+    const indent = '  '.repeat(depth);
+    const lines = [];
+
+    for (const [key, value] of Object.entries(obj)) {
+        // Format the key as a readable label
+        const label = key
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/[_-]/g, ' ')
+            .replace(/^\s/, '')
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+
+        if (Array.isArray(value)) {
+            lines.push(`${indent}📌 ${label}:`);
+            value.forEach((item, i) => {
+                if (typeof item === 'object' && item !== null) {
+                    lines.push(`${indent}  ${i + 1}. ${formatObject(item, depth + 2)}`);
+                } else {
+                    lines.push(`${indent}  • ${item}`);
+                }
+            });
+        } else if (typeof value === 'object' && value !== null) {
+            lines.push(`${indent}📌 ${label}:`);
+            lines.push(formatObject(value, depth + 1));
+        } else if (value) {
+            // For simple key-value pairs
+            const valueStr = String(value).replace(/\\n/g, '\n');
+            if (valueStr.length > 100 || valueStr.includes('\n')) {
+                lines.push(`${indent}📌 ${label}:`);
+                lines.push(`${indent}  ${valueStr}`);
+            } else {
+                lines.push(`${indent}• ${label}: ${valueStr}`);
+            }
+        }
+    }
+
+    return lines.join('\n');
+}
+
 export default function FeedbackChatModal({
     isOpen,
     onClose,
@@ -305,8 +381,8 @@ Be as specific as possible - for example:
                                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                             >
                                 <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user'
-                                        ? 'bg-cyan text-black'
-                                        : 'bg-[#2a2a2d] text-white'
+                                    ? 'bg-cyan text-black'
+                                    : 'bg-[#2a2a2d] text-white'
                                     }`}>
                                     {msg.isThinking ? (
                                         <div className="flex items-center gap-2">
@@ -334,12 +410,9 @@ Be as specific as possible - for example:
 
                                     {/* Preview content */}
                                     {msg.showPreview && msg.previewContent && (
-                                        <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-48 overflow-y-auto">
-                                            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans">
-                                                {typeof msg.previewContent === 'string'
-                                                    ? msg.previewContent
-                                                    : JSON.stringify(msg.previewContent, null, 2)
-                                                }
+                                        <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
+                                            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                                {formatPreviewContent(msg.previewContent)}
                                             </pre>
                                         </div>
                                     )}
