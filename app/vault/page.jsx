@@ -392,8 +392,7 @@ export default function VaultPage() {
             await saveApprovals(newApprovals, approvedPhase2, funnelApproved);
 
             if (newApprovals.length >= PHASE_1_SECTIONS.length) {
-                toast.success("🎉 Phase 1 Complete! Choose your funnel.");
-                setTimeout(() => router.push('/funnel-recommendation'), 1500);
+                toast.success("🎉 Phase 1 Complete! Click 'Proceed to Phase 2' to continue.");
             } else {
                 toast.success("Section approved!");
             }
@@ -1641,18 +1640,22 @@ export default function VaultPage() {
                                                 <div className="w-16 h-16 bg-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
                                                     <Sparkles className="w-8 h-8 text-cyan" />
                                                 </div>
-                                                <h3 className="text-xl font-bold mb-2">Business Assets Complete!</h3>
+                                                <h3 className="text-xl font-bold mb-2">Phase 1 Complete!</h3>
                                                 <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                    Your core business assets are approved. Now, let's see which marketing funnel will work best for your offer.
+                                                    Your core business assets are approved. Now let's build your marketing assets in Phase 2.
                                                 </p>
                                                 <button
                                                     onClick={() => {
-                                                        const sessionId = dataSource?.id || searchParams.get('session_id');
-                                                        router.push(`/funnel-recommendation${sessionId ? `?session_id=${sessionId}` : ''}`);
+                                                        // Mark funnel as approved to unlock Phase 2
+                                                        setFunnelApproved(true);
+                                                        saveApprovals(approvedPhase1, approvedPhase2, true);
+                                                        // Switch to Phase 2 tab
+                                                        setActiveTab('assets');
+                                                        toast.success("Phase 2 unlocked! Review your marketing assets.");
                                                     }}
                                                     className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
                                                 >
-                                                    Show Recommended Funnel
+                                                    Proceed to Phase 2
                                                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                                 </button>
                                             </motion.div>
@@ -1689,7 +1692,7 @@ export default function VaultPage() {
                                                 </div>
                                                 <h3 className="text-xl font-bold mb-2">All Marketing Assets Complete!</h3>
                                                 <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                    Your entire vault is complete. Deploy or update your marketing funnel with all your approved content.
+                                                    Your entire vault is complete. Now let's build your recommended marketing funnel.
                                                 </p>
                                                 <button
                                                     onClick={() => {
@@ -1699,7 +1702,7 @@ export default function VaultPage() {
                                                     className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
                                                 >
                                                     <Sparkles className="w-5 h-5" />
-                                                    Deploy / Update Funnel
+                                                    Build Recommended Funnel
                                                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                                 </button>
                                             </motion.div>
