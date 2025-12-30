@@ -1111,16 +1111,64 @@ export default function VaultPage() {
         ]
     };
 
+    // Nested content sort order (for depth > 0)
+    // Defines explicit ordering for specific nested objects that need it
+    const NESTED_SORT_ORDER = {
+        storyBlueprint: [
+            'thePit',
+            'theSearch',
+            'theDrop',
+            'searchAgain',
+            'theBreakthrough',
+            'theOutcome'
+        ],
+        appointmentReminders: [
+            'contentTips',
+            'keyFeatures',
+            'preparationSteps',
+            'confirmationEmail',
+            'reminder48Hours',
+            'reminder24Hours',
+            'reminder1Hour',
+            'reminder10Minutes',
+            'startingNow',
+            'noShowFollowUp'
+        ]
+    };
+
     const getSectionTitle = (key) => {
-        let title = SECTION_TITLES[key] || key.replace(/([A-Z])/g, ' $1').trim();
+        if (!key) return '';
+
+        // Check for SECTION_TITLES match first
+        if (SECTION_TITLES[key]) return SECTION_TITLES[key];
+
+        // Handle keys with underscores (e.g., part2_discovery)
+        let processedKey = key;
+
+        // Case: PART2_DISCOVERY or part2_discovery
+        if (processedKey.match(/part\d+_/i)) {
+            processedKey = processedKey.replace(/_/g, ': ');
+        }
+
+        // Standardize camelCase to spaces
+        let title = processedKey.replace(/([A-Z])/g, ' $1').trim();
+
+        // Replace underscores with spaces if any remain
+        title = title.replace(/_/g, ' ');
 
         // Capitalize acronyms correctly
-        return title
+        title = title
             .replace(/\bCta\b/g, 'CTA')
             .replace(/\bVsl\b/g, 'VSL')
             .replace(/\bSms\b/g, 'SMS')
             .replace(/\bFaq\b/g, 'FAQ')
             .replace(/\bIcp\b/g, 'ICP');
+
+        // Fix "Part 2 : Discovery" spacing issues
+        title = title.replace(/\s+:\s+/g, ': ');
+
+        // Title case the result
+        return title.charAt(0).toUpperCase() + title.slice(1);
     };
 
     // Content Renderer with enhanced formatting
@@ -1180,22 +1228,88 @@ export default function VaultPage() {
             }
 
             // Objects - render sections
+                        // Objects - render sections
             if (typeof value === 'object') {
                 let keys = Object.keys(value).filter((k) =>
                     k !== '_contentName' && k !== 'id' && k !== 'idealClientProfile'
                 );
 
-                // Apply custom sort order if exists for this sectionId
-                if (sectionId && SECTION_SORT_ORDER[sectionId]) {
+                // Smart sort helper function
+                const smartSort = (a, b) => {
+                    // Extract numbers from start of meaningful strings
+                    // Supports: "4. Title", "Phase 1", "Part 2", "Step 3", "Tier 1"
+                    const getNum = (str) => {
+                         // Check for "Part 1", "Step 2" types
+                        const match = str.match(/(?:^|part|step|phase|tier)\s?_?(\d+)/i);
+                        if (match && match[1]) {
+                           return parseInt(match[1], 10);
+                        }
+                        // Check for "4. Title" format (number at start followed by dot/space)
+                        const startMatch = str.match(/^(\d+)[._\s]/);
+                        if (startMatch && startMatch[1]) {
+                            return parseInt(startMatch[1], 10);
+                        }
+                        return null;
+                    };
+
+                    const numA = getNum(a);
+                    const numB = getNum(b);
+
+                    // Strictly sort by number if both have numbers
+                    if (numA !== null && numB !== null) {
+                        return numA - numB;
+                    }
+                    
+                    // Put numbered items BEFORE non-numbered items
+                    if (numA !== null && numB === null) return -1;
+                    if (numA === null && numB !== null) return 1;
+                    
+                    // Fallback to alphabetical
+                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+                };
+
+                // SORTING LOGIC:
+                // 1. If depth > 0 (nested content), check NESTED_SORT_ORDER first, then smartSort
+                // 2. If depth === 0 (top level), check SECTION_SORT_ORDER first
+                if (depth > 0) {
+                    // Check if this nested object has a predefined sort order
+                    if (key && NESTED_SORT_ORDER[key]) {
+                        const order = NESTED_SORT_ORDER[key];
+                        const hasOrderedKeys = keys.some(k => order.includes(k));
+
+                        if (hasOrderedKeys) {
+                            keys = keys.sort((a, b) => {
+                                const indexA = order.indexOf(a);
+                                const indexB = order.indexOf(b);
+                                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                                if (indexA !== -1) return -1;
+                                if (indexB !== -1) return 1;
+                                return smartSort(a, b);
+                            });
+                        } else {
+                            keys = keys.sort(smartSort);
+                        }
+                    } else {
+                        keys = keys.sort(smartSort);
+                    }
+                } else if (sectionId && SECTION_SORT_ORDER[sectionId]) {
                     const order = SECTION_SORT_ORDER[sectionId];
-                    keys = keys.sort((a, b) => {
-                        const indexA = order.indexOf(a);
-                        const indexB = order.indexOf(b);
-                        if (indexA === -1 && indexB === -1) return 0;
-                        if (indexA === -1) return 1;
-                        if (indexB === -1) return -1;
-                        return indexA - indexB;
-                    });
+                    const hasOrderedKeys = keys.some(k => order.includes(k));
+                    
+                    if (hasOrderedKeys) {
+                        keys = keys.sort((a, b) => {
+                            const indexA = order.indexOf(a);
+                            const indexB = order.indexOf(b);
+                            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                            if (indexA !== -1) return -1;
+                            if (indexB !== -1) return 1;
+                            return smartSort(a, b);
+                        });
+                    } else {
+                        keys = keys.sort(smartSort);
+                    }
+                } else {
+                    keys = keys.sort(smartSort);
                 }
 
                 const entries = keys.map(k => [k, value[k]]);
