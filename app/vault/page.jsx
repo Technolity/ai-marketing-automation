@@ -137,10 +137,10 @@ function deepMerge(target, source, depth = 0) {
         console.log('[DeepMerge] Raw content detected, returning as-is');
         return source._rawContent;
     }
-    
+
     if (!source || typeof source !== 'object') return target;
     if (!target || typeof target !== 'object') return source;
-    
+
     // Prevent infinite recursion
     if (depth > 10) {
         console.warn('[DeepMerge] Max depth reached');
@@ -152,9 +152,9 @@ function deepMerge(target, source, depth = 0) {
     for (const [key, value] of Object.entries(source)) {
         // Skip internal keys
         if (key.startsWith('_')) continue;
-        
+
         console.log(`[DeepMerge] Processing key: ${key}, depth: ${depth}`);
-        
+
         // First, check if this key exists directly in target
         if (key in result) {
             if (value && typeof value === 'object' && !Array.isArray(value)) {
@@ -1677,6 +1677,32 @@ export default function VaultPage() {
                                     isPhase2Complete ? (
                                         <div className="grid gap-3">
                                             {PHASE_2_SECTIONS.map((section) => renderCompletedSection(section, 2))}
+
+                                            {/* Deploy/Update Funnel button for Phase 2 complete */}
+                                            <motion.div
+                                                initial={{ opacity: 0, scale: 0.95 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-cyan/20 text-center shadow-2xl shadow-cyan/5"
+                                            >
+                                                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <CheckCircle className="w-8 h-8 text-green-500" />
+                                                </div>
+                                                <h3 className="text-xl font-bold mb-2">All Marketing Assets Complete!</h3>
+                                                <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+                                                    Your entire vault is complete. Deploy or update your marketing funnel with all your approved content.
+                                                </p>
+                                                <button
+                                                    onClick={() => {
+                                                        const sessionId = dataSource?.id || searchParams.get('session_id');
+                                                        router.push(`/funnel-recommendation${sessionId ? `?session_id=${sessionId}` : ''}`);
+                                                    }}
+                                                    className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
+                                                >
+                                                    <Sparkles className="w-5 h-5" />
+                                                    Deploy / Update Funnel
+                                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                </button>
+                                            </motion.div>
                                         </div>
                                     ) : (
                                         PHASE_2_SECTIONS.map((section, index) => {
@@ -1776,7 +1802,7 @@ export default function VaultPage() {
                         sessionId={dataSource?.id}
                         onSave={async (refinedContent) => {
                             console.log('[Vault] onSave called with:', JSON.stringify(refinedContent).substring(0, 200));
-                            
+
                             // Parse and clean the refined content
                             const cleanContent = parseAndCleanContent(refinedContent);
                             console.log('[Vault] Cleaned content:', JSON.stringify(cleanContent).substring(0, 200));
@@ -1784,16 +1810,16 @@ export default function VaultPage() {
                             // Get existing content for this section
                             const existing = vaultData[feedbackSection.id] || {};
                             console.log('[Vault] Existing content keys:', Object.keys(existing));
-                            
+
                             // Deep merge into existing content
                             // This handles both full section updates and sub-section updates
                             let merged;
-                            
+
                             // Check if cleanContent has keys that exist in existing content
                             const cleanKeys = Object.keys(cleanContent);
                             const existingKeys = Object.keys(existing);
                             const hasMatchingKeys = cleanKeys.some(k => existingKeys.includes(k));
-                            
+
                             if (hasMatchingKeys || cleanKeys.length === 0) {
                                 // Normal merge - keys match or cleanContent is empty
                                 merged = deepMerge(existing, cleanContent);
@@ -1815,13 +1841,13 @@ export default function VaultPage() {
                                         }
                                     }
                                 }
-                                
+
                                 if (!foundNested) {
                                     // Just merge at top level
                                     merged = deepMerge(existing, cleanContent);
                                 }
                             }
-                            
+
                             console.log('[Vault] Merged content keys:', Object.keys(merged));
 
                             // Update local state IMMEDIATELY for instant UI feedback
@@ -1829,7 +1855,7 @@ export default function VaultPage() {
                                 ...prev,
                                 [feedbackSection.id]: merged
                             }));
-                            
+
                             // Mark that we have unsaved changes (for the Save button)
                             setUnsavedChanges(true);
 
@@ -1837,7 +1863,7 @@ export default function VaultPage() {
                             try {
                                 const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
                                 console.log('[Vault] Saving to session:', sessionId);
-                                
+
                                 const response = await fetchWithAuth('/api/os/vault-section', {
                                     method: 'PATCH',
                                     headers: { 'Content-Type': 'application/json' },
