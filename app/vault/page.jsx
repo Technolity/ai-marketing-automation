@@ -69,20 +69,21 @@ function normalizeData(rawData) {
     return normalized;
 }
 
+// Common wrappers that AI often adds around content
+const AI_WRAPPERS = [
+    'signatureOffer', 'idealClientProfile', 'millionDollarMessage',
+    'signatureStory', 'masterBlueprint', 'programBlueprint',
+    'setterCallScript', 'closerCallScript', 'leadMagnet',
+    'vslScript', 'emailSequence', 'adCopy', 'funnelCopy'
+];
+
 /**
- * Parse and clean AI-generated content (handles JSON strings, markdown blocks, etc.)
+ * Parse and clean AI-generated content (handles JSON strings, markdown blocks, and unwraps common wrappers)
  */
 function parseAndCleanContent(content) {
     if (!content) return {};
 
-    // If already an object, recursively clean any nested JSON strings
-    if (typeof content === 'object' && !Array.isArray(content)) {
-        const cleaned = {};
-        for (const [key, value] of Object.entries(content)) {
-            cleaned[key] = parseAndCleanContent(value);
-        }
-        return cleaned;
-    }
+    let parsed = content;
 
     // If it's a string, try to extract JSON
     if (typeof content === 'string') {
@@ -94,18 +95,41 @@ function parseAndCleanContent(content) {
 
         // Try to parse as JSON
         try {
-            return JSON.parse(cleaned);
+            parsed = JSON.parse(cleaned);
         } catch {
             // Return as-is if not valid JSON
             return content;
         }
     }
 
-    return content;
+    // Unwrap common AI wrappers (e.g., { signatureOffer: { offerName: "..." } } -> { offerName: "..." })
+    if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const keys = Object.keys(parsed);
+        if (keys.length === 1 && AI_WRAPPERS.includes(keys[0])) {
+            parsed = parsed[keys[0]];
+        }
+    }
+
+    // Recursively clean nested content
+    if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const cleaned = {};
+        for (const [key, value] of Object.entries(parsed)) {
+            // Skip wrapper keys if they exist in nested content
+            if (AI_WRAPPERS.includes(key) && typeof value === 'object') {
+                Object.assign(cleaned, parseAndCleanContent(value));
+            } else {
+                cleaned[key] = typeof value === 'string' ? value.replace(/\\n/g, '\n') : value;
+            }
+        }
+        return cleaned;
+    }
+
+    return parsed;
 }
 
 /**
- * Deep merge two objects (new values override old, but preserves existing keys)
+ * Deep merge with intelligent field matching
+ * Finds the correct location for updated fields even if nested differently
  */
 function deepMerge(target, source) {
     if (!source || typeof source !== 'object') return target;
@@ -114,16 +138,44 @@ function deepMerge(target, source) {
     const result = { ...target };
 
     for (const [key, value] of Object.entries(source)) {
-        if (value && typeof value === 'object' && !Array.isArray(value)) {
-            // Recursively merge objects
-            result[key] = deepMerge(result[key] || {}, value);
-        } else if (value !== undefined && value !== null) {
-            // Override with new value
-            result[key] = value;
+        // First, check if this key exists directly in target
+        if (key in result) {
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                result[key] = deepMerge(result[key] || {}, value);
+            } else if (value !== undefined && value !== null) {
+                result[key] = value;
+            }
+        } else {
+            // Key doesn't exist at this level - search for it deeper
+            const found = findAndReplaceInObject(result, key, value);
+            if (!found) {
+                // If not found anywhere, add it at this level
+                result[key] = value;
+            }
         }
     }
 
     return result;
+}
+
+/**
+ * Search for a key in nested object and replace its value
+ */
+function findAndReplaceInObject(obj, searchKey, newValue) {
+    if (!obj || typeof obj !== 'object') return false;
+
+    for (const [key, value] of Object.entries(obj)) {
+        if (key === searchKey) {
+            obj[key] = newValue;
+            return true;
+        }
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            if (findAndReplaceInObject(value, searchKey, newValue)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 export default function VaultPage() {
