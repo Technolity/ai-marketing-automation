@@ -68,73 +68,115 @@ const SECTION_OPTIONS = {
 function formatPreviewContent(content) {
     if (!content) return '';
 
-    // If it's a string that looks like JSON, try to parse it
+    // Deep parse to handle nested JSON strings
+    const parsed = deepParseJSON(content);
+
+    // Format the parsed content for display
+    return formatForDisplay(parsed);
+}
+
+/**
+ * Recursively parse JSON strings, including those wrapped in markdown code blocks
+ */
+function deepParseJSON(content) {
+    if (!content) return content;
+
     if (typeof content === 'string') {
         // Remove markdown code blocks if present
-        let cleaned = content.replace(/^```(?:json)?\n?/g, '').replace(/\n?```$/g, '').trim();
+        let cleaned = content
+            .replace(/^```(?:json)?[\s\n]*/gi, '')
+            .replace(/[\s\n]*```$/gi, '')
+            .trim();
 
         // Try to parse as JSON
         try {
             const parsed = JSON.parse(cleaned);
-            return formatObject(parsed);
+            // Recursively parse any nested JSON strings
+            return deepParseJSON(parsed);
         } catch {
-            // Not JSON, return as-is but clean up escape sequences
+            // Not JSON, return cleaned string
             return cleaned.replace(/\\n/g, '\n').replace(/\\"/g, '"');
         }
     }
 
-    // If it's already an object, format it
-    if (typeof content === 'object') {
-        return formatObject(content);
+    if (Array.isArray(content)) {
+        return content.map(item => deepParseJSON(item));
     }
 
-    return String(content);
+    if (typeof content === 'object' && content !== null) {
+        const result = {};
+        for (const [key, value] of Object.entries(content)) {
+            result[key] = deepParseJSON(value);
+        }
+        return result;
+    }
+
+    return content;
 }
 
 /**
- * Recursively format an object into readable text
+ * Format parsed content into human-readable text
  */
-function formatObject(obj, depth = 0) {
-    if (!obj || typeof obj !== 'object') return String(obj || '');
+function formatForDisplay(content, depth = 0) {
+    if (!content) return '';
 
-    const indent = '  '.repeat(depth);
-    const lines = [];
-
-    for (const [key, value] of Object.entries(obj)) {
-        // Format the key as a readable label
-        const label = key
-            .replace(/([A-Z])/g, ' $1')
-            .replace(/[_-]/g, ' ')
-            .replace(/^\s/, '')
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(' ');
-
-        if (Array.isArray(value)) {
-            lines.push(`${indent}📌 ${label}:`);
-            value.forEach((item, i) => {
-                if (typeof item === 'object' && item !== null) {
-                    lines.push(`${indent}  ${i + 1}. ${formatObject(item, depth + 2)}`);
-                } else {
-                    lines.push(`${indent}  • ${item}`);
-                }
-            });
-        } else if (typeof value === 'object' && value !== null) {
-            lines.push(`${indent}📌 ${label}:`);
-            lines.push(formatObject(value, depth + 1));
-        } else if (value) {
-            // For simple key-value pairs
-            const valueStr = String(value).replace(/\\n/g, '\n');
-            if (valueStr.length > 100 || valueStr.includes('\n')) {
-                lines.push(`${indent}📌 ${label}:`);
-                lines.push(`${indent}  ${valueStr}`);
-            } else {
-                lines.push(`${indent}• ${label}: ${valueStr}`);
-            }
-        }
+    if (typeof content === 'string') {
+        return content;
     }
 
-    return lines.join('\n');
+    if (Array.isArray(content)) {
+        return content.map((item, i) => {
+            if (typeof item === 'object' && item !== null) {
+                return `  ${i + 1}. ${formatForDisplay(item, depth + 1)}`;
+            }
+            return `  • ${item}`;
+        }).join('\n');
+    }
+
+    if (typeof content === 'object') {
+        const lines = [];
+        const indent = '  '.repeat(depth);
+
+        for (const [key, value] of Object.entries(content)) {
+            // Skip internal keys
+            if (key.startsWith('_')) continue;
+
+            // Format the key as a readable label
+            const label = key
+                .replace(/([A-Z])/g, ' $1')
+                .replace(/[_-]/g, ' ')
+                .replace(/^\s/, '')
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+
+            if (Array.isArray(value)) {
+                lines.push(`${indent}📌 ${label}:`);
+                value.forEach((item, i) => {
+                    if (typeof item === 'object' && item !== null) {
+                        lines.push(`${indent}  ${i + 1}. ${formatForDisplay(item, depth + 2)}`);
+                    } else {
+                        lines.push(`${indent}  • ${String(item)}`);
+                    }
+                });
+            } else if (typeof value === 'object' && value !== null) {
+                lines.push(`${indent}📌 ${label}:`);
+                lines.push(formatForDisplay(value, depth + 1));
+            } else if (value !== null && value !== undefined) {
+                const valueStr = String(value).replace(/\\n/g, '\n');
+                if (valueStr.length > 80 || valueStr.includes('\n')) {
+                    lines.push(`${indent}📌 ${label}:`);
+                    lines.push(`${indent}  ${valueStr}`);
+                } else {
+                    lines.push(`${indent}• ${label}: ${valueStr}`);
+                }
+            }
+        }
+
+        return lines.join('\n');
+    }
+
+    return String(content);
 }
 
 export default function FeedbackChatModal({
