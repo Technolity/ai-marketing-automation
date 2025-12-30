@@ -69,6 +69,63 @@ function normalizeData(rawData) {
     return normalized;
 }
 
+/**
+ * Parse and clean AI-generated content (handles JSON strings, markdown blocks, etc.)
+ */
+function parseAndCleanContent(content) {
+    if (!content) return {};
+
+    // If already an object, recursively clean any nested JSON strings
+    if (typeof content === 'object' && !Array.isArray(content)) {
+        const cleaned = {};
+        for (const [key, value] of Object.entries(content)) {
+            cleaned[key] = parseAndCleanContent(value);
+        }
+        return cleaned;
+    }
+
+    // If it's a string, try to extract JSON
+    if (typeof content === 'string') {
+        // Remove markdown code blocks
+        let cleaned = content
+            .replace(/^```(?:json)?[\s\n]*/gi, '')
+            .replace(/[\s\n]*```$/gi, '')
+            .trim();
+
+        // Try to parse as JSON
+        try {
+            return JSON.parse(cleaned);
+        } catch {
+            // Return as-is if not valid JSON
+            return content;
+        }
+    }
+
+    return content;
+}
+
+/**
+ * Deep merge two objects (new values override old, but preserves existing keys)
+ */
+function deepMerge(target, source) {
+    if (!source || typeof source !== 'object') return target;
+    if (!target || typeof target !== 'object') return source;
+
+    const result = { ...target };
+
+    for (const [key, value] of Object.entries(source)) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Recursively merge objects
+            result[key] = deepMerge(result[key] || {}, value);
+        } else if (value !== undefined && value !== null) {
+            // Override with new value
+            result[key] = value;
+        }
+    }
+
+    return result;
+}
+
 export default function VaultPage() {
     const router = useRouter();
     const { session, loading: authLoading } = useAuth();
@@ -1644,11 +1701,18 @@ export default function VaultPage() {
                         currentContent={vaultData[feedbackSection.id]}
                         sessionId={dataSource?.id}
                         onSave={(refinedContent) => {
-                            // Update vault data with refined content
-                            setVaultData(prev => ({
-                                ...prev,
-                                [feedbackSection.id]: refinedContent
-                            }));
+                            // Parse and clean the refined content
+                            const cleanContent = parseAndCleanContent(refinedContent);
+
+                            // Deep merge into existing content instead of replacing
+                            setVaultData(prev => {
+                                const existing = prev[feedbackSection.id] || {};
+                                const merged = deepMerge(existing, cleanContent);
+                                return {
+                                    ...prev,
+                                    [feedbackSection.id]: merged
+                                };
+                            });
                             setUnsavedChanges(true);
                             setFeedbackModalOpen(false);
                             setFeedbackSection(null);
