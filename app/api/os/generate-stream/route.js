@@ -1,8 +1,7 @@
-import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getPromptByKey } from '@/lib/prompts';
-import { getAvailableProvider, AI_PROVIDERS, getOpenAIClient, getClaudeClient, getGeminiClient } from '@/lib/ai/providerConfig';
+import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 
 // Content titles for display
@@ -38,100 +37,8 @@ const DISPLAY_NAMES = {
     17: 'Setter Script'
 };
 
-/**
- * Multi-provider AI generation with fallback
- * Tries providers in order: OpenAI -> Claude -> Gemini
- */
-async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
-    const providers = ['OPENAI', 'CLAUDE', 'GEMINI'];
-    let lastError = null;
-
-    for (const providerKey of providers) {
-        const config = AI_PROVIDERS[providerKey];
-
-        // Skip if provider is not enabled or doesn't have an API key
-        if (!config.enabled || !config.apiKey) {
-            continue;
-        }
-
-        try {
-            switch (providerKey) {
-                case 'OPENAI': {
-                    const client = getOpenAIClient();
-                    const completion = await client.chat.completions.create({
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt }
-                        ],
-                        model: config.models.text,
-                        response_format: options.jsonMode ? { type: "json_object" } : undefined,
-                        max_tokens: options.maxTokens || 6000,
-                        temperature: options.temperature || 0.7,
-                    });
-                    return completion.choices[0].message.content;
-                }
-
-                case 'CLAUDE': {
-                    const client = getClaudeClient();
-                    const response = await client.messages.create({
-                        model: config.models.text,
-                        max_tokens: options.maxTokens || 6000,
-                        system: systemPrompt,
-                        messages: [{ role: 'user', content: userPrompt + (options.jsonMode ? '\n\nIMPORTANT: Return ONLY valid JSON, no markdown code blocks.' : '') }],
-                        temperature: options.temperature || 0.7
-                    });
-                    return response.content[0].text;
-                }
-
-                case 'GEMINI': {
-                    const client = getGeminiClient();
-                    const model = client.getGenerativeModel({
-                        model: config.models.text,
-                        generationConfig: {
-                            temperature: options.temperature || 0.7,
-                            maxOutputTokens: options.maxTokens || 6000
-                        }
-                    });
-                    const fullPrompt = `${systemPrompt}\n\n${userPrompt}${options.jsonMode ? '\n\nIMPORTANT: Return ONLY valid JSON, no markdown code blocks.' : ''}`;
-                    const result = await model.generateContent(fullPrompt);
-                    const response = await result.response;
-                    return response.text();
-                }
-            }
-        } catch (error) {
-            console.error(`[STREAM-AI] ${config.name} failed:`, error.message);
-            lastError = error;
-        }
-    }
-
-    throw lastError || new Error('No AI providers available');
-}
-
-// Retry configuration
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000;
-
-// Retry helper with exponential backoff
-async function retryWithBackoff(fn, maxRetries = MAX_RETRIES, retryDelay = RETRY_DELAY_MS) {
-    let lastError;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            return await fn();
-        } catch (error) {
-            lastError = error;
-            if (error.status === 401 || error.status === 400) {
-                throw error;
-            }
-            if (attempt < maxRetries) {
-                const delay = retryDelay * Math.pow(2, attempt - 1);
-                console.log(`[STREAM-RETRY] Attempt ${attempt} failed, retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-    }
-    throw lastError;
-}
+// Note: generateWithProvider and retryWithBackoff are now imported from sharedAiUtils
+// This eliminates code duplication and provides enhanced features like caching and circuit breakers
 
 /**
  * POST /api/os/generate-stream

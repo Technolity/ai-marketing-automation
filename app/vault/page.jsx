@@ -1752,20 +1752,43 @@ export default function VaultPage() {
                         sectionTitle={feedbackSection.title}
                         currentContent={vaultData[feedbackSection.id]}
                         sessionId={dataSource?.id}
-                        onSave={(refinedContent) => {
+                        onSave={async (refinedContent) => {
                             // Parse and clean the refined content
                             const cleanContent = parseAndCleanContent(refinedContent);
 
                             // Deep merge into existing content instead of replacing
-                            setVaultData(prev => {
-                                const existing = prev[feedbackSection.id] || {};
-                                const merged = deepMerge(existing, cleanContent);
-                                return {
-                                    ...prev,
-                                    [feedbackSection.id]: merged
-                                };
-                            });
-                            setUnsavedChanges(true);
+                            const existing = vaultData[feedbackSection.id] || {};
+                            const merged = deepMerge(existing, cleanContent);
+
+                            // Update local state
+                            setVaultData(prev => ({
+                                ...prev,
+                                [feedbackSection.id]: merged
+                            }));
+
+                            // Persist to database
+                            try {
+                                const response = await fetchWithAuth('/api/os/vault-section', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        sectionId: feedbackSection.id,
+                                        content: merged,
+                                        funnelId: dataSource?.id
+                                    })
+                                });
+
+                                if (response.ok) {
+                                    toast.success('Changes saved to database!');
+                                } else {
+                                    console.error('[Vault] Failed to persist to database');
+                                    toast.error('Saved locally, but failed to sync with database.');
+                                }
+                            } catch (error) {
+                                console.error('[Vault] Database save error:', error);
+                                toast.error('Saved locally, but failed to sync with database.');
+                            }
+
                             setFeedbackModalOpen(false);
                             setFeedbackSection(null);
                         }}

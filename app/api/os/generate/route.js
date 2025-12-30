@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { auth } from '@clerk/nextjs';
 
-// Import multi-provider AI config
-import { getAvailableProvider, AI_PROVIDERS, getOpenAIClient, getClaudeClient, getGeminiClient } from '@/lib/ai/providerConfig';
+// Import shared AI utilities (centralized and optimized)
+import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 
-// Import RAG retrieval helpers
+// Import RAG retrieval helpers (now with caching)
 import { getRelevantContext, injectContextIntoPrompt, getKnowledgeBaseStats } from '@/lib/rag/retrieve';
 
 // Import JSON parser with error recovery
@@ -29,119 +28,9 @@ import { youtubeShowPrompt } from '@/lib/prompts/youtubeShow';
 import { contentPillarsPrompt } from '@/lib/prompts/contentPillars';
 import { bioPrompt } from '@/lib/prompts/bio';
 import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
-import { masterPrompt } from '@/lib/prompts/masterPrompt';
 
-// Legacy OpenAI client (fallback)
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-/**
- * Multi-provider AI generation with fallback
- * Tries providers in order: OpenAI -> Claude -> Gemini
- */
-async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
-  const providers = ['OPENAI', 'CLAUDE', 'GEMINI'];
-  let lastError = null;
-
-  for (const providerKey of providers) {
-    const config = AI_PROVIDERS[providerKey];
-
-    // Skip if provider is not enabled or doesn't have an API key
-    if (!config.enabled || !config.apiKey) {
-      console.log(`[AI] Skipping ${providerKey}: enabled=${config.enabled}, hasKey=${!!config.apiKey}`);
-      continue;
-    }
-
-    console.log(`[AI] Trying ${config.name} for generation...`);
-
-    try {
-      switch (providerKey) {
-        case 'OPENAI': {
-          const client = getOpenAIClient();
-          const completion = await client.chat.completions.create({
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            model: config.models.text,
-            response_format: options.jsonMode ? { type: "json_object" } : undefined,
-            max_tokens: options.maxTokens || 6000, // Increased from 1500 for large content structures
-            temperature: options.temperature || 0.7,
-          });
-          console.log(`[AI] ${config.name} succeeded!`);
-          return completion.choices[0].message.content;
-        }
-
-        case 'CLAUDE': {
-          const client = getClaudeClient();
-          const response = await client.messages.create({
-            model: config.models.text,
-            max_tokens: options.maxTokens || 6000, // Increased from 1500 for large content structures
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userPrompt + (options.jsonMode ? '\n\nIMPORTANT: Return ONLY valid JSON, no markdown code blocks.' : '') }],
-            temperature: options.temperature || 0.7
-          });
-          console.log(`[AI] ${config.name} succeeded!`);
-          return response.content[0].text;
-        }
-
-        case 'GEMINI': {
-          const client = getGeminiClient();
-          const model = client.getGenerativeModel({
-            model: config.models.text,
-            generationConfig: {
-              temperature: options.temperature || 0.7,
-              maxOutputTokens: options.maxTokens || 6000 // Increased from 1500 for large content structures
-            }
-          });
-          const fullPrompt = `${systemPrompt}\n\n${userPrompt}${options.jsonMode ? '\n\nIMPORTANT: Return ONLY valid JSON, no markdown code blocks.' : ''}`;
-          const result = await model.generateContent(fullPrompt);
-          const response = await result.response;
-          console.log(`[AI] ${config.name} succeeded!`);
-          return response.text();
-        }
-      }
-    } catch (error) {
-      console.error(`[AI] ${config.name} failed:`, error.message);
-      lastError = error;
-      // Continue to next provider
-    }
-  }
-
-  // All providers failed
-  throw lastError || new Error('No AI providers available. Please configure at least one provider in .env.local');
-}
-
-// Retry configuration
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1000; // Start with 1 second
-
-// Retry helper with exponential backoff
-async function retryWithBackoff(fn, maxRetries = MAX_RETRIES, retryDelay = RETRY_DELAY_MS) {
-  let lastError;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error) {
-      lastError = error;
-
-      // Don't retry on authentication errors or invalid requests
-      if (error.status === 401 || error.status === 400) {
-        throw error;
-      }
-
-      if (attempt < maxRetries) {
-        const delay = retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
-        console.log(`[RETRY] Attempt ${attempt} failed, retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
-
-  throw lastError;
-}
+// Note: generateWithProvider and retryWithBackoff are now imported from sharedAiUtils
+// This eliminates code duplication and provides enhanced features like caching and circuit breakers
 
 // All prompts mapped by key for final generation
 const osPrompts = {
