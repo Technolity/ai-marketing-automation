@@ -113,8 +113,17 @@ export async function POST(req) {
 
             console.log(`[STREAM] Starting parallel generation for 13 sections with concurrency control...`);
 
-            // Use a simple concurrency limit to avoid rate limits
-            const CONCURRENCY_LIMIT = 5;
+            // Reduced concurrency to avoid overwhelming AI providers (was 5, now 3)
+            const CONCURRENCY_LIMIT = 3;
+
+            // Heavy sections that need more time (in ms)
+            const SECTION_TIMEOUTS = {
+                4: 120000,  // Offer - complex 7-step blueprint
+                5: 120000,  // Sales Script (Closer) - long conversational script
+                17: 120000, // Setter Script - detailed call flow
+                8: 120000   // Emails - multiple email sequences
+            };
+
             const chunks = [];
             for (let i = 0; i < promptKeys.length; i += CONCURRENCY_LIMIT) {
                 chunks.push(promptKeys.slice(i, i + CONCURRENCY_LIMIT));
@@ -138,14 +147,20 @@ export async function POST(req) {
 
                         const rawPrompt = promptFn(data);
 
-                        // Generate
+                        // Generate with section-specific timeout
+                        const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
                         const rawContent = await retryWithBackoff(async () => {
                             return await generateWithProvider(
                                 "You are an elite business growth strategist. Return ONLY valid JSON.",
                                 rawPrompt,
-                                { jsonMode: true, maxTokens: key === 8 ? 8000 : 4000 }
+                                {
+                                    jsonMode: true,
+                                    maxTokens: key === 8 ? 8000 : 4000,
+                                    timeout: sectionTimeout
+                                }
                             );
                         });
+
 
                         const parsed = parseJsonSafe(rawContent);
 

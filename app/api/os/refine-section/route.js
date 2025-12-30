@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-import OpenAI from 'openai';
+import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 
 /**
@@ -12,9 +12,8 @@ import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/sch
  * specific improvements without blind regeneration.
  */
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+
+// Note: Using generateWithProvider from sharedAiUtils for timeout handling and provider fallback
 
 // Section-specific refinement prompts
 const REFINEMENT_PROMPTS = {
@@ -102,18 +101,16 @@ export async function POST(req) {
 
         console.log('[RefineSection] Calling OpenAI...');
 
-        // Call OpenAI for refinement
-        const completion = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: sectionConfig.system },
-                { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.7 + (iteration * 0.05), // Slightly increase temperature for alternatives
-            max_tokens: 2000
-        });
-
-        const refinedText = completion.choices[0]?.message?.content;
+        // Call AI for refinement using shared utilities (includes timeout and provider fallback)
+        const refinedText = await generateWithProvider(
+            sectionConfig.system,
+            userPrompt,
+            {
+                jsonMode: true,
+                maxTokens: 2000,
+                temperature: 0.7 + (iteration * 0.05) // Slightly increase temperature for alternatives
+            }
+        );
 
         if (!refinedText) {
             throw new Error('No response from AI');
@@ -283,8 +280,8 @@ ${schemaInstructions}
 OUTPUT REQUIREMENTS:
 1. You MUST return valid JSON that can be parsed with JSON.parse()
 2. ${isSubSection
-        ? `Return a JSON object with the key "${subSection}" containing the updated content, like: {"${subSection}": <updated_content>}`
-        : `Return the complete updated JSON structure for the entire ${sectionId} section`}
+            ? `Return a JSON object with the key "${subSection}" containing the updated content, like: {"${subSection}": <updated_content>}`
+            : `Return the complete updated JSON structure for the entire ${sectionId} section`}
 3. Preserve the original data types - if a field was an array, keep it as an array
 4. Maintain exact array lengths from the original (e.g., if there are 3 items, keep 3 items)
 5. Do NOT add any new fields that don't exist in the current content

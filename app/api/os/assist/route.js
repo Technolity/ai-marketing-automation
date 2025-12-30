@@ -1,23 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { auth } from '@clerk/nextjs';
-import OpenAI from "openai";
+import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Supabase admin client (Service Role)
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-        },
-    }
-);
+// Note: Using generateWithProvider from sharedAiUtils for timeout handling and provider fallback
 
 export async function POST(req) {
     try {
@@ -57,16 +42,14 @@ Return ONLY valid JSON in this format:
   ]
 }`;
 
-        const completion = await openai.chat.completions.create({
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: "Generate 5 suggestions now." }
-            ],
-            model: "gpt-4o-mini", // Changed from gpt-4-turbo-preview for better rate limits
-            response_format: { type: "json_object" },
-        });
+        // Use shared AI utilities for timeout handling and provider fallback
+        const response = await generateWithProvider(
+            systemPrompt,
+            "Generate 5 suggestions now.",
+            { jsonMode: true, maxTokens: 1000 }
+        );
 
-        const result = JSON.parse(completion.choices[0].message.content);
+        const result = JSON.parse(response);
         return NextResponse.json({ suggestions: result.suggestions });
 
     } catch (error) {

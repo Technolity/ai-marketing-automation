@@ -595,38 +595,68 @@ export async function POST(req) {
       const successfulItems = [];
       const failedItems = [];
 
-      // Generate only the missing sections
-      const promises = sectionsToGenerate.map(async (key) => {
-        const numKey = parseInt(key);
-        if (!osPrompts[numKey]) {
-          console.warn(`[FILL-MISSING] No prompt found for section ${numKey}`);
-          return { key: numKey, success: false, error: 'No prompt available' };
-        }
+      // Use controlled concurrency for fill-missing as well
+      const FILL_MISSING_CONCURRENCY = 3;
+      const SECTION_TIMEOUTS = {
+        4: 120000,  // Offer
+        5: 120000,  // Sales Script (Closer)
+        17: 120000, // Setter Script
+        8: 120000,  // Emails
+        9: 120000,  // Facebook Ads
+        10: 120000  // Funnel Copy
+      };
 
-        try {
-          let basePrompt = osPrompts[numKey](userData);
+      // Chunk sections to generate
+      const chunks = [];
+      for (let i = 0; i < sectionsToGenerate.length; i += FILL_MISSING_CONCURRENCY) {
+        chunks.push(sectionsToGenerate.slice(i, i + FILL_MISSING_CONCURRENCY));
+      }
 
-          // RAG Enhancement
-          if (useRAG && CONTENT_TYPE_MAP[numKey]) {
-            try {
-              const ragContext = await getRelevantContext(CONTENT_TYPE_MAP[numKey], userData);
-              if (ragContext && ragContext.hasContext) {
-                basePrompt = injectContextIntoPrompt(basePrompt, ragContext);
-                console.log(`[FILL-MISSING] Enhanced prompt ${numKey} with RAG`);
-              }
-            } catch (ragError) {
-              console.error(`[FILL-MISSING] RAG failed for ${numKey}:`, ragError.message);
-            }
+      console.log(`[FILL-MISSING] Processing ${sectionsToGenerate.length} sections in ${chunks.length} chunks of ${FILL_MISSING_CONCURRENCY}`);
+
+      let allFillResults = [];
+
+      // Process chunks sequentially
+      for (const chunk of chunks) {
+        const chunkPromises = chunk.map(async (key) => {
+          const numKey = parseInt(key);
+          if (!osPrompts[numKey]) {
+            console.warn(`[FILL-MISSING] No prompt found for section ${numKey}`);
+            return { key: numKey, success: false, error: 'No prompt available' };
           }
 
-          // Generate content with retry
-          const rawContent = await retryWithBackoff(async () => {
-            return await generateWithProvider(
-              "You are an elite business growth strategist and expert copywriter. Generate HIGHLY SPECIFIC, ACTIONABLE content. CRITICAL: Return ONLY valid JSON with properly escaped strings.",
-              basePrompt,
-              { jsonMode: true, maxTokens: 4000, temperature: 0.7 }
-            );
-          });
+          try {
+            let basePrompt = osPrompts[numKey](userData);
+
+            // RAG Enhancement
+            if (useRAG && CONTENT_TYPE_MAP[numKey]) {
+              try {
+                const ragContext = await getRelevantContext(CONTENT_TYPE_MAP[numKey], userData);
+                if (ragContext && ragContext.hasContext) {
+                  basePrompt = injectContextIntoPrompt(basePrompt, ragContext);
+                  console.log(`[FILL-MISSING] Enhanced prompt ${numKey} with RAG`);
+                }
+              } catch (ragError) {
+                console.error(`[FILL-MISSING] RAG failed for ${numKey}:`, ragError.message);
+              }
+            }
+
+            // Get section-specific timeout
+            const sectionTimeout = SECTION_TIMEOUTS[numKey] || 90000;
+
+            // Generate content with retry
+            const rawContent = await retryWithBackoff(async () => {
+              return await generateWithProvider(
+                "You are an elite business growth strategist and expert copywriter. Generate HIGHLY SPECIFIC, ACTIONABLE content. CRITICAL: Return ONLY valid JSON with properly escaped strings.",
+                basePrompt,
+                {
+                  jsonMode: true,
+                  maxTokens: 4000,
+                  temperature: 0.7,
+                  timeout: sectionTimeout
+                }
+              );
+            });
 
           let parsedResult = parseJsonSafe(rawContent, {
             throwOnError: false,
@@ -672,7 +702,13 @@ export async function POST(req) {
         }
       });
 
-      const allResults = await Promise.all(promises);
+        // Wait for this chunk to complete
+        const chunkResults = await Promise.all(chunkPromises);
+        allFillResults.push(...chunkResults);
+      }
+
+      // Use the collected results from all chunks
+      const allResults = allFillResults;
 
       allResults.forEach(({ key, result, name, success, error }) => {
         if (success && result) {
@@ -715,40 +751,74 @@ export async function POST(req) {
 
       console.log(`[RAG] Knowledge base status: ${useRAG ? 'ENABLED' : 'DISABLED'} (${kbStats.total_chunks} chunks)`);
 
-      // Generate all artifacts in parallel (all 14 prompts)
+      // Generate all artifacts with controlled concurrency (reduced from unlimited to 3)
       const promptKeys = Object.keys(osPrompts).map(Number);
       const results = {};
 
-      const promises = promptKeys.map(async (key) => {
-        try {
-          let basePrompt = osPrompts[key](data);
+      // Reduced concurrency to avoid overwhelming AI providers and prevent timeouts
+      const CONCURRENCY_LIMIT = 3;
 
-          // RAG Enhancement: Get relevant context from Ted's knowledge base
-          if (useRAG && CONTENT_TYPE_MAP[key]) {
-            try {
-              const ragContext = await getRelevantContext(CONTENT_TYPE_MAP[key], data);
-              if (ragContext && ragContext.hasContext) {
-                basePrompt = injectContextIntoPrompt(basePrompt, ragContext);
-                console.log(`[RAG] Enhanced prompt ${key} (${CONTENT_TYPE_MAP[key]}) with ${ragContext.sources?.length || 0} frameworks`);
+      // Heavy sections that need more time (in ms)
+      const SECTION_TIMEOUTS = {
+        4: 120000,  // Offer - complex 7-step blueprint
+        5: 120000,  // Sales Script (Closer) - long conversational script
+        17: 120000, // Setter Script - detailed call flow
+        8: 120000,  // Emails - multiple email sequences
+        9: 120000,  // Facebook Ads - 10 ad variations
+        10: 120000  // Funnel Copy - extensive page copy
+      };
+
+      // Chunk the sections for controlled parallel execution
+      const chunks = [];
+      for (let i = 0; i < promptKeys.length; i += CONCURRENCY_LIMIT) {
+        chunks.push(promptKeys.slice(i, i + CONCURRENCY_LIMIT));
+      }
+
+      console.log(`[GENERATION] Processing ${promptKeys.length} sections in ${chunks.length} chunks of ${CONCURRENCY_LIMIT}`);
+
+      // Collect all results from all chunks
+      let allResults = [];
+
+      // Process chunks sequentially, sections within chunks in parallel
+      for (const chunk of chunks) {
+        const chunkPromises = chunk.map(async (key) => {
+          try {
+            let basePrompt = osPrompts[key](data);
+
+            // RAG Enhancement: Get relevant context from Ted's knowledge base
+            if (useRAG && CONTENT_TYPE_MAP[key]) {
+              try {
+                const ragContext = await getRelevantContext(CONTENT_TYPE_MAP[key], data);
+                if (ragContext && ragContext.hasContext) {
+                  basePrompt = injectContextIntoPrompt(basePrompt, ragContext);
+                  console.log(`[RAG] Enhanced prompt ${key} (${CONTENT_TYPE_MAP[key]}) with ${ragContext.sources?.length || 0} frameworks`);
+                }
+              } catch (ragError) {
+                console.error(`[RAG] Failed to enhance prompt ${key}:`, ragError.message);
+                // Continue without RAG if it fails
               }
-            } catch (ragError) {
-              console.error(`[RAG] Failed to enhance prompt ${key}:`, ragError.message);
-              // Continue without RAG if it fails
             }
-          }
 
-          // Use multi-provider AI generation with retry logic
-          // Email sequence needs more tokens due to 18 emails with full copy
-          const isEmailSequence = key === 8 || CONTENT_NAMES[key] === 'Email Sequence';
-          const tokenLimit = isEmailSequence ? 8000 : 4000;
+            // Use multi-provider AI generation with retry logic
+            // Email sequence needs more tokens due to 18 emails with full copy
+            const isEmailSequence = key === 8 || CONTENT_NAMES[key] === 'Email Sequence';
+            const tokenLimit = isEmailSequence ? 8000 : 4000;
 
-          const rawContent = await retryWithBackoff(async () => {
-            return await generateWithProvider(
-              "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped.",
-              basePrompt,
-              { jsonMode: true, maxTokens: tokenLimit, temperature: 0.7 }
-            );
-          });
+            // Get section-specific timeout (default 90s, heavy sections 120s)
+            const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
+
+            const rawContent = await retryWithBackoff(async () => {
+              return await generateWithProvider(
+                "You are an elite business growth strategist and expert copywriter (performing at the level of world-class marketers like Ted McGrath). Your goal is to generate HIGHLY SPECIFIC, ACTIONABLE, and UNIQUE marketing assets that convert. Avoid generic, fluffy, or textbook advice. Your output must be ready to use immediately to generate revenue. CRITICAL: Return ONLY valid JSON with properly escaped strings. Do not include newlines within string values - use \\n instead. Ensure all quotes within strings are escaped.",
+                basePrompt,
+                {
+                  jsonMode: true,
+                  maxTokens: tokenLimit,
+                  temperature: 0.7,
+                  timeout: sectionTimeout
+                }
+              );
+            });
           let parsedResult = parseJsonSafe(rawContent, {
             throwOnError: false,
             logErrors: true,
@@ -794,7 +864,17 @@ export async function POST(req) {
         }
       });
 
-      const allResults = await Promise.all(promises);
+        // Wait for this chunk to complete before moving to next
+        const chunkResults = await Promise.all(chunkPromises);
+
+        // Collect results from this chunk
+        allResults.push(...chunkResults);
+      }
+
+      // At this point, allResults contains all generation results from all chunks
+      if (!allResults || allResults.length === 0) {
+        throw new Error('No results generated from any chunk');
+      }
 
       // Track successful and failed generations
       const successfulItems = [];
