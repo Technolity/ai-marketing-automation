@@ -18,25 +18,62 @@ export async function POST(req) {
         const body = await req.json();
         const { sessionId, locationId, accessToken, uploadedImages = {}, videoUrls = {} } = body;
 
-        console.log('[PushVSL] Starting push for session:', sessionId);
+        // Note: sessionId is actually a funnel ID from user_funnels table
+        const funnelId = sessionId;
+
+        console.log('[PushVSL] Starting push for funnel:', funnelId);
         console.log('[PushVSL] Uploaded images:', Object.keys(uploadedImages).filter(k => uploadedImages[k]));
         console.log('[PushVSL] Video URLs:', Object.keys(videoUrls).filter(k => videoUrls[k]));
 
-        // Step 1: Fetch session data
-        const { data: session, error: sessionError } = await supabaseAdmin
-            .from('saved_sessions')
+        // Step 1: Fetch funnel data from user_funnels
+        const { data: funnel, error: funnelError } = await supabaseAdmin
+            .from('user_funnels')
             .select('*')
-            .eq('id', sessionId)
+            .eq('id', funnelId)
             .eq('user_id', userId)
             .single();
 
-        if (sessionError || !session) {
-            return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+        if (funnelError || !funnel) {
+            console.error('[PushVSL] Funnel not found:', funnelError);
+            return NextResponse.json({ error: 'Funnel not found' }, { status: 404 });
         }
+
+        // Step 1b: Fetch vault content for this funnel
+        const { data: vaultContent, error: vaultError } = await supabaseAdmin
+            .from('vault_content')
+            .select('section_id, section_title, content, phase')
+            .eq('funnel_id', funnelId)
+            .eq('user_id', userId)
+            .eq('is_current_version', true);
+
+        if (vaultError) {
+            console.error('[PushVSL] Vault content error:', vaultError);
+        }
+
+        // Build session-like object from funnel and vault data for compatibility
+        const session = {
+            id: funnel.id,
+            user_id: funnel.user_id,
+            name: funnel.funnel_name,
+            answers: funnel.wizard_answers || {},
+            results_data: {}
+        };
+
+        // Map vault content to results_data format
+        if (vaultContent && vaultContent.length > 0) {
+            for (const item of vaultContent) {
+                session.results_data[item.section_id] = {
+                    title: item.section_title,
+                    data: item.content
+                };
+            }
+        }
+
+        console.log('[PushVSL] Loaded funnel with', Object.keys(session.results_data).length, 'vault sections');
 
         // Step 2: Handle images - use uploaded or generate missing ones
         let images = [];
-        
+
         // Convert uploaded images to the format expected by mapper
         const uploadedImageRecords = [];
         if (uploadedImages.logo) {
@@ -80,7 +117,7 @@ export async function POST(req) {
         // Generate only missing images
         if (missingImages.length > 0) {
             console.log('[PushVSL] Generating', missingImages.length, 'missing images...');
-            
+
             const imageResult = await generateFunnelImages({
                 userId,
                 sessionId,
@@ -149,7 +186,7 @@ export async function POST(req) {
             // Normalize: convert spaces to underscores, then lowercase
             const spacesToUnderscores = v.name.replace(/\s+/g, '_');
             const lowercased = spacesToUnderscores.toLowerCase();
-            
+
             existingMap.set(v.name, v); // Original name
             existingMap.set(v.name.toLowerCase(), v); // Lowercase only
             existingMap.set(spacesToUnderscores, v); // Spaces to underscores
@@ -159,7 +196,7 @@ export async function POST(req) {
         console.log('[PushVSL] Found', existingValues.length, 'existing custom values in GHL');
         console.log('[PushVSL] ALL GHL keys:', existingValues.map(v => v.name).sort());
         console.log('[PushVSL] Our 91 keys:', Object.keys(customValues).sort());
-        
+
         // Debug: Check if any of our keys match existing ones
         const ourKeys = Object.keys(customValues);
         const matchCounts = {
@@ -168,7 +205,7 @@ export async function POST(req) {
             normalized: 0,
             none: 0
         };
-        
+
         ourKeys.forEach(key => {
             const normalizedKey = key.toLowerCase().replace(/[^a-z0-9_]/g, '');
             if (existingMap.has(key)) {
@@ -181,7 +218,7 @@ export async function POST(req) {
                 matchCounts.none++;
             }
         });
-        
+
         console.log('[PushVSL] Match statistics:', matchCounts);
 
         // Step 6: Push all custom values to GHL
@@ -196,18 +233,18 @@ export async function POST(req) {
             const spacesToUnderscores = key.replace(/\s+/g, '_');
             const lowercased = key.toLowerCase();
             const normalized = spacesToUnderscores.toLowerCase();
-            
+
             const existing = existingMap.get(key) ||               // Exact match
-                            existingMap.get(lowercased) ||          // Lowercase
-                            existingMap.get(spacesToUnderscores) || // Spaces to underscores
-                            existingMap.get(normalized);            // Full normalization
-            
+                existingMap.get(lowercased) ||          // Lowercase
+                existingMap.get(spacesToUnderscores) || // Spaces to underscores
+                existingMap.get(normalized);            // Full normalization
+
             const existingId = existing?.id || null;
             const method = existingId ? 'PUT' : 'POST';
             const url = existingId
                 ? `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`
                 : `https://services.leadconnectorhq.com/locations/${locationId}/customValues`;
-            
+
             if (existingId) {
                 console.log(`[PushVSL] ✅ UPDATE: ${key} (ID: ${existingId})`);
             } else {
@@ -253,12 +290,12 @@ export async function POST(req) {
             failed: results.failed.length
         });
 
-        // Step 7: Save funnel record
-        const { data: funnelRecord } = await supabaseAdmin
+        // Step 7: Save GHL funnel record (session_id column references user_funnels.id)
+        const { data: funnelRecord, error: funnelRecordError } = await supabaseAdmin
             .from('ghl_funnels')
             .insert({
                 user_id: userId,
-                session_id: sessionId,
+                session_id: funnelId, // This references user_funnels.id
                 funnel_name: customValues.offer_name || 'VSL Funnel',
                 funnel_type: 'vsl-funnel',
                 funnel_url: `https://app.gohighlevel.com/location/${locationId}`,
@@ -266,6 +303,11 @@ export async function POST(req) {
             })
             .select()
             .single();
+
+        if (funnelRecordError) {
+            console.warn('[PushVSL] Failed to save GHL funnel record:', funnelRecordError);
+            // Non-blocking error - push was still successful
+        }
 
         return NextResponse.json({
             success: true,
