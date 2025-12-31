@@ -13,6 +13,49 @@ import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/sch
 const STREAM_TIMEOUT = 60000; // 60 seconds max
 const TOKEN_BUFFER_SIZE = 3; // Send every 3 tokens for smooth rendering
 
+/**
+ * Recursively generate example structure from Zod schema
+ * Shows ALL nested keys so AI sees exact structure required
+ */
+function generateSchemaExample(zodSchema, depth = 0) {
+    // Prevent infinite recursion
+    if (depth > 10) return '<nested content>';
+
+    try {
+        // Get the underlying schema (unwrap ZodObject, ZodEffects, etc.)
+        const schema = zodSchema._def?.schema || zodSchema;
+        const shape = schema.shape || schema._def?.shape;
+
+        if (!shape) {
+            // Leaf node - show placeholder
+            if (zodSchema._def?.typeName === 'ZodString') return '<string>';
+            if (zodSchema._def?.typeName === 'ZodNumber') return '<number>';
+            if (zodSchema._def?.typeName === 'ZodBoolean') return '<boolean>';
+            if (zodSchema._def?.typeName === 'ZodArray') {
+                // For arrays, show one example element
+                const elementSchema = zodSchema._def?.type;
+                if (elementSchema) {
+                    const exampleElement = generateSchemaExample(elementSchema, depth + 1);
+                    return [exampleElement];
+                }
+                return ['<array item>'];
+            }
+            return '<content>';
+        }
+
+        // Object with nested properties
+        const result = {};
+        for (const [key, value] of Object.entries(shape)) {
+            result[key] = generateSchemaExample(value, depth + 1);
+        }
+        return result;
+
+    } catch (e) {
+        console.warn(`[generateSchemaExample] Error at depth ${depth}:`, e.message);
+        return '<content>';
+    }
+}
+
 // Section-specific refinement prompts (same as non-streaming version)
 const REFINEMENT_PROMPTS = {
     idealClient: {
@@ -338,22 +381,24 @@ function buildConversationalPrompt({ sectionId, subSection, messageHistory, curr
         ? `\n\nBUSINESS CONTEXT:\n${contextParts.join('\n')}`
         : '';
 
-    // Get schema information with exact structure
+    // Get schema information with FULL nested structure
     const schema = VAULT_SCHEMAS[sectionId];
     let schemaInstructions = '';
     let schemaExample = '';
 
     if (schema) {
-        // Get the exact schema shape to show AI
+        // Generate deep nested example structure from Zod schema
         try {
-            const schemaShape = schema.shape || schema._def?.schema?.shape;
-            if (schemaShape) {
-                const exampleStructure = Object.keys(schemaShape).reduce((acc, key) => {
-                    acc[key] = '<content here>';
-                    return acc;
-                }, {});
-                schemaExample = `\n\nEXACT SCHEMA STRUCTURE YOU MUST FOLLOW:
-${JSON.stringify(exampleStructure, null, 2)}`;
+            const exampleStructure = generateSchemaExample(schema);
+            schemaExample = `\n\nEXACT SCHEMA STRUCTURE YOU MUST FOLLOW (${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
+
+            // Add explicit differentiation for similar schemas
+            if (sectionId === 'setterScript') {
+                schemaExample += `\n\n⚠️ CRITICAL: You are working on SETTER SCRIPT (setterCallScript), NOT closer script (closerCallScript)!`;
+                schemaExample += `\n   Top-level key MUST be "setterCallScript" (10 steps + setterMindset)`;
+            } else if (sectionId === 'salesScripts') {
+                schemaExample += `\n\n⚠️ CRITICAL: You are working on CLOSER SCRIPT (closerCallScript), NOT setter script (setterCallScript)!`;
+                schemaExample += `\n   Top-level key MUST be "closerCallScript" (6 parts in callFlow)`;
             }
         } catch (e) {
             console.warn('[RefineStream] Could not extract schema shape:', e.message);

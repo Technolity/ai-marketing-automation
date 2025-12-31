@@ -6,12 +6,54 @@ import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/sch
 
 /**
  * POST /api/os/refine-section
- * 
+ *
  * Targeted section refinement based on user feedback.
  * This is the AI Feedback Chat backend - takes user feedback and generates
  * specific improvements without blind regeneration.
  */
 
+/**
+ * Recursively generate example structure from Zod schema
+ * Shows ALL nested keys so AI sees exact structure required
+ */
+function generateSchemaExample(zodSchema, depth = 0) {
+    // Prevent infinite recursion
+    if (depth > 10) return '<nested content>';
+
+    try {
+        // Get the underlying schema (unwrap ZodObject, ZodEffects, etc.)
+        const schema = zodSchema._def?.schema || zodSchema;
+        const shape = schema.shape || schema._def?.shape;
+
+        if (!shape) {
+            // Leaf node - show placeholder
+            if (zodSchema._def?.typeName === 'ZodString') return '<string>';
+            if (zodSchema._def?.typeName === 'ZodNumber') return '<number>';
+            if (zodSchema._def?.typeName === 'ZodBoolean') return '<boolean>';
+            if (zodSchema._def?.typeName === 'ZodArray') {
+                // For arrays, show one example element
+                const elementSchema = zodSchema._def?.type;
+                if (elementSchema) {
+                    const exampleElement = generateSchemaExample(elementSchema, depth + 1);
+                    return [exampleElement];
+                }
+                return ['<array item>'];
+            }
+            return '<content>';
+        }
+
+        // Object with nested properties
+        const result = {};
+        for (const [key, value] of Object.entries(shape)) {
+            result[key] = generateSchemaExample(value, depth + 1);
+        }
+        return result;
+
+    } catch (e) {
+        console.warn(`[generateSchemaExample] Error at depth ${depth}:`, e.message);
+        return '<content>';
+    }
+}
 
 // Note: Using generateWithProvider from sharedAiUtils for timeout handling and provider fallback
 
@@ -248,18 +290,38 @@ function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent
     // Determine if we're updating a sub-section or full section
     const isSubSection = subSection && subSection !== 'all';
 
-    // Get schema information for this section
+    // Get schema information with FULL nested structure
     const schema = VAULT_SCHEMAS[sectionId];
     let schemaInstructions = '';
+    let schemaExample = '';
 
     if (schema) {
-        schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS:
-- You MUST output ONLY the fields defined in the schema for this section
-- Do NOT add any new fields, keys, or properties beyond what exists in the current content
-- Do NOT remove any required fields from the schema
-- Preserve exact field names and structure
-- Arrays must have the exact count specified in the schema (e.g., exactly 3 items, not 2 or 4)
-- All content must be complete and specific - NO placeholders like "[insert]", "TBD", "[LINK]", etc.`;
+        // Generate deep nested example structure from Zod schema
+        try {
+            const exampleStructure = generateSchemaExample(schema);
+            schemaExample = `\n\nEXACT SCHEMA STRUCTURE YOU MUST FOLLOW (${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
+
+            // Add explicit differentiation for similar schemas
+            if (sectionId === 'setterScript') {
+                schemaExample += `\n\n⚠️ CRITICAL: You are working on SETTER SCRIPT (setterCallScript), NOT closer script (closerCallScript)!`;
+                schemaExample += `\n   Top-level key MUST be "setterCallScript" (10 steps + setterMindset)`;
+            } else if (sectionId === 'salesScripts') {
+                schemaExample += `\n\n⚠️ CRITICAL: You are working on CLOSER SCRIPT (closerCallScript), NOT setter script (setterCallScript)!`;
+                schemaExample += `\n   Top-level key MUST be "closerCallScript" (6 parts in callFlow)`;
+            }
+        } catch (e) {
+            console.warn('[RefineSection] Could not extract schema shape:', e.message);
+        }
+
+        schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS (SCHEMA VERSION 2.0):
+- Output ONLY the exact field structure shown above
+- Match exact array lengths (e.g., topChallenges: EXACTLY 3 items)
+- Follow EXACT field names and nesting as shown in schema
+- NO placeholders like "[insert]" or "TBD"
+- NO markdown code blocks in output
+- NO extra fields beyond schema
+- NO reordering of fields - maintain exact order
+- Maintain exact data types (strings, arrays, objects)`;
     }
 
     return `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
@@ -268,6 +330,8 @@ ${context}
 
 USER'S FEEDBACK:
 ${feedback}
+${schemaExample}
+${schemaInstructions}
 
 TASK:
 ${isSubSection
@@ -275,7 +339,6 @@ ${isSubSection
             : `Update the entire section based on the feedback above.`
         }
 ${iterationNote}
-${schemaInstructions}
 
 OUTPUT REQUIREMENTS:
 1. You MUST return valid JSON that can be parsed with JSON.parse()
