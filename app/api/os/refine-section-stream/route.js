@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { streamWithProvider } from '@/lib/ai/sharedAiUtils';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
+import { getFullContextPrompt, buildEnhancedFeedbackPrompt } from '@/lib/prompts/fullContextPrompts';
 
 /**
  * POST /api/os/refine-section-stream
@@ -56,40 +57,8 @@ function generateSchemaExample(zodSchema, depth = 0) {
     }
 }
 
-// Section-specific refinement prompts (same as non-streaming version)
-const REFINEMENT_PROMPTS = {
-    idealClient: {
-        system: `You are an expert marketing strategist helping refine an Ideal Client Profile.
-Your role is to take the user's feedback and make TARGETED improvements to specific aspects.
-Maintain consistency with the original content while addressing the specific feedback.
-Output should be clear, actionable, and client-focused.`,
-        fields: ['demographics', 'psychographics', 'painPoints', 'desires', 'objections']
-    },
-    message: {
-        system: `You are a world-class copywriter helping refine a Million-Dollar Message.
-Focus on clarity, emotional impact, and unique positioning.
-Make only the requested changes while keeping the rest consistent.`,
-        fields: ['headline', 'subheadline', 'uniqueMechanism', 'bigPromise']
-    },
-    story: {
-        system: `You are a master storyteller helping craft a compelling origin story.
-Focus on emotional resonance, relatability, and the transformation journey.
-Keep the authentic voice while improving the specific element requested.`,
-        fields: ['hook', 'struggle', 'breakthrough', 'transformation']
-    },
-    offer: {
-        system: `You are a product strategist helping refine an irresistible offer.
-Focus on value stacking, clear outcomes, and compelling reasons to buy.
-Improve the specific element while maintaining offer coherence.`,
-        fields: ['name', 'modules', 'bonuses', 'pricing']
-    },
-    default: {
-        system: `You are an expert marketing consultant helping refine business content.
-Make targeted improvements based on the user's specific feedback.
-Maintain the original tone and style while addressing the requested changes.`,
-        fields: ['opening', 'body', 'closing']
-    }
-};
+// NOTE: Section-specific prompts are now in /lib/prompts/fullContextPrompts.js
+// This provides complete original generation instructions to the AI
 
 export async function POST(req) {
     const { userId } = auth();
@@ -148,9 +117,6 @@ export async function POST(req) {
         try {
             await sendEvent('status', { message: 'Analyzing your feedback...' });
 
-            // Get section config
-            const sectionConfig = REFINEMENT_PROMPTS[sectionId] || REFINEMENT_PROMPTS.default;
-
             // Fetch intake data for context
             let intakeData = {};
             if (sessionId) {
@@ -166,8 +132,8 @@ export async function POST(req) {
                 }
             }
 
-            // Build conversational prompt from message history
-            const userPrompt = buildConversationalPrompt({
+            // Build conversational prompt with FULL PROJECT CONTEXT
+            const { systemPrompt, userPrompt } = buildConversationalPrompt({
                 sectionId,
                 subSection,
                 messageHistory: messageHistory.slice(-10), // Last 10 messages for context
@@ -175,12 +141,12 @@ export async function POST(req) {
                 intakeData
             });
 
-            console.log('[RefineStream] Starting streaming generation...');
+            console.log('[RefineStream] Starting streaming generation with full context...');
 
-            // Stream AI tokens
+            // Stream AI tokens with enhanced prompts
             const fullText = await streamAIResponse({
-                systemPrompt: sectionConfig.system,
-                userPrompt,
+                systemPrompt, // Now includes full original generation instructions
+                userPrompt,   // Now includes conversation context and schema
                 sectionId,
                 sendEvent
             });
@@ -372,30 +338,67 @@ async function parseAndValidate(fullText, sectionId, subSection) {
 }
 
 /**
- * Build conversational prompt from message history
+ * Build conversational prompt from message history with FULL PROJECT CONTEXT
+ * Uses the full context prompts system to give AI complete knowledge of original generation
  */
 function buildConversationalPrompt({ sectionId, subSection, messageHistory, currentContent, intakeData }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
 
-    // Build conversation history context
-    let conversationContext = '';
-    if (messageHistory.length > 1) {
-        conversationContext = '\n\nCONVERSATION HISTORY:\n';
-        messageHistory.slice(-5).forEach(msg => {
-            const role = msg.role === 'user' ? 'User' : 'Assistant';
-            const content = typeof msg.content === 'string'
-                ? msg.content.substring(0, 200) // Limit length
-                : JSON.stringify(msg.content).substring(0, 200);
-            conversationContext += `${role}: ${content}\n`;
-        });
-    }
-
     // Get latest user message
     const latestUserMessage = messageHistory
         .filter(m => m.role === 'user')
         .pop()?.content || '';
+
+    // Build conversation history context
+    let conversationContext = '';
+    if (messageHistory.length > 1) {
+        conversationContext = '\n\nCONVERSATION HISTORY:\n';
+        messageHistory.slice(-10).forEach(msg => { // Increased to 10 for better memory
+            const role = msg.role === 'user' ? 'User' : 'Assistant';
+            const content = typeof msg.content === 'string'
+                ? msg.content.substring(0, 300) // Increased limit
+                : JSON.stringify(msg.content).substring(0, 300);
+            conversationContext += `${role}: ${content}\n`;
+        });
+    }
+
+    // Get FULL context prompts for this section
+    const fullContextInfo = getFullContextPrompt(sectionId);
+
+    // Build enhanced system prompt with full project knowledge
+    const systemPrompt = `You are an expert marketing and sales consultant with FULL CONTEXT of this project.
+
+🎯 ORIGINAL GENERATION INSTRUCTIONS FOR THIS SECTION:
+${fullContextInfo.originalGenerationPrompt}
+
+📋 REFINEMENT CONTEXT:
+${fullContextInfo.refinementContext}
+
+YOUR ROLE IN AI FEEDBACK:
+1. You have complete context of how this content was originally generated
+2. You understand the exact schema requirements and structure
+3. You can make intelligent refinements based on user feedback
+4. You can ADD new fields if they fit the schema (but ask first in your response)
+5. You can SUGGEST improvements proactively beyond the user's request
+6. You maintain conversation memory across multiple refinement rounds
+7. You NEVER mix schemas (e.g., setterScript vs salesScripts are different!)
+
+FLEXIBILITY & INTELLIGENCE:
+- You CAN modify any field the user mentions
+- You CAN add new content if it fits the schema structure
+- You CAN suggest additional improvements beyond user's request
+- You MUST stay within schema boundaries (don't add unsupported fields)
+- You SHOULD explain WHY you made certain changes
+- You MUST respect exact array lengths and field types from schema
+
+CONVERSATION STYLE:
+- Be friendly and helpful like a skilled consultant
+- Explain your reasoning briefly when making changes
+- Ask clarifying questions if feedback is ambiguous
+- Suggest improvements proactively when you see opportunities
+- Remember and reference previous refinements in this conversation`;
 
     // Build business context
     const contextParts = [];
@@ -410,41 +413,40 @@ function buildConversationalPrompt({ sectionId, subSection, messageHistory, curr
 
     // Get schema information with FULL nested structure
     const schema = VAULT_SCHEMAS[sectionId];
-    let schemaInstructions = '';
     let schemaExample = '';
 
     if (schema) {
         // Generate deep nested example structure from Zod schema
         try {
             const exampleStructure = generateSchemaExample(schema);
-            schemaExample = `\n\nEXACT SCHEMA STRUCTURE YOU MUST FOLLOW (${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
+            schemaExample = `\n\nEXACT SCHEMA STRUCTURE (from Zod schema for ${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
 
             // Add explicit differentiation for similar schemas
             if (sectionId === 'setterScript') {
-                schemaExample += `\n\n⚠️ CRITICAL: You are working on SETTER SCRIPT (setterCallScript), NOT closer script (closerCallScript)!`;
-                schemaExample += `\n   Top-level key MUST be "setterCallScript" (10 steps + setterMindset)`;
+                schemaExample += `\n\n⚠️ CRITICAL SCHEMA WARNING:
+- You are working on SETTER SCRIPT (setterCallScript)
+- This is NOT a closer script (closerCallScript) - that's a different section!
+- Top-level key MUST be "setterCallScript"
+- Has 10 steps in callFlow (step1_openerPermission through step10_confirmShowUp)
+- Has setterMindset field
+- DO NOT include any "closerCallScript" keys or "part" fields`;
             } else if (sectionId === 'salesScripts') {
-                schemaExample += `\n\n⚠️ CRITICAL: You are working on CLOSER SCRIPT (closerCallScript), NOT setter script (setterCallScript)!`;
-                schemaExample += `\n   Top-level key MUST be "closerCallScript" (6 parts in callFlow)`;
+                schemaExample += `\n\n⚠️ CRITICAL SCHEMA WARNING:
+- You are working on CLOSER/SALES SCRIPT (closerCallScript)
+- This is NOT a setter script (setterCallScript) - that's a different section!
+- Top-level key MUST be "closerCallScript"
+- Has 6 parts in callFlow (part1_openingPermission through part6_closeNextSteps)
+- DO NOT include any "setterCallScript" keys or "step" fields`;
             }
         } catch (e) {
             console.warn('[RefineStream] Could not extract schema shape:', e.message);
         }
-
-        schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS (SCHEMA VERSION 2.0):
-- Output ONLY the exact field structure shown above
-- Match exact array lengths (e.g., topChallenges: EXACTLY 3 items)
-- Follow EXACT field names and nesting as shown in schema
-- NO placeholders like "[insert]" or "TBD"
-- NO markdown code blocks in output
-- NO extra fields beyond schema
-- NO reordering of fields - maintain exact order
-- Maintain exact data types (strings, arrays, objects)`;
     }
 
     const isSubSection = subSection && subSection !== 'all';
 
-    return `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
+    // Build enhanced user prompt
+    const userPrompt = `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
 ${currentContentStr}
 ${businessContext}
 ${conversationContext}
@@ -452,26 +454,35 @@ ${conversationContext}
 LATEST USER REQUEST:
 ${latestUserMessage}
 ${schemaExample}
-${schemaInstructions}
 
-TASK:
-${isSubSection
-        ? `Update ONLY the "${subSection}" field based on the conversation above.`
-        : `Update the entire section based on the conversation above.`
-    }
+INSTRUCTIONS:
+1. Analyze the user's feedback carefully in the context of the full conversation
+2. Make targeted improvements to the content based on their request
+3. If you think adding new fields would help, mention it in your response (but still output valid JSON)
+4. Explain what you changed and why (you can add this as a comment after the JSON)
+5. Return ONLY valid JSON matching the schema structure shown above
+6. DO NOT wrap in markdown code blocks
+7. ${isSubSection
+        ? `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
+        : `Update the entire section. Return the complete section matching the exact schema structure.`}
+
+CRITICAL SCHEMA RULES:
+- Match exact array lengths (if schema says 3 items, output exactly 3)
+- Use exact field names and nesting shown in schema
+- NO placeholders like "[insert]" or "TBD"
+- NO extra fields beyond what's in the schema
+- Maintain exact data types (strings stay strings, arrays stay arrays)
+- DO NOT reorder fields
 
 OUTPUT FORMAT:
-1. Return valid JSON that EXACTLY matches the schema structure shown above
-2. ${isSubSection
-        ? `Return: {"${subSection}": <updated_content>}`
-        : `Return the complete section with EXACT structure shown in schema`}
-3. Do NOT wrap output in markdown code blocks
-4. Do NOT add any text before or after the JSON
-5. Do NOT reorder fields - use exact order from schema
-6. Do NOT add extra fields not in the schema
-7. Focus on the latest user request while considering the full conversation context
+First character must be { (opening brace)
+Last character must be } (closing brace)
+Everything between must be valid JSON
+NO text before the JSON
+NO text after the JSON`;
 
-CRITICAL: The output MUST match the exact schema structure shown above. Any deviation will cause validation errors.`;
+    // Return both prompts for use with streamWithProvider
+    return { systemPrompt, userPrompt };
 }
 
 // GET endpoint for documentation
