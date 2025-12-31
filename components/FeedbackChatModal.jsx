@@ -227,15 +227,30 @@ export default function FeedbackChatModal({
     const [regenerationCount, setRegenerationCount] = useState(0);
     const messagesEndRef = useRef(null);
 
+    // NEW: Streaming state
+    const [isStreaming, setIsStreaming] = useState(false);
+    const [streamingMessage, setStreamingMessage] = useState(null);
+    const abortControllerRef = useRef(null);
+
     const MAX_REGENERATIONS = 5;
+    const USE_STREAMING = true; // Feature flag
 
     // Get sub-section options for this section
     const subSectionOptions = SECTION_OPTIONS[sectionId] || SECTION_OPTIONS.default;
 
-    // Scroll to bottom when new messages arrive
+    // Scroll to bottom when new messages arrive or streaming content updates
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+    }, [messages, streamingMessage?.content]);
+
+    // Cleanup abort controller on unmount
+    useEffect(() => {
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
+    }, []);
 
     // Initialize chat when modal opens
     useEffect(() => {
@@ -255,6 +270,7 @@ export default function FeedbackChatModal({
             setChatStep(1);
             setSelectedSubSection(null);
             setSuggestedChanges(null);
+            setStreamingMessage(null);
         }
     }, [isOpen]);
 
@@ -277,67 +293,199 @@ Be as specific as possible - for example:
         setChatStep(2);
     };
 
-    // Handle sending feedback
+    // Handle sending feedback with streaming support
     const handleSendFeedback = async () => {
-        if (!inputText.trim() || isProcessing) return;
+        if (!inputText.trim() || isProcessing || isStreaming) return;
 
         const feedback = inputText.trim();
+        const userMessage = {
+            id: `msg_${Date.now()}`,
+            role: 'user',
+            content: feedback,
+            timestamp: Date.now(),
+            isComplete: true
+        };
+
         setInputText("");
-        setMessages(prev => [...prev, { role: 'user', content: feedback }]);
+        setMessages(prev => [...prev, userMessage]);
         setIsProcessing(true);
 
-        try {
-            // Add thinking message
-            setMessages(prev => [...prev, { role: 'assistant', content: '🤔 Analyzing your feedback...', isThinking: true }]);
+        if (USE_STREAMING) {
+            // NEW: Streaming implementation
+            setIsStreaming(true);
 
-            const response = await fetchWithAuth('/api/os/refine-section', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sectionId,
-                    subSection: selectedSubSection,
-                    feedback,
-                    currentContent,
-                    sessionId
-                })
+            // Initialize streaming assistant message
+            const assistantMessageId = `msg_${Date.now() + 1}`;
+            setStreamingMessage({
+                id: assistantMessageId,
+                role: 'assistant',
+                content: '',
+                timestamp: Date.now(),
+                isComplete: false,
+                isStreaming: true
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to generate refinement');
+            // Create abort controller for cleanup
+            abortControllerRef.current = new AbortController();
+
+            try {
+                const token = await fetchWithAuth('/api/auth/token', { method: 'GET' });
+                const authToken = await token.text();
+
+                const response = await fetch('/api/os/refine-section-stream', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream',
+                    },
+                    body: JSON.stringify({
+                        sectionId,
+                        subSection: selectedSubSection,
+                        messageHistory: [...messages, userMessage],
+                        currentContent,
+                        sessionId
+                    }),
+                    signal: abortControllerRef.current.signal
+                });
+
+                if (!response.ok) {
+                    throw new Error('Stream failed');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    let currentEvent = '';
+                    for (const line of lines) {
+                        if (line.startsWith('event: ')) {
+                            currentEvent = line.slice(7).trim();
+                        } else if (line.startsWith('data: ') && currentEvent) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+
+                                if (currentEvent === 'token') {
+                                    // Append token to streaming message
+                                    setStreamingMessage(prev => prev ? ({
+                                        ...prev,
+                                        content: prev.content + data.content
+                                    }) : null);
+                                } else if (currentEvent === 'validated') {
+                                    // Complete message with validated content
+                                    setStreamingMessage(prev => prev ? ({
+                                        ...prev,
+                                        isComplete: true,
+                                        isStreaming: false,
+                                        metadata: {
+                                            validatedContent: data.refinedContent,
+                                            rawText: data.rawText,
+                                            validationWarning: data.validationWarning
+                                        }
+                                    }) : null);
+                                    setSuggestedChanges(data.refinedContent);
+
+                                    if (data.validationWarning) {
+                                        toast.warning(data.validationWarning);
+                                    }
+                                } else if (currentEvent === 'error') {
+                                    throw new Error(data.message || 'Stream error');
+                                } else if (currentEvent === 'complete') {
+                                    // Move streaming message to messages array
+                                    if (streamingMessage) {
+                                        setMessages(prev => [...prev, streamingMessage]);
+                                    }
+                                    setStreamingMessage(null);
+                                    setChatStep(3);
+                                    setRegenerationCount(prev => prev + 1);
+                                }
+                            } catch (parseError) {
+                                console.warn('[FeedbackChat] Failed to parse SSE data:', parseError);
+                            }
+                            currentEvent = '';
+                        }
+                    }
+                }
+
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('[FeedbackChat] Stream aborted by user');
+                    return;
+                }
+
+                console.error('Streaming error:', error);
+                toast.error('Failed to generate refinement: ' + error.message);
+                setStreamingMessage(null);
+                setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: `❌ Sorry, I couldn't generate that refinement. ${error.message}`
+                }]);
+            } finally {
+                setIsStreaming(false);
+                setIsProcessing(false);
             }
 
-            const data = await response.json();
+        } else {
+            // FALLBACK: Non-streaming implementation (original code)
+            try {
+                setMessages(prev => [...prev, { role: 'assistant', content: '🤔 Analyzing your feedback...', isThinking: true }]);
 
-            // Remove thinking message and add preview
-            setMessages(prev => {
-                const withoutThinking = prev.filter(m => !m.isThinking);
-                return [
-                    ...withoutThinking,
-                    {
-                        role: 'assistant',
-                        content: "Here's my suggested update based on your feedback:",
-                        showPreview: true,
-                        previewContent: data.refinedContent
-                    }
-                ];
-            });
+                const response = await fetchWithAuth('/api/os/refine-section', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sectionId,
+                        subSection: selectedSubSection,
+                        feedback,
+                        currentContent,
+                        sessionId
+                    })
+                });
 
-            setSuggestedChanges(data.refinedContent);
-            setRegenerationCount(prev => prev + 1);
-            setChatStep(3);
+                if (!response.ok) {
+                    throw new Error('Failed to generate refinement');
+                }
 
-        } catch (error) {
-            console.error('Refinement error:', error);
-            setMessages(prev => {
-                const withoutThinking = prev.filter(m => !m.isThinking);
-                return [
-                    ...withoutThinking,
-                    { role: 'assistant', content: `❌ Sorry, I couldn't generate that refinement. ${error.message}` }
-                ];
-            });
-            toast.error("Refinement failed");
-        } finally {
-            setIsProcessing(false);
+                const data = await response.json();
+
+                setMessages(prev => {
+                    const withoutThinking = prev.filter(m => !m.isThinking);
+                    return [
+                        ...withoutThinking,
+                        {
+                            role: 'assistant',
+                            content: "Here's my suggested update based on your feedback:",
+                            showPreview: true,
+                            previewContent: data.refinedContent
+                        }
+                    ];
+                });
+
+                setSuggestedChanges(data.refinedContent);
+                setRegenerationCount(prev => prev + 1);
+                setChatStep(3);
+
+            } catch (error) {
+                console.error('Refinement error:', error);
+                setMessages(prev => {
+                    const withoutThinking = prev.filter(m => !m.isThinking);
+                    return [
+                        ...withoutThinking,
+                        { role: 'assistant', content: `❌ Sorry, I couldn't generate that refinement. ${error.message}` }
+                    ];
+                });
+                toast.error("Refinement failed");
+            } finally {
+                setIsProcessing(false);
+            }
         }
     };
 
@@ -481,16 +629,43 @@ Be as specific as possible - for example:
                                     )}
 
                                     {/* Preview content */}
-                                    {msg.showPreview && msg.previewContent && (
+                                    {(msg.showPreview && msg.previewContent) || msg.metadata?.validatedContent ? (
                                         <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
                                             <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                                {formatPreviewContent(msg.previewContent)}
+                                                {formatPreviewContent(msg.previewContent || msg.metadata?.validatedContent)}
+                                            </pre>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            </motion.div>
+                        ))}
+
+                        {/* Streaming Message */}
+                        {streamingMessage && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex justify-start"
+                            >
+                                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] text-white">
+                                    <p className="text-sm whitespace-pre-wrap">
+                                        {streamingMessage.content}
+                                        {streamingMessage.isStreaming && (
+                                            <span className="inline-block w-2 h-4 ml-1 bg-cyan animate-pulse" />
+                                        )}
+                                    </p>
+
+                                    {streamingMessage.metadata?.validatedContent && (
+                                        <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
+                                            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                                {formatPreviewContent(streamingMessage.metadata.validatedContent)}
                                             </pre>
                                         </div>
                                     )}
                                 </div>
                             </motion.div>
-                        ))}
+                        )}
+
                         <div ref={messagesEndRef} />
                     </div>
 
@@ -499,7 +674,7 @@ Be as specific as possible - for example:
                         <div className="p-4 border-t border-[#2a2a2d] flex flex-wrap gap-3">
                             <button
                                 onClick={handleSaveChanges}
-                                className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+                                className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2"
                             >
                                 <Save className="w-4 h-4" />
                                 Save Changes
@@ -523,17 +698,17 @@ Be as specific as possible - for example:
                                     type="text"
                                     value={inputText}
                                     onChange={(e) => setInputText(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleSendFeedback()}
+                                    onKeyPress={(e) => e.key === 'Enter' && !isProcessing && !isStreaming && handleSendFeedback()}
                                     placeholder="Describe what you'd like to change..."
-                                    disabled={isProcessing}
+                                    disabled={isProcessing || isStreaming}
                                     className="flex-1 px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
                                 />
                                 <button
                                     onClick={handleSendFeedback}
-                                    disabled={!inputText.trim() || isProcessing}
-                                    className="px-4 py-3 bg-cyan text-black rounded-xl font-bold flex items-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={!inputText.trim() || isProcessing || isStreaming}
+                                    className="px-4 py-3 btn-approve rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {isProcessing ? (
+                                    {isProcessing || isStreaming ? (
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                     ) : (
                                         <Send className="w-5 h-5" />
@@ -542,7 +717,7 @@ Be as specific as possible - for example:
                             </div>
                             <p className="text-xs text-gray-500 mt-2">
                                 <Lightbulb className="w-3 h-3 inline mr-1" />
-                                Tip: Be specific about what to change and how
+                                {isStreaming ? 'AI is generating your response...' : 'Tip: Be specific about what to change and how'}
                             </p>
                         </div>
                     )}
