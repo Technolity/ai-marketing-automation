@@ -29,13 +29,54 @@ export async function PATCH(req) {
             }, { status: 400 });
         }
 
-        // SCHEMA VALIDATION: Validate content against schema and strip extra fields
+        // CRITICAL: Validate top-level keys for schema-specific sections BEFORE Zod validation
+        const topLevelKeys = Object.keys(content);
+
+        if (sectionId === 'setterScript') {
+            if (!content.setterCallScript) {
+                console.error('[VaultSection] WRONG SCHEMA: Missing setterCallScript, got:', topLevelKeys);
+                return NextResponse.json({
+                    error: 'Schema validation failed: Missing required "setterCallScript" key for Setter Script section',
+                    details: `Found keys: ${topLevelKeys.join(', ')}`,
+                    hint: 'The AI generated the wrong schema structure. Please regenerate this content.'
+                }, { status: 422 });
+            }
+            if (content.closerCallScript) {
+                console.error('[VaultSection] WRONG SCHEMA: Found closerCallScript in setterScript section!');
+                return NextResponse.json({
+                    error: 'Schema validation failed: Found "closerCallScript" in Setter Script section',
+                    details: 'This section should only contain "setterCallScript", not "closerCallScript"',
+                    hint: 'The AI mixed up Setter Script with Closer Script. Please regenerate this content.'
+                }, { status: 422 });
+            }
+        }
+
+        if (sectionId === 'salesScripts') {
+            if (!content.closerCallScript) {
+                console.error('[VaultSection] WRONG SCHEMA: Missing closerCallScript, got:', topLevelKeys);
+                return NextResponse.json({
+                    error: 'Schema validation failed: Missing required "closerCallScript" key for Sales/Closer Scripts section',
+                    details: `Found keys: ${topLevelKeys.join(', ')}`,
+                    hint: 'The AI generated the wrong schema structure. Please regenerate this content.'
+                }, { status: 422 });
+            }
+            if (content.setterCallScript) {
+                console.error('[VaultSection] WRONG SCHEMA: Found setterCallScript in salesScripts section!');
+                return NextResponse.json({
+                    error: 'Schema validation failed: Found "setterCallScript" in Sales/Closer Scripts section',
+                    details: 'This section should only contain "closerCallScript", not "setterCallScript"',
+                    hint: 'The AI mixed up Closer Script with Setter Script. Please regenerate this content.'
+                }, { status: 422 });
+            }
+        }
+
+        // SCHEMA VALIDATION: Validate content against schema
         let validatedContent = content;
         const validation = validateVaultContent(sectionId, content);
 
         if (!validation.success) {
             console.warn(`[VaultSection] Schema validation failed for ${sectionId}:`, validation.errors);
-            // Strip extra fields to match schema
+            // For non-critical errors, strip extra fields
             validatedContent = stripExtraFields(sectionId, content);
             console.log(`[VaultSection] Stripped extra fields from section ${sectionId}`);
         } else {

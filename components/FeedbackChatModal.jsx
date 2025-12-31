@@ -412,7 +412,36 @@ Be as specific as possible - for example:
                                         toast.warning(data.validationWarning);
                                     }
                                 } else if (currentEvent === 'error') {
-                                    throw new Error(data.message || 'Stream error');
+                                    // Handle error without throwing - preserve any content generated
+                                    console.error('[FeedbackChat] Stream error:', data);
+
+                                    // Clear streaming message since error occurred
+                                    setStreamingMessage(null);
+
+                                    // Format error message
+                                    let errorText = data.message || 'Stream error';
+                                    if (errorText.includes('wrong schema') || errorText.includes('mixed schemas')) {
+                                        errorText = '⚠️ Schema validation failed. The AI generated the wrong structure.\n\nPlease try again - I will ensure the correct schema is used this time.';
+                                    } else if (errorText.includes('timeout')) {
+                                        errorText = '⏱️ The request took too long. Please try a simpler refinement or try again.';
+                                    }
+
+                                    // Show error in chat
+                                    setMessages(prev => [...prev, {
+                                        role: 'assistant',
+                                        content: errorText,
+                                        isError: true
+                                    }]);
+
+                                    toast.error(data.message);
+
+                                    // Keep in feedback step so user can try again
+                                    setChatStep(2);
+                                    setIsStreaming(false);
+                                    setIsProcessing(false);
+
+                                    // Don't throw - error is handled
+                                    return;
                                 } else if (currentEvent === 'complete') {
                                     // Move streaming message to messages array
                                     if (streamingMessage) {
