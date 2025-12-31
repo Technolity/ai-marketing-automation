@@ -314,13 +314,30 @@ async function parseAndValidate(fullText, sectionId, subSection) {
         refinedContent = JSON.parse(cleanedText);
 
         // 4. CRITICAL: Validate top-level key for schema-specific sections
-        if (sectionId === 'setterScript' && !refinedContent.setterCallScript) {
-            console.error('[RefineStream] WRONG SCHEMA: Expected setterCallScript, got:', Object.keys(refinedContent));
-            throw new Error('AI generated wrong schema structure. Expected "setterCallScript" for Setter Script section.');
+        const topLevelKeys = Object.keys(refinedContent);
+
+        if (sectionId === 'setterScript') {
+            // MUST have setterCallScript, MUST NOT have closerCallScript
+            if (!refinedContent.setterCallScript) {
+                console.error('[RefineStream] WRONG SCHEMA: Missing setterCallScript, got:', topLevelKeys);
+                throw new Error('AI generated wrong schema structure. Expected "setterCallScript" for Setter Script section.');
+            }
+            if (refinedContent.closerCallScript) {
+                console.error('[RefineStream] WRONG SCHEMA: Found closerCallScript in setterScript section!');
+                throw new Error('AI mixed schemas! Found "closerCallScript" but this is a Setter Script section (should only have "setterCallScript").');
+            }
         }
-        if (sectionId === 'salesScripts' && !refinedContent.closerCallScript) {
-            console.error('[RefineStream] WRONG SCHEMA: Expected closerCallScript, got:', Object.keys(refinedContent));
-            throw new Error('AI generated wrong schema structure. Expected "closerCallScript" for Sales/Closer Scripts section.');
+
+        if (sectionId === 'salesScripts') {
+            // MUST have closerCallScript, MUST NOT have setterCallScript
+            if (!refinedContent.closerCallScript) {
+                console.error('[RefineStream] WRONG SCHEMA: Missing closerCallScript, got:', topLevelKeys);
+                throw new Error('AI generated wrong schema structure. Expected "closerCallScript" for Sales/Closer Scripts section.');
+            }
+            if (refinedContent.setterCallScript) {
+                console.error('[RefineStream] WRONG SCHEMA: Found setterCallScript in salesScripts section!');
+                throw new Error('AI mixed schemas! Found "setterCallScript" but this is a Closer/Sales Scripts section (should only have "closerCallScript").');
+            }
         }
 
         // 5. Handle sub-section wrapping

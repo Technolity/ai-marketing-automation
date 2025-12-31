@@ -437,11 +437,28 @@ Be as specific as possible - for example:
                 }
 
                 console.error('Streaming error:', error);
-                toast.error('Failed to generate refinement: ' + error.message);
+
+                // Clear any partial streaming message
                 setStreamingMessage(null);
+
+                // Show detailed error with retry option
+                let errorMessage = error.message;
+                if (errorMessage.includes('wrong schema structure') || errorMessage.includes('mixed schemas')) {
+                    errorMessage = '⚠️ Schema validation failed. The AI generated the wrong structure. Please try again.';
+                } else if (errorMessage.includes('timeout')) {
+                    errorMessage = '⏱️ The request took too long. Please try a simpler refinement or try again.';
+                } else if (errorMessage.includes('JSON')) {
+                    errorMessage = '❌ The AI returned invalid data. Please try again.';
+                } else {
+                    errorMessage = `❌ ${errorMessage}`;
+                }
+
+                toast.error(errorMessage);
+
                 setMessages(prev => [...prev, {
                     role: 'assistant',
-                    content: `❌ Sorry, I couldn't generate that refinement. ${error.message}`
+                    content: `${errorMessage}\n\nClick "Try Again" below to retry your request.`,
+                    showRetry: true
                 }]);
             } finally {
                 setIsStreaming(false);
@@ -663,18 +680,27 @@ Be as specific as possible - for example:
                                 className="flex justify-start"
                             >
                                 <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] text-white">
-                                    <p className="text-sm whitespace-pre-wrap">
-                                        {streamingMessage.content}
-                                        {streamingMessage.isStreaming && (
-                                            <span className="inline-block w-2 h-4 ml-1 bg-cyan animate-pulse" />
-                                        )}
-                                    </p>
+                                    {/* While streaming: Show loading indicator (hide raw JSON) */}
+                                    {streamingMessage.isStreaming && !streamingMessage.metadata?.validatedContent ? (
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex gap-1">
+                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                            </div>
+                                            <span className="text-sm text-gray-400">Generating your refined content...</span>
+                                        </div>
+                                    ) : null}
 
+                                    {/* After streaming completes: Show formatted content ONLY */}
                                     {streamingMessage.metadata?.validatedContent && (
-                                        <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
-                                            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                                {formatPreviewContent(streamingMessage.metadata.validatedContent)}
-                                            </pre>
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-cyan font-medium">✓ Content generated successfully</p>
+                                            <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-96 overflow-y-auto">
+                                                <div className="text-sm text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                                    {formatPreviewContent(streamingMessage.metadata.validatedContent)}
+                                                </div>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
