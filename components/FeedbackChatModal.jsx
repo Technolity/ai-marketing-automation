@@ -13,6 +13,7 @@ import {
     Lightbulb, RefreshCw, Save
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@clerk/nextjs";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // Friendly AI chat openers
@@ -218,6 +219,7 @@ export default function FeedbackChatModal({
     sessionId,
     onSave
 }) {
+    const { getToken } = useAuth();
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
@@ -329,13 +331,13 @@ Be as specific as possible - for example:
             abortControllerRef.current = new AbortController();
 
             try {
-                const token = await fetchWithAuth('/api/auth/token', { method: 'GET' });
-                const authToken = await token.text();
+                // Get Clerk auth token
+                const token = await getToken();
 
                 const response = await fetch('/api/os/refine-section-stream', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${authToken}`,
+                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
                         'Accept': 'text/event-stream',
                     },
