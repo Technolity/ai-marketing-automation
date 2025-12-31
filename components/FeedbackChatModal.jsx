@@ -146,7 +146,8 @@ function deepParseJSON(content) {
 }
 
 /**
- * Format parsed content into human-readable text
+ * Format parsed content into clean, simple human-readable text
+ * NO JSON structure, NO icons, just clean formatted content
  */
 function formatForDisplay(content, depth = 0) {
     if (!content) return '';
@@ -158,10 +159,10 @@ function formatForDisplay(content, depth = 0) {
     if (Array.isArray(content)) {
         return content.map((item, i) => {
             if (typeof item === 'object' && item !== null) {
-                return `  ${i + 1}. ${formatForDisplay(item, depth + 1)}`;
+                return `${i + 1}. ${formatForDisplay(item, depth + 1)}`;
             }
-            return `  • ${item}`;
-        }).join('\n');
+            return `${i + 1}. ${item}`;
+        }).join('\n\n');
     }
 
     if (typeof content === 'object') {
@@ -172,39 +173,51 @@ function formatForDisplay(content, depth = 0) {
             // Skip internal keys
             if (key.startsWith('_')) continue;
 
-            // Format the key as a readable label
+            // Format the key as a readable label (convert camelCase/snake_case to Title Case)
             const label = key
                 .replace(/([A-Z])/g, ' $1')
                 .replace(/[_-]/g, ' ')
-                .replace(/^\s/, '')
+                .replace(/part(\d+)/gi, 'Part $1')  // Fix Part1 -> Part 1
+                .replace(/step(\d+)/gi, 'Step $1')  // Fix step1 -> Step 1
+                .trim()
                 .split(' ')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .map(word => {
+                    // Keep numbers as-is, capitalize first letter of words
+                    if (/^\d+$/.test(word)) return word;
+                    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+                })
                 .join(' ');
 
             if (Array.isArray(value)) {
-                lines.push(`${indent}📌 ${label}:`);
+                // Arrays: Show label, then numbered items
+                lines.push(`${indent}${label}:`);
                 value.forEach((item, i) => {
                     if (typeof item === 'object' && item !== null) {
-                        lines.push(`${indent}  ${i + 1}. ${formatForDisplay(item, depth + 2)}`);
+                        lines.push(`${indent}  ${i + 1}. ${formatForDisplay(item, depth + 1)}`);
                     } else {
-                        lines.push(`${indent}  • ${String(item)}`);
+                        lines.push(`${indent}  ${i + 1}. ${String(item)}`);
                     }
                 });
+                lines.push(''); // Add blank line after arrays
             } else if (typeof value === 'object' && value !== null) {
-                lines.push(`${indent}📌 ${label}:`);
+                // Nested objects: Show label and recurse
+                if (depth === 0) {
+                    // Top level - use section headers
+                    lines.push(`\n=== ${label} ===`);
+                } else {
+                    lines.push(`${indent}${label}:`);
+                }
                 lines.push(formatForDisplay(value, depth + 1));
             } else if (value !== null && value !== undefined) {
+                // Simple values
                 const valueStr = String(value).replace(/\\n/g, '\n');
-                if (valueStr.length > 80 || valueStr.includes('\n')) {
-                    lines.push(`${indent}📌 ${label}:`);
-                    lines.push(`${indent}  ${valueStr}`);
-                } else {
-                    lines.push(`${indent}• ${label}: ${valueStr}`);
-                }
+                lines.push(`${indent}${label}:`);
+                lines.push(`${indent}${valueStr}`);
+                lines.push(''); // Add blank line
             }
         }
 
-        return lines.join('\n');
+        return lines.join('\n').trim();
     }
 
     return String(content);

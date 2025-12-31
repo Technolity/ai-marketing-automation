@@ -338,18 +338,36 @@ function buildConversationalPrompt({ sectionId, subSection, messageHistory, curr
         ? `\n\nBUSINESS CONTEXT:\n${contextParts.join('\n')}`
         : '';
 
-    // Get schema information
+    // Get schema information with exact structure
     const schema = VAULT_SCHEMAS[sectionId];
     let schemaInstructions = '';
+    let schemaExample = '';
 
     if (schema) {
+        // Get the exact schema shape to show AI
+        try {
+            const schemaShape = schema.shape || schema._def?.schema?.shape;
+            if (schemaShape) {
+                const exampleStructure = Object.keys(schemaShape).reduce((acc, key) => {
+                    acc[key] = '<content here>';
+                    return acc;
+                }, {});
+                schemaExample = `\n\nEXACT SCHEMA STRUCTURE YOU MUST FOLLOW:
+${JSON.stringify(exampleStructure, null, 2)}`;
+            }
+        } catch (e) {
+            console.warn('[RefineStream] Could not extract schema shape:', e.message);
+        }
+
         schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS (SCHEMA VERSION 2.0):
-- Output ONLY fields defined in the schema
+- Output ONLY the exact field structure shown above
 - Match exact array lengths (e.g., topChallenges: EXACTLY 3 items)
+- Follow EXACT field names and nesting as shown in schema
 - NO placeholders like "[insert]" or "TBD"
 - NO markdown code blocks in output
 - NO extra fields beyond schema
-- Maintain exact field names and data types`;
+- NO reordering of fields - maintain exact order
+- Maintain exact data types (strings, arrays, objects)`;
     }
 
     const isSubSection = subSection && subSection !== 'all';
@@ -361,24 +379,27 @@ ${conversationContext}
 
 LATEST USER REQUEST:
 ${latestUserMessage}
+${schemaExample}
+${schemaInstructions}
 
 TASK:
 ${isSubSection
         ? `Update ONLY the "${subSection}" field based on the conversation above.`
         : `Update the entire section based on the conversation above.`
     }
-${schemaInstructions}
 
 OUTPUT FORMAT:
-1. Return valid JSON that can be parsed with JSON.parse()
+1. Return valid JSON that EXACTLY matches the schema structure shown above
 2. ${isSubSection
         ? `Return: {"${subSection}": <updated_content>}`
-        : `Return: <complete_updated_section>`}
+        : `Return the complete section with EXACT structure shown in schema`}
 3. Do NOT wrap output in markdown code blocks
 4. Do NOT add any text before or after the JSON
-5. Focus on the latest user request while considering the full conversation context
+5. Do NOT reorder fields - use exact order from schema
+6. Do NOT add extra fields not in the schema
+7. Focus on the latest user request while considering the full conversation context
 
-CRITICAL: Only modify content based on feedback. Do NOT add new fields or change the schema structure.`;
+CRITICAL: The output MUST match the exact schema structure shown above. Any deviation will cause validation errors.`;
 }
 
 // GET endpoint for documentation
