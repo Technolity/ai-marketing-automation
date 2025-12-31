@@ -175,6 +175,16 @@ export async function POST(req) {
 
             refinedContent = JSON.parse(cleanedText);
 
+            // CRITICAL: Validate top-level key for schema-specific sections
+            if (sectionId === 'setterScript' && !refinedContent.setterCallScript) {
+                console.error('[RefineSection] WRONG SCHEMA: Expected setterCallScript, got:', Object.keys(refinedContent));
+                throw new Error('AI generated wrong schema structure. Expected "setterCallScript" for Setter Script section.');
+            }
+            if (sectionId === 'salesScripts' && !refinedContent.closerCallScript) {
+                console.error('[RefineSection] WRONG SCHEMA: Expected closerCallScript, got:', Object.keys(refinedContent));
+                throw new Error('AI generated wrong schema structure. Expected "closerCallScript" for Sales/Closer Scripts section.');
+            }
+
             // Ensure the content is properly keyed if it's a sub-section update
             if (subSection && subSection !== 'all') {
                 // If AI returned content without the subSection key, wrap it
@@ -185,7 +195,11 @@ export async function POST(req) {
             }
 
         } catch (parseError) {
-            console.log('[RefineSection] JSON parse failed, wrapping raw text:', parseError.message);
+            console.log('[RefineSection] JSON parse failed:', parseError.message);
+            // For schema validation errors, throw them up
+            if (parseError.message.includes('wrong schema structure')) {
+                throw parseError;
+            }
             // If not JSON, wrap in object
             refinedContent = subSection === 'all' || !subSection
                 ? { _rawContent: refinedText }  // Flag as raw content for special handling

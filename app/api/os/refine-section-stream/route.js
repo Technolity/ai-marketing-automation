@@ -313,7 +313,17 @@ async function parseAndValidate(fullText, sectionId, subSection) {
         // 3. Parse JSON
         refinedContent = JSON.parse(cleanedText);
 
-        // 4. Handle sub-section wrapping
+        // 4. CRITICAL: Validate top-level key for schema-specific sections
+        if (sectionId === 'setterScript' && !refinedContent.setterCallScript) {
+            console.error('[RefineStream] WRONG SCHEMA: Expected setterCallScript, got:', Object.keys(refinedContent));
+            throw new Error('AI generated wrong schema structure. Expected "setterCallScript" for Setter Script section.');
+        }
+        if (sectionId === 'salesScripts' && !refinedContent.closerCallScript) {
+            console.error('[RefineStream] WRONG SCHEMA: Expected closerCallScript, got:', Object.keys(refinedContent));
+            throw new Error('AI generated wrong schema structure. Expected "closerCallScript" for Sales/Closer Scripts section.');
+        }
+
+        // 5. Handle sub-section wrapping
         if (subSection && subSection !== 'all') {
             if (!refinedContent[subSection] && Object.keys(refinedContent).length > 0) {
                 refinedContent = { [subSection]: refinedContent };
@@ -322,7 +332,7 @@ async function parseAndValidate(fullText, sectionId, subSection) {
 
     } catch (parseError) {
         console.error('[RefineStream] JSON parse failed:', parseError.message);
-        throw new Error('AI returned invalid JSON format');
+        throw new Error(parseError.message || 'AI returned invalid JSON format');
     }
 
     // 5. Validate against schema
