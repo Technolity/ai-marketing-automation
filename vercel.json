@@ -11,6 +11,9 @@
         "app/api/os/generate-stream/route.js": {
             "maxDuration": 300
         },
+        "app/api/os/regenerate-section/route.js": {
+            "maxDuration": 180
+        },
         "app/api/os/regenerate/route.js": {
             "maxDuration": 120
         },

@@ -3,6 +3,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { streamWithProvider } from '@/lib/ai/sharedAiUtils';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 import { getFullContextPrompt, buildEnhancedFeedbackPrompt } from '@/lib/prompts/fullContextPrompts';
+import { encode } from 'gpt-tokenizer';
 
 /**
  * POST /api/os/refine-section-stream
@@ -78,7 +79,26 @@ export async function POST(req) {
         sessionId
     } = body;
 
-    console.log(`[RefineStream] User: ${userId}, Section: ${sectionId}, Messages: ${messageHistory.length}`);
+    // COMPREHENSIVE LOGGING: Request metadata
+    console.log('[RefineStream] ========== NEW REQUEST ==========');
+    console.log('[RefineStream] Request metadata:', {
+        userId,
+        sectionId,
+        subSection: subSection || 'all',
+        messageCount: messageHistory.length,
+        contentSize: JSON.stringify(currentContent).length,
+        sessionId: sessionId || 'none',
+        timestamp: new Date().toISOString()
+    });
+
+    // COMPREHENSIVE LOGGING: Full message history
+    console.log('[RefineStream] Message history:');
+    messageHistory.forEach((msg, idx) => {
+        console.log(`  [${idx + 1}/${messageHistory.length}] ${msg.role}:`, msg.content.substring(0, 200) + (msg.content.length > 200 ? '...' : ''));
+    });
+
+    // COMPREHENSIVE LOGGING: Current content dump
+    console.log('[RefineStream] Current content:', JSON.stringify(currentContent, null, 2).substring(0, 1000));
 
     if (!sectionId || messageHistory.length === 0) {
         return new Response(JSON.stringify({
@@ -106,11 +126,30 @@ export async function POST(req) {
 
     // Background generation process
     (async () => {
+        let accumulatedTokens = ''; // Track all streamed content for recovery
+
         const timeout = setTimeout(async () => {
-            await sendEvent('error', {
-                message: 'Stream timeout - response took too long',
-                code: 'STREAM_TIMEOUT'
+            console.error('[RefineStream] TIMEOUT after', STREAM_TIMEOUT, 'ms', {
+                tokensReceived: accumulatedTokens.length,
+                partialPreview: accumulatedTokens.substring(0, 200)
             });
+
+            // Send partial content if any meaningful content was received
+            if (accumulatedTokens.length > 50) {
+                await sendEvent('partial', {
+                    partialContent: accumulatedTokens,
+                    reason: 'timeout',
+                    canRetry: true,
+                    canSave: true,
+                    canDiscard: true
+                });
+                console.log('[RefineStream] Sent partial content to frontend:', accumulatedTokens.length, 'chars');
+            } else {
+                await sendEvent('error', {
+                    message: 'Stream timeout - no content received',
+                    code: 'STREAM_TIMEOUT'
+                });
+            }
             await writer.close();
         }, STREAM_TIMEOUT);
 
@@ -141,24 +180,59 @@ export async function POST(req) {
                 intakeData
             });
 
+            // COMPREHENSIVE LOGGING: Prompt generation
+            console.log('[RefineStream] Prompt generated:', {
+                systemPromptLength: systemPrompt.length,
+                userPromptLength: userPrompt.length,
+                totalPromptLength: systemPrompt.length + userPrompt.length,
+                estimatedTokens: Math.ceil((systemPrompt.length + userPrompt.length) / 4),
+                conversationContextMessages: messageHistory.slice(-10).length
+            });
+            console.log('[RefineStream] System prompt (first 500 chars):', systemPrompt.substring(0, 500) + '...');
+            console.log('[RefineStream] User prompt (first 500 chars):', userPrompt.substring(0, 500) + '...');
             console.log('[RefineStream] Starting streaming generation with full context...');
 
             // Stream AI tokens with enhanced prompts
+            const streamStartTime = Date.now();
             const fullText = await streamAIResponse({
                 systemPrompt, // Now includes full original generation instructions
                 userPrompt,   // Now includes conversation context and schema
                 sectionId,
-                sendEvent
+                sendEvent,
+                onAccumulate: (text) => { accumulatedTokens = text; } // Track for partial recovery
             });
+            const streamDuration = Date.now() - streamStartTime;
 
-            console.log('[RefineStream] Streaming complete, validating...');
+            // COMPREHENSIVE LOGGING: Stream completion
+            console.log('[RefineStream] Streaming complete:', {
+                duration: `${streamDuration}ms`,
+                totalCharacters: fullText.length,
+                estimatedTokens: Math.ceil(fullText.length / 4),
+                avgCharsPerSecond: Math.round((fullText.length / streamDuration) * 1000),
+                preview: fullText.substring(0, 300) + (fullText.length > 300 ? '...' : '')
+            });
+            console.log('[RefineStream] Full text length:', fullText.length);
+            console.log('[RefineStream] Validating response...');
 
             // Parse and validate complete response
+            const validationStartTime = Date.now();
             const { refinedContent, validationSuccess, validationWarning } = await parseAndValidate(
                 fullText,
                 sectionId,
                 subSection
             );
+            const validationDuration = Date.now() - validationStartTime;
+
+            // COMPREHENSIVE LOGGING: Validation result
+            console.log('[RefineStream] Validation complete:', {
+                duration: `${validationDuration}ms`,
+                success: validationSuccess,
+                hasWarning: !!validationWarning,
+                warning: validationWarning || 'none',
+                contentKeys: Object.keys(refinedContent),
+                contentSize: JSON.stringify(refinedContent).length
+            });
+            console.log('[RefineStream] Refined content:', JSON.stringify(refinedContent, null, 2).substring(0, 1000));
 
             // Send validated content
             await sendEvent('validated', {
@@ -187,14 +261,50 @@ export async function POST(req) {
             }
 
             await sendEvent('complete', { success: true });
-            console.log('[RefineStream] Success');
+
+            // COMPREHENSIVE LOGGING: Success summary
+            const totalDuration = Date.now() - streamStartTime;
+            console.log('[RefineStream] ========== REQUEST COMPLETE ==========');
+            console.log('[RefineStream] Success summary:', {
+                totalDuration: `${totalDuration}ms`,
+                streamDuration: `${streamDuration}ms`,
+                validationDuration: `${validationDuration}ms`,
+                finalContentSize: JSON.stringify(refinedContent).length,
+                validationSuccess,
+                hasWarnings: !!validationWarning
+            });
 
         } catch (error) {
-            console.error('[RefineStream] Error:', error);
-            await sendEvent('error', {
-                message: error.message || 'Failed to generate refinement',
-                code: error.code || 'GENERATION_ERROR'
+            // COMPREHENSIVE LOGGING: Error details
+            console.error('[RefineStream] ========== ERROR OCCURRED ==========');
+            console.error('[RefineStream] Error details:', {
+                message: error.message,
+                stack: error.stack?.substring(0, 500),
+                phase: error.phase || 'unknown',
+                hasPartialContent: accumulatedTokens.length > 0,
+                partialLength: accumulatedTokens.length,
+                sectionId,
+                subSection: subSection || 'all'
             });
+            console.error('[RefineStream] Partial content preview:', accumulatedTokens.substring(0, 500));
+
+            // Send partial content if any was received before error
+            if (accumulatedTokens.length > 50) {
+                await sendEvent('partial', {
+                    partialContent: accumulatedTokens,
+                    reason: 'error',
+                    error: error.message,
+                    canRetry: true,
+                    canSave: false, // Don't allow saving on error, only retry
+                    canDiscard: true
+                });
+                console.log('[RefineStream] Sent partial content after error:', accumulatedTokens.length, 'chars');
+            } else {
+                await sendEvent('error', {
+                    message: error.message || 'Failed to generate refinement',
+                    code: error.code || 'GENERATION_ERROR'
+                });
+            }
         } finally {
             clearTimeout(timeout);
             await writer.close();
@@ -213,7 +323,7 @@ export async function POST(req) {
 /**
  * Stream AI response with token-by-token callbacks
  */
-async function streamAIResponse({ systemPrompt, userPrompt, sectionId, sendEvent }) {
+async function streamAIResponse({ systemPrompt, userPrompt, sectionId, sendEvent, onAccumulate }) {
     let accumulatedText = '';
     let tokenBuffer = '';
 
@@ -221,6 +331,11 @@ async function streamAIResponse({ systemPrompt, userPrompt, sectionId, sendEvent
     const onToken = async (token) => {
         accumulatedText += token;
         tokenBuffer += token;
+
+        // Update accumulated text for partial recovery
+        if (onAccumulate) {
+            onAccumulate(accumulatedText);
+        }
 
         // Send buffered tokens to frontend for smooth rendering
         if (tokenBuffer.length >= TOKEN_BUFFER_SIZE) {
@@ -258,6 +373,99 @@ async function streamAIResponse({ systemPrompt, userPrompt, sectionId, sendEvent
 /**
  * Parse and validate complete streamed response
  */
+/**
+ * SUBSECTION_PATHS: Map sub-section IDs to their nested paths in the schema
+ * Used for wrapping/unwrapping sub-section content for validation
+ */
+const SUBSECTION_PATHS = {
+    setterScript: {
+        callGoal: ['setterCallScript', 'quickOutline', 'callGoal'],
+        step1_openerPermission: ['setterCallScript', 'quickOutline', 'callFlow', 'step1_openerPermission'],
+        step2_referenceOptIn: ['setterCallScript', 'quickOutline', 'callFlow', 'step2_referenceOptIn'],
+        step3_lowPressureFrame: ['setterCallScript', 'quickOutline', 'callFlow', 'step3_lowPressureFrame'],
+        step4_currentSituation: ['setterCallScript', 'quickOutline', 'callFlow', 'step4_currentSituation'],
+        step5_goalMotivation: ['setterCallScript', 'quickOutline', 'callFlow', 'step5_goalMotivation'],
+        step6_challengeStakes: ['setterCallScript', 'quickOutline', 'callFlow', 'step6_challengeStakes'],
+        step7_authorityDrop: ['setterCallScript', 'quickOutline', 'callFlow', 'step7_authorityDrop'],
+        step8_qualifyFit: ['setterCallScript', 'quickOutline', 'callFlow', 'step8_qualifyFit'],
+        step9_bookConsultation: ['setterCallScript', 'quickOutline', 'callFlow', 'step9_bookConsultation'],
+        step10_confirmShowUp: ['setterCallScript', 'quickOutline', 'callFlow', 'step10_confirmShowUp'],
+        setterMindset: ['setterCallScript', 'quickOutline', 'setterMindset']
+    },
+    salesScripts: {
+        callGoal: ['closerCallScript', 'quickOutline', 'callGoal'],
+        part1_openingPermission: ['closerCallScript', 'quickOutline', 'callFlow', 'part1_openingPermission'],
+        part2_discovery: ['closerCallScript', 'quickOutline', 'callFlow', 'part2_discovery'],
+        part3_challengesStakes: ['closerCallScript', 'quickOutline', 'callFlow', 'part3_challengesStakes'],
+        part4_recapConfirmation: ['closerCallScript', 'quickOutline', 'callFlow', 'part4_recapConfirmation'],
+        part5_threeStepPlan: ['closerCallScript', 'quickOutline', 'callFlow', 'part5_threeStepPlan'],
+        part6_closeNextSteps: ['closerCallScript', 'quickOutline', 'callFlow', 'part6_closeNextSteps'],
+        closerMindset: ['closerCallScript', 'quickOutline', 'closerMindset']
+    },
+    idealClient: {
+        bestIdealClient: ['idealClientSnapshot', 'bestIdealClient'],
+        topChallenges: ['idealClientSnapshot', 'topChallenges'],
+        whatTheyWant: ['idealClientSnapshot', 'whatTheyWant'],
+        whatMakesThemPay: ['idealClientSnapshot', 'whatMakesThemPay'],
+        howToTalkToThem: ['idealClientSnapshot', 'howToTalkToThem']
+    },
+    message: {
+        oneLiner: ['signatureMessage', 'oneLiner'],
+        spokenVersion: ['signatureMessage', 'spokenVersion']
+    }
+};
+
+/**
+ * Wrap sub-section content in full schema structure for validation
+ * @param {string} sectionId - Section ID (e.g., "setterScript")
+ * @param {string} subSection - Sub-section field (e.g., "step1_openerPermission")
+ * @param {any} content - The actual content to validate
+ * @returns {Object} Full schema structure with content embedded
+ */
+function wrapSubSectionForValidation(sectionId, subSection, content) {
+    console.log('[WrapSubSection] Wrapping for validation:', { sectionId, subSection });
+
+    const path = SUBSECTION_PATHS[sectionId]?.[subSection];
+
+    if (!path) {
+        console.warn('[WrapSubSection] No path mapping found, returning content as-is');
+        return content;
+    }
+
+    // Build nested structure from path
+    let wrapped = content;
+    for (let i = path.length - 1; i >= 0; i--) {
+        wrapped = { [path[i]]: wrapped };
+    }
+
+    console.log('[WrapSubSection] Wrapped structure keys:', Object.keys(wrapped));
+    return wrapped;
+}
+
+/**
+ * Unwrap validated content back to original sub-section format
+ */
+function unwrapSubSection(wrappedContent, sectionId, subSection) {
+    console.log('[UnwrapSubSection] Unwrapping:', { sectionId, subSection });
+
+    const path = SUBSECTION_PATHS[sectionId]?.[subSection];
+
+    if (!path) return wrappedContent;
+
+    let current = wrappedContent;
+    for (const key of path) {
+        if (current && current[key] !== undefined) {
+            current = current[key];
+        } else {
+            console.warn('[UnwrapSubSection] Path navigation failed at:', key);
+            return wrappedContent;
+        }
+    }
+
+    console.log('[UnwrapSubSection] Unwrapped to:', { type: typeof current });
+    return { [subSection]: current };
+}
+
 async function parseAndValidate(fullText, sectionId, subSection) {
     let refinedContent;
     let validationSuccess = true;
@@ -279,37 +487,128 @@ async function parseAndValidate(fullText, sectionId, subSection) {
         // 3. Parse JSON
         refinedContent = JSON.parse(cleanedText);
 
-        // 4. CRITICAL: Validate top-level key for schema-specific sections
+        // 4. CRITICAL: Validate and AUTO-CORRECT top-level key for confusable sections
         const topLevelKeys = Object.keys(refinedContent);
 
         if (sectionId === 'setterScript') {
-            // MUST have setterCallScript, MUST NOT have closerCallScript
-            if (!refinedContent.setterCallScript) {
-                console.error('[RefineStream] WRONG SCHEMA: Missing setterCallScript, got:', topLevelKeys);
-                throw new Error('AI generated wrong schema structure. Expected "setterCallScript" for Setter Script section.');
-            }
-            if (refinedContent.closerCallScript) {
-                console.error('[RefineStream] WRONG SCHEMA: Found closerCallScript in setterScript section!');
-                throw new Error('AI mixed schemas! Found "closerCallScript" but this is a Setter Script section (should only have "setterCallScript").');
+            // Check if AI mistakenly used closerCallScript
+            if (refinedContent.closerCallScript && !refinedContent.setterCallScript) {
+                console.warn('[RefineStream] AUTO-CORRECTING: Found closerCallScript, renaming to setterCallScript');
+
+                // Auto-correct: rename the key
+                refinedContent.setterCallScript = refinedContent.closerCallScript;
+                delete refinedContent.closerCallScript;
+
+                // Also need to fix the nested keys (part_ to step_)
+                if (refinedContent.setterCallScript?.quickOutline?.callFlow) {
+                    const callFlow = refinedContent.setterCallScript.quickOutline.callFlow;
+                    const correctedCallFlow = {};
+
+                    // Map part_ keys to step_ keys
+                    const partToStepMapping = {
+                        'part1_openingPermission': 'step1_openerPermission',
+                        'part2_discovery': 'step2_referenceOptIn',
+                        'part3_challengesStakes': 'step6_challengeStakes',
+                        'part4_recapConfirmation': 'step4_currentSituation',
+                        'part5_threeStepPlan': 'step5_goalMotivation',
+                        'part6_closeNextSteps': 'step9_bookConsultation'
+                    };
+
+                    // Copy existing step_ keys first
+                    for (const [key, value] of Object.entries(callFlow)) {
+                        if (key.startsWith('step')) {
+                            correctedCallFlow[key] = value;
+                        } else if (partToStepMapping[key]) {
+                            // Map part_ to step_
+                            correctedCallFlow[partToStepMapping[key]] = value;
+                        }
+                    }
+
+                    // Check for missing required steps - FAIL if incomplete
+                    const requiredSteps = [
+                        'step1_openerPermission', 'step2_referenceOptIn', 'step3_lowPressureFrame',
+                        'step4_currentSituation', 'step5_goalMotivation', 'step6_challengeStakes',
+                        'step7_authorityDrop', 'step8_qualifyFit', 'step9_bookConsultation',
+                        'step10_confirmShowUp'
+                    ];
+
+                    const missingSteps = requiredSteps.filter(step => !correctedCallFlow[step]);
+
+                    if (missingSteps.length > 0) {
+                        console.error('[RefineStream] INCOMPLETE CONTENT - Missing steps:', missingSteps);
+                        throw new Error(`AI generated incomplete setter script. Missing required steps: ${missingSteps.join(', ')}. Please try again with more specific feedback.`);
+                    }
+
+                    refinedContent.setterCallScript.quickOutline.callFlow = correctedCallFlow;
+
+                    // Add setterMindset if missing
+                    if (!refinedContent.setterCallScript.quickOutline.setterMindset) {
+                        refinedContent.setterCallScript.quickOutline.setterMindset =
+                            'Be curious, not pushy. Lead with service, not sales. Build trust. Book qualified calls only.';
+                    }
+                }
+
+                console.log('[RefineStream] Auto-corrected setterScript schema. New keys:',
+                    Object.keys(refinedContent.setterCallScript?.quickOutline?.callFlow || {}));
             }
         }
 
         if (sectionId === 'salesScripts') {
-            // MUST have closerCallScript, MUST NOT have setterCallScript
-            if (!refinedContent.closerCallScript) {
-                console.error('[RefineStream] WRONG SCHEMA: Missing closerCallScript, got:', topLevelKeys);
-                throw new Error('AI generated wrong schema structure. Expected "closerCallScript" for Sales/Closer Scripts section.');
-            }
-            if (refinedContent.setterCallScript) {
-                console.error('[RefineStream] WRONG SCHEMA: Found setterCallScript in salesScripts section!');
-                throw new Error('AI mixed schemas! Found "setterCallScript" but this is a Closer/Sales Scripts section (should only have "closerCallScript").');
-            }
-        }
+            // Check if AI mistakenly used setterCallScript
+            if (refinedContent.setterCallScript && !refinedContent.closerCallScript) {
+                console.warn('[RefineStream] AUTO-CORRECTING: Found setterCallScript, renaming to closerCallScript');
 
-        // 5. Handle sub-section wrapping
-        if (subSection && subSection !== 'all') {
-            if (!refinedContent[subSection] && Object.keys(refinedContent).length > 0) {
-                refinedContent = { [subSection]: refinedContent };
+                // Auto-correct: rename the key
+                refinedContent.closerCallScript = refinedContent.setterCallScript;
+                delete refinedContent.setterCallScript;
+
+                // Also need to fix the nested keys (step_ to part_)
+                if (refinedContent.closerCallScript?.quickOutline?.callFlow) {
+                    const callFlow = refinedContent.closerCallScript.quickOutline.callFlow;
+                    const correctedCallFlow = {};
+
+                    // Map step_ keys to part_ keys (best effort)
+                    const stepToPartMapping = {
+                        'step1_openerPermission': 'part1_openingPermission',
+                        'step2_referenceOptIn': 'part2_discovery',
+                        'step6_challengeStakes': 'part3_challengesStakes',
+                        'step4_currentSituation': 'part4_recapConfirmation',
+                        'step5_goalMotivation': 'part5_threeStepPlan',
+                        'step9_bookConsultation': 'part6_closeNextSteps'
+                    };
+
+                    // Copy existing part_ keys first
+                    for (const [key, value] of Object.entries(callFlow)) {
+                        if (key.startsWith('part')) {
+                            correctedCallFlow[key] = value;
+                        } else if (stepToPartMapping[key]) {
+                            correctedCallFlow[stepToPartMapping[key]] = value;
+                        }
+                    }
+
+                    // Check for missing required parts - FAIL if incomplete
+                    const requiredParts = [
+                        'part1_openingPermission', 'part2_discovery', 'part3_challengesStakes',
+                        'part4_recapConfirmation', 'part5_threeStepPlan', 'part6_closeNextSteps'
+                    ];
+
+                    const missingParts = requiredParts.filter(part => !correctedCallFlow[part]);
+
+                    if (missingParts.length > 0) {
+                        console.error('[RefineStream] INCOMPLETE CONTENT - Missing parts:', missingParts);
+                        throw new Error(`AI generated incomplete closer script. Missing required parts: ${missingParts.join(', ')}. Please try again with more specific feedback.`);
+                    }
+
+                    refinedContent.closerCallScript.quickOutline.callFlow = correctedCallFlow;
+
+                    // Remove setterMindset if present (not part of closer schema)
+                    if (refinedContent.closerCallScript.quickOutline.setterMindset) {
+                        delete refinedContent.closerCallScript.quickOutline.setterMindset;
+                    }
+                }
+
+                console.log('[RefineStream] Auto-corrected closerCallScript schema. New keys:',
+                    Object.keys(refinedContent.closerCallScript?.quickOutline?.callFlow || {}));
             }
         }
 
@@ -318,20 +617,47 @@ async function parseAndValidate(fullText, sectionId, subSection) {
         throw new Error(parseError.message || 'AI returned invalid JSON format');
     }
 
-    // 5. Validate against schema
-    const validation = validateVaultContent(sectionId, refinedContent);
+    // 5. Validate against schema with proper wrapping for sub-sections
+    let validationTarget = refinedContent;
+
+    if (subSection && subSection !== 'all') {
+        console.log('[ParseAndValidate] Sub-section detected, wrapping for validation:', subSection);
+
+        // Extract the content to wrap (might be nested or direct)
+        const contentToWrap = refinedContent[subSection] || refinedContent;
+
+        // Wrap in full schema structure for validation
+        validationTarget = wrapSubSectionForValidation(sectionId, subSection, contentToWrap);
+
+        console.log('[ParseAndValidate] Wrapped structure for validation:', {
+            keys: Object.keys(validationTarget),
+            preview: JSON.stringify(validationTarget).substring(0, 200)
+        });
+    }
+
+    // Validate the wrapped/full content
+    const validation = validateVaultContent(sectionId, validationTarget);
 
     if (!validation.success) {
         console.warn('[RefineStream] Schema validation failed:', validation.errors);
 
         // Strip extra fields to match schema
-        refinedContent = stripExtraFields(sectionId, refinedContent);
+        validationTarget = stripExtraFields(sectionId, validationTarget);
 
         validationSuccess = false;
         validationWarning = 'Output adjusted to match schema requirements';
     } else {
         console.log('[RefineStream] Schema validation passed');
-        refinedContent = validation.data;
+        validationTarget = validation.data;
+    }
+
+    // 6. Unwrap if we wrapped for validation
+    if (subSection && subSection !== 'all') {
+        console.log('[ParseAndValidate] Unwrapping validated content');
+        refinedContent = unwrapSubSection(validationTarget, sectionId, subSection);
+        console.log('[ParseAndValidate] Unwrapped content keys:', Object.keys(refinedContent));
+    } else {
+        refinedContent = validationTarget;
     }
 
     return { refinedContent, validationSuccess, validationWarning };
@@ -351,16 +677,59 @@ function buildConversationalPrompt({ sectionId, subSection, messageHistory, curr
         .filter(m => m.role === 'user')
         .pop()?.content || '';
 
-    // Build conversation history context
+    // Build conversation history context with TOKEN-AWARE truncation (no character limits)
     let conversationContext = '';
     if (messageHistory.length > 1) {
+        const MAX_CONTEXT_TOKENS = 3000;
         conversationContext = '\n\nCONVERSATION HISTORY:\n';
-        messageHistory.slice(-10).forEach(msg => { // Increased to 10 for better memory
+        const includedMessages = [];
+        let tokenCount = 0;
+
+        console.log('[BuildContext] Building conversation context with token awareness');
+
+        // Start from most recent and work backwards
+        for (let i = messageHistory.length - 1; i >= 0; i--) {
+            const msg = messageHistory[i];
             const role = msg.role === 'user' ? 'User' : 'Assistant';
+
+            // Get full content (NO truncation)
             const content = typeof msg.content === 'string'
-                ? msg.content.substring(0, 300) // Increased limit
-                : JSON.stringify(msg.content).substring(0, 300);
-            conversationContext += `${role}: ${content}\n`;
+                ? msg.content
+                : JSON.stringify(msg.content, null, 2);
+
+            // Count tokens for this message
+            const messageText = `${role}: ${content}\n`;
+            const messageTokens = encode(messageText).length;
+
+            console.log('[BuildContext] Message', i, ':', {
+                role,
+                contentLength: content.length,
+                tokens: messageTokens,
+                totalSoFar: tokenCount + messageTokens
+            });
+
+            // Check if adding this message would exceed limit
+            if (tokenCount + messageTokens > MAX_CONTEXT_TOKENS) {
+                // Summarize remaining older messages
+                const remainingCount = i + 1;
+                conversationContext += `\n[${remainingCount} earlier message${remainingCount > 1 ? 's' : ''} omitted to save context space]\n\n`;
+                console.log('[BuildContext] Token limit reached. Omitted', remainingCount, 'older messages');
+                break;
+            }
+
+            // Add message (in reverse order, will flip later)
+            includedMessages.unshift(messageText);
+            tokenCount += messageTokens;
+        }
+
+        // Add messages in chronological order
+        conversationContext += includedMessages.join('');
+
+        console.log('[BuildContext] Final context:', {
+            totalTokens: tokenCount,
+            messagesIncluded: includedMessages.length,
+            totalMessages: messageHistory.length,
+            characterLength: conversationContext.length
         });
     }
 
@@ -463,8 +832,8 @@ INSTRUCTIONS:
 5. Return ONLY valid JSON matching the schema structure shown above
 6. DO NOT wrap in markdown code blocks
 7. ${isSubSection
-        ? `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
-        : `Update the entire section. Return the complete section matching the exact schema structure.`}
+            ? `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
+            : `Update the entire section. Return the complete section matching the exact schema structure.`}
 
 CRITICAL SCHEMA RULES:
 - Match exact array lengths (if schema says 3 items, output exactly 3)

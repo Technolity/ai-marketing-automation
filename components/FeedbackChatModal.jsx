@@ -10,7 +10,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Send, Loader2, CheckCircle, MessageSquare,
-    Lightbulb, RefreshCw, Save
+    Lightbulb, RefreshCw, Save, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
@@ -245,6 +245,8 @@ export default function FeedbackChatModal({
     // NEW: Streaming state
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingMessage, setStreamingMessage] = useState(null);
+    const [partialContent, setPartialContent] = useState(null);
+    const [partialError, setPartialError] = useState(null);
     const abortControllerRef = useRef(null);
 
     const MAX_REGENERATIONS = 5;
@@ -347,6 +349,24 @@ Be as specific as possible - for example:
                 // Get Clerk auth token
                 const token = await getToken();
 
+                // COMPREHENSIVE LOGGING: Message sent
+                const requestPayload = {
+                    sectionId,
+                    subSection: selectedSubSection,
+                    messageHistory: [...messages, userMessage],
+                    currentContent,
+                    sessionId
+                };
+                console.log('[FeedbackChat] ========== MESSAGE SENT ==========');
+                console.log('[FeedbackChat] Sending feedback:', {
+                    sectionId,
+                    subSection: selectedSubSection || 'all',
+                    messageLength: feedback.length,
+                    totalMessagesInHistory: requestPayload.messageHistory.length,
+                    currentContentSize: JSON.stringify(currentContent).length,
+                    inputPreview: feedback.substring(0, 100) + (feedback.length > 100 ? '...' : '')
+                });
+
                 const response = await fetch('/api/os/refine-section-stream', {
                     method: 'POST',
                     headers: {
@@ -354,13 +374,7 @@ Be as specific as possible - for example:
                         'Content-Type': 'application/json',
                         'Accept': 'text/event-stream',
                     },
-                    body: JSON.stringify({
-                        sectionId,
-                        subSection: selectedSubSection,
-                        messageHistory: [...messages, userMessage],
-                        currentContent,
-                        sessionId
-                    }),
+                    body: JSON.stringify(requestPayload),
                     signal: abortControllerRef.current.signal
                 });
 
@@ -390,27 +404,113 @@ Be as specific as possible - for example:
 
                                 if (currentEvent === 'token') {
                                     // Append token to streaming message
-                                    setStreamingMessage(prev => prev ? ({
-                                        ...prev,
-                                        content: prev.content + data.content
-                                    }) : null);
-                                } else if (currentEvent === 'validated') {
-                                    // Complete message with validated content
-                                    setStreamingMessage(prev => prev ? ({
-                                        ...prev,
-                                        isComplete: true,
-                                        isStreaming: false,
-                                        metadata: {
-                                            validatedContent: data.refinedContent,
-                                            rawText: data.rawText,
-                                            validationWarning: data.validationWarning
+                                    setStreamingMessage(prev => {
+                                        const newContent = prev ? prev.content + data.content : data.content;
+
+                                        // COMPREHENSIVE LOGGING: Token received (every 100 chars to avoid spam)
+                                        if (newContent.length % 100 === 0 || newContent.length < 100) {
+                                            console.log('[FeedbackChat] Token received:', {
+                                                totalCharsReceived: newContent.length,
+                                                latestToken: data.content.substring(0, 20)
+                                            });
                                         }
-                                    }) : null);
+
+                                        return prev ? ({ ...prev, content: newContent }) : null;
+                                    });
+                                } else if (currentEvent === 'validated') {
+                                    // COMPREHENSIVE LOGGING: Validation received
+                                    console.log('[FeedbackChat] ========== VALIDATION RECEIVED ==========');
+                                    console.log('[FeedbackChat] Validation result:', {
+                                        hasContent: !!data.refinedContent,
+                                        validationSuccess: data.validationSuccess,
+                                        hasWarning: !!data.validationWarning,
+                                        warning: data.validationWarning || 'none',
+                                        contentKeys: Object.keys(data.refinedContent || {}),
+                                        rawTextLength: data.rawText?.length || 0,
+                                        refinedContentSize: JSON.stringify(data.refinedContent || {}).length
+                                    });
+                                    console.log('[FeedbackChat] Refined content preview:', JSON.stringify(data.refinedContent, null, 2).substring(0, 500));
+
+                                    // Store validated content FIRST
                                     setSuggestedChanges(data.refinedContent);
+
+                                    // Complete message with validated content (CREATE if null!)
+                                    setStreamingMessage(prev => {
+                                        const updated = prev ? {
+                                            ...prev,
+                                            isComplete: true,
+                                            isStreaming: false,
+                                            metadata: {
+                                                validatedContent: data.refinedContent,
+                                                rawText: data.rawText,
+                                                validationWarning: data.validationWarning
+                                            }
+                                        } : {
+                                            // CREATE NEW if prev is null
+                                            id: `msg_${Date.now()}`,
+                                            role: 'assistant',
+                                            content: '',
+                                            timestamp: Date.now(),
+                                            isComplete: true,
+                                            isStreaming: false,
+                                            metadata: {
+                                                validatedContent: data.refinedContent,
+                                                rawText: data.rawText,
+                                                validationWarning: data.validationWarning
+                                            }
+                                        };
+
+                                        console.log('[FeedbackChat] StreamingMessage updated/created:', {
+                                            wasNull: !prev,
+                                            hasMetadata: !!updated.metadata,
+                                            hasValidatedContent: !!updated.metadata?.validatedContent,
+                                            contentKeys: Object.keys(updated.metadata?.validatedContent || {})
+                                        });
+
+                                        return updated;
+                                    });
 
                                     if (data.validationWarning) {
                                         toast.warning(data.validationWarning);
                                     }
+                                } else if (currentEvent === 'partial') {
+                                    // Partial content received - show recovery dialog
+                                    console.log('[FeedbackChat] Partial content received:', {
+                                        contentLength: data.partialContent?.length,
+                                        reason: data.reason,
+                                        canSave: data.canSave,
+                                        canRetry: data.canRetry
+                                    });
+
+                                    // Clear streaming message
+                                    setStreamingMessage(null);
+
+                                    // Store partial content and metadata
+                                    setPartialContent(data.partialContent);
+                                    setPartialError({
+                                        reason: data.reason,
+                                        error: data.error,
+                                        canSave: data.canSave,
+                                        canRetry: data.canRetry,
+                                        canDiscard: data.canDiscard
+                                    });
+
+                                    // Add message about partial content
+                                    const reasonText = data.reason === 'timeout'
+                                        ? '⏱️ Generation timed out after receiving partial content'
+                                        : `❌ Generation failed: ${data.error || 'Unknown error'}`;
+
+                                    setMessages(prev => [...prev, {
+                                        role: 'assistant',
+                                        content: `${reasonText}\n\nI received ${data.partialContent?.length || 0} characters before the ${data.reason}.\n\nWhat would you like to do?`,
+                                        isPartialError: true
+                                    }]);
+
+                                    setIsStreaming(false);
+                                    setIsProcessing(false);
+                                    setChatStep(2); // Stay in feedback step
+
+                                    return;
                                 } else if (currentEvent === 'error') {
                                     // Handle error without throwing - preserve any content generated
                                     console.error('[FeedbackChat] Stream error:', data);
@@ -443,13 +543,35 @@ Be as specific as possible - for example:
                                     // Don't throw - error is handled
                                     return;
                                 } else if (currentEvent === 'complete') {
-                                    // Move streaming message to messages array
-                                    if (streamingMessage) {
-                                        setMessages(prev => [...prev, streamingMessage]);
+                                    // COMPREHENSIVE LOGGING: Stream complete
+                                    console.log('[FeedbackChat] ========== STREAM COMPLETE ==========');
+                                    console.log('[FeedbackChat] Moving to preview step with validated content');
+
+                                    // Move streaming message to messages array with proper preview structure
+                                    if (streamingMessage && streamingMessage.metadata?.validatedContent) {
+                                        const finalMessage = {
+                                            role: 'assistant',
+                                            content: "✓ Content generated successfully. Review the changes below:",
+                                            showPreview: true,
+                                            previewContent: streamingMessage.metadata.validatedContent,
+                                            metadata: streamingMessage.metadata
+                                        };
+                                        console.log('[FeedbackChat] Adding final message to array:', {
+                                            hasShowPreview: finalMessage.showPreview,
+                                            hasPreviewContent: !!finalMessage.previewContent,
+                                            previewContentKeys: Object.keys(finalMessage.previewContent || {}),
+                                            messageContent: finalMessage.content
+                                        });
+                                        setMessages(prev => [...prev, finalMessage]);
+                                    } else {
+                                        console.warn('[FeedbackChat] No streamingMessage or validated content to move to messages');
                                     }
+
                                     setStreamingMessage(null);
                                     setChatStep(3);
                                     setRegenerationCount(prev => prev + 1);
+                                    setIsStreaming(false);
+                                    setIsProcessing(false);
                                 }
                             } catch (parseError) {
                                 console.warn('[FeedbackChat] Failed to parse SSE data:', parseError);
@@ -554,7 +676,24 @@ Be as specific as possible - for example:
     const handleSaveChanges = () => {
         if (!suggestedChanges) return;
 
-        onSave(suggestedChanges);
+        // COMPREHENSIVE LOGGING: Save triggered
+        console.log('[FeedbackChat] ========== SAVE TRIGGERED ==========');
+        console.log('[FeedbackChat] Saving changes:', {
+            sectionId,
+            subSection: selectedSubSection || 'all',
+            hasContent: !!suggestedChanges,
+            contentKeys: Object.keys(suggestedChanges),
+            contentSize: JSON.stringify(suggestedChanges).length,
+            messageHistoryLength: messages.length
+        });
+        console.log('[FeedbackChat] Content being saved:', JSON.stringify(suggestedChanges, null, 2).substring(0, 500));
+
+        // Pass both refined content AND subSection info to vault
+        onSave({
+            refinedContent: suggestedChanges,
+            subSection: selectedSubSection
+        });
+
         toast.success("Changes saved!");
         onClose();
     };
@@ -690,13 +829,29 @@ Be as specific as possible - for example:
                                     )}
 
                                     {/* Preview content */}
-                                    {(msg.showPreview && msg.previewContent) || msg.metadata?.validatedContent ? (
-                                        <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
-                                            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                                {formatPreviewContent(msg.previewContent || msg.metadata?.validatedContent)}
-                                            </pre>
-                                        </div>
-                                    ) : null}
+                                    {(() => {
+                                        const shouldShowPreview = (msg.showPreview && msg.previewContent) || msg.metadata?.validatedContent;
+                                        const contentToFormat = msg.previewContent || msg.metadata?.validatedContent;
+
+                                        if (shouldShowPreview && idx === messages.length - 1) {
+                                            console.log('[FeedbackChat] Rendering preview for last message:', {
+                                                msgIndex: idx,
+                                                hasShowPreview: !!msg.showPreview,
+                                                hasPreviewContent: !!msg.previewContent,
+                                                hasMetadataContent: !!msg.metadata?.validatedContent,
+                                                contentKeys: Object.keys(contentToFormat || {}),
+                                                role: msg.role
+                                            });
+                                        }
+
+                                        return shouldShowPreview ? (
+                                            <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
+                                                <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                                    {formatPreviewContent(contentToFormat)}
+                                                </pre>
+                                            </div>
+                                        ) : null;
+                                    })()}
                                 </div>
                             </motion.div>
                         ))}
@@ -709,15 +864,27 @@ Be as specific as possible - for example:
                                 className="flex justify-start"
                             >
                                 <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] text-white">
-                                    {/* While streaming: Show loading indicator (hide raw JSON) */}
+                                    {/* While streaming: Show loading indicator with live content preview */}
                                     {streamingMessage.isStreaming && !streamingMessage.metadata?.validatedContent ? (
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex gap-1">
-                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex gap-1">
+                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                                </div>
+                                                <span className="text-sm text-gray-400">Generating your refined content...</span>
                                             </div>
-                                            <span className="text-sm text-gray-400">Generating your refined content...</span>
+                                            {/* Show live streaming content */}
+                                            {streamingMessage.content && streamingMessage.content.length > 50 && (
+                                                <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-48 overflow-y-auto">
+                                                    <pre className="text-xs text-gray-500 whitespace-pre-wrap font-mono">
+                                                        {streamingMessage.content.substring(0, 500)}
+                                                        {streamingMessage.content.length > 500 && '...'}
+                                                        <span className="inline-block w-2 h-3 bg-cyan animate-pulse ml-1">|</span>
+                                                    </pre>
+                                                </div>
+                                            )}
                                         </div>
                                     ) : null}
 
@@ -736,29 +903,149 @@ Be as specific as possible - for example:
                             </motion.div>
                         )}
 
+                        {/* Partial Content Recovery Dialog */}
+                        {partialError && partialContent && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex justify-start"
+                            >
+                                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] border-2 border-yellow-500/30">
+                                    <div className="space-y-3">
+                                        <div className="flex items-start gap-2">
+                                            <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-yellow-500">
+                                                    {partialError.reason === 'timeout'
+                                                        ? 'Generation Timed Out'
+                                                        : 'Generation Failed'}
+                                                </p>
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                    Received {partialContent.length} characters before {partialError.reason}.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Partial Content Preview */}
+                                        <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-32 overflow-y-auto">
+                                            <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono">
+                                                {partialContent.substring(0, 500)}
+                                                {partialContent.length > 500 && '...'}
+                                            </pre>
+                                        </div>
+
+                                        {/* Recovery Action Buttons */}
+                                        <div className="flex flex-col gap-2 pt-2">
+                                            {partialError.canRetry && (
+                                                <button
+                                                    onClick={() => {
+                                                        console.log('[FeedbackChat] Retry from scratch clicked');
+                                                        setPartialContent(null);
+                                                        setPartialError(null);
+                                                        // Re-send the last user message
+                                                        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+                                                        if (lastUserMessage) {
+                                                            setInputText(lastUserMessage.content);
+                                                            setTimeout(() => handleSendFeedback(), 100);
+                                                        }
+                                                    }}
+                                                    className="w-full py-2.5 px-4 bg-cyan hover:bg-cyan/90 text-black rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+                                                >
+                                                    <RefreshCw className="w-4 h-4" />
+                                                    Retry from Scratch
+                                                </button>
+                                            )}
+
+                                            {partialError.canSave && (
+                                                <button
+                                                    onClick={async () => {
+                                                        console.log('[FeedbackChat] Save partial clicked');
+                                                        try {
+                                                            // Try to parse and save partial content
+                                                            const parsed = JSON.parse(partialContent);
+                                                            setSuggestedChanges(parsed);
+                                                            setChatStep(3);
+                                                            setPartialContent(null);
+                                                            setPartialError(null);
+                                                            setMessages(prev => [...prev, {
+                                                                role: 'assistant',
+                                                                content: '✓ Partial content parsed successfully. Review below:',
+                                                                showPreview: true,
+                                                                previewContent: parsed
+                                                            }]);
+                                                        } catch (error) {
+                                                            console.error('[FeedbackChat] Failed to parse partial content:', error);
+                                                            setMessages(prev => [...prev, {
+                                                                role: 'assistant',
+                                                                content: `❌ Cannot save: Partial content is not valid JSON.\n\nError: ${error.message}\n\nPlease retry or discard.`
+                                                            }]);
+                                                        }
+                                                    }}
+                                                    className="w-full py-2.5 px-4 bg-[#3a3a3d] hover:bg-[#4a4a4d] text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+                                                >
+                                                    <Save className="w-4 h-4" />
+                                                    Save Partial Content
+                                                </button>
+                                            )}
+
+                                            {partialError.canDiscard && (
+                                                <button
+                                                    onClick={() => {
+                                                        console.log('[FeedbackChat] Discard clicked');
+                                                        setPartialContent(null);
+                                                        setPartialError(null);
+                                                        setMessages(prev => [...prev, {
+                                                            role: 'assistant',
+                                                            content: 'Partial content discarded. You can try again with different feedback or close this dialog.'
+                                                        }]);
+                                                    }}
+                                                    className="w-full py-2.5 px-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-gray-400 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all border border-[#2a2a2d]"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                    Discard
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+
                         <div ref={messagesEndRef} />
                     </div>
 
                     {/* Actions for Preview Step */}
-                    {chatStep === 3 && suggestedChanges && (
-                        <div className="p-4 border-t border-[#2a2a2d] flex flex-wrap gap-3">
-                            <button
-                                onClick={handleSaveChanges}
-                                className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2"
-                            >
-                                <Save className="w-4 h-4" />
-                                Save Changes
-                            </button>
-                            <button
-                                onClick={handleTryAgain}
-                                disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
-                                className="flex-1 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
-                                Try Again
-                            </button>
-                        </div>
-                    )}
+                    {(() => {
+                        const shouldShowActions = chatStep === 3 && suggestedChanges;
+
+                        // Log button visibility for debugging
+                        console.log('[FeedbackChat] Action buttons state:', {
+                            chatStep,
+                            hasSuggestedChanges: !!suggestedChanges,
+                            shouldShowActions,
+                            suggestedChangesKeys: Object.keys(suggestedChanges || {})
+                        });
+
+                        return shouldShowActions ? (
+                            <div className="p-4 border-t border-[#2a2a2d] flex flex-wrap gap-3">
+                                <button
+                                    onClick={handleSaveChanges}
+                                    className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    Save Changes
+                                </button>
+                                <button
+                                    onClick={handleTryAgain}
+                                    disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
+                                    className="flex-1 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
+                                    Try Again
+                                </button>
+                            </div>
+                        ) : null;
+                    })()}
 
                     {/* Input for Feedback Step */}
                     {chatStep === 2 && (

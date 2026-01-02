@@ -13,18 +13,18 @@ export async function GET(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Fetch funnels without vault_content join (table may not exist yet)
         const { data: funnels, error } = await supabaseAdmin
             .from('user_funnels')
-            .select(`
-                *,
-                approved_count:vault_content(count)
-            `)
+            .select('*')
             .eq('user_id', userId)
             .eq('is_deleted', false)
-            .eq('vault_content.status', 'approved')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
+
+        // TODO: Add approved_count from vault_content_fields when needed
+        // For now, return funnels without approval count
 
         return NextResponse.json({
             success: true,
@@ -113,7 +113,12 @@ export async function POST(req) {
 
 /**
  * DELETE /api/user/funnels?id=xxx
- * Soft delete a funnel (business)
+ * Hard delete a funnel (business) and all related data
+ * Database has ON DELETE CASCADE, so all related data is automatically deleted:
+ * - questionnaire_responses
+ * - vault_content
+ * - content_edit_history
+ * - generation_jobs
  */
 export async function DELETE(req) {
     try {
@@ -129,34 +134,34 @@ export async function DELETE(req) {
             return NextResponse.json({ error: 'Funnel ID required' }, { status: 400 });
         }
 
-        // Verify ownership and soft delete
-        const { error } = await supabaseAdmin
+        // Verify ownership before deleting
+        const { data: funnel, error: verifyError } = await supabaseAdmin
             .from('user_funnels')
-            .update({
-                is_deleted: true,
-                is_active: false,
-                updated_at: new Date().toISOString()
-            })
+            .select('id, user_id')
+            .eq('id', funnelId)
+            .eq('user_id', userId)
+            .single();
+
+        if (verifyError || !funnel) {
+            return NextResponse.json({ error: 'Business not found or access denied' }, { status: 404 });
+        }
+
+        // Hard delete - CASCADE will remove all related data automatically
+        const { error: deleteError } = await supabaseAdmin
+            .from('user_funnels')
+            .delete()
             .eq('id', funnelId)
             .eq('user_id', userId);
 
-        if (error) throw error;
+        if (deleteError) throw deleteError;
 
-        // Decrement funnel count
-        const { data: profile } = await supabaseAdmin
-            .from('user_profiles')
-            .select('current_funnel_count')
-            .eq('id', userId)
-            .single();
+        // The database trigger (decrement_funnel_count_trigger) will automatically 
+        // decrement the user's current_funnel_count
 
-        if (profile) {
-            await supabaseAdmin
-                .from('user_profiles')
-                .update({ current_funnel_count: Math.max(0, (profile.current_funnel_count || 1) - 1) })
-                .eq('id', userId);
-        }
-
-        return NextResponse.json({ success: true, message: 'Business deleted' });
+        return NextResponse.json({
+            success: true,
+            message: 'Business and all related data permanently deleted'
+        });
 
     } catch (error) {
         console.error('[API] Delete funnel error:', error);

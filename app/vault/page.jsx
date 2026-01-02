@@ -14,17 +14,49 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-    Loader2, ChevronRight, RefreshCw, CheckCircle, Lock,
+    Loader2, ChevronRight, RefreshCw, CheckCircle, Lock, AlertTriangle,
     Users, MessageSquare, BookOpen, Gift, Mic, Magnet,
     Video, Mail, Megaphone, Layout, Bell, Lightbulb,
     Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
     ChevronDown, ChevronUp, Save, Image as ImageIcon, Video as VideoIcon, Plus, Trash2 as TrashIcon, ExternalLink,
-    Upload, X
+    Upload, X, Info
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import FeedbackChatModal from "@/components/FeedbackChatModal";
+
+// Granular Field Components
+import IdealClientFields from "@/components/vault/IdealClientFields";
+import MessageFields from "@/components/vault/MessageFields";
+import OfferFields from "@/components/vault/OfferFields";
+import SalesScriptsFields from "@/components/vault/SalesScriptsFields";
+import SetterScriptFields from "@/components/vault/SetterScriptFields";
+import StoryFields from "@/components/vault/StoryFields";
+import LeadMagnetFields from "@/components/vault/LeadMagnetFields";
+import VslFields from "@/components/vault/VslFields";
+import EmailsFields from "@/components/vault/EmailsFields";
+import FacebookAdsFields from "@/components/vault/FacebookAdsFields";
+import FunnelCopyFields from "@/components/vault/FunnelCopyFields";
+import BioFields from "@/components/vault/BioFields";
+import AppointmentRemindersFields from "@/components/vault/AppointmentRemindersFields";
+
+// Map section IDs to granular field components (all 13 sections)
+const GRANULAR_FIELD_COMPONENTS = {
+    idealClient: IdealClientFields,
+    message: MessageFields,
+    offer: OfferFields,
+    salesScripts: SalesScriptsFields,
+    setterScript: SetterScriptFields,
+    story: StoryFields,
+    leadMagnet: LeadMagnetFields,
+    vsl: VslFields,
+    emails: EmailsFields,
+    facebookAds: FacebookAdsFields,
+    funnelCopy: FunnelCopyFields,
+    bio: BioFields,
+    appointmentReminders: AppointmentRemindersFields
+};
 
 // Phase 1: Business Assets - Core business foundations (always accessible)
 const PHASE_1_SECTIONS = [
@@ -32,7 +64,7 @@ const PHASE_1_SECTIONS = [
     { id: 'message', numericKey: 2, title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
     { id: 'story', numericKey: 3, title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
     { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift },
-    { id: 'salesScripts', numericKey: 5, title: 'Sales Script', subtitle: 'How you close deals', icon: Mic },
+    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic },
     { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell }
 ];
 
@@ -70,11 +102,14 @@ function normalizeData(rawData) {
 }
 
 // Common wrappers that AI often adds around content
+// ⚠️ IMPORTANT: Only include truly extraneous wrappers that AI might add
+// DO NOT include schema-required top-level keys like setterCallScript, closerCallScript
+// Those are REQUIRED by the schema and must NOT be unwrapped
 const AI_WRAPPERS = [
     'signatureOffer', 'idealClientProfile', 'millionDollarMessage',
     'signatureStory', 'masterBlueprint', 'programBlueprint',
-    'setterCallScript', 'closerCallScript', 'leadMagnet',
-    'vslScript', 'emailSequence', 'adCopy', 'funnelCopy'
+    'leadMagnet', 'vslScript', 'emailSequence', 'adCopy', 'funnelCopy',
+    // Removed: 'setterCallScript', 'closerCallScript' - these are schema keys!
 ];
 
 /**
@@ -131,8 +166,162 @@ function parseAndCleanContent(content) {
  * Deep merge with intelligent field matching
  * Finds the correct location for updated fields even if nested differently
  */
+/**
+ * Strict replacement - only updates the exact sub-section specified
+ * @param {Object} target - Existing vault content
+ * @param {Object} source - AI-generated content (may be partial)
+ * @param {Object} options - Replacement options
+ * @returns {Object} Updated content with ONLY the specified field replaced
+ */
+function strictReplace(target, source, options = {}) {
+    const { subSection } = options;
+
+    console.log('[StrictReplace] Input:', {
+        targetKeys: Object.keys(target || {}),
+        sourceKeys: Object.keys(source || {}),
+        subSection
+    });
+
+    // If source has _rawContent flag, return it as-is
+    if (source && source._rawContent) {
+        console.log('[StrictReplace] Raw content detected, returning as-is');
+        return source._rawContent;
+    }
+
+    // Handle null/undefined cases
+    if (!source || typeof source !== 'object') {
+        console.warn('[StrictReplace] Source is not an object, returning target');
+        return target;
+    }
+    if (!target || typeof target !== 'object') {
+        console.log('[StrictReplace] Target is not an object, returning source');
+        return source;
+    }
+
+    // Deep clone to avoid mutations
+    const result = JSON.parse(JSON.stringify(target));
+
+    // Case 1: Full section replacement (subSection === 'all' or undefined)
+    if (!subSection || subSection === 'all') {
+        console.log('[StrictReplace] Full section replacement');
+        return source; // Complete replacement
+    }
+
+    // Case 2: Sub-section replacement - locate and replace ONLY that field
+    const fieldToReplace = Object.keys(source)[0]; // First key in source
+    console.log('[StrictReplace] Attempting to replace field:', fieldToReplace);
+
+    const replaced = replaceNestedField(result, fieldToReplace, source[fieldToReplace] || source);
+
+    if (!replaced) {
+        console.warn('[StrictReplace] Could not find sub-section path:', fieldToReplace);
+        // Fallback: try intelligent merge
+        return intelligentMerge(result, source, subSection);
+    }
+
+    console.log('[StrictReplace] Result keys after replacement:', Object.keys(result));
+    return result;
+}
+
+/**
+ * Replace a specific nested field by searching for it
+ * @param {Object} obj - Object to update
+ * @param {string} fieldPath - Field name to find (e.g., "step1_openerPermission")
+ * @param {any} newValue - New value for the field
+ * @returns {boolean} True if replacement succeeded
+ */
+function replaceNestedField(obj, fieldPath, newValue) {
+    // Handle direct field replacement (e.g., "step1_openerPermission")
+    if (fieldPath in obj) {
+        console.log('[ReplaceNested] Direct field found:', fieldPath);
+        obj[fieldPath] = newValue;
+        return true;
+    }
+
+    // Search nested objects
+    for (const [key, value] of Object.entries(obj)) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            // Check if fieldPath exists in this nested object
+            if (fieldPath in value) {
+                console.log('[ReplaceNested] Found in nested object:', key);
+                value[fieldPath] = newValue;
+                return true;
+            }
+
+            // Recurse deeper
+            if (replaceNestedField(value, fieldPath, newValue)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Intelligent merge for complex sub-sections
+ * Handles cases where AI returns wrapped or unwrapped content
+ */
+function intelligentMerge(target, source, subSection) {
+    console.log('[IntelligentMerge] Attempting intelligent merge for:', subSection);
+
+    // Find where this field lives in the target structure
+    const sourceKeys = Object.keys(source);
+    console.log('[IntelligentMerge] Source keys to merge:', sourceKeys);
+
+    // Try to find a matching structure in target
+    for (const sourceKey of sourceKeys) {
+        const path = findFieldPath(target, sourceKey);
+
+        if (path.length > 0) {
+            console.log('[IntelligentMerge] Found path for', sourceKey, ':', path.join('.'));
+
+            // Navigate to parent and replace
+            let current = target;
+            for (let i = 0; i < path.length - 1; i++) {
+                current = current[path[i]];
+            }
+
+            const finalKey = path[path.length - 1];
+            current[finalKey] = source[sourceKey];
+        } else {
+            console.warn('[IntelligentMerge] Could not find path for:', sourceKey);
+            // As fallback, merge at top level
+            target[sourceKey] = source[sourceKey];
+        }
+    }
+
+    return target;
+}
+
+/**
+ * Find the path to a field in a nested object
+ * @returns {string[]} Array representing the path (e.g., ["callFlow", "step1_openerPermission"])
+ */
+function findFieldPath(obj, targetField, currentPath = []) {
+    if (!obj || typeof obj !== 'object') return [];
+
+    if (targetField in obj) {
+        return [...currentPath, targetField];
+    }
+
+    for (const [key, value] of Object.entries(obj)) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const found = findFieldPath(value, targetField, [...currentPath, key]);
+            if (found.length > 0) return found;
+        }
+    }
+
+    return [];
+}
+
+/**
+ * DEPRECATED: Legacy deepMerge kept for backward compatibility
+ * Use strictReplace instead for proper content replacement
+ */
 function deepMerge(target, source, depth = 0) {
-    // Handle raw content flag from API
+    console.warn('[DeepMerge] DEPRECATED - Use strictReplace instead');
+
     if (source && source._rawContent) {
         console.log('[DeepMerge] Raw content detected, returning as-is');
         return source._rawContent;
@@ -153,15 +342,12 @@ function deepMerge(target, source, depth = 0) {
         // Skip internal keys
         if (key.startsWith('_')) continue;
 
-        console.log(`[DeepMerge] Processing key: ${key}, depth: ${depth}`);
-
         // First, check if this key exists directly in target
         if (key in result) {
             if (value && typeof value === 'object' && !Array.isArray(value)) {
                 result[key] = deepMerge(result[key] || {}, value, depth + 1);
             } else if (value !== undefined && value !== null) {
                 // Direct replacement for primitives and arrays
-                console.log(`[DeepMerge] Replacing ${key} at depth ${depth}`);
                 result[key] = value;
             }
         } else {
@@ -169,16 +355,30 @@ function deepMerge(target, source, depth = 0) {
             const found = findAndReplaceInObject(result, key, value);
             if (!found) {
                 // If not found anywhere, add it at this level
-                console.log(`[DeepMerge] Adding new key ${key} at depth ${depth}`);
                 result[key] = value;
-            } else {
-                console.log(`[DeepMerge] Found and replaced ${key} in nested object`);
             }
         }
     }
 
     return result;
 }
+
+// Tooltip Use Cases
+const SECTION_USE_CASES = {
+    idealClient: "Use this to dial in your ad targeting, write focused copy, and speak directly to your premium buyer's pains and desires.",
+    message: "Use your One-Liner for bios and social profiles. Use the Spoken Version for intros, podcasts, and networking events.",
+    story: "Share your 60s story in networking. Use the 3-5min story for podcasts, stages, and webinars to build deep trust.",
+    offer: "This is your core product architecture. Use the 7-Step Blueprint names in your marketing to build 'method authority'.",
+    salesScripts: "Use this script for booked sales calls. Follow the flow to diagnose deeply before prescribing your solution.",
+    setterScript: "Use this for 15-min triage calls or DM conversations to qualify leads and book them into a sales call.",
+    leadMagnet: "Give this away in exchange for an email address. Use the title and hook in your ads and landing pages.",
+    funnelCopy: "Copy and paste this into your landing page builder (ClickFunnels, GHL, etc.) for high conversion.",
+    vsl: "Record this script for your landing page or sales page video. Keep it authentic and focused on the viewer.",
+    facebookAds: "Test these ad variations on Facebook/Instagram. Use the hooks as the first line of your captions.",
+    emails: "Load these into your email autoresponder to nurture new leads over 15 days.",
+    appointmentReminders: "Add these to your calendar booking system (Calendly, GHL) to increase show-up rates.",
+    bio: "Use the short bio for guesting (podcasts/events) and the full bio for your 'About' page."
+};
 
 /**
  * Search for a key in nested object and replace its value
@@ -253,6 +453,69 @@ export default function VaultPage() {
     // Track if initial load is complete to prevent re-fetching on tab switch
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
+    // Background generation tracking (for early redirect flow)
+    const [sectionStatuses, setSectionStatuses] = useState({}); // { sectionId: 'generating' | 'generated' | 'failed' }
+    const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
+    const [regeneratingSection, setRegeneratingSection] = useState(null);
+
+    // Check if we came from early redirect (still generating in background)
+    const isGeneratingMode = searchParams.get('generating') === 'true';
+
+    // Poll for section status updates when in generating mode
+    useEffect(() => {
+        if (!isGeneratingMode || !session || !initialLoadComplete) return;
+
+        setIsBackgroundGenerating(true);
+
+        const pollInterval = setInterval(async () => {
+            try {
+                const funnelId = searchParams.get('funnel_id');
+                if (!funnelId) return;
+
+                const res = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
+                const result = await res.json();
+
+                if (result.data && Object.keys(result.data).length > 0) {
+                    const normalizedData = normalizeData(result.data);
+
+                    // Check which sections are now available
+                    const allSections = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS];
+                    const newStatuses = {};
+                    let allComplete = true;
+
+                    allSections.forEach(section => {
+                        const hasContent = normalizedData[section.id] && Object.keys(normalizedData[section.id]).length > 0;
+                        const isFailed = normalizedData[section.id]?.error;
+
+                        if (isFailed) {
+                            newStatuses[section.id] = 'failed';
+                            allComplete = false;
+                        } else if (hasContent) {
+                            newStatuses[section.id] = 'generated';
+                        } else {
+                            newStatuses[section.id] = 'generating';
+                            allComplete = false;
+                        }
+                    });
+
+                    setSectionStatuses(newStatuses);
+                    setVaultData(normalizedData);
+
+                    // Stop polling when all sections complete
+                    if (allComplete) {
+                        setIsBackgroundGenerating(false);
+                        clearInterval(pollInterval);
+                        toast.success('All sections generated!');
+                    }
+                }
+            } catch (error) {
+                console.error('[Vault] Polling error:', error);
+            }
+        }, 3000); // Poll every 3 seconds
+
+        return () => clearInterval(pollInterval);
+    }, [isGeneratingMode, session, initialLoadComplete, searchParams]);
+
     // Load vault data from database - ONLY on initial mount
     useEffect(() => {
         if (authLoading) return;
@@ -268,10 +531,12 @@ export default function VaultPage() {
         }
 
         const loadVault = async () => {
-            const sessionId = searchParams.get('session_id');
+            // Support both funnel_id (new) and session_id (backwards compatibility)
+            const funnelId = searchParams.get('funnel_id') || searchParams.get('session_id');
+            console.log('[Vault] Loading with funnel_id:', funnelId || 'default (no param)');
             setIsLoading(true);
             try {
-                const res = await fetchWithAuth(`/api/os/results${sessionId ? `?session_id=${sessionId}` : ''}`);
+                const res = await fetchWithAuth(`/api/os/results${funnelId ? `?funnel_id=${funnelId}` : ''}`);
                 const result = await res.json();
 
                 if (result.error) {
@@ -285,7 +550,7 @@ export default function VaultPage() {
                     setVaultData(normalizedData);
                     setDataSource(result.source);
                     setInitialLoadComplete(true);
-                    console.log('[Vault] Loaded from:', result.source);
+                    console.log('[Vault] Successfully loaded funnel:', result.source?.id, result.source?.name);
 
                     // Load approvals for this specific session if available
                     const activeSessionId = result.source?.id || 'current';
@@ -360,10 +625,15 @@ export default function VaultPage() {
     };
 
     const getSectionStatus = (sectionId, phaseNumber, approvedList, index) => {
+        // 0. Check background generation statuses first (for early redirect flow)
+        const genStatus = sectionStatuses[sectionId];
+        if (genStatus === 'generating') return 'generating';
+        if (genStatus === 'failed') return 'failed';
+
         // 1. Already approved sections stay approved
         if (approvedList.includes(sectionId)) return 'approved';
 
-        // 2. Unapproved Phase 2 sections are ALWAYS locked until Phase 1 is fully approved AND chosen
+        // 2. Unapproved Phase 2 sections are ALWAYS locked until Phase 1 is fully approved AND funnel chosen
         if (phaseNumber === 2 && !funnelApproved) return 'locked';
 
         // 3. Check if this section has generated content
@@ -376,9 +646,9 @@ export default function VaultPage() {
         }
 
         // 5. Normal sections: unlocked only if ALL previous sections are approved AND this has content
-        // This ensures the user cannot skip steps
-        const previousIsApproved = approvedList.includes(sections[index - 1].id);
-        if (previousIsApproved) {
+        // Check ALL previous sections in the chain, not just the immediate predecessor
+        const allPreviousApproved = sections.slice(0, index).every(s => approvedList.includes(s.id));
+        if (allPreviousApproved) {
             return hasContent ? 'current' : 'locked';
         }
 
@@ -412,6 +682,50 @@ export default function VaultPage() {
 
     // REMOVED: handleRegenerate function - replaced by AI Feedback Chat
     // Old regeneration was blind - new Feedback system uses user input for targeted refinement
+
+    // Handle regeneration of a single failed section
+    const handleRegenerateSection = async (sectionId, numericKey) => {
+        setRegeneratingSection(sectionId);
+        setSectionStatuses(prev => ({ ...prev, [sectionId]: 'generating' }));
+
+        try {
+            const funnelId = searchParams.get('funnel_id');
+            if (!funnelId) {
+                toast.error("No funnel ID found");
+                return;
+            }
+
+            const res = await fetchWithAuth('/api/os/regenerate-section', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    funnel_id: funnelId,
+                    section_key: numericKey
+                })
+            });
+
+            const result = await res.json();
+
+            if (result.success && result.section) {
+                // Update vault data with new content
+                setVaultData(prev => ({
+                    ...prev,
+                    [sectionId]: result.section.content
+                }));
+                setSectionStatuses(prev => ({ ...prev, [sectionId]: 'generated' }));
+                toast.success(`${result.section.name} regenerated successfully!`);
+            } else {
+                setSectionStatuses(prev => ({ ...prev, [sectionId]: 'failed' }));
+                toast.error(result.error || 'Regeneration failed');
+            }
+        } catch (error) {
+            console.error('[Vault] Regeneration error:', error);
+            setSectionStatuses(prev => ({ ...prev, [sectionId]: 'failed' }));
+            toast.error('Failed to regenerate section');
+        } finally {
+            setRegeneratingSection(null);
+        }
+    };
 
     // Explicit save handler for regenerated content
     const handleSaveChanges = async () => {
@@ -997,23 +1311,21 @@ export default function VaultPage() {
 
         // Setter Call Script sections
         quickOutline: 'Quick Setter Call Outline',
-        fullWordForWordScript: 'Full Word-for-Word Script',
         callGoal: 'Call Goal',
         callFlow: 'Call Flow (10 Steps)',
         setterMindset: 'Setter Mindset',
-        script: 'Teleprompter Script',
 
         // Call Flow step labels
-        step1: 'Opener + Permission',
-        step2: 'Reference Opt-In',
-        step3: 'Low-Pressure Frame',
-        step4: 'Current Situation',
-        step5: 'Goal + Motivation',
-        step6: 'Challenge + Stakes',
-        step7: 'Authority Drop',
-        step8: 'Qualify Fit + Readiness',
-        step9: 'Book Consultation',
-        step10: 'Confirm Show-Up + Wrap-Up',
+        step1_openerPermission: 'Step 1: Opener + Permission',
+        step2_referenceOptIn: 'Step 2: Reference Opt-In',
+        step3_lowPressureFrame: 'Step 3: Low-Pressure Frame',
+        step4_currentSituation: 'Step 4: Current Situation',
+        step5_goalMotivation: 'Step 5: Goal + Motivation',
+        step6_challengeStakes: 'Step 6: Challenge + Stakes',
+        step7_authorityDrop: 'Step 7: Authority Drop',
+        step8_qualifyFit: 'Step 8: Qualify Fit + Readiness',
+        step9_bookConsultation: 'Step 9: Book Consultation',
+        step10_confirmShowUp: 'Step 10: Confirm Show-Up + Wrap-Up',
         name: 'Step Name',
         purpose: 'Purpose',
         keyLine: 'Key Line'
@@ -1068,8 +1380,7 @@ export default function VaultPage() {
             'objectionHandlingGuide'
         ],
         setterScript: [
-            'quickOutline',
-            'fullWordForWordScript'
+            'quickOutline'
         ],
         vsl: [
             'fullScript',
@@ -1228,7 +1539,7 @@ export default function VaultPage() {
             }
 
             // Objects - render sections
-                        // Objects - render sections
+            // Objects - render sections
             if (typeof value === 'object') {
                 let keys = Object.keys(value).filter((k) =>
                     k !== '_contentName' && k !== 'id' && k !== 'idealClientProfile'
@@ -1239,10 +1550,10 @@ export default function VaultPage() {
                     // Extract numbers from start of meaningful strings
                     // Supports: "4. Title", "Phase 1", "Part 2", "Step 3", "Tier 1"
                     const getNum = (str) => {
-                         // Check for "Part 1", "Step 2" types
+                        // Check for "Part 1", "Step 2" types
                         const match = str.match(/(?:^|part|step|phase|tier)\s?_?(\d+)/i);
                         if (match && match[1]) {
-                           return parseInt(match[1], 10);
+                            return parseInt(match[1], 10);
                         }
                         // Check for "4. Title" format (number at start followed by dot/space)
                         const startMatch = str.match(/^(\d+)[._\s]/);
@@ -1259,11 +1570,11 @@ export default function VaultPage() {
                     if (numA !== null && numB !== null) {
                         return numA - numB;
                     }
-                    
+
                     // Put numbered items BEFORE non-numbered items
                     if (numA !== null && numB === null) return -1;
                     if (numA === null && numB !== null) return 1;
-                    
+
                     // Fallback to alphabetical
                     return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
                 };
@@ -1295,7 +1606,7 @@ export default function VaultPage() {
                 } else if (sectionId && SECTION_SORT_ORDER[sectionId]) {
                     const order = SECTION_SORT_ORDER[sectionId];
                     const hasOrderedKeys = keys.some(k => order.includes(k));
-                    
+
                     if (hasOrderedKeys) {
                         keys = keys.sort((a, b) => {
                             const indexA = order.indexOf(a);
@@ -1382,7 +1693,7 @@ export default function VaultPage() {
                         className="mb-6 p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
                     >
                         <ArrowLeft className="w-4 h-4" />
-                        Back to Mission Control
+                        Back to Dashboard
                     </button>
 
                     <div className="text-center mb-10">
@@ -1438,6 +1749,16 @@ export default function VaultPage() {
                         <h3 className="font-bold text-green-400">{section.title}</h3>
                         <p className="text-xs text-gray-500">{section.subtitle}</p>
                     </div>
+                    {/* Tooltip Icon - drops down below with high z-index */}
+                    <div className="group/tooltip relative p-2 hidden md:block z-[100]">
+                        <Info className="w-4 h-4 text-green-500/50 hover:text-green-500 transition-colors" />
+                        <div className="absolute right-0 top-full mt-2 w-72 p-4 bg-[#232326] border border-green-500/30 rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity z-[200]">
+                            <p className="text-sm text-gray-200 leading-relaxed">
+                                <span className="font-bold text-green-400 block mb-1.5 text-base">Use Case:</span>
+                                {SECTION_USE_CASES[section.id] || "Use this asset to grow your business."}
+                            </p>
+                        </div>
+                    </div>
                     <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -1481,7 +1802,7 @@ export default function VaultPage() {
                                                     setFeedbackSection(section);
                                                     setFeedbackModalOpen(true);
                                                 }}
-                                                className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-500 text-black rounded-lg flex items-center gap-2 hover:brightness-110 transition-all text-sm font-medium"
+                                                className="px-4 py-2 btn-feedback rounded-lg flex items-center gap-2 text-sm"
                                             >
                                                 <MessageSquare className="w-4 h-4" /> Feedback
                                             </button>
@@ -1521,34 +1842,84 @@ export default function VaultPage() {
                 transition={{ delay: index * 0.05 }}
                 className={`rounded-xl border overflow-hidden transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
                     status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
-                        'bg-[#131314] border-[#2a2a2d] opacity-60'
+                        status === 'generating' ? 'bg-yellow-500/5 border-yellow-500/30 animate-pulse' :
+                            status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
+                                'bg-[#131314] border-[#2a2a2d] opacity-60'
                     }`}
             >
                 <button
-                    onClick={() => status !== 'locked' && setExpandedSection(isExpanded ? null : section.id)}
-                    disabled={status === 'locked'}
-                    className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'}`}
+                    onClick={() => status !== 'locked' && status !== 'generating' && setExpandedSection(isExpanded ? null : section.id)}
+                    disabled={status === 'locked' || status === 'generating'}
+                    className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' || status === 'generating' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'
+                        }`}
                 >
                     <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-green-500/20' :
-                        status === 'current' ? 'bg-cyan/20' : 'bg-gray-700/50'
+                        status === 'current' ? 'bg-cyan/20' :
+                            status === 'generating' ? 'bg-yellow-500/20' :
+                                status === 'failed' ? 'bg-red-500/20' :
+                                    'bg-gray-700/50'
                         }`}>
                         {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" /> :
                             status === 'locked' ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /> :
-                                <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
+                                status === 'generating' ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500 animate-spin" /> :
+                                    status === 'failed' ? <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" /> :
+                                        <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
                     </div>
                     <div className="flex-1 min-w-0">
                         <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-green-400' :
-                            status === 'current' ? 'text-white' : 'text-gray-500'
+                            status === 'current' ? 'text-white' :
+                                status === 'generating' ? 'text-yellow-400' :
+                                    status === 'failed' ? 'text-red-400' :
+                                        'text-gray-500'
                             }`}>{section.title}</h3>
-                        <p className="text-xs sm:text-sm text-gray-500">{section.subtitle}</p>
+                        <p className="text-xs sm:text-sm text-gray-500">
+                            {status === 'generating' ? 'Generating...' :
+                                status === 'failed' ? 'Generation failed' :
+                                    section.subtitle}
+                        </p>
                     </div>
-                    {status !== 'locked' && (
+                    {/* Show Regenerate button for failed sections */}
+                    {status === 'failed' && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleRegenerateSection(section.id, section.numericKey);
+                            }}
+                            disabled={regeneratingSection === section.id}
+                            className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-red-700 transition-all disabled:opacity-50"
+                        >
+                            {regeneratingSection === section.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                                <RefreshCw className="w-3 h-3" />
+                            )}
+                            Regenerate
+                        </button>
+                    )}
+                    {/* Tooltip Icon (Only for current or approved) - OUTSIDE button for better z-index */}
+                    {(status === 'current' || status === 'approved') && (
+                        <div className="group/tooltip relative p-2 hidden md:block z-[100]">
+                            <Info className={`w-4 h-4 transition-colors ${status === 'approved' ? 'text-green-500/50 hover:text-green-500' : 'text-cyan/50 hover:text-cyan'}`} />
+                            <div className={`
+                                absolute right-0 top-full mt-2 w-72 p-4 
+                                rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 
+                                pointer-events-none transition-opacity z-[200]
+                                ${status === 'approved' ? 'bg-[#232326] border border-green-500/30' : 'bg-[#232326] border border-cyan/30'}
+                            `}>
+                                <p className="text-sm text-gray-200 leading-relaxed">
+                                    <span className={`font-bold block mb-1.5 text-base ${status === 'approved' ? 'text-green-400' : 'text-cyan'}`}>Use Case:</span>
+                                    {SECTION_USE_CASES[section.id] || "Use this asset to grow your business."}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                    {status !== 'locked' && status !== 'generating' && status !== 'failed' && (
                         <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                     )}
-                </button>
+                </button >
 
                 <AnimatePresence>
-                    {isExpanded && status !== 'locked' && (
+                    {isExpanded && status !== 'locked' && status !== 'generating' && status !== 'failed' && (
                         <motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
@@ -1556,68 +1927,86 @@ export default function VaultPage() {
                             className="border-t border-[#2a2a2d]"
                         >
                             <div className="p-4 sm:p-6">
-                                <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
-                                    <ContentRenderer
-                                        content={isEditing ? editedContent : content}
-                                        sectionId={section.id}
-                                        isEditing={isEditing}
-                                        onUpdate={updateContentValue}
-                                    />
-                                </div>
-                                <div className="flex flex-wrap gap-3">
-                                    {isEditing ? (
-                                        <>
-                                            <button
-                                                onClick={() => handleSaveEdit(section.id)}
-                                                className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all text-sm"
-                                            >
-                                                <CheckCircle className="w-5 h-5" /> Save Changes
-                                            </button>
-                                            <button
-                                                onClick={() => setEditingSection(null)}
-                                                className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            {status === 'current' && (
+                                {/* Granular Fields for supported sections, or ContentRenderer for others */}
+                                {GRANULAR_FIELD_COMPONENTS[section.id] ? (
+                                    (() => {
+                                        const GranularComponent = GRANULAR_FIELD_COMPONENTS[section.id];
+                                        const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                                        return (
+                                            <GranularComponent
+                                                funnelId={funnelId}
+                                                onApprove={(sectionId) => handleApprove(sectionId, phase)}
+                                            />
+                                        );
+                                    })()
+                                ) : (
+                                    <div className="bg-[#0e0e0f] rounded-xl p-4 sm:p-6 mb-4 max-h-96 overflow-y-auto">
+                                        <ContentRenderer
+                                            content={isEditing ? editedContent : content}
+                                            sectionId={section.id}
+                                            isEditing={isEditing}
+                                            onUpdate={updateContentValue}
+                                        />
+                                    </div>
+                                )}
+                                {/* Only show action buttons for sections NOT using granular fields */}
+                                {!GRANULAR_FIELD_COMPONENTS[section.id] && (
+                                    <div className="flex flex-wrap gap-3">
+                                        {isEditing ? (
+                                            <>
                                                 <button
-                                                    onClick={() => handleApprove(section.id, phase)}
-                                                    className="flex-1 sm:flex-none px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+                                                    onClick={() => handleSaveEdit(section.id)}
+                                                    className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-all text-sm"
                                                 >
-                                                    <CheckCircle className="w-5 h-5" />
-                                                    Approve
+                                                    <CheckCircle className="w-5 h-5" /> Save Changes
                                                 </button>
-                                            )}
-                                            <button
-                                                onClick={() => {
-                                                    setFeedbackSection(section);
-                                                    setFeedbackModalOpen(true);
-                                                }}
-                                                className="flex-1 sm:flex-none px-4 py-3 bg-gradient-to-r from-cyan to-blue-500 text-black rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all font-medium"
-                                            >
-                                                <MessageSquare className="w-5 h-5" /> Feedback
-                                            </button>
-                                            {unsavedChanges && (
                                                 <button
-                                                    onClick={handleSaveChanges}
-                                                    disabled={isSaving}
-                                                    className="px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 font-bold"
+                                                    onClick={() => setEditingSection(null)}
+                                                    className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
                                                 >
-                                                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                                                    Save
+                                                    Cancel
                                                 </button>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {status === 'current' && (
+                                                    <button
+                                                        onClick={() => handleApprove(section.id, phase)}
+                                                        className="flex-1 sm:flex-none px-6 py-3 btn-approve rounded-xl flex items-center justify-center gap-2"
+                                                    >
+                                                        <CheckCircle className="w-5 h-5" />
+                                                        Approve
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => {
+                                                        setFeedbackSection(section);
+                                                        setFeedbackModalOpen(true);
+                                                    }}
+                                                    className="flex-1 sm:flex-none px-6 py-3 btn-feedback rounded-xl flex items-center justify-center gap-2"
+                                                >
+                                                    <MessageSquare className="w-5 h-5" />
+                                                    Feedback
+                                                </button>
+                                                {unsavedChanges && (
+                                                    <button
+                                                        onClick={handleSaveChanges}
+                                                        disabled={isSaving}
+                                                        className="px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 font-bold"
+                                                    >
+                                                        {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                                                        Save
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </motion.div>
+            </motion.div >
         );
     };
 
@@ -1633,7 +2022,7 @@ export default function VaultPage() {
                         className="w-fit p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
                     >
                         <ArrowLeft className="w-4 h-4" />
-                        Back to Mission Control
+                        Back to Dashboard
                     </button>
 
                     <div className="flex items-center gap-2 bg-[#131314] p-1.5 rounded-xl border border-[#2a2a2d]">
@@ -1917,60 +2306,48 @@ export default function VaultPage() {
                         sectionTitle={feedbackSection.title}
                         currentContent={vaultData[feedbackSection.id]}
                         sessionId={dataSource?.id}
-                        onSave={async (refinedContent) => {
-                            console.log('[Vault] onSave called with:', JSON.stringify(refinedContent).substring(0, 200));
+                        onSave={async (payload) => {
+                            // Extract refined content and subSection from the payload
+                            const { refinedContent, subSection } = typeof payload === 'object' && 'refinedContent' in payload
+                                ? payload
+                                : { refinedContent: payload, subSection: null };
+
+                            console.log('[Vault] onSave called with:', {
+                                sectionId: feedbackSection.id,
+                                subSection,
+                                contentPreview: JSON.stringify(refinedContent).substring(0, 200),
+                                contentSize: JSON.stringify(refinedContent).length
+                            });
 
                             // Parse and clean the refined content
                             const cleanContent = parseAndCleanContent(refinedContent);
-                            console.log('[Vault] Cleaned content:', JSON.stringify(cleanContent).substring(0, 200));
+                            console.log('[Vault] Cleaned content:', {
+                                keys: Object.keys(cleanContent),
+                                preview: JSON.stringify(cleanContent).substring(0, 200)
+                            });
 
                             // Get existing content for this section
                             const existing = vaultData[feedbackSection.id] || {};
-                            console.log('[Vault] Existing content keys:', Object.keys(existing));
+                            console.log('[Vault] Existing content:', {
+                                keys: Object.keys(existing),
+                                size: JSON.stringify(existing).length
+                            });
 
-                            // Deep merge into existing content
-                            // This handles both full section updates and sub-section updates
-                            let merged;
+                            // STRICT REPLACEMENT (no cumulative merge)
+                            const updated = strictReplace(existing, cleanContent, {
+                                subSection: subSection
+                            });
 
-                            // Check if cleanContent has keys that exist in existing content
-                            const cleanKeys = Object.keys(cleanContent);
-                            const existingKeys = Object.keys(existing);
-                            const hasMatchingKeys = cleanKeys.some(k => existingKeys.includes(k));
-
-                            if (hasMatchingKeys || cleanKeys.length === 0) {
-                                // Normal merge - keys match or cleanContent is empty
-                                merged = deepMerge(existing, cleanContent);
-                            } else {
-                                // Check if clean keys exist nested inside existing
-                                let foundNested = false;
-                                for (const existingKey of existingKeys) {
-                                    if (existing[existingKey] && typeof existing[existingKey] === 'object') {
-                                        const nestedKeys = Object.keys(existing[existingKey]);
-                                        if (cleanKeys.some(k => nestedKeys.includes(k))) {
-                                            // Merge into nested object
-                                            console.log(`[Vault] Merging into nested key: ${existingKey}`);
-                                            merged = {
-                                                ...existing,
-                                                [existingKey]: deepMerge(existing[existingKey], cleanContent)
-                                            };
-                                            foundNested = true;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (!foundNested) {
-                                    // Just merge at top level
-                                    merged = deepMerge(existing, cleanContent);
-                                }
-                            }
-
-                            console.log('[Vault] Merged content keys:', Object.keys(merged));
+                            console.log('[Vault] Updated content after strictReplace:', {
+                                keys: Object.keys(updated),
+                                size: JSON.stringify(updated).length,
+                                subSectionUsed: subSection
+                            });
 
                             // Update local state IMMEDIATELY for instant UI feedback
                             setVaultData(prev => ({
                                 ...prev,
-                                [feedbackSection.id]: merged
+                                [feedbackSection.id]: updated
                             }));
 
                             // Mark that we have unsaved changes (for the Save button)
@@ -1979,14 +2356,18 @@ export default function VaultPage() {
                             // Persist to database
                             try {
                                 const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
-                                console.log('[Vault] Saving to session:', sessionId);
+                                console.log('[Vault] Persisting to database:', {
+                                    sessionId,
+                                    sectionId: feedbackSection.id,
+                                    contentSize: JSON.stringify(updated).length
+                                });
 
                                 const response = await fetchWithAuth('/api/os/vault-section', {
                                     method: 'PATCH',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
                                         sectionId: feedbackSection.id,
-                                        content: merged,
+                                        content: updated,
                                         funnelId: sessionId
                                     })
                                 });

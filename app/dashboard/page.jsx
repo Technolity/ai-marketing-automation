@@ -15,11 +15,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     Loader2, Plus, FolderOpen, ChevronRight, Sparkles,
     Clock, CheckCircle2, Lock, Building2, Trash2,
-    AlertTriangle, Crown
+    AlertTriangle, Crown, ChevronDown, Beaker
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { toast } from "sonner";
+import { SAMPLE_DATA_OPTIONS } from "@/lib/sampleData";
 
 // Tier limits
 const TIER_LIMITS = {
@@ -41,6 +42,7 @@ export default function Dashboard() {
     const [newBusinessName, setNewBusinessName] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(null);
+    const [showSampleDropdown, setShowSampleDropdown] = useState(false);
 
     useEffect(() => {
         if (authLoading) return;
@@ -190,10 +192,17 @@ export default function Dashboard() {
                 {/* Header Section */}
                 <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-16">
                     <div>
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-2 h-8 bg-gradient-to-b from-cyan to-blue-600 rounded-full" />
-                            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight">
-                                T M B
+                        <div className="flex flex-col items-start gap-1 mb-4">
+                            {/* Logo */}
+                            <img
+                                src="/tedos-logo.png"
+                                alt="TedOS"
+                                className="h-20 w-auto object-contain -ml-2"
+                            />
+
+                            {/* Dashboard Text */}
+                            <h1 className="text-2xl md:text-3xl font-black text-cyan tracking-tight uppercase">
+                                Dashboard
                             </h1>
                         </div>
                         <p className="text-lg text-gray-400 max-w-xl leading-relaxed">

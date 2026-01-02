@@ -16,7 +16,15 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { sessionId, locationId, accessToken, uploadedImages = {}, videoUrls = {} } = body;
+        const {
+            sessionId,
+            locationId,
+            accessToken,
+            uploadedImages = {},
+            videoUrls = {},
+            selectedKeys = null, // If provided, only push these keys
+            imageOptions = {}     // 'skip' | 'upload' | 'generate' per image slot
+        } = body;
 
         // Note: sessionId is actually a funnel ID from user_funnels table
         const funnelId = sessionId;
@@ -24,6 +32,8 @@ export async function POST(req) {
         console.log('[PushVSL] Starting push for funnel:', funnelId);
         console.log('[PushVSL] Uploaded images:', Object.keys(uploadedImages).filter(k => uploadedImages[k]));
         console.log('[PushVSL] Video URLs:', Object.keys(videoUrls).filter(k => videoUrls[k]));
+        console.log('[PushVSL] Selected keys:', selectedKeys ? `${selectedKeys.length} selected` : 'all');
+        console.log('[PushVSL] Image options:', imageOptions);
 
         // Step 1: Fetch funnel data from user_funnels
         const { data: funnel, error: funnelError } = await supabaseAdmin
@@ -71,33 +81,46 @@ export async function POST(req) {
 
         console.log('[PushVSL] Loaded funnel with', Object.keys(session.results_data).length, 'vault sections');
 
-        // Step 2: Handle images - use uploaded or generate missing ones
+        // Step 2: Handle images based on imageOptions
+        // Options per image: 'skip' | 'upload' | 'generate'
         let images = [];
+
+        // Determine which images to process based on imageOptions
+        const shouldProcessImage = (imageKey) => {
+            const option = imageOptions[imageKey];
+            return option !== 'skip'; // Process if 'upload' or 'generate' or not specified
+        };
+
+        const shouldGenerateImage = (imageKey) => {
+            return imageOptions[imageKey] === 'generate';
+        };
 
         // Convert uploaded images to the format expected by mapper
         const uploadedImageRecords = [];
-        if (uploadedImages.logo) {
+
+        // Only include images that aren't set to 'skip'
+        if (uploadedImages.logo && shouldProcessImage('logo')) {
             uploadedImageRecords.push({
                 image_type: 'logo',
                 public_url: uploadedImages.logo,
                 status: 'uploaded'
             });
         }
-        if (uploadedImages.bio_author) {
+        if (uploadedImages.bio_author && shouldProcessImage('bio_author')) {
             uploadedImageRecords.push({
                 image_type: 'author_photo',
                 public_url: uploadedImages.bio_author,
                 status: 'uploaded'
             });
         }
-        if (uploadedImages.product_mockup) {
+        if (uploadedImages.product_mockup && shouldProcessImage('product_mockup')) {
             uploadedImageRecords.push({
                 image_type: 'product_mockup',
                 public_url: uploadedImages.product_mockup,
                 status: 'uploaded'
             });
         }
-        if (uploadedImages.results_image) {
+        if (uploadedImages.results_image && shouldProcessImage('results_image')) {
             uploadedImageRecords.push({
                 image_type: 'results_image',
                 public_url: uploadedImages.results_image,
@@ -107,16 +130,33 @@ export async function POST(req) {
 
         console.log('[PushVSL] User uploaded', uploadedImageRecords.length, 'images');
 
-        // Check which images are missing
-        const requiredImages = ['author_photo', 'product_mockup', 'results_image'];
+        // Check which images should be generated (based on imageOptions)
+        const imageTypeMap = {
+            'bio_author': 'author_photo',
+            'product_mockup': 'product_mockup',
+            'results_image': 'results_image'
+        };
+
         const uploadedTypes = uploadedImageRecords.map(img => img.image_type);
-        const missingImages = requiredImages.filter(type => !uploadedTypes.includes(type));
 
-        console.log('[PushVSL] Missing images to generate:', missingImages);
+        // Only generate images if:
+        // 1. imageOptions says 'generate' for that slot, OR
+        // 2. No imageOptions provided and image is missing
+        const imagesToGenerate = [];
+        for (const [slotKey, imageType] of Object.entries(imageTypeMap)) {
+            if (shouldGenerateImage(slotKey) && !uploadedTypes.includes(imageType)) {
+                imagesToGenerate.push(imageType);
+            } else if (!imageOptions[slotKey] && !uploadedTypes.includes(imageType)) {
+                // Backward compatibility: generate missing if no explicit option
+                imagesToGenerate.push(imageType);
+            }
+        }
 
-        // Generate only missing images
-        if (missingImages.length > 0) {
-            console.log('[PushVSL] Generating', missingImages.length, 'missing images...');
+        console.log('[PushVSL] Images to generate:', imagesToGenerate);
+
+        // Generate only specified images
+        if (imagesToGenerate.length > 0) {
+            console.log('[PushVSL] Generating', imagesToGenerate.length, 'images...');
 
             const imageResult = await generateFunnelImages({
                 userId,
@@ -133,7 +173,7 @@ export async function POST(req) {
                 onProgress: (progress) => {
                     console.log('[PushVSL] Image generation:', progress);
                 },
-                onlyGenerate: missingImages // Only generate missing ones
+                onlyGenerate: imagesToGenerate // Only generate specified ones
             });
 
             images = [...uploadedImageRecords, ...(imageResult.generated || [])];
@@ -228,7 +268,14 @@ export async function POST(req) {
             failed: []
         };
 
-        for (const [key, value] of Object.entries(customValues)) {
+        // Filter by selectedKeys if provided
+        const keysToProcess = selectedKeys
+            ? Object.entries(customValues).filter(([key]) => selectedKeys.includes(key))
+            : Object.entries(customValues);
+
+        console.log('[PushVSL] Processing', keysToProcess.length, 'values (of', Object.keys(customValues).length, 'total)');
+
+        for (const [key, value] of keysToProcess) {
             // Try multiple matching strategies
             const spacesToUnderscores = key.replace(/\s+/g, '_');
             const lowercased = key.toLowerCase();

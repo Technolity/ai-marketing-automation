@@ -785,6 +785,14 @@ export async function POST(req) {
           try {
             let basePrompt = osPrompts[key](data);
 
+            // DEBUG: Log setter script prompt to verify it's correct
+            if (key === 17) {
+              const hasCorrectSchema = basePrompt.includes('step1_openerPermission') && basePrompt.includes('step10_confirmShowUp');
+              const hasWrongSchema = basePrompt.includes('part1') || basePrompt.includes('fullScript');
+              console.log(`[DEBUG SETTER] Prompt check: correct=${hasCorrectSchema}, wrong=${hasWrongSchema}`);
+              console.log(`[DEBUG SETTER] First 500 chars:`, basePrompt.substring(0, 500));
+            }
+
             // RAG Enhancement: Get relevant context from Ted's knowledge base
             if (useRAG && CONTENT_TYPE_MAP[key]) {
               try {
@@ -827,6 +835,18 @@ export async function POST(req) {
 
           if (!parsedResult) {
             throw new Error(`Failed to parse JSON for ${CONTENT_NAMES[key]}`);
+          }
+
+          // DEBUG: Log setter script AI response
+          if (key === 17) {
+            const topLevelKeys = Object.keys(parsedResult);
+            const hasSetterCallScript = 'setterCallScript' in parsedResult;
+            const callFlowKeys = hasSetterCallScript ? Object.keys(parsedResult.setterCallScript?.quickOutline?.callFlow || {}) : [];
+            console.log(`[DEBUG SETTER] AI returned - topLevel:`, topLevelKeys);
+            console.log(`[DEBUG SETTER] Has setterCallScript:`, hasSetterCallScript);
+            console.log(`[DEBUG SETTER] CallFlow keys:`, callFlowKeys.slice(0, 5));
+            console.log(`[DEBUG SETTER] Has part1 (wrong):`, callFlowKeys.includes('part1'));
+            console.log(`[DEBUG SETTER] Has step1_openerPermission (correct):`, callFlowKeys.includes('step1_openerPermission'));
           }
 
           // SCHEMA VALIDATION: Validate and strip extra fields

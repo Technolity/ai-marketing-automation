@@ -77,6 +77,36 @@ button {
   @apply opacity-100;
 }
 
+.btn-approve {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  background-color: #00F5FF;
+  color: black;
+  font-weight: bold;
+  box-shadow: 0 0 20px rgba(0, 245, 255, 0.35);
+}
+
+.btn-approve:hover {
+  box-shadow: 0 0 30px rgba(0, 245, 255, 0.5);
+  filter: brightness(1.1);
+}
+
+.btn-feedback {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  background-color: #8B5CFF;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 0 20px rgba(139, 92, 255, 0.35);
+}
+
+.btn-feedback:hover {
+  box-shadow: 0 0 30px rgba(139, 92, 255, 0.5);
+  filter: brightness(1.1);
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

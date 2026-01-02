@@ -25,7 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useAuth as useClerkAuth } from "@clerk/nextjs";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { STEPS, STEP_INPUTS, STEP_INFO, ASSET_OPTIONS, REVENUE_OPTIONS, PLATFORM_OPTIONS, BUSINESS_STAGE_OPTIONS, BUSINESS_TYPE_OPTIONS } from "@/lib/os-wizard-data";
-import { SAMPLE_DATA } from "@/lib/sampleData";
+import { SAMPLE_DATA, SAMPLE_DATA_OPTIONS } from "@/lib/sampleData";
 
 // Import modular components and utilities
 import { QuestionProgressBar } from "./OSWizard/components";
@@ -46,6 +46,13 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     const router = useRouter();
     const { session, user, loading: authLoading } = useAuth();
     const { getToken } = useClerkAuth();
+
+    // Helper to get funnel-specific localStorage key
+    const getStorageKey = (key) => {
+        if (!session?.user?.id) return key;
+        // Include funnelId in key if available to isolate data per funnel
+        return funnelId ? `${key}_${session.user.id}_${funnelId}` : `${key}_${session.user.id}`;
+    };
 
     // Ref to prevent re-initialization on session changes
     const hasInitializedRef = useRef(false);
@@ -148,6 +155,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     // Track if sample data has been loaded for testing
     const [isSampleDataLoaded, setIsSampleDataLoaded] = useState(false);
 
+    // Sample Data Selector
+    const [showSampleSelector, setShowSampleSelector] = useState(false);
+
     // Real-time generation progress tracking
     const [generationProgress, setGenerationProgress] = useState({
         completedCount: 0,
@@ -214,7 +224,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
                 // FIRST: Check localStorage for in-progress work (survives browser minimize/refocus)
                 try {
-                    const localProgress = localStorage.getItem(`wizard_progress_${session.user.id}`);
+                    const localProgress = localStorage.getItem(getStorageKey('wizard_progress'));
                     console.log('[OSWizard] localStorage check:', localProgress ? 'Found' : 'Not found');
 
                     if (localProgress) {
@@ -282,7 +292,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             console.log('[OSWizard] Set saved sessions list');
 
                             // Auto-load the most recent session ONLY if no localStorage data
-                            const hasLocalData = localStorage.getItem(`wizard_progress_${session.user.id}`);
+                            const hasLocalData = localStorage.getItem(getStorageKey('wizard_progress'));
                             if (!hasLocalData) {
                                 console.log('[OSWizard] No local data, auto-loading most recent session');
                                 const mostRecent = sessionsData.sessions[0];
@@ -307,11 +317,11 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
                 // Check if user clicked "Start Questionnaire" from welcome screen
                 try {
-                    const startFlag = localStorage.getItem(`start_questionnaire_${session.user.id}`);
+                    const startFlag = localStorage.getItem(getStorageKey('start_questionnaire'));
                     console.log('[OSWizard] Start questionnaire flag:', startFlag);
 
                     if (startAtStepOne || startFlag === 'true') {
-                        localStorage.removeItem(`start_questionnaire_${session.user.id}`);
+                        localStorage.removeItem(getStorageKey('start_questionnaire'));
 
                         if (mode === 'intake') {
                             console.log('[OSWizard] Starting questionnaire at step 1');
@@ -369,7 +379,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             };
 
             // Always save to localStorage (guaranteed to work)
-            localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+            localStorage.setItem(getStorageKey('wizard_progress'), JSON.stringify(progressData));
 
             // Also try to save to Supabase API
             try {
@@ -417,11 +427,11 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         if (mode === 'dashboard') {
             // Save step info to localStorage so intake_form can load it
             if (session) {
-                const localProgress = localStorage.getItem(`wizard_progress_${session.user.id}`);
+                const localProgress = localStorage.getItem(getStorageKey('wizard_progress'));
                 let progressData = localProgress ? JSON.parse(localProgress) : {};
                 progressData.currentStep = stepId;
                 progressData.viewMode = 'step';
-                localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+                localStorage.setItem(getStorageKey('wizard_progress'), JSON.stringify(progressData));
             }
             router.push('/intake_form');
             return;
@@ -464,7 +474,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 isComplete: completedSteps.length >= 20,
                 updatedAt: new Date().toISOString()
             };
-            localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+            localStorage.setItem(getStorageKey('wizard_progress'), JSON.stringify(progressData));
             console.log('[DEBUG] Auto-saved progress to localStorage on dashboard navigation');
         }
 
@@ -703,12 +713,56 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         }
     };
 
+
+
     // Fill form with sample data for testing/demo purposes
-    const fillSampleData = () => {
-        console.log('[OSWizard] Filling sample data...');
+    const fillSampleData = (selectedSample = null) => {
+        // If no sample selected, show the selector modal
+        if (!selectedSample) {
+            setShowSampleSelector(true);
+            return;
+        }
+
+        console.log('[OSWizard] Filling sample data:', selectedSample.name);
+
+        // Extract only the serializable form data fields (exclude id, name, description metadata)
+        const formData = {
+            businessType: selectedSample.businessType,
+            industry: selectedSample.industry,
+            idealClient: selectedSample.idealClient,
+            message: selectedSample.message,
+            coreProblem: selectedSample.coreProblem,
+            outcomes: selectedSample.outcomes,
+            uniqueAdvantage: selectedSample.uniqueAdvantage,
+            storyLowMoment: selectedSample.storyLowMoment,
+            storyDiscovery: selectedSample.storyDiscovery,
+            storySearchAgain: selectedSample.storySearchAgain,
+            storyBreakthrough: selectedSample.storyBreakthrough,
+            storyBigIdea: selectedSample.storyBigIdea,
+            storyResults: selectedSample.storyResults,
+            testimonials: selectedSample.testimonials,
+            offerProgram: selectedSample.offerProgram,
+            deliverables: selectedSample.deliverables,
+            pricing: selectedSample.pricing,
+            assets: selectedSample.assets,
+            revenue: selectedSample.revenue,
+            brandVoice: selectedSample.brandVoice,
+            brandColors: selectedSample.brandColors,
+            callToAction: selectedSample.callToAction,
+            platforms: selectedSample.platforms,
+            goal90Days: selectedSample.goal90Days,
+            businessStage: selectedSample.businessStage,
+            helpNeeded: selectedSample.helpNeeded,
+            // Extended fields
+            authorName: selectedSample.authorName,
+            businessName: selectedSample.businessName,
+            address: selectedSample.address,
+            supportEmail: selectedSample.supportEmail,
+            phone: selectedSample.phone
+        };
 
         // Set all the sample data to stepData
-        setStepData(SAMPLE_DATA);
+        setStepData(formData);
 
         // Mark all steps as completed
         const allSteps = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -719,8 +773,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         if (stepInputs) {
             const loadedInput = {};
             stepInputs.forEach(input => {
-                if (SAMPLE_DATA[input.name] !== undefined) {
-                    loadedInput[input.name] = SAMPLE_DATA[input.name];
+                if (formData[input.name] !== undefined) {
+                    loadedInput[input.name] = formData[input.name];
                 }
             });
             setCurrentInput(loadedInput);
@@ -732,22 +786,26 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 currentStep,
                 viewMode: 'step',
                 completedSteps: allSteps,
-                answers: SAMPLE_DATA,
+                answers: formData,
                 generatedContent: savedContent,
                 isComplete: false, // Not complete until generated
                 isSampleDataLoaded: true,
+                sampleId: selectedSample.id,
                 updatedAt: new Date().toISOString()
             };
-            localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+            localStorage.setItem(getStorageKey('wizard_progress'), JSON.stringify(progressData));
             localStorage.setItem('isSampleDataLoaded', 'true');
         }
 
         setIsSessionSaved(false);
         setHasUnsavedProgress(true);
         setIsSampleDataLoaded(true);
+        setShowSampleSelector(false);
 
-        toast.success("Sample data loaded! You can now review and edit each question, then generate content.");
+        toast.success(`"${selectedSample.name}" loaded! You can now review and edit each question, then generate content.`);
     };
+
+
 
     // Handle click on progress bar dots to navigate to specific question
     const handleProgressDotClick = (stepNum) => {
@@ -816,6 +874,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             const res = await fetchWithAuth("/api/os/assist", {
                 method: "POST",
                 body: JSON.stringify({
+                    fieldName,
                     fieldLabel,
                     sectionTitle: STEPS[currentStep - 1].title,
                     userContext: { ...currentInput, ...stepData },
@@ -986,8 +1045,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             if (currentEvent === 'progress') {
                                 setGenerationProgress(prev => ({
                                     ...prev,
-                                    completedCount: data.completed,
-                                    totalCount: data.total,
+                                    completedCount: data.completed || prev.completedCount,
+                                    totalCount: data.total || prev.totalCount,
                                     currentSection: data.current?.replace('Generating ', '').replace('...', '') || null
                                 }));
                                 setProcessingMessage(data.current || 'Generating...');
@@ -999,11 +1058,30 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                     }));
                                 }
                                 console.log(`[Generate] Section: ${data.name} - ${data.success ? '✓' : '✗'}`);
+                            } else if (currentEvent === 'early_redirect') {
+                                // EARLY REDIRECT: First 3 sections done - redirect to Vault immediately
+                                // Background generation continues for remaining sections
+                                console.log('[Generate] 🚀 Early redirect - first 3 sections ready!', data);
+
+                                setProcessingMessage("Opening your vault...");
+
+                                // Brief delay then redirect
+                                setTimeout(() => {
+                                    setIsGenerating(false);
+                                    setShowProcessingAnimation(false);
+                                    router.push(data.redirect);
+                                }, 1500);
+
+                                // Reader continues in background but we don't need to track it
+                                return;
+                            } else if (currentEvent === 'done') {
+                                // All sections complete (may arrive after redirect if user still on page)
+                                console.log('[Generate] ✅ All sections complete!', data);
                             } else if (currentEvent === 'complete') {
                                 console.log('[Generate] ✅ Generation complete!', data.metadata);
 
                                 // Show success message
-                                if (data.metadata.failed > 0) {
+                                if (data.metadata?.failed > 0) {
                                     toast.warning(`Generated ${data.metadata.successful}/${data.metadata.total} sections`);
                                 } else {
                                     toast.success("All content generated successfully!");
@@ -1074,7 +1152,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 isComplete: newCompletedSteps.length >= 20,
                 updatedAt: new Date().toISOString()
             };
-            localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+            localStorage.setItem(getStorageKey('wizard_progress'), JSON.stringify(progressData));
         }
 
         toast.success(`Step ${currentStep} skipped`);
@@ -1140,7 +1218,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 isComplete: newCompletedSteps.length >= 20,
                 updatedAt: new Date().toISOString()
             };
-            localStorage.setItem(`wizard_progress_${session.user.id}`, JSON.stringify(progressData));
+            localStorage.setItem(getStorageKey('wizard_progress'), JSON.stringify(progressData));
         }
 
         toast.success(`Step ${currentStep} saved!`);
@@ -1384,12 +1462,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     if (showProcessingAnimation) {
         return (
             <BuildingAnimation
-                processingMessage={processingMessage}
                 isGenerating={isGenerating}
-                completedCount={generationProgress.completedCount}
-                totalCount={generationProgress.totalCount}
-                currentSection={generationProgress.currentSection}
                 completedSections={generationProgress.completedSections}
+                processingMessage={processingMessage}
             />
         );
     }
@@ -1505,6 +1580,27 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                         Load Saved Session
                                     </button>
 
+                                    {/* Sample Data Sub-menu */}
+                                    <div className="border-t border-[#2a2a2d] pt-2 mt-2">
+                                        <div className="px-4 py-2 text-xs text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                            <Sparkles className="w-3 h-3" />
+                                            Load Sample Data
+                                        </div>
+                                        {SAMPLE_DATA_OPTIONS.map((sample) => (
+                                            <button
+                                                key={sample.id}
+                                                onClick={() => {
+                                                    fillSampleData(sample);
+                                                    setShowManageDataDropdown(false);
+                                                }}
+                                                className="w-full flex flex-col px-4 py-2 text-left text-gray-300 hover:bg-purple-600/10 hover:text-purple-400 transition-all"
+                                            >
+                                                <span className="font-medium text-sm">{sample.name}</span>
+                                                <span className="text-xs text-gray-500">{sample.description}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+
                                     {/* Edit Current Session - only when wizard is complete */}
                                     {isWizardComplete && (
                                         <button
@@ -1572,6 +1668,67 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                     <Save className="w-5 h-5" /> Save
                                                 </>
                                             )}
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Sample Data Selector Modal */}
+                    <AnimatePresence>
+                        {showSampleSelector && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                            >
+                                <motion.div
+                                    initial={{ scale: 0.95 }}
+                                    animate={{ scale: 1 }}
+                                    exit={{ scale: 0.95 }}
+                                    className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-2xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+                                >
+                                    <h3 className="text-xl font-bold mb-2">Choose Sample Business</h3>
+                                    <p className="text-gray-400 mb-6">Select a sample business profile to pre-fill all 20 questions. You can edit any answer before generating content.</p>
+
+                                    <div className="space-y-3">
+                                        {SAMPLE_DATA_OPTIONS.map((sample) => (
+                                            <button
+                                                key={sample.id}
+                                                onClick={() => fillSampleData(sample)}
+                                                className="w-full text-left p-4 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl hover:border-cyan/50 hover:bg-[#141416] transition-all group"
+                                            >
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex-1">
+                                                        <h4 className="font-semibold text-white group-hover:text-cyan transition-colors">
+                                                            {sample.name}
+                                                        </h4>
+                                                        <p className="text-sm text-gray-400 mt-1">
+                                                            {sample.description}
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-2 mt-2">
+                                                            <span className="px-2 py-0.5 bg-cyan/10 text-cyan text-xs rounded-full">
+                                                                {sample.industry}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-xs rounded-full">
+                                                                {sample.businessStage}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <ArrowRight className="w-5 h-5 text-gray-600 group-hover:text-cyan transition-colors flex-shrink-0 mt-1" />
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-6 pt-4 border-t border-[#2a2a2d]">
+                                        <button
+                                            onClick={() => setShowSampleSelector(false)}
+                                            className="w-full px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-all"
+                                        >
+                                            Cancel
                                         </button>
                                     </div>
                                 </motion.div>
@@ -1854,15 +2011,43 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             <div className="mb-8">
                                 {/* Sample Data Button - Show on first few steps for easy testing */}
                                 {(currentStep === 1 || (currentStep <= 3 && completedSteps.length < 2)) && (
-                                    <div className="flex justify-end mb-4">
-                                        <button
-                                            onClick={fillSampleData}
-                                            className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-400 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all border border-amber-500/30 hover:border-amber-500/50"
-                                            type="button"
-                                        >
-                                            <Sparkles className="w-4 h-4" />
-                                            Fill Sample Data (Fitness Coach)
-                                        </button>
+                                    <div className="flex justify-end mb-4 relative">
+                                        <div className="relative">
+                                            <button
+                                                onClick={() => setShowSampleSelector(!showSampleSelector)}
+                                                className="bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-400 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all border border-amber-500/30 hover:border-amber-500/50"
+                                                type="button"
+                                            >
+                                                <Sparkles className="w-4 h-4" />
+                                                Fill Sample Data
+                                                <ChevronDown className={`w-4 h-4 transition-transform ${showSampleSelector ? 'rotate-180' : ''}`} />
+                                            </button>
+
+                                            {/* Sample Data Dropdown */}
+                                            {showSampleSelector && (
+                                                <div className="absolute right-0 top-full mt-2 w-72 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl shadow-2xl z-50 overflow-hidden">
+                                                    <div className="p-2 border-b border-[#2a2a2d]">
+                                                        <p className="text-xs text-gray-500 px-2">Select a sample business to pre-fill all questions</p>
+                                                    </div>
+                                                    <div className="max-h-80 overflow-y-auto">
+                                                        {SAMPLE_DATA_OPTIONS.map((sample) => (
+                                                            <button
+                                                                key={sample.id}
+                                                                onClick={() => {
+                                                                    fillSampleData(sample);
+                                                                    setShowSampleSelector(false);
+                                                                }}
+                                                                className="w-full text-left px-4 py-3 hover:bg-amber-500/10 transition-all border-b border-[#2a2a2d] last:border-b-0"
+                                                                type="button"
+                                                            >
+                                                                <div className="font-medium text-white text-sm">{sample.name}</div>
+                                                                <div className="text-xs text-gray-500 mt-0.5">{sample.description}</div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
@@ -1920,26 +2105,35 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                         >
                                                             <button
                                                                 onClick={() => setExpandedField(isExpanded ? null : input.name)}
-                                                                className="w-full px-6 py-5 flex items-center justify-between text-left group"
+                                                                className="w-full px-6 py-5 flex items-center justify-between text-left group gap-4"
                                                                 type="button"
                                                             >
-                                                                <div className="flex items-center gap-4">
-                                                                    <div className={`
-                                                                        w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
-                                                                        ${isExpanded ? 'bg-cyan text-black' : 'bg-white/10 text-gray-400 group-hover:bg-white/20'}
-                                                                    `}>
-                                                                        {idx + 1}
+                                                                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 flex-1">
+                                                                    <div className="flex items-center gap-4">
+                                                                        <div className={`
+                                                                            w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all shrink-0
+                                                                            ${isExpanded ? 'bg-cyan text-black' : 'bg-white/10 text-gray-400 group-hover:bg-white/20'}
+                                                                        `}>
+                                                                            {idx + 1}
+                                                                        </div>
+                                                                        <span className={`font-semibold text-lg transition-colors whitespace-nowrap ${isExpanded ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
+                                                                            {mainLabel}
+                                                                            {subLabel && (
+                                                                                <span className="text-gray-500 text-sm font-normal ml-2 hidden lg:inline">
+                                                                                    {subLabel}
+                                                                                </span>
+                                                                            )}
+                                                                        </span>
                                                                     </div>
-                                                                    <span className={`font-semibold text-lg transition-colors ${isExpanded ? 'text-white' : 'text-gray-400 group-hover:text-gray-200'}`}>
-                                                                        {mainLabel}
-                                                                        {subLabel && (
-                                                                            <span className="text-gray-500 text-sm font-normal ml-2 hidden md:inline">
-                                                                                {subLabel}
-                                                                            </span>
-                                                                        )}
-                                                                    </span>
+
+                                                                    {/* Question Text (formerly placeholder) */}
+                                                                    <div className="flex-1 md:border-l md:border-white/10 md:pl-4">
+                                                                        <span className={`text-sm md:text-base font-medium transition-colors ${isExpanded ? 'text-cyan/90' : 'text-gray-500'}`}>
+                                                                            {input.placeholder}
+                                                                        </span>
+                                                                    </div>
                                                                 </div>
-                                                                <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-cyan' : ''}`} />
+                                                                <ChevronDown className={`w-5 h-5 text-gray-500 shrink-0 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-cyan' : ''}`} />
                                                             </button>
 
                                                             <AnimatePresence>
@@ -1950,24 +2144,19 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                                         exit={{ height: 0, opacity: 0 }}
                                                                         transition={{ duration: 0.3 }}
                                                                     >
-                                                                        <div className="px-6 pb-6 pt-2">
+                                                                        <div className="px-6 pb-6 pt-2 pl-[4.5rem]">
                                                                             <textarea
                                                                                 className={`
-                                                                                    w-full bg-[#0e0e0f] border rounded-xl p-4 text-white placeholder-gray-600 
+                                                                                    w-full bg-[#0e0e0f]/50 border rounded-xl p-4 text-white placeholder-gray-600/50
                                                                                     focus:ring-2 focus:ring-cyan focus:border-transparent outline-none transition-all
                                                                                     ${fieldErrors[input.name] ? 'border-red-500' : 'border-white/10'}
                                                                                 `}
                                                                                 rows={input.rows || 4}
-                                                                                placeholder={input.placeholder}
+                                                                                placeholder={input.helpText || "Type your story here..."}
                                                                                 value={currentInput[input.name] || ""}
                                                                                 onChange={(e) => handleInputChange(input.name, e.target.value)}
+                                                                                onFocus={() => setExpandedField(input.name)}
                                                                             />
-                                                                            {input.helpText && (
-                                                                                <p className="mt-3 text-sm text-gray-500 flex items-start gap-2">
-                                                                                    <Info className="w-4 h-4 mt-0.5 text-cyan/50" />
-                                                                                    {input.helpText}
-                                                                                </p>
-                                                                            )}
                                                                         </div>
                                                                     </motion.div>
                                                                 )}
@@ -2088,6 +2277,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                             e.target.style.height = 'auto';
                                                             e.target.style.height = Math.min(maxHeight, Math.max(minHeight, e.target.scrollHeight)) + 'px';
                                                         }}
+                                                        onFocus={() => setExpandedField(input.name)}
                                                         rows={input.rows || 5}
                                                         style={{
                                                             minHeight: `${(input.rows || 5) * 28}px`,
@@ -2168,13 +2358,12 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
                                                     // Find the target input for AI Assist
                                                     let targetInput;
-                                                    if (currentStep === 7) {
-                                                        // For Story section, target the expanded/active field
-                                                        targetInput = filteredInputs.find(input =>
-                                                            expandedField === input.name || (expandedField === null && filteredInputs.indexOf(input) === 0)
-                                                        );
-                                                    } else {
-                                                        // Default: Find the first textarea input
+                                                    // If a field is focused/expanded, use that field
+                                                    if (expandedField) {
+                                                        targetInput = filteredInputs.find(input => input.name === expandedField);
+                                                    }
+                                                    // Otherwise, default to the first textarea input
+                                                    if (!targetInput) {
                                                         targetInput = filteredInputs.find(input => input.type === 'textarea');
                                                     }
 

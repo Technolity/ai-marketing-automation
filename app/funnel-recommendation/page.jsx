@@ -6,6 +6,7 @@
  * - All other funnels: Locked (under maintenance)
  * 
  * After selecting VSL, user can deploy to GHL directly.
+ * NEW: Selective push - users can choose which values to push
  */
 
 import { useEffect, useState } from "react";
@@ -16,7 +17,8 @@ import {
     Rocket, ChevronDown, CheckCircle, Loader2, Sparkles,
     BookOpen, Video, Mail, Gift, Megaphone, Layout, Star,
     ArrowRight, ArrowLeft, Lock, AlertTriangle, Wrench,
-    Upload, X, Eye, EyeOff, Copy, Check, Clock, Shield, Zap
+    Upload, X, Eye, EyeOff, Copy, Check, Clock, Shield, Zap,
+    Filter, Search, CheckSquare, Square, Settings, Image as ImageIcon
 } from "lucide-react";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -88,7 +90,7 @@ export default function FunnelRecommendationPage() {
     const [showAlternatives, setShowAlternatives] = useState(false);
 
     // GHL Deployment States
-    const [deployStep, setDeployStep] = useState('select'); // select, credentials, deploying, complete
+    const [deployStep, setDeployStep] = useState('select'); // select, credentials, configure, deploying, complete
     const [credentials, setCredentials] = useState(null);
     const [isPushing, setIsPushing] = useState(false);
     const [pushOperationId, setPushOperationId] = useState(null);
@@ -107,6 +109,18 @@ export default function FunnelRecommendationPage() {
         main_vsl: '',
         testimonial_video: '',
         thankyou_video: ''
+    });
+
+    // Selective Push States
+    const [availableValues, setAvailableValues] = useState(null);
+    const [selectedKeys, setSelectedKeys] = useState(new Set());
+    const [loadingValues, setLoadingValues] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [imageOptions, setImageOptions] = useState({
+        logo: 'skip',
+        bio_author: 'skip',
+        product_mockup: 'skip',
+        results_image: 'skip'
     });
 
     useEffect(() => {
@@ -166,9 +180,97 @@ export default function FunnelRecommendationPage() {
         toast.success("Credentials saved!");
     };
 
+    // Load available values for selective push
+    const loadAvailableValues = async () => {
+        if (!sessionId) {
+            toast.error("No session ID found");
+            return;
+        }
+
+        setLoadingValues(true);
+        try {
+            const res = await fetchWithAuth(`/api/ghl/available-values?session_id=${sessionId}`);
+            const data = await res.json();
+
+            if (data.success) {
+                setAvailableValues(data);
+                // Select all keys by default
+                setSelectedKeys(new Set(data.allKeys));
+                toast.success(`Found ${data.totalValues} values to push`);
+            } else {
+                throw new Error(data.error || 'Failed to load values');
+            }
+        } catch (error) {
+            console.error("Load values error:", error);
+            toast.error(error.message || "Failed to load values");
+        } finally {
+            setLoadingValues(false);
+        }
+    };
+
+    // Proceed to configure step
+    const handleProceedToConfigure = async () => {
+        if (!credentials?.location_id) {
+            toast.error("Please enter your GHL credentials first");
+            return;
+        }
+        setDeployStep('configure');
+        await loadAvailableValues();
+    };
+
+    // Toggle a single key
+    const toggleKey = (key) => {
+        setSelectedKeys(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(key)) {
+                newSet.delete(key);
+            } else {
+                newSet.add(key);
+            }
+            return newSet;
+        });
+    };
+
+    // Toggle all keys in a category
+    const toggleCategory = (categoryKey, allSelected) => {
+        if (!availableValues?.categories[categoryKey]) return;
+
+        const categoryValues = Object.keys(availableValues.categories[categoryKey].values);
+        setSelectedKeys(prev => {
+            const newSet = new Set(prev);
+            categoryValues.forEach(key => {
+                if (allSelected) {
+                    newSet.delete(key);
+                } else {
+                    newSet.add(key);
+                }
+            });
+            return newSet;
+        });
+    };
+
+    // Select/Deselect all
+    const toggleAllKeys = (selectAll) => {
+        if (selectAll && availableValues?.allKeys) {
+            setSelectedKeys(new Set(availableValues.allKeys));
+        } else {
+            setSelectedKeys(new Set());
+        }
+    };
+
+    // Update image option
+    const updateImageOption = (imageKey, option) => {
+        setImageOptions(prev => ({ ...prev, [imageKey]: option }));
+    };
+
     const handleDeployToGHL = async () => {
         if (!credentials?.location_id) {
             toast.error("Please enter your GHL credentials first");
+            return;
+        }
+
+        if (selectedKeys.size === 0) {
+            toast.error("Please select at least one value to push");
             return;
         }
 
@@ -183,7 +285,7 @@ export default function FunnelRecommendationPage() {
         setDeployStep('deploying');
 
         try {
-            // Use the VSL push logic
+            // Use the VSL push logic with selective keys
             const res = await fetchWithAuth('/api/ghl/push-vsl', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -193,7 +295,9 @@ export default function FunnelRecommendationPage() {
                     accessToken: accessToken,
                     funnelType: selectedFunnel.id,
                     uploadedImages: uploadedImages,
-                    videoUrls: videoUrls
+                    videoUrls: videoUrls,
+                    selectedKeys: Array.from(selectedKeys),
+                    imageOptions: imageOptions
                 })
             });
 
@@ -201,7 +305,7 @@ export default function FunnelRecommendationPage() {
 
             if (data.success) {
                 setPushOperationId(data.operationId);
-                toast.success("Deploying your funnel...");
+                toast.success(`Deploying ${selectedKeys.size} values...`);
             } else {
                 throw new Error(data.error || 'Deployment failed');
             }
@@ -209,7 +313,7 @@ export default function FunnelRecommendationPage() {
             console.error("Deploy error:", error);
             toast.error(error.message || "Failed to deploy");
             setIsPushing(false);
-            setDeployStep('credentials');
+            setDeployStep('configure');
         }
     };
 
@@ -376,14 +480,16 @@ export default function FunnelRecommendationPage() {
                     <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 tracking-tighter">
                         {deployStep === 'select' ? 'Choose Your Funnel' :
                             deployStep === 'credentials' ? 'Connect Funnels' :
-                                deployStep === 'deploying' ? 'Deploying...' :
-                                    'Funnel Deployed!'}
+                                deployStep === 'configure' ? 'Configure Push' :
+                                    deployStep === 'deploying' ? 'Deploying...' :
+                                        'Funnel Deployed!'}
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto">
                         {deployStep === 'select' ? 'Select the funnel type that fits your business.' :
                             deployStep === 'credentials' ? 'Enter your credentials to deploy the funnel.' :
-                                deployStep === 'deploying' ? 'Pushing your content to Funnels...' :
-                                    'Your funnel is live! Phase 2 is now unlocked.'}
+                                deployStep === 'configure' ? 'Choose which values and images to push.' :
+                                    deployStep === 'deploying' ? 'Pushing your content to Funnels...' :
+                                        'Your funnel is live! Phase 2 is now unlocked.'}
                     </p>
                 </div>
 
@@ -607,8 +713,213 @@ export default function FunnelRecommendationPage() {
                                 Back
                             </button>
                             <button
+                                onClick={handleProceedToConfigure}
+                                disabled={!credentials?.location_id || loadingValues}
+                                className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50"
+                            >
+                                {loadingValues ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Loading Values...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Settings className="w-5 h-5" />
+                                        Configure Push
+                                        <ArrowRight className="w-5 h-5" />
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step: Configure Push */}
+                {deployStep === 'configure' && (
+                    <div className="space-y-6">
+                        {/* Header */}
+                        <div className="flex items-center justify-between bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl p-4">
+                            <div>
+                                <h3 className="font-bold text-lg flex items-center gap-2">
+                                    <Filter className="w-5 h-5 text-cyan" />
+                                    Select Values to Push
+                                </h3>
+                                <p className="text-sm text-gray-400">
+                                    Choose which custom values to update in GHL
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <span className="text-cyan font-bold text-lg">
+                                    {selectedKeys.size} / {availableValues?.allKeys?.length || 0}
+                                </span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => toggleAllKeys(true)}
+                                        className="px-3 py-1.5 text-xs font-bold bg-cyan/20 text-cyan rounded-lg hover:bg-cyan/30 transition-colors"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        onClick={() => toggleAllKeys(false)}
+                                        className="px-3 py-1.5 text-xs font-bold bg-[#2a2a2d] text-gray-400 rounded-lg hover:bg-[#3a3a3d] transition-colors"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Search */}
+                        <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search values..."
+                                className="w-full pl-12 pr-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:border-cyan focus:outline-none"
+                            />
+                        </div>
+
+                        {/* Categories */}
+                        {loadingValues ? (
+                            <div className="flex items-center justify-center py-16">
+                                <Loader2 className="w-8 h-8 text-cyan animate-spin" />
+                            </div>
+                        ) : availableValues?.categories ? (
+                            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                                {Object.entries(availableValues.categories).map(([catKey, category]) => {
+                                    const values = Object.entries(category.values);
+                                    const filteredValues = values.filter(([key]) =>
+                                        key.toLowerCase().includes(searchQuery.toLowerCase())
+                                    );
+
+                                    if (filteredValues.length === 0 && searchQuery) return null;
+
+                                    const catSelectedCount = Object.keys(category.values).filter(k => selectedKeys.has(k)).length;
+                                    const allSelected = catSelectedCount === Object.keys(category.values).length;
+                                    const someSelected = catSelectedCount > 0 && !allSelected;
+
+                                    return (
+                                        <div key={catKey} className="bg-[#131314] border border-[#2a2a2d] rounded-xl overflow-hidden">
+                                            {/* Category Header */}
+                                            <button
+                                                onClick={() => toggleCategory(catKey, allSelected)}
+                                                className="w-full px-4 py-3 flex items-center justify-between bg-[#1b1b1d] hover:bg-[#2a2a2d] transition-colors"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {allSelected ? (
+                                                        <CheckSquare className="w-5 h-5 text-cyan" />
+                                                    ) : someSelected ? (
+                                                        <div className="w-5 h-5 border-2 border-cyan rounded bg-cyan/30" />
+                                                    ) : (
+                                                        <Square className="w-5 h-5 text-gray-500" />
+                                                    )}
+                                                    <span className="font-bold">{category.name}</span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {catSelectedCount}/{category.count}
+                                                    </span>
+                                                </div>
+                                                <ChevronDown className="w-5 h-5 text-gray-500" />
+                                            </button>
+
+                                            {/* Category Values */}
+                                            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {(searchQuery ? filteredValues : values).map(([key, value]) => (
+                                                    <button
+                                                        key={key}
+                                                        onClick={() => toggleKey(key)}
+                                                        className={`px-3 py-2 rounded-lg text-left flex items-center gap-2 transition-colors ${selectedKeys.has(key)
+                                                            ? 'bg-cyan/10 border border-cyan/30 text-white'
+                                                            : 'bg-[#1b1b1d] border border-transparent text-gray-400 hover:border-[#2a2a2d]'
+                                                            }`}
+                                                    >
+                                                        {selectedKeys.has(key) ? (
+                                                            <CheckSquare className="w-4 h-4 text-cyan flex-shrink-0" />
+                                                        ) : (
+                                                            <Square className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                                                        )}
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="text-xs font-mono truncate">{key}</div>
+                                                            {value && (
+                                                                <div className="text-xs text-gray-500 truncate">
+                                                                    {String(value).substring(0, 40)}...
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 text-gray-500">
+                                No values available
+                            </div>
+                        )}
+
+                        {/* Image Options */}
+                        <div className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl p-4">
+                            <h3 className="font-bold text-lg flex items-center gap-2 mb-4">
+                                <ImageIcon className="w-5 h-5 text-cyan" />
+                                Image Options
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {[
+                                    { key: 'logo', label: 'Business Logo' },
+                                    { key: 'bio_author', label: 'Bio / Author Photo' },
+                                    { key: 'product_mockup', label: 'Product Mockup' },
+                                    { key: 'results_image', label: 'Results / Proof Image' }
+                                ].map(({ key, label }) => (
+                                    <div key={key} className="bg-[#131314] p-3 rounded-lg">
+                                        <div className="text-sm font-medium mb-2">{label}</div>
+                                        <div className="flex gap-2">
+                                            {['skip', 'upload', 'generate'].map((option) => (
+                                                <button
+                                                    key={option}
+                                                    onClick={() => updateImageOption(key, option)}
+                                                    className={`flex-1 px-2 py-1.5 rounded text-xs font-bold transition-colors ${imageOptions[key] === option
+                                                        ? option === 'skip'
+                                                            ? 'bg-gray-600 text-white'
+                                                            : option === 'upload'
+                                                                ? 'bg-blue-600 text-white'
+                                                                : 'bg-green-600 text-white'
+                                                        : 'bg-[#2a2a2d] text-gray-400 hover:bg-[#3a3a3d]'
+                                                        }`}
+                                                >
+                                                    {option === 'skip' ? 'Skip' : option === 'upload' ? 'Upload' : 'AI Gen'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {imageOptions[key] === 'upload' && (
+                                            <div className="mt-2">
+                                                <input
+                                                    type="url"
+                                                    value={uploadedImages[key] || ''}
+                                                    onChange={(e) => setUploadedImages(prev => ({ ...prev, [key]: e.target.value }))}
+                                                    placeholder="Paste image URL"
+                                                    className="w-full px-2 py-1.5 bg-[#0e0e0f] border border-[#2a2a2d] rounded text-xs text-white placeholder-gray-500 focus:border-cyan focus:outline-none"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-4">
+                            <button
+                                onClick={() => setDeployStep('credentials')}
+                                className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium hover:bg-[#3a3a3d] transition-all"
+                            >
+                                Back
+                            </button>
+                            <button
                                 onClick={handleDeployToGHL}
-                                disabled={!credentials?.location_id || isPushing}
+                                disabled={selectedKeys.size === 0 || isPushing}
                                 className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50"
                             >
                                 {isPushing ? (
@@ -619,7 +930,7 @@ export default function FunnelRecommendationPage() {
                                 ) : (
                                     <>
                                         <Rocket className="w-5 h-5" />
-                                        Deploy Now
+                                        Push {selectedKeys.size} Values
                                     </>
                                 )}
                             </button>
