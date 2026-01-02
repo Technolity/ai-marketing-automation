@@ -1771,54 +1771,71 @@ export default function VaultPage() {
                             className="border-t border-green-500/20"
                         >
                             <div className="p-4">
-                                <div className="bg-[#0e0e0f] rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
-                                    <ContentRenderer
-                                        content={editingSection === section.id ? editedContent : content}
-                                        sectionId={section.id}
-                                        isEditing={editingSection === section.id}
-                                        onUpdate={updateContentValue}
-                                    />
-                                </div>
-                                <div className="flex gap-3">
-                                    {editingSection === section.id ? (
-                                        <>
-                                            <button
-                                                onClick={() => handleSaveEdit(section.id)}
-                                                className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition-all text-sm font-bold"
-                                            >
-                                                <CheckCircle className="w-4 h-4" /> Save Changes
-                                            </button>
-                                            <button
-                                                onClick={() => setEditingSection(null)}
-                                                className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </>
+                                <div className="p-4 sm:p-6">
+                                    {GRANULAR_FIELD_COMPONENTS[section.id] ? (
+                                        (() => {
+                                            const GranularComponent = GRANULAR_FIELD_COMPONENTS[section.id];
+                                            const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                                            return (
+                                                <GranularComponent
+                                                    funnelId={funnelId}
+                                                    onApprove={(sectionId) => handleApprove(sectionId, phase)}
+                                                />
+                                            );
+                                        })()
                                     ) : (
-                                        <>
-                                            <button
-                                                onClick={() => {
-                                                    setFeedbackSection(section);
-                                                    setFeedbackModalOpen(true);
-                                                }}
-                                                className="px-4 py-2 btn-feedback rounded-lg flex items-center gap-2 text-sm"
-                                            >
-                                                <MessageSquare className="w-4 h-4" /> Feedback
-                                            </button>
-                                            {unsavedChanges && (
-                                                <button
-                                                    onClick={handleSaveChanges}
-                                                    disabled={isSaving}
-                                                    className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black rounded-lg flex items-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 text-sm font-bold"
-                                                >
-                                                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                                    Save
-                                                </button>
-                                            )}
-                                        </>
+                                        <div className="bg-[#0e0e0f] rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
+                                            <ContentRenderer
+                                                content={editingSection === section.id ? editedContent : content}
+                                                sectionId={section.id}
+                                                isEditing={editingSection === section.id}
+                                                onUpdate={updateContentValue}
+                                            />
+                                        </div>
                                     )}
                                 </div>
+                                {!GRANULAR_FIELD_COMPONENTS[section.id] && (
+                                    <div className="flex gap-3">
+                                        {editingSection === section.id ? (
+                                            <>
+                                                <button
+                                                    onClick={() => handleSaveEdit(section.id)}
+                                                    className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition-all text-sm font-bold"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" /> Save Changes
+                                                </button>
+                                                <button
+                                                    onClick={() => setEditingSection(null)}
+                                                    className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
+                                                >
+                                                    Cancel
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        setFeedbackSection(section);
+                                                        setFeedbackModalOpen(true);
+                                                    }}
+                                                    className="px-4 py-2 btn-feedback rounded-lg flex items-center gap-2 text-sm"
+                                                >
+                                                    <MessageSquare className="w-4 h-4" /> Feedback
+                                                </button>
+                                                {unsavedChanges && (
+                                                    <button
+                                                        onClick={handleSaveChanges}
+                                                        disabled={isSaving}
+                                                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black rounded-lg flex items-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 text-sm font-bold"
+                                                    >
+                                                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                                        Save
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
                     )}
