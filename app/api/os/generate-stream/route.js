@@ -103,6 +103,18 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             .eq('funnel_id', funnelId)
             .eq('section_id', sectionId);
 
+        // Get current version to increment
+        const { data: currentVersionData } = await supabaseAdmin
+            .from('vault_content')
+            .select('version')
+            .eq('funnel_id', funnelId)
+            .eq('section_id', sectionId)
+            .order('version', { ascending: false })
+            .limit(1)
+            .single();
+
+        const newVersion = (currentVersionData?.version || 0) + 1;
+
         await supabaseAdmin.from('vault_content').insert({
             funnel_id: funnelId,
             user_id: userId,
@@ -113,7 +125,8 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             phase: PHASE_1_KEYS.includes(key) || [4, 5, 17].includes(key) ? 1 : 2,
             status: 'generated',
             numeric_key: key,
-            is_current_version: true
+            is_current_version: true,
+            version: newVersion
         });
 
         // Populate granular fields for UI editing

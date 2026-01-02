@@ -642,14 +642,14 @@ export default function VaultPage() {
         // 4. First section of a phase is 'current' if it has content, otherwise 'locked'
         const sections = phaseNumber === 1 ? PHASE_1_SECTIONS : PHASE_2_SECTIONS;
         if (index === 0) {
-            return hasContent ? 'current' : 'locked';
+            return 'current';
         }
 
-        // 5. Normal sections: unlocked only if ALL previous sections are approved AND this has content
-        // Check ALL previous sections in the chain, not just the immediate predecessor
+        // 5. Normal sections: unlocked only if ALL previous sections are approved
         const allPreviousApproved = sections.slice(0, index).every(s => approvedList.includes(s.id));
         if (allPreviousApproved) {
-            return hasContent ? 'current' : 'locked';
+            // If it's your turn, you are current (unless explicitly generating/failed checked above)
+            return 'current';
         }
 
         return 'locked';

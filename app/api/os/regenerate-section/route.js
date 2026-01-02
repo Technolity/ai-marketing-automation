@@ -145,6 +145,18 @@ export async function POST(req) {
 
         const parsed = parseJsonSafe(rawContent);
 
+        // Get current version to increment
+        const { data: currentVersionData } = await supabaseAdmin
+            .from('vault_content')
+            .select('version')
+            .eq('funnel_id', funnelId)
+            .eq('section_id', sectionId)
+            .order('version', { ascending: false })
+            .limit(1)
+            .single();
+
+        const newVersion = (currentVersionData?.version || 0) + 1;
+
         // Archive old version
         await supabaseAdmin
             .from('vault_content')
@@ -165,7 +177,8 @@ export async function POST(req) {
                 phase: PHASE_1_KEYS.includes(sectionKey) ? 1 : 2,
                 status: 'generated',
                 numeric_key: sectionKey,
-                is_current_version: true
+                is_current_version: true,
+                version: newVersion
             })
             .select()
             .single();

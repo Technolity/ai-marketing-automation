@@ -228,7 +228,7 @@ export default function IdealClientFields({ funnelId, onApprove }) {
                                 handleRegenerateSection();
                             }}
                             disabled={isRegenerating}
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
                         >
                             <RefreshCw className={`w-4 h-4 ${isRegenerating ? 'animate-spin' : ''}`} />
                             {isRegenerating ? 'Regenerating...' : 'Regenerate'}
