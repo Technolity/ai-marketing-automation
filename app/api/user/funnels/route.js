@@ -13,7 +13,7 @@ export async function GET(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Fetch funnels without vault_content join (table may not exist yet)
+        // Fetch funnels for this user
         const { data: funnels, error } = await supabaseAdmin
             .from('user_funnels')
             .select('*')
@@ -23,13 +23,42 @@ export async function GET(req) {
 
         if (error) throw error;
 
-        // TODO: Add approved_count from vault_content_fields when needed
-        // For now, return funnels without approval count
+        // Get approved section counts for all funnels in one query
+        const funnelIds = funnels?.map(f => f.id) || [];
+        let approvalCounts = {};
+
+        if (funnelIds.length > 0) {
+            // Count approved sections per funnel from vault_content
+            const { data: approvalData, error: approvalError } = await supabaseAdmin
+                .from('vault_content')
+                .select('funnel_id, section_id')
+                .in('funnel_id', funnelIds)
+                .eq('status', 'approved')
+                .eq('is_current_version', true);
+
+            if (!approvalError && approvalData) {
+                // Group by funnel_id and count unique sections
+                approvalData.forEach(row => {
+                    if (!approvalCounts[row.funnel_id]) {
+                        approvalCounts[row.funnel_id] = new Set();
+                    }
+                    approvalCounts[row.funnel_id].add(row.section_id);
+                });
+            }
+        }
+
+        // Enrich funnels with approved_count
+        const enrichedFunnels = funnels?.map(funnel => ({
+            ...funnel,
+            approved_count: approvalCounts[funnel.id]?.size || 0,
+            // Also provide completed_steps_count from completed_steps array
+            completed_steps_count: Array.isArray(funnel.completed_steps) ? funnel.completed_steps.length : 0
+        })) || [];
 
         return NextResponse.json({
             success: true,
-            funnels: funnels || [],
-            count: funnels?.length || 0
+            funnels: enrichedFunnels,
+            count: enrichedFunnels.length
         });
 
     } catch (error) {

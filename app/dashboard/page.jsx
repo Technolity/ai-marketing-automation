@@ -156,8 +156,7 @@ export default function Dashboard() {
     const getProgressPercentage = (business) => {
         if (business.vault_generated) {
             // After generation, progress is based on vault approvals (13 sections total)
-            // approved_count is returned as an array of objects like [{ count: 5 }]
-            const approvedCount = business.approved_count?.[0]?.count || 0;
+            const approvedCount = business.approved_count || 0;
             return Math.min(100, Math.round((approvedCount / 13) * 100));
         }
         // Before generation, progress is based on intake steps (20 steps total)

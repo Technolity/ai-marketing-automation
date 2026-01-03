@@ -69,6 +69,19 @@ export async function POST(req) {
             throw updateError;
         }
 
+        // ALSO update vault_content.status to 'approved' for Dashboard progress tracking
+        const { error: vaultContentError } = await supabaseAdmin
+            .from('vault_content')
+            .update({ status: 'approved' })
+            .eq('funnel_id', funnel_id)
+            .eq('section_id', section_id)
+            .eq('is_current_version', true);
+
+        if (vaultContentError) {
+            console.error('[VaultSectionApprove] vault_content update warning:', vaultContentError);
+            // Don't throw - this is secondary to fields approval
+        }
+
         console.log('[VaultSectionApprove] Section approved:', {
             section_id,
             fieldsApproved: approvedFields?.length || 0
