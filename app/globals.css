@@ -49,19 +49,25 @@
   }
 
   .btn-approve {
-    @apply relative overflow-hidden transition-all duration-300 font-bold text-black bg-[#00F5FF] shadow-[0_0_20px_rgba(0, 245, 255, 0.35)];
+    @apply relative overflow-hidden transition-all duration-300 font-bold text-black;
+    background-color: #00F5FF;
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.35);
   }
 
   .btn-approve:hover {
-    @apply shadow-[0_0_30px_rgba(0, 245, 255, 0.5)] brightness-110;
+    @apply brightness-110;
+    box-shadow: 0 0 30px rgba(0, 245, 255, 0.5);
   }
 
   .btn-feedback {
-    @apply relative overflow-hidden transition-all duration-300 font-bold text-white bg-[#8B5CFF] shadow-[0_0_20px_rgba(139, 92, 255, 0.35)];
+    @apply relative overflow-hidden transition-all duration-300 font-bold text-white;
+    background-color: #8B5CFF;
+    box-shadow: 0 0 20px rgba(139, 92, 255, 0.35);
   }
 
   .btn-feedback:hover {
-    @apply shadow-[0_0_30px_rgba(139, 92, 255, 0.5)] brightness-110;
+    @apply brightness-110;
+    box-shadow: 0 0 30px rgba(139, 92, 255, 0.5);
   }
 }
 
