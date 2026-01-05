@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/ghl/funnels
  * List all funnels for the current user
@@ -73,4 +76,5 @@ export async function GET(req) {
         }, { status: 500 });
     }
 }
+
 

@@ -23,6 +23,9 @@ import { bioPrompt } from '@/lib/prompts/bio';
 import { contentIdeasPrompt } from '@/lib/prompts/contentIdeas';
 import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * Multi-provider AI generation with fallback
  * Tries providers in order: OpenAI -> Claude -> Gemini
@@ -359,4 +362,5 @@ export async function POST(req) {
         }, { status: 500 });
     }
 }
+
 

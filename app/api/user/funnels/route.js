@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/user/funnels
  * Get all funnels (businesses) for the current user
@@ -253,3 +256,4 @@ export async function DELETE(req) {
         return NextResponse.json({ error: 'Failed to delete business' }, { status: 500 });
     }
 }
+

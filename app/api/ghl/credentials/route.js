@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/ghl/credentials
  * Fetch saved GHL credentials for the current user
@@ -175,3 +178,4 @@ export async function DELETE(req) {
     }, { status: 500 });
   }
 }
+

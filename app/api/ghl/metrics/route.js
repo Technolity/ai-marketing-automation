@@ -334,3 +334,4 @@ function calculateRevenueTrend(opportunities) {
         revenue: Math.round(revenue)
     }));
 }
+

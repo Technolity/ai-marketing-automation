@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { AI_PROVIDERS, getOpenAIClient } from '@/lib/ai/providerConfig';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/voice-model/analyze
  * 
@@ -281,3 +284,4 @@ Return ONLY valid JSON.`;
         console.error('[VoiceAnalyze] Style analysis error:', error);
     }
 }
+

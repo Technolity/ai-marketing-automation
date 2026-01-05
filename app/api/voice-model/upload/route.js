@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/voice-model/upload
  * 
@@ -236,3 +239,4 @@ async function updateVoiceProfileCounts(userId) {
         console.error('[VoiceUpload] Profile update error:', error);
     }
 }
+

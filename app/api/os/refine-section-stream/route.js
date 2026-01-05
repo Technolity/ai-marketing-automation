@@ -5,6 +5,9 @@ import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/sch
 import { getFullContextPrompt, buildEnhancedFeedbackPrompt } from '@/lib/prompts/fullContextPrompts';
 import { encode } from 'gpt-tokenizer';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/os/refine-section-stream
  *
@@ -879,3 +882,4 @@ export async function GET() {
         headers: { 'Content-Type': 'application/json' }
     });
 }
+

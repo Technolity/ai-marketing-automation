@@ -1,0 +1,109 @@
+
+> ai-marketing-automation@1.0.0 build
+> next build
+
+  ▲ Next.js 14.2.25
+  - Environments: .env.local, .env.production
+
+   Creating an optimized production build ...
+ ⚠ Compiled with warnings
+
+./node_modules/scheduler/cjs/scheduler.production.min.js
+A Node.js API is used (setImmediate at line: 11) which is not supported in the Edge Runtime.
+Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+
+Import trace for requested module:
+./node_modules/scheduler/cjs/scheduler.production.min.js
+./node_modules/scheduler/index.js
+./node_modules/react-dom/cjs/react-dom.production.min.js
+./node_modules/react-dom/index.js
+./node_modules/next/dist/esm/client/script.js
+./node_modules/next/dist/esm/shared/lib/router/router.js
+./node_modules/next/dist/esm/client/router.js
+./node_modules/next/dist/esm/api/router.js
+./node_modules/@clerk/nextjs/dist/esm/pages/ClerkProvider.js
+./node_modules/@clerk/nextjs/dist/esm/client-boundary/ClerkProvider.js
+./node_modules/@clerk/nextjs/dist/esm/components.client.js
+./node_modules/@clerk/nextjs/dist/esm/index.js
+
+./node_modules/scheduler/cjs/scheduler.production.min.js
+A Node.js API is used (setImmediate at line: 11) which is not supported in the Edge Runtime.
+Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+
+Import trace for requested module:
+./node_modules/scheduler/cjs/scheduler.production.min.js
+./node_modules/scheduler/index.js
+./node_modules/react-dom/cjs/react-dom.production.min.js
+./node_modules/react-dom/index.js
+./node_modules/next/dist/esm/client/script.js
+./node_modules/next/dist/esm/shared/lib/router/router.js
+./node_modules/next/dist/esm/client/router.js
+./node_modules/next/dist/esm/api/router.js
+./node_modules/@clerk/nextjs/dist/esm/pages/ClerkProvider.js
+./node_modules/@clerk/nextjs/dist/esm/client-boundary/ClerkProvider.js
+./node_modules/@clerk/nextjs/dist/esm/components.client.js
+./node_modules/@clerk/nextjs/dist/esm/index.js
+
+./node_modules/scheduler/cjs/scheduler.production.min.js
+A Node.js API is used (MessageChannel at line: 14) which is not supported in the Edge Runtime.
+Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+
+Import trace for requested module:
+./node_modules/scheduler/cjs/scheduler.production.min.js
+./node_modules/scheduler/index.js
+./node_modules/react-dom/cjs/react-dom.production.min.js
+./node_modules/react-dom/index.js
+./node_modules/next/dist/esm/client/script.js
+./node_modules/next/dist/esm/shared/lib/router/router.js
+./node_modules/next/dist/esm/client/router.js
+./node_modules/next/dist/esm/api/router.js
+./node_modules/@clerk/nextjs/dist/esm/pages/ClerkProvider.js
+./node_modules/@clerk/nextjs/dist/esm/client-boundary/ClerkProvider.js
+./node_modules/@clerk/nextjs/dist/esm/components.client.js
+./node_modules/@clerk/nextjs/dist/esm/index.js
+
+./node_modules/scheduler/cjs/scheduler.production.min.js
+A Node.js API is used (MessageChannel at line: 14) which is not supported in the Edge Runtime.
+Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+
+Import trace for requested module:
+./node_modules/scheduler/cjs/scheduler.production.min.js
+./node_modules/scheduler/index.js
+./node_modules/react-dom/cjs/react-dom.production.min.js
+./node_modules/react-dom/index.js
+./node_modules/next/dist/esm/client/script.js
+./node_modules/next/dist/esm/shared/lib/router/router.js
+./node_modules/next/dist/esm/client/router.js
+./node_modules/next/dist/esm/api/router.js
+./node_modules/@clerk/nextjs/dist/esm/pages/ClerkProvider.js
+./node_modules/@clerk/nextjs/dist/esm/client-boundary/ClerkProvider.js
+./node_modules/@clerk/nextjs/dist/esm/components.client.js
+./node_modules/@clerk/nextjs/dist/esm/index.js
+
+./node_modules/@clerk/shared/dist/chunk-RSOCGYTF.mjs
+A Node.js API is used (MessageEvent at line: 28) which is not supported in the Edge Runtime.
+Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+
+Import trace for requested module:
+./node_modules/@clerk/shared/dist/chunk-RSOCGYTF.mjs
+./node_modules/@clerk/shared/dist/index.mjs
+./node_modules/@clerk/clerk-react/dist/esm/components/uiComponents.js
+./node_modules/@clerk/clerk-react/dist/esm/components/index.js
+./node_modules/@clerk/clerk-react/dist/esm/index.js
+./node_modules/@clerk/nextjs/dist/esm/client-boundary/controlComponents.js
+./node_modules/@clerk/nextjs/dist/esm/index.js
+
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+unhandledRejection Error [PageNotFoundError]: Cannot find module for page: /_document
+    at getPagePath (C:\Users\LOG IN\Desktop\ai-marketing-automation\node_modules\next\dist\server\require.js:94:15)
+    at requirePage (C:\Users\LOG IN\Desktop\ai-marketing-automation\node_modules\next\dist\server\require.js:99:22)
+    at C:\Users\LOG IN\Desktop\ai-marketing-automation\node_modules\next\dist\server\load-components.js:72:65
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Promise.all (index 0)
+    at async loadComponentsImpl (C:\Users\LOG IN\Desktop\ai-marketing-automation\node_modules\next\dist\server\load-components.js:71:33)
+    at async Object.hasCustomGetInitialProps (C:\Users\LOG IN\Desktop\ai-marketing-automation\node_modules\next\dist\build\utils.js:1274:24) {
+  type: 'PageNotFoundError',
+  code: 'ENOENT'
+}

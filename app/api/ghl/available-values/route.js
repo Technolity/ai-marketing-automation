@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { mapSessionToCustomValues, getSessionImages } from '@/lib/ghl/customValueMapper';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/ghl/available-values
  * Fetches all available custom values for a session, organized by category
@@ -202,3 +205,4 @@ export async function GET(req) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+

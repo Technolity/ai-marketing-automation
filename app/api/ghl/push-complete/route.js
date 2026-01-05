@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { pushAllContentToGHL, getOperationStatus } from '@/lib/ghl/pushSystem';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/ghl/push-complete
  * Comprehensive GHL push operation
@@ -154,3 +157,4 @@ export async function GET(req) {
     }, { status: 500 });
   }
 }
+

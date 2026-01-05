@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import OpenAI from 'openai';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
@@ -129,3 +132,4 @@ export async function POST(req) {
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }
+

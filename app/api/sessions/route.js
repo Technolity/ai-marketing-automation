@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/sessions
  * Fetch all saved sessions for the current user

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/os/approvals
  * Fetch approved sections from vault_content and phase status from user_funnels
@@ -146,4 +149,5 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
+
 

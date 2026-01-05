@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/ghl/custom-values/push
  *
@@ -214,3 +217,4 @@ export async function PUT(req) {
     );
   }
 }
+

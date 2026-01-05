@@ -7,6 +7,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { extractMetadata } from '@/lib/rag/langchain-pipeline';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/admin/transcripts/extract-metadata
  * Use OpenAI to automatically extract metadata from transcript
@@ -82,3 +85,4 @@ export async function POST(request) {
     }, { status: 500 });
   }
 }
+

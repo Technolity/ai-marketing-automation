@@ -399,3 +399,4 @@ export async function GET(req) {
         answerFields: Object.keys(require('@/lib/refinement/dependencyMap').ANSWER_DEPENDENCIES)
     });
 }
+

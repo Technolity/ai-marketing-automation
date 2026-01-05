@@ -182,3 +182,4 @@ async function fetchContactsMetrics(accessToken, locationId) {
         };
     }
 }
+

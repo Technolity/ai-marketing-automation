@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/os/vault-fields
  * Fetch all fields for a specific section
@@ -85,3 +88,4 @@ export async function GET(req) {
         });
     }
 }
+

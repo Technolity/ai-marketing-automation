@@ -9,6 +9,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { generateCustomCSS, saveGeneratedCSS, getSessionCSS } from '@/lib/css/cssGenerator';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/css/generate
  * Generate custom CSS code based on user's color preferences
@@ -137,3 +140,4 @@ export async function GET(req) {
     }, { status: 500 });
   }
 }
+

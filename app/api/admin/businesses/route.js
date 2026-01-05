@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { verifyAdmin, getSupabaseClient } from '@/lib/adminAuth';
 
+export const dynamic = 'force-dynamic';
+
 const supabase = getSupabaseClient();
 
 /**

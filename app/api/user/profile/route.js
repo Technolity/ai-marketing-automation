@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/user/profile
  * Get the current user's profile including tier and limits
@@ -97,3 +100,4 @@ export async function PATCH(req) {
         return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
     }
 }
+

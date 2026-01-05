@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { generateAllFunnelImages, generateSingleImage, generateImagePrompts } from '@/lib/images/imageGenerator';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/images/generate
  * Generate AI images for funnel pages (background job)
@@ -134,3 +137,4 @@ export async function GET(req) {
     }, { status: 500 });
   }
 }
+

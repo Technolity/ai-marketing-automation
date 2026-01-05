@@ -4,6 +4,9 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/os/refine-section
  *
@@ -405,3 +408,4 @@ export async function GET() {
         }
     });
 }
+

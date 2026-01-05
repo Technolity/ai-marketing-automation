@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { ghlSchema } from '@/lib/ghl/schema';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/ghl/inspect?locationId=xxx&accessToken=xxx
  * Fetches all custom values from a GHL location for inspection
@@ -163,3 +166,4 @@ function groupByCategory(customValues) {
     });
     return grouped;
 }
+

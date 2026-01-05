@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/os/vault-section-approve
  * Approve all fields in a section
@@ -104,3 +107,4 @@ export async function POST(req) {
         });
     }
 }
+

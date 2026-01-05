@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+
+export const dynamic = 'force-dynamic';
+
 export async function GET(req) {
     // const supabase = createRouteHandlerClient({ cookies });
 
@@ -38,3 +41,4 @@ export async function GET(req) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+

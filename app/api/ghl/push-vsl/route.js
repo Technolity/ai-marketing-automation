@@ -4,6 +4,9 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { mapToVSLFunnel, validateVSLMapping } from '@/lib/ghl/vslFunnelMapper';
 import { generateFunnelImages } from '@/lib/ghl/funnelImageGenerator';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/ghl/push-vsl
  * Complete workflow: Generate images → Map content → Push to GHL
@@ -378,4 +381,5 @@ export async function POST(req) {
         }, { status: 500 });
     }
 }
+
 

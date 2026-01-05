@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * API Route: /api/users/sync
  * Creates or updates user profile in Supabase when user logs in
@@ -99,3 +102,4 @@ export async function POST(req) {
     }, { status: 500 });
   }
 }
+

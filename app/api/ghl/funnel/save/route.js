@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase } from '@/lib/supabaseServiceRole';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/ghl/funnel/save
  * Save funnel details after GHL push
@@ -89,4 +92,5 @@ export async function POST(req) {
         }, { status: 500 });
     }
 }
+
 

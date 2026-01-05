@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { verifyAdmin, getSupabaseClient } from '@/lib/adminAuth';
 
+
+export const dynamic = 'force-dynamic';
+
 const supabase = getSupabaseClient();
 
 /**
@@ -129,3 +132,4 @@ export async function PUT(req) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+

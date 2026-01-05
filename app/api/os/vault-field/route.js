@@ -4,6 +4,9 @@ import { getFieldDefinition, validateFieldValue } from '@/lib/vault/fieldStructu
 import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/os/vault-field
  * Create a new custom field (user-added) with optional AI generation
@@ -353,3 +356,4 @@ export async function PATCH(req) {
         });
     }
 }
+

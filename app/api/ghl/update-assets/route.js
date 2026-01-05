@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { mapToVSLFunnel } from '@/lib/ghl/vslFunnelMapper';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/ghl/update-assets
  * Partial update: Only push images and videos to GHL custom values
@@ -144,3 +147,4 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 });
     }
 }
+

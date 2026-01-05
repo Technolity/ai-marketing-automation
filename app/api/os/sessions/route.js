@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * Sessions API - DEPRECATED
  * 
@@ -90,3 +93,4 @@ export async function DELETE(req) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+

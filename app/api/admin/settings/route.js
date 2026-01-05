@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { verifyAdmin, getSupabaseClient } from '@/lib/adminAuth';
 
+
+export const dynamic = 'force-dynamic';
+
 const supabase = getSupabaseClient();
 
 // Cache for admin settings (15 minute TTL)
@@ -231,3 +234,4 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Failed to perform operation', details: error.message }, { status: 500 });
   }
 }
+

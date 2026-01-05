@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { validateVaultContent, stripExtraFields } from '@/lib/schemas/vaultSchemas';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * PATCH /api/os/vault-section
  * Update a specific vault section's content
@@ -228,3 +231,4 @@ export async function PATCH(req) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
+

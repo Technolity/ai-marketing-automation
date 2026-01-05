@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/ghl/test-push
  * Test endpoint to push Custom Values to GHL
@@ -146,4 +149,5 @@ export async function POST(req) {
     }, { status: 500 });
   }
 }
+
 

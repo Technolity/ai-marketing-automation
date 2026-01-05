@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { validateVaultContent, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/os/vault-field-update
  *
@@ -180,3 +183,4 @@ export async function GET() {
         }
     });
 }
+

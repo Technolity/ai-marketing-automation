@@ -2,6 +2,9 @@
 import { generateMockResults } from '@/lib/mockData';
 import { buildMarketingPrompt, buildSystemPrompt } from '@/lib/prompts';
 
+
+export const dynamic = 'force-dynamic';
+
 export async function POST(request) {
   try {
     const formData = await request.json();
@@ -52,3 +55,4 @@ export async function POST(request) {
     );
   }
 }
+

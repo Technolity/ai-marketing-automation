@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { mapSessionToCustomValues, validateSessionData } from '@/lib/ghl/customValueMapper';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/ghl/custom-values/generate
  * Generate custom values from a session's AI-generated content
@@ -77,3 +80,4 @@ export async function POST(req) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+

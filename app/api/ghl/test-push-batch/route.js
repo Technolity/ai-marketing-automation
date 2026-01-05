@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/ghl/test-push-batch
  * Test pushing MULTIPLE custom values at once to GHL
@@ -235,3 +238,4 @@ function getValueType(name, value) {
   }
   return 'text';
 }
+
