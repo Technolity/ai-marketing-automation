@@ -19,7 +19,7 @@ import {
     Video, Mail, Megaphone, Layout, Bell, Lightbulb,
     Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
     ChevronDown, ChevronUp, Save, Image as ImageIcon, Video as VideoIcon, Plus, Trash2 as TrashIcon, ExternalLink,
-    Upload, X, Info
+    Upload, X, Info, FileImage
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
@@ -40,6 +40,7 @@ import FacebookAdsFields from "@/components/vault/FacebookAdsFields";
 import FunnelCopyFields from "@/components/vault/FunnelCopyFields";
 import BioFields from "@/components/vault/BioFields";
 import AppointmentRemindersFields from "@/components/vault/AppointmentRemindersFields";
+import MediaFields from "@/components/vault/MediaFields";
 
 // Map section IDs to granular field components (all 13 sections)
 const GRANULAR_FIELD_COMPONENTS = {
@@ -55,7 +56,9 @@ const GRANULAR_FIELD_COMPONENTS = {
     facebookAds: FacebookAdsFields,
     funnelCopy: FunnelCopyFields,
     bio: BioFields,
-    appointmentReminders: AppointmentRemindersFields
+    bio: BioFields,
+    appointmentReminders: AppointmentRemindersFields,
+    media: MediaFields
 };
 
 // Phase 1: Business Assets - Core business foundations (always accessible)
@@ -76,7 +79,8 @@ const PHASE_2_SECTIONS = [
     { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone },
     { id: 'emails', numericKey: 8, title: 'Email & SMS Sequences', subtitle: '15-day nurture series', icon: Mail },
     { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
-    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users }
+    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users },
+    { id: 'media', numericKey: 18, title: 'Media Library', subtitle: 'Logo, images, and videos', icon: ImageIcon }
 ];
 
 // Normalize data structure (handles numeric or named keys)

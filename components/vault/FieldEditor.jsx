@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Pencil, Sparkles, Check, X, AlertCircle } from 'lucide-react';
+import { Pencil, Sparkles, Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon } from 'lucide-react';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
+import { toast } from 'sonner';
 
 /**
  * FieldEditor - Individual field editing component
@@ -44,6 +45,7 @@ export default function FieldEditor({
     const [isEditing, setIsEditing] = useState(false);
     const [value, setValue] = useState(parseValue(initialValue, fieldDef.field_type));
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [validationErrors, setValidationErrors] = useState([]);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -146,8 +148,8 @@ export default function FieldEditor({
                             maxLength={field_metadata.maxLength}
                             disabled={!isEditing}
                             className={`w-full px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
-                                    ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                    : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
+                                ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
                                 }`}
                         />
                     ) : (
@@ -159,8 +161,8 @@ export default function FieldEditor({
                             rows={field_metadata.rows || 3}
                             disabled={!isEditing}
                             className={`w-full px-4 py-3 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 resize-none transition-colors ${isEditing
-                                    ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                    : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
+                                ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
                                 }`}
                         />
                     )}
@@ -198,8 +200,8 @@ export default function FieldEditor({
                                 maxLength={field_metadata.itemMaxLength}
                                 disabled={!isEditing}
                                 className={`flex-1 px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
-                                        ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                        : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
+                                    ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                    : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
                                     }`}
                             />
                             {isEditing && arrayValue.length > minItems && (
@@ -223,6 +225,146 @@ export default function FieldEditor({
                             + Add item
                         </button>
                     )}
+                    {field_metadata.hint && isEditing && (
+                        <p className="text-xs text-gray-500">{field_metadata.hint}</p>
+                    )}
+                </div>
+            );
+        }
+
+        if (field_type === 'image' || field_type === 'video_url') {
+            const isVideo = field_type === 'video_url';
+
+            const handleFileUpload = async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                // Client-side validation
+                const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024; // 100MB video, 10MB image
+                if (file.size > maxSize) {
+                    toast.error(`File too large. Max size: ${isVideo ? '100MB' : '10MB'}`);
+                    return;
+                }
+
+                setIsUploading(true);
+                const toastId = toast.loading('Uploading...');
+
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('type', isVideo ? 'video' : 'image');
+
+                    const res = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await res.json();
+
+                    if (res.ok && data.success) {
+                        setValue(data.fullUrl);
+                        toast.success('File uploaded!', { id: toastId });
+                    } else {
+                        throw new Error(data.error || 'Upload failed');
+                    }
+                } catch (error) {
+                    console.error('Upload Error:', error);
+                    toast.error(`Upload failed: ${error.message}`, { id: toastId });
+                } finally {
+                    setIsUploading(false);
+                }
+            };
+
+            return (
+                <div className="w-full space-y-4">
+                    {!value ? (
+                        <div className="space-y-3">
+                            {/* Upload Area */}
+                            {isEditing && (
+                                <label className={`relative block group cursor-pointer ${isUploading ? 'pointer-events-none opacity-70' : ''}`}>
+                                    <input
+                                        type="file"
+                                        accept={isVideo ? "video/*" : "image/*"}
+                                        onChange={handleFileUpload}
+                                        className="hidden"
+                                        disabled={!isEditing || isUploading}
+                                    />
+                                    <div className={`w-full px-4 py-8 border-2 border-dashed rounded-xl text-center transition-all ${isEditing
+                                            ? 'border-gray-700 hover:border-cyan hover:bg-[#1f1f22]'
+                                            : 'border-[#2a2a2d] cursor-not-allowed'
+                                        }`}>
+                                        {isUploading ? (
+                                            <div className="flex flex-col items-center gap-2 text-cyan">
+                                                <Loader2 className="w-6 h-6 animate-spin" />
+                                                <span className="text-sm">Uploading...</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col items-center gap-2 text-gray-500 group-hover:text-gray-300">
+                                                <Upload className="w-6 h-6" />
+                                                <span className="text-sm font-medium">Click to upload {isVideo ? 'video' : 'image'}</span>
+                                                <span className="text-xs text-gray-600">Max size: {isVideo ? '100MB' : '10MB'}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </label>
+                            )}
+
+                            {/* URL Input Fallback */}
+                            <div className="relative">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                    <LinkIcon className="w-4 h-4" />
+                                </div>
+                                <input
+                                    type="url"
+                                    value={value || ''}
+                                    onChange={(e) => setValue(e.target.value)}
+                                    placeholder={field_metadata.placeholder || "Or paste URL..."}
+                                    disabled={!isEditing}
+                                    className={`w-full pl-10 pr-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
+                                            ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                            : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
+                                        }`}
+                                />
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="relative group bg-[#18181b] border border-[#3a3a3d] rounded-xl p-3 overflow-hidden">
+                            <div className="flex items-center gap-3">
+                                {isVideo ? (
+                                    <div className="w-12 h-12 bg-[#2a2a2d] rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <Video className="w-6 h-6 text-gray-400" />
+                                    </div>
+                                ) : (
+                                    <div className="w-12 h-12 bg-[#2a2a2d] rounded-lg overflow-hidden flex-shrink-0 relative">
+                                        <img src={value} alt="Preview" className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm text-gray-300 truncate">{value}</p>
+                                    <a
+                                        href={value}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs text-cyan hover:underline flex items-center gap-1 mt-0.5"
+                                    >
+                                        View in new tab <LinkIcon className="w-3 h-3" />
+                                    </a>
+                                </div>
+
+                                {isEditing && (
+                                    <button
+                                        onClick={() => setValue('')}
+                                        className="p-2 text-gray-500 hover:text-red-500 transition-colors"
+                                        title="Remove file"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {field_metadata.hint && isEditing && (
                         <p className="text-xs text-gray-500">{field_metadata.hint}</p>
                     )}
