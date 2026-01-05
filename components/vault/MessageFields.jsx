@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
-import CustomFieldAdder from './CustomFieldAdder';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 
@@ -178,8 +177,43 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
         return field ? field.field_value : null;
     };
 
+    // Expose approve button for parent to render in header
+    const approveButton = !sectionApproved ? (
+        <button
+            onClick={handleApproveSection}
+            disabled={isApproving}
+            className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+            {isApproving ? (
+                <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Approving...
+                </>
+            ) : (
+                <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Approve Section
+                </>
+            )}
+        </button>
+    ) : (
+        <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
+            <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <span className="text-sm text-green-400 font-semibold">Approved</span>
+        </div>
+    );
+
     return (
         <>
+            {/* Expose approve button via onRenderApproveButton callback */}
+            {onRenderApproveButton && onRenderApproveButton(approveButton)}
+
             {/* Fields directly rendered - no wrapper card */}
             <div className="space-y-6">
                 {isLoading ? (
@@ -203,35 +237,6 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
                                 />
                             );
                         })}
-
-                        {/* Custom Fields */}
-                        {fields
-                            .filter(f => f.is_custom)
-                            .map((customField) => (
-                                <FieldEditor
-                                    key={customField.field_id}
-                                    fieldDef={{
-                                        field_id: customField.field_id,
-                                        field_label: customField.field_label,
-                                        field_type: customField.field_type,
-                                        field_metadata: customField.field_metadata || {}
-                                    }}
-                                    initialValue={customField.field_value}
-                                    sectionId={sectionId}
-                                    funnelId={funnelId}
-                                    onSave={handleFieldSave}
-                                    onAIFeedback={handleAIFeedback}
-                                />
-                            ))}
-
-                        {/* Custom Field Adder */}
-                        <div className="pt-4 border-t border-white/5">
-                            <CustomFieldAdder
-                                sectionId={sectionId}
-                                funnelId={funnelId}
-                                onFieldAdded={handleFieldAdded}
-                            />
-                        </div>
                     </>
                 )}
             </div>

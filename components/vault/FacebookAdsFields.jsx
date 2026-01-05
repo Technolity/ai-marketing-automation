@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Megaphone, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
-import CustomFieldAdder from './CustomFieldAdder';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 
@@ -147,8 +146,6 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
                 ) : (
                     <>
                         {predefinedFields.map((fieldDef) => (<FieldEditor key={fieldDef.field_id} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} />))}
-                        {fields.filter(f => f.is_custom).map((customField) => (<FieldEditor key={customField.field_id} fieldDef={{ field_id: customField.field_id, field_label: customField.field_label, field_type: customField.field_type, field_metadata: customField.field_metadata || {} }} initialValue={customField.field_value} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} />))}
-                        <div className="pt-4 border-t border-white/5"><CustomFieldAdder sectionId={sectionId} funnelId={funnelId} onFieldAdded={handleFieldAdded} /></div>
                     </>
                 )}
             </div>
@@ -156,3 +153,4 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
         </>
     );
 }
+

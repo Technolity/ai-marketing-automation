@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
-import CustomFieldAdder from './CustomFieldAdder';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 
@@ -260,15 +259,6 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
                                     onAIFeedback={handleAIFeedback}
                                 />
                             ))}
-
-                        {/* Custom Field Adder */}
-                        <div className="pt-4 border-t border-white/5">
-                            <CustomFieldAdder
-                                sectionId={sectionId}
-                                funnelId={funnelId}
-                                onFieldAdded={handleFieldAdded}
-                            />
-                        </div>
                     </>
                 )}
             </div>
@@ -294,3 +284,4 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
         </>
     );
 }
+

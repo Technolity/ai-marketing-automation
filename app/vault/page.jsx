@@ -596,12 +596,24 @@ export default function VaultPage() {
     }, [session, authLoading]); // Removed searchParams to prevent reload on tab switch
 
     const loadApprovals = async (sId = null) => {
-        // Robust session ID handling to prevent cross-contamination
-        const activeSessionId = sId || dataSource?.id || searchParams.get('funnel_id') || searchParams.get('session_id') || 'current';
+        // Priority: passed parameter > URL param > dataSource.id > 'current' (fallback)
+        const funnelIdFromUrl = searchParams.get('funnel_id') || searchParams.get('session_id');
+        const activeSessionId = sId || funnelIdFromUrl || dataSource?.id;
+
+        // Validate UUID format to prevent invalid requests
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!activeSessionId || !uuidRegex.test(activeSessionId)) {
+            console.log('[Vault] Skipping approvals load - no valid funnel ID:', { sId, funnelIdFromUrl, dataSourceId: dataSource?.id });
+            return;
+        }
+
+        console.log('[Vault] Loading approvals for funnel:', activeSessionId);
+
         try {
             const approvalsRes = await fetchWithAuth(`/api/os/approvals?session_id=${activeSessionId}`);
             if (approvalsRes.ok) {
                 const data = await approvalsRes.json();
+                console.log('[Vault] Approvals loaded:', { phase1: data.businessCoreApprovals, phase2: data.funnelAssetsApprovals });
                 setApprovedPhase1(data.businessCoreApprovals || []);
                 setApprovedPhase2(data.funnelAssetsApprovals || []);
 
@@ -613,6 +625,7 @@ export default function VaultPage() {
                 localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
             }
         } catch (e) {
+            console.error('[Vault] Error loading approvals:', e);
             // Fallback to localStorage
             const saved = localStorage.getItem(`vault_approvals_${session.user.id}_${activeSessionId}`);
             if (saved) {
