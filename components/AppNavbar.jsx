@@ -9,6 +9,8 @@ export default function AppNavbar() {
   const { isAdmin, loading } = useAuth();
   const pathname = usePathname();
 
+  if (pathname === "/dashboard") return null;
+
   // Show minimal navbar while loading
   if (loading) {
     return (
@@ -39,6 +41,13 @@ export default function AppNavbar() {
             >
               <LayoutDashboard className="w-4 h-4" />
               <span>Dashboard</span>
+            </Link>
+
+            <Link
+              href="/settings"
+              className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-white transition-all duration-300"
+            >
+              <span>Settings</span>
             </Link>
 
             {/* Admin Link - Only visible if admin */}

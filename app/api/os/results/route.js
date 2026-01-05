@@ -71,7 +71,7 @@ export async function GET(req) {
         // Fetch funnel details
         const { data: funnel } = await supabaseAdmin
             .from('user_funnels')
-            .select('id, funnel_name, vault_generated, phase1_approved, phase2_unlocked')
+            .select('id, funnel_name, vault_generated, phase1_approved, phase2_unlocked, selected_funnel_type')
             .eq('id', targetFunnelId)
             .eq('user_id', userId)
             .single();
@@ -114,7 +114,9 @@ export async function GET(req) {
                 id: funnel.id,
                 vault_generated: funnel.vault_generated,
                 phase1_approved: funnel.phase1_approved,
-                phase2_unlocked: funnel.phase2_unlocked
+                phase2_unlocked: funnel.phase2_unlocked,
+                selected_funnel_type: funnel.selected_funnel_type,
+                has_funnel_choice: !!funnel.selected_funnel_type
             } : null,
             data: aggregatedData
         });

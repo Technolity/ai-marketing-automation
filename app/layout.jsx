@@ -3,6 +3,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import { ClerkProvider } from "@clerk/nextjs";
 import AppNavbar from "@/components/AppNavbar";
+import MainLayout from "@/components/MainLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata = {
@@ -17,12 +18,12 @@ export default function RootLayout({ children }) {
       afterSignUpUrl="/redirect"
     >
       <html lang="en" className="bg-dark">
-        <body className="bg-dark">
+        <body className="bg-dark text-white">
           <AuthProvider>
             <AppNavbar />
-            <main className="pt-20">
+            <MainLayout>
               {children}
-            </main>
+            </MainLayout>
             <Toaster position="bottom-right" theme="dark" />
           </AuthProvider>
         </body>

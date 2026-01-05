@@ -141,6 +141,62 @@ export async function POST(req) {
 }
 
 /**
+ * PATCH /api/user/funnels
+ * Update funnel choice for a business
+ * Body: { funnelId, funnelType }
+ */
+export async function PATCH(req) {
+    try {
+        const { userId } = auth();
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { funnelId, funnelType } = await req.json();
+
+        if (!funnelId || !funnelType) {
+            return NextResponse.json({ error: 'Funnel ID and type are required' }, { status: 400 });
+        }
+
+        // Verify ownership
+        const { data: funnel, error: verifyError } = await supabaseAdmin
+            .from('user_funnels')
+            .select('id, user_id')
+            .eq('id', funnelId)
+            .eq('user_id', userId)
+            .single();
+
+        if (verifyError || !funnel) {
+            return NextResponse.json({ error: 'Business not found or access denied' }, { status: 404 });
+        }
+
+        // Update funnel type
+        const { data: updated, error: updateError } = await supabaseAdmin
+            .from('user_funnels')
+            .update({
+                selected_funnel_type: funnelType,
+                funnel_choice_made_at: new Date().toISOString()
+            })
+            .eq('id', funnelId)
+            .eq('user_id', userId)
+            .select()
+            .single();
+
+        if (updateError) throw updateError;
+
+        return NextResponse.json({
+            success: true,
+            funnel: updated,
+            message: 'Funnel choice saved successfully'
+        });
+
+    } catch (error) {
+        console.error('[API] Update funnel choice error:', error);
+        return NextResponse.json({ error: 'Failed to save funnel choice' }, { status: 500 });
+    }
+}
+
+/**
  * DELETE /api/user/funnels?id=xxx
  * Hard delete a funnel (business) and all related data
  * Database has ON DELETE CASCADE, so all related data is automatically deleted:

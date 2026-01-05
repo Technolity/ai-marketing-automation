@@ -61,21 +61,21 @@ const GRANULAR_FIELD_COMPONENTS = {
     media: MediaFields
 };
 
-// Phase 1: Business Assets - Core business foundations (always accessible)
+// Phase 1: Business Assets - Core business foundations (4 sections only)
 const PHASE_1_SECTIONS = [
     { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'WHO you serve', icon: Users },
     { id: 'message', numericKey: 2, title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
     { id: 'story', numericKey: 3, title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
-    { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift },
-    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic },
-    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell }
+    { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift }
 ];
 
-// Phase 2: Marketing Assets - Funnel & marketing materials (locked until Phase 1 approved)
+// Phase 2: Marketing Assets - Funnel & marketing materials (locked until funnel choice made)
 const PHASE_2_SECTIONS = [
+    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic },
+    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell },
     { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet },
-    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout },
     { id: 'vsl', numericKey: 7, title: 'Video Script', subtitle: 'Video Sales Letter (VSL)', icon: Video },
+    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout },
     { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone },
     { id: 'emails', numericKey: 8, title: 'Email & SMS Sequences', subtitle: '15-day nurture series', icon: Mail },
     { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
@@ -414,11 +414,14 @@ export default function VaultPage() {
 
     // Approval states
     const [approvedPhase1, setApprovedPhase1] = useState([]);
-    const [funnelApproved, setFunnelApproved] = useState(false);
+    const [hasFunnelChoice, setHasFunnelChoice] = useState(false);
     const [approvedPhase2, setApprovedPhase2] = useState([]);
 
-    // UI states
-    const [expandedSection, setExpandedSection] = useState(null);
+    // UI states - All sections expanded by default
+    const [expandedSections, setExpandedSections] = useState(() => {
+        const allSectionIds = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS].map(s => s.id);
+        return new Set(allSectionIds);
+    });
     const [editingSection, setEditingSection] = useState(null);
     const [editedContent, setEditedContent] = useState({});
     const [isRegenerating, setIsRegenerating] = useState(false);
@@ -553,6 +556,7 @@ export default function VaultPage() {
                     const normalizedData = normalizeData(result.data);
                     setVaultData(normalizedData);
                     setDataSource(result.source);
+                    setHasFunnelChoice(result.source?.has_funnel_choice || false);
                     setInitialLoadComplete(true);
                     console.log('[Vault] Successfully loaded funnel:', result.source?.id, result.source?.name);
 
@@ -585,13 +589,11 @@ export default function VaultPage() {
                 const data = await approvalsRes.json();
                 setApprovedPhase1(data.businessCoreApprovals || []);
                 setApprovedPhase2(data.funnelAssetsApprovals || []);
-                setFunnelApproved(data.funnelApproved || false);
 
                 // Keep local storage in sync
                 const approvals = {
                     phase1: data.businessCoreApprovals || [],
-                    phase2: data.funnelAssetsApprovals || [],
-                    funnelApproved: data.funnelApproved || false
+                    phase2: data.funnelAssetsApprovals || []
                 };
                 localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
             }
@@ -602,14 +604,13 @@ export default function VaultPage() {
                 const approvals = JSON.parse(saved);
                 setApprovedPhase1(approvals.phase1 || []);
                 setApprovedPhase2(approvals.phase2 || []);
-                setFunnelApproved(approvals.funnelApproved || false);
             }
         }
     };
 
-    const saveApprovals = async (phase1, phase2, funnel) => {
+    const saveApprovals = async (phase1, phase2) => {
         const activeSessionId = dataSource?.id || 'current';
-        const approvals = { phase1, phase2, funnelApproved: funnel };
+        const approvals = { phase1, phase2 };
         localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
 
         try {
@@ -619,8 +620,7 @@ export default function VaultPage() {
                 body: JSON.stringify({
                     sessionId: activeSessionId,
                     businessCoreApprovals: phase1,
-                    funnelAssetsApprovals: phase2,
-                    funnelApproved: funnel
+                    funnelAssetsApprovals: phase2
                 })
             });
         } catch (e) {
@@ -638,7 +638,7 @@ export default function VaultPage() {
         if (approvedList.includes(sectionId)) return 'approved';
 
         // 2. Unapproved Phase 2 sections are ALWAYS locked until Phase 1 is fully approved AND funnel chosen
-        if (phaseNumber === 2 && !funnelApproved) return 'locked';
+        if (phaseNumber === 2 && !hasFunnelChoice) return 'locked';
 
         // 3. Check if this section has generated content
         const hasContent = vaultData && vaultData[sectionId] && Object.keys(vaultData[sectionId]).length > 0;
@@ -663,17 +663,17 @@ export default function VaultPage() {
         if (phaseNumber === 1) {
             const newApprovals = [...approvedPhase1, sectionId];
             setApprovedPhase1(newApprovals);
-            await saveApprovals(newApprovals, approvedPhase2, funnelApproved);
+            await saveApprovals(newApprovals, approvedPhase2);
 
             if (newApprovals.length >= PHASE_1_SECTIONS.length) {
-                toast.success("🎉 Phase 1 Complete! Click 'Proceed to Phase 2' to continue.");
+                toast.success("🎉 Phase 1 Complete! Choose your funnel to unlock Phase 2.");
             } else {
                 toast.success("Section approved!");
             }
         } else {
             const newApprovals = [...approvedPhase2, sectionId];
             setApprovedPhase2(newApprovals);
-            await saveApprovals(approvedPhase1, newApprovals, funnelApproved);
+            await saveApprovals(approvedPhase1, newApprovals);
 
             if (newApprovals.length >= PHASE_2_SECTIONS.length) {
                 toast.success("🎉 Your Vault is Complete!");
@@ -681,7 +681,7 @@ export default function VaultPage() {
                 toast.success("Section approved!");
             }
         }
-        setExpandedSection(null);
+        // Keep sections expanded after approval
     };
 
     // REMOVED: handleRegenerate function - replaced by AI Feedback Chat
@@ -1738,12 +1738,20 @@ export default function VaultPage() {
     function renderCompletedSection(section, phaseNumber) {
         const Icon = section.icon;
         const content = vaultData[section.id];
-        const isExpanded = expandedSection === section.id;
+        const isExpanded = expandedSections.has(section.id);
 
         return (
             <div key={section.id} className="rounded-xl border border-green-500/30 bg-green-500/5 overflow-hidden">
                 <button
-                    onClick={() => setExpandedSection(isExpanded ? null : section.id)}
+                    onClick={() => {
+                        const newExpanded = new Set(expandedSections);
+                        if (isExpanded) {
+                            newExpanded.delete(section.id);
+                        } else {
+                            newExpanded.add(section.id);
+                        }
+                        setExpandedSections(newExpanded);
+                    }}
                     className="w-full p-4 flex items-center gap-4 text-left hover:bg-green-500/10 transition-colors"
                 >
                     <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
@@ -1851,7 +1859,7 @@ export default function VaultPage() {
     // Helper to render sections
     function renderSection(section, status, index, phase) {
         const Icon = section.icon;
-        const isExpanded = expandedSection === section.id;
+        const isExpanded = expandedSections.has(section.id);
         const content = vaultData[section.id];
         const isEditing = editingSection === section.id;
 
@@ -1869,7 +1877,17 @@ export default function VaultPage() {
                     }`}
             >
                 <button
-                    onClick={() => status !== 'locked' && status !== 'generating' && setExpandedSection(isExpanded ? null : section.id)}
+                    onClick={() => {
+                        if (status !== 'locked' && status !== 'generating') {
+                            const newExpanded = new Set(expandedSections);
+                            if (isExpanded) {
+                                newExpanded.delete(section.id);
+                            } else {
+                                newExpanded.add(section.id);
+                            }
+                            setExpandedSections(newExpanded);
+                        }
+                    }}
                     disabled={status === 'locked' || status === 'generating'}
                     className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' || status === 'generating' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'
                         }`}
@@ -2085,7 +2103,7 @@ export default function VaultPage() {
                 </div>
 
                 {/* Media Library Toggle (Only for Assets Tab) */}
-                {activeTab === 'assets' && funnelApproved && !showMediaLibrary && (
+                {activeTab === 'assets' && hasFunnelChoice && !showMediaLibrary && (
                     <div className="mb-8 p-6 bg-gradient-to-br from-cyan/10 to-blue-600/10 border border-cyan/20 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6">
                         <div className="flex items-center gap-4 text-center md:text-left">
                             <div className="w-12 h-12 rounded-xl bg-cyan/20 flex items-center justify-center">
@@ -2155,7 +2173,7 @@ export default function VaultPage() {
                                     <div className="grid gap-3">
                                         {PHASE_1_SECTIONS.map((section) => renderCompletedSection(section, 1))}
 
-                                        {!funnelApproved && (
+                                        {!hasFunnelChoice && (
                                             <motion.div
                                                 initial={{ opacity: 0, scale: 0.95 }}
                                                 animate={{ opacity: 1, scale: 1 }}
@@ -2170,12 +2188,9 @@ export default function VaultPage() {
                                                 </p>
                                                 <button
                                                     onClick={() => {
-                                                        // Mark funnel as approved to unlock Phase 2
-                                                        setFunnelApproved(true);
-                                                        saveApprovals(approvedPhase1, approvedPhase2, true);
-                                                        // Switch to Phase 2 tab
-                                                        setActiveTab('assets');
-                                                        toast.success("Phase 2 unlocked! Review your marketing assets.");
+                                                        // Redirect to funnel choice page
+                                                        const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                                                        router.push(`/funnel-recommendation?funnel_id=${funnelId}`);
                                                     }}
                                                     className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
                                                 >
@@ -2200,7 +2215,7 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                {funnelApproved ? (
+                                {hasFunnelChoice ? (
                                     isPhase2Complete ? (
                                         <div className="grid gap-3">
                                             {PHASE_2_SECTIONS.map((section) => renderCompletedSection(section, 2))}

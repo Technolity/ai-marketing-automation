@@ -88,19 +88,8 @@ export default function FunnelRecommendationPage() {
     const [businessData, setBusinessData] = useState(null);
     const [selectedFunnel, setSelectedFunnel] = useState(null);
     const [showAlternatives, setShowAlternatives] = useState(false);
-
-    // GHL Deployment States
-    const [deployStep, setDeployStep] = useState('select'); // select, credentials, configure, deploying, complete
-    const [credentials, setCredentials] = useState(null);
-    const [isPushing, setIsPushing] = useState(false);
-    const [pushOperationId, setPushOperationId] = useState(null);
-    const [sessionId, setSessionId] = useState(null);
-
-    // Selective Push States
-    const [availableValues, setAvailableValues] = useState(null);
-    const [selectedKeys, setSelectedKeys] = useState(new Set());
-    const [loadingValues, setLoadingValues] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [funnelId, setFunnelId] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         if (authLoading) return;
@@ -110,9 +99,9 @@ export default function FunnelRecommendationPage() {
         }
 
         const loadData = async () => {
-            const sId = searchParams.get('session_id');
+            const fId = searchParams.get('funnel_id');
             try {
-                const res = await fetchWithAuth(`/api/os/results${sId ? `?session_id=${sId}` : ''}`);
+                const res = await fetchWithAuth(`/api/os/results${fId ? `?funnel_id=${fId}` : ''}`);
                 const data = await res.json();
 
                 if (data.data) {
@@ -125,12 +114,9 @@ export default function FunnelRecommendationPage() {
                     // Default to VSL since it's the only active funnel
                     setSelectedFunnel(FUNNEL_TYPES.find(f => f.id === 'vsl'));
 
-                    // Set session ID from source if available, otherwise fallback
+                    // Set funnel ID from source
                     if (data.source?.id) {
-                        setSessionId(data.source.id);
-                    } else {
-                        const stored = localStorage.getItem('ted_current_session_id');
-                        if (stored) setSessionId(stored);
+                        setFunnelId(data.source.id);
                     }
                 }
             } catch (error) {
@@ -151,199 +137,49 @@ export default function FunnelRecommendationPage() {
         setSelectedFunnel(funnel);
     };
 
-    const handleProceedToDeploy = () => {
+    // Save funnel choice and proceed to vault
+    const handleSaveFunnelChoice = async () => {
         if (!selectedFunnel || selectedFunnel.locked) {
             toast.error("Please select an available funnel");
             return;
         }
-        setDeployStep('credentials');
-    };
 
-    const handleCredentialsSaved = (creds) => {
-        setCredentials(creds);
-        toast.success("Credentials saved!");
-    };
-
-    // Load available values for selective push
-    const loadAvailableValues = async () => {
-        if (!sessionId) {
-            toast.error("No session ID found");
+        if (!funnelId) {
+            toast.error("No funnel ID found");
             return;
         }
 
-        setLoadingValues(true);
-        try {
-            const res = await fetchWithAuth(`/api/ghl/available-values?session_id=${sessionId}`);
-            const data = await res.json();
-
-            if (data.success) {
-                setAvailableValues(data);
-                // Select all keys by default
-                setSelectedKeys(new Set(data.allKeys));
-                toast.success(`Found ${data.totalValues} values to push`);
-            } else {
-                throw new Error(data.error || 'Failed to load values');
-            }
-        } catch (error) {
-            console.error("Load values error:", error);
-            toast.error(error.message || "Failed to load values");
-        } finally {
-            setLoadingValues(false);
-        }
-    };
-
-    // Proceed to configure step
-    const handleProceedToConfigure = async () => {
-        if (!credentials?.location_id) {
-            toast.error("Please enter your GHL credentials first");
-            return;
-        }
-        setDeployStep('configure');
-        await loadAvailableValues();
-    };
-
-    // Toggle a single key
-    const toggleKey = (key) => {
-        setSelectedKeys(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(key)) {
-                newSet.delete(key);
-            } else {
-                newSet.add(key);
-            }
-            return newSet;
-        });
-    };
-
-    // Toggle all keys in a category
-    const toggleCategory = (categoryKey, allSelected) => {
-        if (!availableValues?.categories[categoryKey]) return;
-
-        const categoryValues = Object.keys(availableValues.categories[categoryKey].values);
-        setSelectedKeys(prev => {
-            const newSet = new Set(prev);
-            categoryValues.forEach(key => {
-                if (allSelected) {
-                    newSet.delete(key);
-                } else {
-                    newSet.add(key);
-                }
-            });
-            return newSet;
-        });
-    };
-
-    // Select/Deselect all
-    const toggleAllKeys = (selectAll) => {
-        if (selectAll && availableValues?.allKeys) {
-            setSelectedKeys(new Set(availableValues.allKeys));
-        } else {
-            setSelectedKeys(new Set());
-        }
-    };
-
-
-
-    const handleDeployToGHL = async () => {
-        if (!credentials?.location_id) {
-            toast.error("Please enter your GHL credentials first");
-            return;
-        }
-
-        if (selectedKeys.size === 0) {
-            toast.error("Please select at least one value to push");
-            return;
-        }
-
-        // Get access token
-        const accessToken = prompt('Enter your Access Token to deploy:');
-        if (!accessToken) {
-            toast.error('Access token required');
-            return;
-        }
-
-        setIsPushing(true);
-        setDeployStep('deploying');
+        setIsSaving(true);
 
         try {
-            // Extract media from Vault data
-            const media = businessData?.media || {};
-            const uploadedImages = {
-                logo: media.logo || '',
-                bio_author: media.bio_author || '',
-                product_mockup: media.product_mockup || '',
-                results_image: media.results_image || ''
-            };
-            const videoUrls = {
-                main_vsl: media.main_vsl || '',
-                testimonial_video: media.testimonial_video || '',
-                thankyou_video: media.thankyou_video || ''
-            };
-
-            // Options: force use of vault images if present
-            const imageOptions = {
-                logo: media.logo ? 'use' : 'skip',
-                bio_author: media.bio_author ? 'use' : 'skip',
-                product_mockup: media.product_mockup ? 'use' : 'skip',
-                results_image: media.results_image ? 'use' : 'skip'
-            };
-
-            // Use the VSL push logic with selective keys
-            const res = await fetchWithAuth('/api/ghl/push-vsl', {
-                method: 'POST',
+            // Save funnel choice to database
+            const res = await fetchWithAuth('/api/user/funnels', {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    sessionId: sessionId,
-                    locationId: credentials.location_id,
-                    accessToken: accessToken,
-                    funnelType: selectedFunnel.id,
-                    uploadedImages: uploadedImages,
-                    videoUrls: videoUrls,
-                    selectedKeys: Array.from(selectedKeys),
-                    imageOptions: imageOptions
+                    funnelId: funnelId,
+                    funnelType: selectedFunnel.id
                 })
             });
 
             const data = await res.json();
 
             if (data.success) {
-                setPushOperationId(data.operationId);
-                toast.success(`Deploying ${selectedKeys.size} values...`);
+                toast.success(`${selectedFunnel.title} selected! Redirecting to vault...`);
+
+                // Redirect to vault - Phase 2 will now be unlocked
+                setTimeout(() => {
+                    router.push(`/vault?funnel_id=${funnelId}`);
+                }, 1500);
             } else {
-                throw new Error(data.error || 'Deployment failed');
+                throw new Error(data.error || 'Failed to save funnel choice');
             }
         } catch (error) {
-            console.error("Deploy error:", error);
-            toast.error(error.message || "Failed to deploy");
-            setIsPushing(false);
-            setDeployStep('configure');
+            console.error("Save funnel choice error:", error);
+            toast.error(error.message || "Failed to save funnel choice");
+        } finally {
+            setIsSaving(false);
         }
-    };
-
-
-
-    const handlePushComplete = async () => {
-        // Move to complete step immediately
-        setDeployStep('complete');
-
-        // Capture approvals in the Vault for this funnel
-        try {
-            const sessId = sessionId || localStorage.getItem('ted_current_session_id');
-            await fetchWithAuth('/api/os/approvals', {
-                method: 'POST',
-                body: JSON.stringify({
-                    sessionId: sessId || 'current',
-                    funnelApproved: true
-                })
-            });
-            console.log('[Funnel] Funnel approval persisted to database');
-        } catch (error) {
-            console.error("Error updating funnel approval:", error);
-        }
-        toast.success("🎉 Funnel deployed! Phase 2 unlocked.");
-
-        // Redirect to vault phase 2
-        setTimeout(() => router.push('/vault?phase=2'), 2000);
     };
 
     if (authLoading || isLoading) {
@@ -382,24 +218,15 @@ export default function FunnelRecommendationPage() {
                     </motion.div>
 
                     <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 tracking-tighter">
-                        {deployStep === 'select' ? 'Choose Your Funnel' :
-                            deployStep === 'credentials' ? 'Connect Funnels' :
-                                deployStep === 'configure' ? 'Configure Push' :
-                                    deployStep === 'deploying' ? 'Deploying...' :
-                                        'Funnel Deployed!'}
+                        Choose Your Funnel
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto">
-                        {deployStep === 'select' ? 'Select the funnel type that fits your business.' :
-                            deployStep === 'credentials' ? 'Enter your credentials to deploy the funnel.' :
-                                deployStep === 'configure' ? 'Choose which values and images to push.' :
-                                    deployStep === 'deploying' ? 'Pushing your content to Funnels...' :
-                                        'Your funnel is live! Phase 2 is now unlocked.'}
+                        Select the funnel type that fits your business. This will unlock Phase 2 Marketing Assets in your vault.
                     </p>
                 </div>
 
-                {/* Step: Select Funnel */}
-                {deployStep === 'select' && (
-                    <>
+                {/* Funnel Selection */}
+                <>
                         {/* VSL Funnel - Recommended */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -488,7 +315,7 @@ export default function FunnelRecommendationPage() {
                             </AnimatePresence>
                         </div>
 
-                        {/* Deploy Button */}
+                        {/* Continue Button */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
@@ -496,282 +323,37 @@ export default function FunnelRecommendationPage() {
                             className="text-center"
                         >
                             <button
-                                onClick={handleProceedToDeploy}
-                                disabled={!selectedFunnel || selectedFunnel.locked}
+                                onClick={handleSaveFunnelChoice}
+                                disabled={!selectedFunnel || selectedFunnel.locked || isSaving}
                                 className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-2xl font-black text-xl flex items-center justify-center gap-3 hover:brightness-110 transition-all shadow-2xl shadow-cyan/30 mx-auto disabled:opacity-50"
                             >
-                                <Sparkles className="w-6 h-6" />
-                                Deploy {selectedFunnel?.title || 'Funnel'}
-                                <ArrowRight className="w-6 h-6" />
+                                {isSaving ? (
+                                    <>
+                                        <Loader2 className="w-6 h-6 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles className="w-6 h-6" />
+                                        Continue to Vault
+                                        <ArrowRight className="w-6 h-6" />
+                                    </>
+                                )}
                             </button>
                             <p className="text-sm text-gray-500 mt-4">
-                                This will push all your content to Funnels
+                                This will unlock Phase 2 marketing assets
                             </p>
                         </motion.div>
                     </>
-                )}
 
-                {/* Step: Credentials */}
-                {deployStep === 'credentials' && (
-                    <div className="space-y-6">
-                        <div className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl p-6">
-                            <GHLCredentialsForm
-                                onCredentialsSaved={handleCredentialsSaved}
-                                onValidationComplete={() => { }}
-                                autoValidate={false}
-                            />
-                        </div>
+            </div>
 
-
-
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setDeployStep('select')}
-                                className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium hover:bg-[#3a3a3d] transition-all"
-                            >
-                                Back
-                            </button>
-                            <button
-                                onClick={handleProceedToConfigure}
-                                disabled={!credentials?.location_id || loadingValues}
-                                className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50"
-                            >
-                                {loadingValues ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        Loading Values...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Settings className="w-5 h-5" />
-                                        Configure Push
-                                        <ArrowRight className="w-5 h-5" />
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Step: Configure Push */}
-                {deployStep === 'configure' && (
-                    <div className="space-y-6">
-                        {/* Header */}
-                        <div className="flex items-center justify-between bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl p-4">
-                            <div>
-                                <h3 className="font-bold text-lg flex items-center gap-2">
-                                    <Filter className="w-5 h-5 text-cyan" />
-                                    Select Values to Push
-                                </h3>
-                                <p className="text-sm text-gray-400">
-                                    Choose which custom values to update in GHL
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <span className="text-cyan font-bold text-lg">
-                                    {selectedKeys.size} / {availableValues?.allKeys?.length || 0}
-                                </span>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => toggleAllKeys(true)}
-                                        className="px-3 py-1.5 text-xs font-bold bg-cyan/20 text-cyan rounded-lg hover:bg-cyan/30 transition-colors"
-                                    >
-                                        Select All
-                                    </button>
-                                    <button
-                                        onClick={() => toggleAllKeys(false)}
-                                        className="px-3 py-1.5 text-xs font-bold bg-[#2a2a2d] text-gray-400 rounded-lg hover:bg-[#3a3a3d] transition-colors"
-                                    >
-                                        Clear All
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Search */}
-                        <div className="relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search values..."
-                                className="w-full pl-12 pr-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:border-cyan focus:outline-none"
-                            />
-                        </div>
-
-                        {/* Categories */}
-                        {loadingValues ? (
-                            <div className="flex items-center justify-center py-16">
-                                <Loader2 className="w-8 h-8 text-cyan animate-spin" />
-                            </div>
-                        ) : availableValues?.categories ? (
-                            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-                                {Object.entries(availableValues.categories).map(([catKey, category]) => {
-                                    const values = Object.entries(category.values);
-                                    const filteredValues = values.filter(([key]) =>
-                                        key.toLowerCase().includes(searchQuery.toLowerCase())
-                                    );
-
-                                    if (filteredValues.length === 0 && searchQuery) return null;
-
-                                    const catSelectedCount = Object.keys(category.values).filter(k => selectedKeys.has(k)).length;
-                                    const allSelected = catSelectedCount === Object.keys(category.values).length;
-                                    const someSelected = catSelectedCount > 0 && !allSelected;
-
-                                    return (
-                                        <div key={catKey} className="bg-[#131314] border border-[#2a2a2d] rounded-xl overflow-hidden">
-                                            {/* Category Header */}
-                                            <button
-                                                onClick={() => toggleCategory(catKey, allSelected)}
-                                                className="w-full px-4 py-3 flex items-center justify-between bg-[#1b1b1d] hover:bg-[#2a2a2d] transition-colors"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    {allSelected ? (
-                                                        <CheckSquare className="w-5 h-5 text-cyan" />
-                                                    ) : someSelected ? (
-                                                        <div className="w-5 h-5 border-2 border-cyan rounded bg-cyan/30" />
-                                                    ) : (
-                                                        <Square className="w-5 h-5 text-gray-500" />
-                                                    )}
-                                                    <span className="font-bold">{category.name}</span>
-                                                    <span className="text-xs text-gray-500">
-                                                        {catSelectedCount}/{category.count}
-                                                    </span>
-                                                </div>
-                                                <ChevronDown className="w-5 h-5 text-gray-500" />
-                                            </button>
-
-                                            {/* Category Values */}
-                                            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                {(searchQuery ? filteredValues : values).map(([key, value]) => (
-                                                    <button
-                                                        key={key}
-                                                        onClick={() => toggleKey(key)}
-                                                        className={`px-3 py-2 rounded-lg text-left flex items-center gap-2 transition-colors ${selectedKeys.has(key)
-                                                            ? 'bg-cyan/10 border border-cyan/30 text-white'
-                                                            : 'bg-[#1b1b1d] border border-transparent text-gray-400 hover:border-[#2a2a2d]'
-                                                            }`}
-                                                    >
-                                                        {selectedKeys.has(key) ? (
-                                                            <CheckSquare className="w-4 h-4 text-cyan flex-shrink-0" />
-                                                        ) : (
-                                                            <Square className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                                                        )}
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="text-xs font-mono truncate">{key}</div>
-                                                            {value && (
-                                                                <div className="text-xs text-gray-500 truncate">
-                                                                    {String(value).substring(0, 40)}...
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="text-center py-8 text-gray-500">
-                                No values available
-                            </div>
-                        )}
-
-                        {/* Image Options */}
-                        <div className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl p-4">
-                            <h3 className="font-bold text-lg flex items-center gap-2 mb-4">
-                                <ImageIcon className="w-5 h-5 text-cyan" />
-                                Image Options
-                            </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {[
-                                    { key: 'logo', label: 'Business Logo' },
-                                    { key: 'bio_author', label: 'Bio / Author Photo' },
-                                    { key: 'product_mockup', label: 'Product Mockup' },
-                                    { key: 'results_image', label: 'Results / Proof Image' }
-                                ].map(({ key, label }) => (
-                                    <div key={key} className="bg-[#131314] p-3 rounded-lg">
-                                        <div className="text-sm font-medium mb-2">{label}</div>
-                                        <div className="flex gap-2">
-                                            {['skip', 'upload', 'generate'].map((option) => (
-                                                <button
-                                                    key={option}
-                                                    onClick={() => updateImageOption(key, option)}
-                                                    className={`flex-1 px-2 py-1.5 rounded text-xs font-bold transition-colors ${imageOptions[key] === option
-                                                        ? option === 'skip'
-                                                            ? 'bg-gray-600 text-white'
-                                                            : option === 'upload'
-                                                                ? 'bg-blue-600 text-white'
-                                                                : 'bg-green-600 text-white'
-                                                        : 'bg-[#2a2a2d] text-gray-400 hover:bg-[#3a3a3d]'
-                                                        }`}
-                                                >
-                                                    {option === 'skip' ? 'Skip' : option === 'upload' ? 'Upload' : 'AI Gen'}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        {imageOptions[key] === 'upload' && (
-                                            <div className="mt-2">
-                                                <input
-                                                    type="url"
-                                                    value={uploadedImages[key] || ''}
-                                                    onChange={(e) => setUploadedImages(prev => ({ ...prev, [key]: e.target.value }))}
-                                                    placeholder="Paste image URL"
-                                                    className="w-full px-2 py-1.5 bg-[#0e0e0f] border border-[#2a2a2d] rounded text-xs text-white placeholder-gray-500 focus:border-cyan focus:outline-none"
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setDeployStep('credentials')}
-                                className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium hover:bg-[#3a3a3d] transition-all"
-                            >
-                                Back
-                            </button>
-                            <button
-                                onClick={handleDeployToGHL}
-                                disabled={selectedKeys.size === 0 || isPushing}
-                                className="flex-1 px-6 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50"
-                            >
-                                {isPushing ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        Deploying...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Rocket className="w-5 h-5" />
-                                        Push {selectedKeys.size} Values
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* Step: Deploying */}
-                {deployStep === 'deploying' && pushOperationId && (
-                    <GHLPushProgress
-                        operationId={pushOperationId}
-                        isActive={true}
-                        onComplete={handlePushComplete}
-                    />
-                )}
-
-                {/* Step: Complete */}
-                <StepComplete
-                    isActive={deployStep === 'complete'}
-                    sessionId={sessionId}
-                    router={router}
-                />
+            {/* Matrix Decoration */}
+            <div className="absolute top-10 right-10 opacity-10">
+                <Shield className="w-20 h-20 text-green-400" />
+            </div>
+            <div className="absolute bottom-10 left-10 opacity-10">
+                <Zap className="w-20 h-20 text-cyan" />
             </div>
         </div>
     );
