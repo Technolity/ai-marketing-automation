@@ -182,51 +182,218 @@ export default function FieldEditor({
             const arrayValue = Array.isArray(value) ? value : [];
             const minItems = field_metadata.minItems || 0;
             const maxItems = field_metadata.maxItems || 10;
+            const itemType = field_metadata.itemType || 'text';
+
+            // Simple text/string array
+            if (itemType === 'text') {
+                return (
+                    <div className="w-full space-y-3">
+                        {arrayValue.map((item, idx) => (
+                            <div key={idx} className="flex items-start gap-2">
+                                <span className="mt-3 text-sm text-gray-500 font-medium">{idx + 1}.</span>
+                                <input
+                                    type="text"
+                                    value={item || ''}
+                                    onChange={(e) => {
+                                        const newArray = [...arrayValue];
+                                        newArray[idx] = e.target.value;
+                                        setValue(newArray);
+                                    }}
+                                    placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
+                                    maxLength={field_metadata.itemMaxLength}
+                                    disabled={!isEditing}
+                                    className={`flex-1 px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
+                                        ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                        : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
+                                        }`}
+                                />
+                                {isEditing && arrayValue.length > minItems && (
+                                    <button
+                                        onClick={() => {
+                                            const newArray = arrayValue.filter((_, i) => i !== idx);
+                                            setValue(newArray);
+                                        }}
+                                        className="mt-2 p-2 text-red-400 hover:text-red-300 transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                        {isEditing && arrayValue.length < maxItems && (
+                            <button
+                                onClick={() => setValue([...arrayValue, ''])}
+                                className="text-sm text-cyan hover:text-cyan/80 transition-colors"
+                            >
+                                + Add item
+                            </button>
+                        )}
+                        {field_metadata.hint && isEditing && (
+                            <p className="text-xs text-gray-500">{field_metadata.hint}</p>
+                        )}
+                    </div>
+                );
+            }
+
+            // Array of objects with subfields
+            if (itemType === 'object') {
+                const subfields = field_metadata.subfields || [];
+
+                return (
+                    <div className="w-full space-y-4">
+                        {arrayValue.map((item, idx) => {
+                            const itemValue = typeof item === 'object' ? item : {};
+
+                            return (
+                                <div key={idx} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-medium text-gray-400">Item {idx + 1}</span>
+                                        {isEditing && arrayValue.length > minItems && (
+                                            <button
+                                                onClick={() => {
+                                                    const newArray = arrayValue.filter((_, i) => i !== idx);
+                                                    setValue(newArray);
+                                                }}
+                                                className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {subfields.map((subfield, sfIdx) => {
+                                        const subfieldValue = itemValue[subfield.field_id] || '';
+                                        const isTextarea = subfield.field_type === 'textarea';
+
+                                        return (
+                                            <div key={sfIdx} className="space-y-1">
+                                                <label className="text-xs font-medium text-gray-500">
+                                                    {subfield.field_label}
+                                                </label>
+                                                {isTextarea ? (
+                                                    <textarea
+                                                        value={subfieldValue}
+                                                        onChange={(e) => {
+                                                            const newArray = [...arrayValue];
+                                                            newArray[idx] = { ...itemValue, [subfield.field_id]: e.target.value };
+                                                            setValue(newArray);
+                                                        }}
+                                                        placeholder={subfield.placeholder}
+                                                        maxLength={subfield.maxLength}
+                                                        rows={subfield.rows || 2}
+                                                        disabled={!isEditing}
+                                                        className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors ${isEditing
+                                                            ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                                            : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
+                                                            }`}
+                                                    />
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        value={subfieldValue}
+                                                        onChange={(e) => {
+                                                            const newArray = [...arrayValue];
+                                                            newArray[idx] = { ...itemValue, [subfield.field_id]: e.target.value };
+                                                            setValue(newArray);
+                                                        }}
+                                                        placeholder={subfield.placeholder}
+                                                        maxLength={subfield.maxLength}
+                                                        disabled={!isEditing}
+                                                        className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm transition-colors ${isEditing
+                                                            ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                                            : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
+                                                            }`}
+                                                    />
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
+
+                        {isEditing && arrayValue.length < maxItems && (
+                            <button
+                                onClick={() => {
+                                    // Create empty object with all subfield keys
+                                    const emptyItem = {};
+                                    subfields.forEach(sf => emptyItem[sf.field_id] = '');
+                                    setValue([...arrayValue, emptyItem]);
+                                }}
+                                className="text-sm text-cyan hover:text-cyan/80 transition-colors"
+                            >
+                                + Add item
+                            </button>
+                        )}
+                        {field_metadata.hint && isEditing && (
+                            <p className="text-xs text-gray-500 mt-2">{field_metadata.hint}</p>
+                        )}
+                    </div>
+                );
+            }
+        }
+
+        // Object fields (e.g., bestIdealClient with demographic subfields)
+        if (field_type === 'object') {
+            const subfields = field_metadata.subfields || [];
+            let objectValue = {};
+
+            // Parse stored JSON string into object
+            try {
+                objectValue = typeof value === 'string' ? JSON.parse(value) : (value || {});
+            } catch (e) {
+                console.error('[FieldEditor] Failed to parse object value:', e);
+                objectValue = {};
+            }
 
             return (
                 <div className="w-full space-y-3">
-                    {arrayValue.map((item, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                            <span className="mt-3 text-sm text-gray-500 font-medium">{idx + 1}.</span>
-                            <input
-                                type="text"
-                                value={item || ''}
-                                onChange={(e) => {
-                                    const newArray = [...arrayValue];
-                                    newArray[idx] = e.target.value;
-                                    setValue(newArray);
-                                }}
-                                placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
-                                maxLength={field_metadata.itemMaxLength}
-                                disabled={!isEditing}
-                                className={`flex-1 px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
-                                    ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                    : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
-                                    }`}
-                            />
-                            {isEditing && arrayValue.length > minItems && (
-                                <button
-                                    onClick={() => {
-                                        const newArray = arrayValue.filter((_, i) => i !== idx);
-                                        setValue(newArray);
-                                    }}
-                                    className="mt-2 p-2 text-red-400 hover:text-red-300 transition-colors"
-                                >
-                                    <X className="w-4 h-4" />
-                                </button>
-                            )}
-                        </div>
-                    ))}
-                    {isEditing && arrayValue.length < maxItems && (
-                        <button
-                            onClick={() => setValue([...arrayValue, ''])}
-                            className="text-sm text-cyan hover:text-cyan/80 transition-colors"
-                        >
-                            + Add item
-                        </button>
-                    )}
+                    {subfields.map((subfield, idx) => {
+                        const subfieldValue = objectValue[subfield.field_id] || '';
+
+                        return (
+                            <div key={idx} className="space-y-1">
+                                <label className="text-xs font-medium text-gray-400">
+                                    {subfield.field_label}
+                                </label>
+                                {subfield.field_type === 'textarea' ? (
+                                    <textarea
+                                        value={subfieldValue}
+                                        onChange={(e) => {
+                                            const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
+                                            setValue(newObj);
+                                        }}
+                                        placeholder={subfield.placeholder}
+                                        rows={subfield.rows || 3}
+                                        maxLength={subfield.maxLength}
+                                        disabled={!isEditing}
+                                        className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors ${isEditing
+                                            ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                            : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
+                                            }`}
+                                    />
+                                ) : (
+                                    <input
+                                        type="text"
+                                        value={subfieldValue}
+                                        onChange={(e) => {
+                                            const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
+                                            setValue(newObj);
+                                        }}
+                                        placeholder={subfield.placeholder}
+                                        maxLength={subfield.maxLength}
+                                        disabled={!isEditing}
+                                        className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm transition-colors ${isEditing
+                                            ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                            : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
+                                            }`}
+                                    />
+                                )}
+                            </div>
+                        );
+                    })}
                     {field_metadata.hint && isEditing && (
-                        <p className="text-xs text-gray-500">{field_metadata.hint}</p>
+                        <p className="text-xs text-gray-500 mt-2">{field_metadata.hint}</p>
                     )}
                 </div>
             );
@@ -290,8 +457,8 @@ export default function FieldEditor({
                                         disabled={!isEditing || isUploading}
                                     />
                                     <div className={`w-full px-4 py-8 border-2 border-dashed rounded-xl text-center transition-all ${isEditing
-                                            ? 'border-gray-700 hover:border-cyan hover:bg-[#1f1f22]'
-                                            : 'border-[#2a2a2d] cursor-not-allowed'
+                                        ? 'border-gray-700 hover:border-cyan hover:bg-[#1f1f22]'
+                                        : 'border-[#2a2a2d] cursor-not-allowed'
                                         }`}>
                                         {isUploading ? (
                                             <div className="flex flex-col items-center gap-2 text-cyan">
@@ -321,8 +488,8 @@ export default function FieldEditor({
                                     placeholder={field_metadata.placeholder || "Or paste URL..."}
                                     disabled={!isEditing}
                                     className={`w-full pl-10 pr-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
-                                            ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                            : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
+                                        ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                        : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
                                         }`}
                                 />
                             </div>
@@ -365,6 +532,66 @@ export default function FieldEditor({
                         </div>
                     )}
 
+                    {field_metadata.hint && isEditing && (
+                        <p className="text-xs text-gray-500">{field_metadata.hint}</p>
+                    )}
+                </div>
+            );
+        }
+
+        if (field_type === 'object') {
+            const subfields = field_metadata.subfields || [];
+            const objectValue = value && typeof value === 'object' ? value : {};
+
+            return (
+                <div className="w-full space-y-4">
+                    <div className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-4">
+                        {subfields.map((subfield, idx) => {
+                            const subfieldValue = objectValue[subfield.field_id] || '';
+                            const isTextarea = subfield.field_type === 'textarea';
+
+                            return (
+                                <div key={idx} className="space-y-2">
+                                    <label className="text-xs font-medium text-gray-400">
+                                        {subfield.field_label}
+                                    </label>
+                                    {isTextarea ? (
+                                        <textarea
+                                            value={subfieldValue}
+                                            onChange={(e) => {
+                                                const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
+                                                setValue(newObj);
+                                            }}
+                                            placeholder={subfield.placeholder || subfield.field_label}
+                                            maxLength={subfield.maxLength}
+                                            rows={subfield.rows || 3}
+                                            disabled={!isEditing}
+                                            className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors ${isEditing
+                                                ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                                : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
+                                                }`}
+                                        />
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={subfieldValue}
+                                            onChange={(e) => {
+                                                const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
+                                                setValue(newObj);
+                                            }}
+                                            placeholder={subfield.placeholder || subfield.field_label}
+                                            maxLength={subfield.maxLength}
+                                            disabled={!isEditing}
+                                            className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm transition-colors ${isEditing
+                                                ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                                : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
+                                                }`}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                     {field_metadata.hint && isEditing && (
                         <p className="text-xs text-gray-500">{field_metadata.hint}</p>
                     )}

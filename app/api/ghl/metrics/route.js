@@ -98,10 +98,52 @@ async function fetchGHLMetrics(accessToken, locationId) {
         }
 
         // B. Get ALL Opportunities (not just open) to calculate efficiency/win-rates
-        // Note: In production, might need pagination or date filtering to avoid timeouts
-        const oppsRes = await fetch(`${GHL_API_URL}/opportunities/search?locationId=${locationId}`, { headers });
+        // GHL uses POST for opportunities/search endpoint
+        console.log('[GHL Metrics] Fetching opportunities for location:', locationId);
+
+        const oppsRes = await fetch(
+            `${GHL_API_URL}/opportunities/search`,
+            {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    locationId: locationId,
+                    limit: 100
+                })
+            }
+        );
+
+        console.log('[GHL Metrics] Opportunities response status:', oppsRes.status);
+
+        if (!oppsRes.ok) {
+            console.error('[GHL Metrics] Opportunities API error:', oppsRes.status, oppsRes.statusText);
+            // Clone response to read body twice
+            const errorText = await oppsRes.clone().text();
+            console.error('[GHL Metrics] Error response:', errorText);
+        }
+
         const oppsData = await oppsRes.json();
-        const opps = oppsData.opportunities || [];
+        console.log('[GHL Metrics] Opportunities data structure:', {
+            hasOpportunities: !!oppsData.opportunities,
+            count: oppsData.opportunities?.length || 0,
+            totalCount: oppsData.total || oppsData.count || 'N/A',
+            keys: Object.keys(oppsData)
+        });
+
+        const opps = oppsData.opportunities || oppsData.opps || [];
+
+        // Debug: Log first 5 opportunities to inspect values
+        if (opps.length > 0) {
+            console.log('[GHL Metrics] Sample opportunities (first 5):',
+                opps.slice(0, 5).map(opp => ({
+                    id: opp.id,
+                    monetaryValue: opp.monetaryValue,
+                    status: opp.status,
+                    source: opp.source || opp.contact?.source,
+                    pipelineStageId: opp.pipelineStageId
+                }))
+            );
+        }
 
         // --- AGGREGATIONS ---
 

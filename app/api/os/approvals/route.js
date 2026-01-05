@@ -16,7 +16,10 @@ export async function GET(req) {
         const { searchParams } = new URL(req.url);
         const funnelId = searchParams.get('session_id'); // In new schema, session_id maps to funnel_id
 
-        if (!funnelId) {
+        // Validate UUID format to prevent database errors
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!funnelId || !uuidRegex.test(funnelId)) {
+            console.log(`[Approvals API] Invalid or missing funnel_id: ${funnelId}`);
             return NextResponse.json({ businessCoreApprovals: [], funnelAssetsApprovals: [], funnelApproved: false });
         }
 

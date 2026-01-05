@@ -80,16 +80,32 @@ async function fetchContactsMetrics(accessToken, locationId) {
     try {
         // Fetch contacts from GHL
         // Note: Using limit and pagination for performance
+        console.log('[GHL Contacts] Fetching contacts for location:', locationId);
+
+        // GHL max limit is 100 per request
         const contactsRes = await fetch(
-            `${GHL_API_URL}/contacts/?locationId=${locationId}&limit=1000`,
+            `${GHL_API_URL}/contacts/?locationId=${locationId}&limit=100`,
             { headers }
         );
 
+        console.log('[GHL Contacts] Response status:', contactsRes.status);
+
         if (!contactsRes.ok) {
+            console.error('[GHL Contacts] API error:', contactsRes.status, contactsRes.statusText);
+            // Clone response to read body twice
+            const errorText = await contactsRes.clone().text();
+            console.error('[GHL Contacts] Error response:', errorText);
             throw new Error(`GHL API returned ${contactsRes.status}`);
         }
 
         const contactsData = await contactsRes.json();
+        console.log('[GHL Contacts] Data structure:', {
+            hasContacts: !!contactsData.contacts,
+            count: contactsData.contacts?.length || 0,
+            total: contactsData.total || 'N/A',
+            keys: Object.keys(contactsData)
+        });
+
         const contacts = contactsData.contacts || [];
 
         // --- AGGREGATIONS ---

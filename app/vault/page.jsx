@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from 'react-dom';
 import {
     Loader2, ChevronRight, RefreshCw, CheckCircle, Lock, AlertTriangle,
     Users, MessageSquare, BookOpen, Gift, Mic, Magnet,
@@ -25,6 +26,20 @@ import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import FeedbackChatModal from "@/components/FeedbackChatModal";
+
+// Helper component for safe hydration-friendly portaling
+const SafePortal = ({ children, targetId }) => {
+    const [mounted, setMounted] = useState(false);
+    const [element, setElement] = useState(null);
+
+    useEffect(() => {
+        setMounted(true);
+        setElement(document.getElementById(targetId));
+    }, [targetId]);
+
+    if (!mounted || !element) return null;
+    return createPortal(children, element);
+};
 
 // Granular Field Components
 import IdealClientFields from "@/components/vault/IdealClientFields";
@@ -63,9 +78,9 @@ const GRANULAR_FIELD_COMPONENTS = {
 
 // Phase 1: Business Assets - Core business foundations (4 sections only)
 const PHASE_1_SECTIONS = [
-    { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'WHO you serve', icon: Users },
-    { id: 'message', numericKey: 2, title: 'Message', subtitle: 'WHAT you help them with', icon: MessageSquare },
-    { id: 'story', numericKey: 3, title: 'Story', subtitle: 'WHY you do this work', icon: BookOpen },
+    { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'Who you serve', icon: Users },
+    { id: 'message', numericKey: 2, title: 'Message', subtitle: 'What you help them with', icon: MessageSquare },
+    { id: 'story', numericKey: 3, title: 'Story', subtitle: 'Why you do this work', icon: BookOpen },
     { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift }
 ];
 
@@ -1917,44 +1932,66 @@ export default function VaultPage() {
                                     section.subtitle}
                         </p>
                     </div>
-                    {/* Show Regenerate button for failed sections */}
-                    {status === 'failed' && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleRegenerateSection(section.id, section.numericKey);
-                            }}
-                            disabled={regeneratingSection === section.id}
-                            className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-red-700 transition-all disabled:opacity-50"
-                        >
-                            {regeneratingSection === section.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                                <RefreshCw className="w-3 h-3" />
-                            )}
-                            Regenerate
-                        </button>
-                    )}
-                    {/* Tooltip Icon (Only for current or approved) - OUTSIDE button for better z-index */}
-                    {(status === 'current' || status === 'approved') && (
-                        <div className="group/tooltip relative p-2 hidden md:block z-[100]">
-                            <Info className={`w-4 h-4 transition-colors ${status === 'approved' ? 'text-green-500/50 hover:text-green-500' : 'text-cyan/50 hover:text-cyan'}`} />
-                            <div className={`
+                    {/* Header Actions Container - Target for Portal */}
+                    <div id={`section-header-actions-${section.id}`} className="flex items-center gap-3">
+                        {/* Show Regenerate button for current/approved sections using granular components */}
+                        {GRANULAR_FIELD_COMPONENTS[section.id] && (status === 'current' || status === 'approved') && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRegenerateSection(section.id, section.numericKey);
+                                }}
+                                disabled={regeneratingSection === section.id}
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5 hover:opacity-90 transition-all disabled:opacity-50"
+                            >
+                                {regeneratingSection === section.id ? (
+                                    <Loader2 className="w-3 sm:w-4 h-3 sm:h-4 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="w-3 sm:w-4 h-3 sm:h-4" />
+                                )}
+                                <span className="hidden sm:inline">Regenerate</span>
+                            </button>
+                        )}
+
+                        {/* Show Regenerate button for failed sections */}
+                        {status === 'failed' && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRegenerateSection(section.id, section.numericKey);
+                                }}
+                                disabled={regeneratingSection === section.id}
+                                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-red-700 transition-all disabled:opacity-50"
+                            >
+                                {regeneratingSection === section.id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="w-3 h-3" />
+                                )}
+                                Regenerate
+                            </button>
+                        )}
+                        {/* Tooltip Icon (Only for current or approved) - OUTSIDE button for better z-index */}
+                        {(status === 'current' || status === 'approved') && (
+                            <div className="group/tooltip relative p-2 hidden md:block z-[100]">
+                                <Info className={`w-4 h-4 transition-colors ${status === 'approved' ? 'text-green-500/50 hover:text-green-500' : 'text-cyan/50 hover:text-cyan'}`} />
+                                <div className={`
                                 absolute right-0 top-full mt-2 w-72 p-4 
                                 rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 
                                 pointer-events-none transition-opacity z-[200]
                                 ${status === 'approved' ? 'bg-[#232326] border border-green-500/30' : 'bg-[#232326] border border-cyan/30'}
                             `}>
-                                <p className="text-sm text-gray-200 leading-relaxed">
-                                    <span className={`font-bold block mb-1.5 text-base ${status === 'approved' ? 'text-green-400' : 'text-cyan'}`}>Use Case:</span>
-                                    {SECTION_USE_CASES[section.id] || "Use this asset to grow your business."}
-                                </p>
+                                    <p className="text-sm text-gray-200 leading-relaxed">
+                                        <span className={`font-bold block mb-1.5 text-base ${status === 'approved' ? 'text-green-400' : 'text-cyan'}`}>Use Case:</span>
+                                        {SECTION_USE_CASES[section.id] || "Use this asset to grow your business."}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                    {status !== 'locked' && status !== 'generating' && status !== 'failed' && (
-                        <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                    )}
+                        )}
+                        {status !== 'locked' && status !== 'generating' && status !== 'failed' && (
+                            <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                        )}
+                    </div>
                 </button >
 
                 <AnimatePresence>
@@ -1975,6 +2012,11 @@ export default function VaultPage() {
                                             <GranularComponent
                                                 funnelId={funnelId}
                                                 onApprove={(sectionId) => handleApprove(sectionId, phase)}
+                                                onRenderApproveButton={(btn) => (
+                                                    <SafePortal targetId={`section-header-actions-${section.id}`}>
+                                                        {btn}
+                                                    </SafePortal>
+                                                )}
                                             />
                                         );
                                     })()

@@ -7,8 +7,7 @@ import CustomFieldAdder from './CustomFieldAdder';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 
-export default function MessageFields({ funnelId, onApprove }) {
-    const [isExpanded, setIsExpanded] = useState(false);
+export default function MessageFields({ funnelId, onApprove, onRenderApproveButton }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -181,104 +180,59 @@ export default function MessageFields({ funnelId, onApprove }) {
 
     return (
         <>
-            <div className="bg-gradient-to-br from-[#1a1a1d] to-[#0e0e0f] border border-[#3a3a3d] rounded-2xl overflow-hidden">
-                {/* Section Header */}
-                <div
-                    className="flex items-center justify-between p-6 cursor-pointer hover:bg-[#18181b] transition-colors"
-                    onClick={() => setIsExpanded(!isExpanded)}
-                >
-                    <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${sectionApproved
-                                ? 'bg-green-500/20 text-green-400'
-                                : 'bg-cyan/20 text-cyan'
-                            }`}>
-                            {sectionApproved ? (
-                                <CheckCircle className="w-6 h-6" />
-                            ) : (
-                                <Sparkles className="w-6 h-6" />
-                            )}
+            {/* Fields directly rendered - no wrapper card */}
+            <div className="space-y-6">
+                {isLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                        <div className="w-8 h-8 border-4 border-cyan/30 border-t-cyan rounded-full animate-spin" />
+                    </div>
+                ) : (
+                    <>
+                        {/* Predefined Fields */}
+                        {predefinedFields.map((fieldDef) => {
+                            const currentValue = getFieldValue(fieldDef.field_id);
+                            return (
+                                <FieldEditor
+                                    key={fieldDef.field_id}
+                                    fieldDef={fieldDef}
+                                    initialValue={currentValue}
+                                    sectionId={sectionId}
+                                    funnelId={funnelId}
+                                    onSave={handleFieldSave}
+                                    onAIFeedback={handleAIFeedback}
+                                />
+                            );
+                        })}
+
+                        {/* Custom Fields */}
+                        {fields
+                            .filter(f => f.is_custom)
+                            .map((customField) => (
+                                <FieldEditor
+                                    key={customField.field_id}
+                                    fieldDef={{
+                                        field_id: customField.field_id,
+                                        field_label: customField.field_label,
+                                        field_type: customField.field_type,
+                                        field_metadata: customField.field_metadata || {}
+                                    }}
+                                    initialValue={customField.field_value}
+                                    sectionId={sectionId}
+                                    funnelId={funnelId}
+                                    onSave={handleFieldSave}
+                                    onAIFeedback={handleAIFeedback}
+                                />
+                            ))}
+
+                        {/* Custom Field Adder */}
+                        <div className="pt-4 border-t border-white/5">
+                            <CustomFieldAdder
+                                sectionId={sectionId}
+                                funnelId={funnelId}
+                                onFieldAdded={handleFieldAdded}
+                            />
                         </div>
-                        <div>
-                            <h3 className="text-lg font-bold text-white">Million Dollar Message</h3>
-                            <p className="text-sm text-gray-500">
-                                {fields.length} fields • {sectionApproved ? 'Approved' : 'In Progress'}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <button onClick={(e) => { e.stopPropagation(); handleRegenerateSection(); }} disabled={isRegenerating} className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:opacity-90 disabled:opacity-50">
-                            <RefreshCw className={`w-4 h-4 ${isRegenerating ? 'animate-spin' : ''}`} />
-                            {isRegenerating ? 'Regenerating...' : 'Regenerate'}
-                        </button>
-                        {!sectionApproved && fields.length > 0 && (
-                            <button onClick={(e) => { e.stopPropagation(); handleApproveSection(); }} disabled={isApproving} className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 disabled:opacity-50">
-                                {isApproving ? 'Approving...' : 'Approve Section'}
-                            </button>
-                        )}
-                        {isExpanded ? (
-                            <ChevronUp className="w-5 h-5 text-gray-500" />
-                        ) : (
-                            <ChevronDown className="w-5 h-5 text-gray-500" />
-                        )}
-                    </div>
-                </div>
-
-                {/* Expandable Content */}
-                {isExpanded && (
-                    <div className="p-6 pt-0 space-y-6">
-                        {isLoading ? (
-                            <div className="flex items-center justify-center py-12">
-                                <div className="w-8 h-8 border-4 border-cyan/30 border-t-cyan rounded-full animate-spin" />
-                            </div>
-                        ) : (
-                            <>
-                                {/* Predefined Fields */}
-                                {predefinedFields.map((fieldDef) => {
-                                    const currentValue = getFieldValue(fieldDef.field_id);
-                                    return (
-                                        <FieldEditor
-                                            key={fieldDef.field_id}
-                                            fieldDef={fieldDef}
-                                            initialValue={currentValue}
-                                            sectionId={sectionId}
-                                            funnelId={funnelId}
-                                            onSave={handleFieldSave}
-                                            onAIFeedback={handleAIFeedback}
-                                        />
-                                    );
-                                })}
-
-                                {/* Custom Fields */}
-                                {fields
-                                    .filter(f => f.is_custom)
-                                    .map((customField) => (
-                                        <FieldEditor
-                                            key={customField.field_id}
-                                            fieldDef={{
-                                                field_id: customField.field_id,
-                                                field_label: customField.field_label,
-                                                field_type: customField.field_type,
-                                                field_metadata: customField.field_metadata || {}
-                                            }}
-                                            initialValue={customField.field_value}
-                                            sectionId={sectionId}
-                                            funnelId={funnelId}
-                                            onSave={handleFieldSave}
-                                            onAIFeedback={handleAIFeedback}
-                                        />
-                                    ))}
-
-                                {/* Custom Field Adder */}
-                                <div className="pt-4 border-t border-[#3a3a3d]">
-                                    <CustomFieldAdder
-                                        sectionId={sectionId}
-                                        funnelId={funnelId}
-                                        onFieldAdded={handleFieldAdded}
-                                    />
-                                </div>
-                            </>
-                        )}
-                    </div>
+                    </>
                 )}
             </div>
 

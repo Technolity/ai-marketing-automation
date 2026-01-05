@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     DollarSign, Users, LineChart as LineChartIcon,
     ArrowUpRight, Link as LinkIcon,
     PieChart as PieIcon, Activity, BarChart3, Timer, TrendingUp,
-    Calendar, Clock
+    Calendar, Clock, Info
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useRouter } from "next/navigation";
@@ -15,6 +15,34 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     AreaChart, Area, LineChart, Line
 } from 'recharts';
+
+// Global styles to remove focus outlines from all chart elements
+if (typeof document !== 'undefined') {
+    const styleId = 'recharts-focus-fix';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            .recharts-wrapper,
+            .recharts-surface,
+            svg,
+            .recharts-layer,
+            .recharts-bar-rectangle,
+            .recharts-sector,
+            .recharts-pie-sector,
+            .recharts-area,
+            .recharts-line {
+                outline: none !important;
+            }
+            .recharts-wrapper:focus,
+            .recharts-surface:focus,
+            svg:focus {
+                outline: none !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+}
 
 export default function AnalyticsDashboard() {
     const router = useRouter();
@@ -195,40 +223,7 @@ export default function AnalyticsDashboard() {
             {/* Row 3: Opportunity Status & Funnel Performance */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Status Distribution (Donut) */}
-                <div className="lg:col-span-1 bg-[#161617]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6 flex items-center gap-2">
-                        <PieIcon className="w-4 h-4" />
-                        Opportunity Status
-                    </h3>
-                    <div className="flex-1 min-h-[250px] relative">
-                        {metricsData?.statusData?.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={metricsData.statusData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={80}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                    >
-                                        {metricsData.statusData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(0,0,0,0)" />
-                                        ))}
-                                    </Pie>
-                                    <RechartsTooltip
-                                        contentStyle={{ backgroundColor: '#1b1b1d', borderColor: '#333', borderRadius: '12px' }}
-                                        itemStyle={{ color: '#fff' }}
-                                    />
-                                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-gray-500 text-xs">No data available</div>
-                        )}
-                    </div>
-                </div>
+                <OpportunityStatusPieChart data={metricsData?.statusData} />
 
                 {/* Funnel Performance (Bar) */}
                 <div className="lg:col-span-2 bg-[#161617]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col">
@@ -236,7 +231,7 @@ export default function AnalyticsDashboard() {
                         <BarChart3 className="w-4 h-4" />
                         Funnel Stage Volume
                     </h3>
-                    <div className="flex-1 min-h-[250px]">
+                    <div className="flex-1" style={{ minHeight: '250px', outline: 'none' }} tabIndex={-1}>
                         {metricsData?.funnelData?.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={metricsData.funnelData}>
@@ -255,13 +250,21 @@ export default function AnalyticsDashboard() {
                                         axisLine={false}
                                     />
                                     <RechartsTooltip
-                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                        contentStyle={{ backgroundColor: '#1b1b1d', borderColor: '#333', borderRadius: '12px' }}
-                                        itemStyle={{ color: '#fff' }}
+                                        cursor={false}
+                                        content={<CustomBarTooltip />}
                                     />
-                                    <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                                    <Bar
+                                        dataKey="value"
+                                        fill="#3b82f6"
+                                        radius={[8, 8, 0, 0]}
+                                        animationDuration={800}
+                                        className="transition-all duration-300 hover:brightness-125"
+                                    >
                                         {metricsData.funnelData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={['#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'][index % 4]} />
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={['#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'][index % 4]}
+                                            />
                                         ))}
                                     </Bar>
                                 </BarChart>
@@ -400,7 +403,7 @@ function RevenueTrendWidget({ data }) {
                 </div>
             </div>
 
-            <div className="flex-1 min-h-[250px]">
+            <div className="flex-1" style={{ minHeight: '250px', outline: 'none' }} tabIndex={-1}>
                 <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={data.revenueTrend}>
                         <defs>
@@ -466,17 +469,28 @@ function ContactSourcesWidget({ data }) {
         color: colors[index]
     }));
 
+    const [showInfo, setShowInfo] = useState(false);
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="lg:col-span-1 bg-[#161617]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col"
+            className="lg:col-span-1 bg-[#161617]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col relative"
         >
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6 flex items-center gap-2">
-                <PieIcon className="w-4 h-4" />
-                Contact Sources
-            </h3>
-            <div className="flex-1 min-h-[250px] relative">
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    <PieIcon className="w-4 h-4" />
+                    Contact Sources
+                </h3>
+                <button
+                    onClick={() => setShowInfo(!showInfo)}
+                    className="p-2 hover:bg-white/5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan/20"
+                    style={{ outline: 'none' }}
+                >
+                    <Info className="w-4 h-4 text-gray-400 hover:text-cyan transition-colors" />
+                </button>
+            </div>
+            <div className="flex-1" style={{ minHeight: '250px' }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
@@ -487,19 +501,65 @@ function ContactSourcesWidget({ data }) {
                             outerRadius={80}
                             paddingAngle={5}
                             dataKey="value"
+                            animationDuration={800}
+                            style={{ outline: 'none' }}
                         >
                             {chartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.color} stroke="rgba(0,0,0,0)" />
+                                <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.color}
+                                    stroke="rgba(0,0,0,0)"
+                                    className="transition-all duration-300 hover:brightness-125 focus:outline-none"
+                                    style={{ outline: 'none' }}
+                                />
                             ))}
                         </Pie>
                         <RechartsTooltip
-                            contentStyle={{ backgroundColor: '#1b1b1d', borderColor: '#333', borderRadius: '12px' }}
-                            itemStyle={{ color: '#fff' }}
+                            content={({ active, payload }) => {
+                                if (!active || !payload || !payload.length) return null;
+                                return (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="bg-[#1b1b1d] border border-cyan/20 rounded-xl px-4 py-3 shadow-2xl"
+                                        style={{ outline: 'none' }}
+                                    >
+                                        <p className="text-sm font-bold text-white mb-1">{payload[0].name}</p>
+                                        <p className="text-2xl font-black text-cyan">{payload[0].value}</p>
+                                    </motion.div>
+                                );
+                            }}
                         />
-                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
                     </PieChart>
                 </ResponsiveContainer>
             </div>
+
+            {/* Info Button Legend Popup */}
+            <AnimatePresence>
+                {showInfo && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute top-16 right-6 bg-[#1b1b1d] border border-white/10 rounded-xl p-4 shadow-2xl z-10 min-w-[200px]"
+                        style={{ outline: 'none' }}
+                    >
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Legend</h4>
+                        <div className="space-y-2">
+                            {chartData.map((item, index) => (
+                                <div key={index} className="flex items-center gap-3">
+                                    <div
+                                        className="w-3 h-3 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: item.color }}
+                                    />
+                                    <span className="text-sm text-white font-medium truncate">{item.name}</span>
+                                    <span className="text-xs text-gray-500 ml-auto">{item.value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </motion.div>
     );
 }
@@ -576,9 +636,8 @@ function AppointmentsWidget({ data }) {
                                         {appt.title}
                                     </h4>
                                     <p className="text-xs text-gray-400 truncate">{appt.contactName}</p>
-                                    <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                        appt.status === 'confirmed' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'
-                                    }`}>
+                                    <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase ${appt.status === 'confirmed' ? 'bg-green-500/10 text-green-400' : 'bg-gray-500/10 text-gray-400'
+                                        }`}>
                                         {appt.status}
                                     </span>
                                 </div>
@@ -588,5 +647,131 @@ function AppointmentsWidget({ data }) {
                 </div>
             )}
         </motion.div>
+    );
+}
+
+// Custom Bar Tooltip with lift animation
+function CustomBarTooltip({ active, payload, label }) {
+    if (!active || !payload || !payload.length) return null;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: -10, scale: 1 }}
+            className="bg-[#1b1b1d] border border-cyan/20 rounded-xl px-4 py-3 shadow-2xl shadow-cyan/10"
+            style={{ outline: 'none' }}
+        >
+            <p className="text-sm font-bold text-white mb-1">{label}</p>
+            <p className="text-2xl font-black text-cyan">{payload[0].value}</p>
+            <div className="mt-2 h-1 w-full bg-gradient-to-r from-cyan to-blue-500 rounded-full" />
+        </motion.div>
+    );
+}
+
+// Opportunity Status Pie Chart with Info Button Legend
+function OpportunityStatusPieChart({ data }) {
+    const [showInfo, setShowInfo] = useState(false);
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="lg:col-span-1 bg-[#161617]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-6 flex items-center gap-2">
+                    <PieIcon className="w-4 h-4" />
+                    Opportunity Status
+                </h3>
+                <div className="h-[250px] flex items-center justify-center text-gray-500 text-xs">
+                    No data available
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="lg:col-span-1 bg-[#161617]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col relative">
+            <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                    <PieIcon className="w-4 h-4" />
+                    Opportunity Status
+                </h3>
+                <button
+                    onClick={() => setShowInfo(!showInfo)}
+                    className="p-2 hover:bg-white/5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan/20"
+                    style={{ outline: 'none' }}
+                >
+                    <Info className="w-4 h-4 text-gray-400 hover:text-cyan transition-colors" />
+                </button>
+            </div>
+
+            <div className="flex-1" style={{ minHeight: '250px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie
+                            data={data}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey="value"
+                            animationDuration={800}
+                            style={{ outline: 'none' }}
+                        >
+                            {data.map((entry, index) => (
+                                <Cell
+                                    key={`cell-${index}`}
+                                    fill={entry.color}
+                                    stroke="rgba(0,0,0,0)"
+                                    className="transition-all duration-300 hover:brightness-125 focus:outline-none"
+                                    style={{ outline: 'none' }}
+                                />
+                            ))}
+                        </Pie>
+                        <RechartsTooltip
+                            content={({ active, payload }) => {
+                                if (!active || !payload || !payload.length) return null;
+                                return (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="bg-[#1b1b1d] border border-cyan/20 rounded-xl px-4 py-3 shadow-2xl"
+                                        style={{ outline: 'none' }}
+                                    >
+                                        <p className="text-sm font-bold text-white mb-1">{payload[0].name}</p>
+                                        <p className="text-2xl font-black text-cyan">{payload[0].value}</p>
+                                    </motion.div>
+                                );
+                            }}
+                        />
+                    </PieChart>
+                </ResponsiveContainer>
+            </div>
+
+            {/* Info Button Legend Popup */}
+            <AnimatePresence>
+                {showInfo && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="absolute top-16 right-6 bg-[#1b1b1d] border border-white/10 rounded-xl p-4 shadow-2xl z-10 min-w-[200px]"
+                        style={{ outline: 'none' }}
+                    >
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Legend</h4>
+                        <div className="space-y-2">
+                            {data.map((item, index) => (
+                                <div key={index} className="flex items-center gap-3">
+                                    <div
+                                        className="w-3 h-3 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: item.color }}
+                                    />
+                                    <span className="text-sm text-white font-medium">{item.name}</span>
+                                    <span className="text-xs text-gray-500 ml-auto">{item.value}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }
