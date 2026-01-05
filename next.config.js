@@ -60,35 +60,36 @@ const nextConfig = {
                         value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
                     },
                     // Cross-Origin policies
+                    // Note: Relaxed for Clerk compatibility. COOP/COEP can break auth popups.
                     {
                         key: 'Cross-Origin-Opener-Policy',
-                        value: 'same-origin'
+                        value: 'same-origin-allow-popups'  // Allow Clerk auth popups
                     },
                     {
                         key: 'Cross-Origin-Resource-Policy',
-                        value: 'same-origin'
-                    },
-                    {
-                        key: 'Cross-Origin-Embedder-Policy',
-                        value: 'credentialless'
+                        value: 'cross-origin'  // Allow resources from Clerk
                     },
                     // Content Security Policy
+                    // Note: CSP configured for agent.tedos.ai production domain
                     {
                         key: 'Content-Security-Policy',
                         value: [
                             "default-src 'self'",
-                            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.tedos.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com",
+                            // Allow scripts from self, Clerk (both custom domain and hosted), and blob workers
+                            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://*.agent.tedos.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com",
+                            // Allow workers from blob (required for Clerk)
+                            "worker-src 'self' blob:",
                             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                             "font-src 'self' https://fonts.gstatic.com data:",
                             "img-src 'self' data: https: blob:",
                             "media-src 'self' https://res.cloudinary.com blob:",
-                            "connect-src 'self' https://tedos.ai https://*.tedos.ai https://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://rest.gohighlevel.com https://services.leadconnectorhq.com https://api.cloudinary.com https://*.clerk.accounts.dev wss://*.clerk.accounts.dev",
-                            "frame-src 'self' https://*.clerk.accounts.dev",
+                            // Connect sources - include agent.tedos.ai and all subdomains
+                            "connect-src 'self' http://localhost:* https://agent.tedos.ai https://*.agent.tedos.ai https://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://rest.gohighlevel.com https://services.leadconnectorhq.com https://api.cloudinary.com https://*.clerk.accounts.dev wss://*.clerk.accounts.dev",
+                            "frame-src 'self' https://*.agent.tedos.ai https://*.clerk.accounts.dev",
                             "object-src 'none'",
                             "base-uri 'self'",
                             "form-action 'self'",
-                            "frame-ancestors 'none'",
-                            "upgrade-insecure-requests"
+                            "frame-ancestors 'none'"
                         ].join('; ')
                     }
                 ]
