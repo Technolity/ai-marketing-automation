@@ -14,8 +14,12 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider
-      afterSignInUrl="/redirect"
-      afterSignUpUrl="/redirect"
+      signInUrl="/auth/login"
+      signUpUrl="/auth/signup"
+      afterSignInUrl="/dashboard"
+      afterSignUpUrl="/dashboard"
+      signInFallbackRedirectUrl="/dashboard"
+      signUpFallbackRedirectUrl="/dashboard"
     >
       <html lang="en" className="bg-dark">
         <body className="bg-dark text-white">
