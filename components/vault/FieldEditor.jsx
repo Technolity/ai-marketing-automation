@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Pencil, Sparkles, Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon } from 'lucide-react';
-import InlineAIButton from './InlineAIButton';
+import FieldChatbot from './FieldChatbot';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
@@ -50,6 +50,7 @@ export default function FieldEditor({
     const [isUploading, setIsUploading] = useState(false);
     const [validationErrors, setValidationErrors] = useState([]);
     const [saveSuccess, setSaveSuccess] = useState(false);
+    const [chatbotOpen, setChatbotOpen] = useState(false);
 
     const {
         field_id,
@@ -131,9 +132,16 @@ export default function FieldEditor({
     };
 
     const handleAIFeedback = () => {
-        if (onAIFeedback) {
-            onAIFeedback(field_id, field_label, value);
-        }
+        // Open the field-level chatbot
+        setChatbotOpen(true);
+    };
+
+    // Handle save from chatbot
+    const handleChatbotSave = (newValue) => {
+        setValue(newValue);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
+        if (onSave) onSave(field_id, newValue, { version: 'ai-updated' });
     };
 
     // Render based on field type
@@ -195,16 +203,15 @@ export default function FieldEditor({
                                 }`}
                         />
                     )}
-                    {/* Inline AI Button - appears on hover */}
+                    {/* AI Chatbot Button - appears on hover for text fields with content */}
                     {!isEditing && (value || '').length > 0 && (
-                        <InlineAIButton
-                            fieldId={field_id}
-                            fieldLabel={field_label}
-                            currentValue={value || ''}
-                            sectionId={sectionId}
-                            funnelId={funnelId}
-                            onUpdate={handleInlineAIUpdate}
-                        />
+                        <button
+                            onClick={() => setChatbotOpen(true)}
+                            className="absolute top-1 right-1 z-10 p-1.5 bg-gradient-to-br from-purple-500/20 to-cyan/20 hover:from-purple-500/40 hover:to-cyan/40 border border-purple-500/30 hover:border-cyan/50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
+                            title="AI Assistant"
+                        >
+                            <Sparkles className="w-3.5 h-3.5 text-cyan" />
+                        </button>
                     )}
                     {field_metadata.hint && isEditing && (
                         <p className="mt-2 text-xs text-gray-500">{field_metadata.hint}</p>
@@ -729,6 +736,20 @@ export default function FieldEditor({
                         ))}
                     </div>
                 </div>
+            )}
+
+            {/* Field Chatbot Modal - for text/textarea fields */}
+            {(field_type === 'text' || field_type === 'textarea') && (
+                <FieldChatbot
+                    isOpen={chatbotOpen}
+                    onClose={() => setChatbotOpen(false)}
+                    fieldId={field_id}
+                    fieldLabel={field_label}
+                    fieldValue={value || ''}
+                    sectionId={sectionId}
+                    funnelId={funnelId}
+                    onSave={handleChatbotSave}
+                />
             )}
         </div>
     );
