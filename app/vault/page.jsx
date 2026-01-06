@@ -1916,6 +1916,18 @@ export default function VaultPage() {
                             </p>
                         </div>
                     </div>
+                    {/* Regenerate Button - available even after approval */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleRegenerateSection(section.id, section.numericKey);
+                        }}
+                        disabled={regeneratingSection === section.id}
+                        className="p-2 hover:bg-green-500/20 rounded-lg transition-colors group/regen"
+                        title="Regenerate with AI"
+                    >
+                        <RefreshCw className={`w-4 h-4 text-gray-400 group-hover/regen:text-green-400 transition-colors ${regeneratingSection === section.id ? 'animate-spin' : ''}`} />
+                    </button>
                     <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -1936,7 +1948,7 @@ export default function VaultPage() {
                                             return (
                                                 <GranularComponent
                                                     funnelId={funnelId}
-                                                    onApprove={(sectionId) => handleApprove(sectionId, phase)}
+                                                    onApprove={(sectionId) => handleApprove(sectionId, phaseNumber)}
                                                 />
                                             );
                                         })()
