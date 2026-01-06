@@ -66,12 +66,11 @@ export default function AppNavbar() {
           </SignedIn>
 
           <SignedOut>
-            <Link
-              href="/auth/login"
-              className="text-sm font-bold text-white hover:text-cyan transition-all duration-300 px-5 py-2 rounded-full border border-white/10 hover:border-cyan/50 bg-white/5"
-            >
-              Sign In
-            </Link>
+            <SignInButton mode="modal">
+              <button className="text-sm font-bold text-white hover:text-cyan transition-all duration-300 px-5 py-2 rounded-full border border-white/10 hover:border-cyan/50 bg-white/5">
+                Sign In
+              </button>
+            </SignInButton>
           </SignedOut>
         </div>
       </div>
