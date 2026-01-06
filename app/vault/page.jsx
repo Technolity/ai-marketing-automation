@@ -2273,7 +2273,7 @@ export default function VaultPage() {
                                                     }}
                                                     className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
                                                 >
-                                                    Proceed to Phase 2
+                                                    Show my recommended funnel
                                                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                                 </button>
                                             </motion.div>

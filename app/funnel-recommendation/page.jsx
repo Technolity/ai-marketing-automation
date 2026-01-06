@@ -200,7 +200,10 @@ export default function FunnelRecommendationPage() {
 
                 {/* Back Button */}
                 <button
-                    onClick={() => router.push('/vault')}
+                    onClick={() => {
+                        const fId = searchParams.get('funnel_id') || funnelId;
+                        router.push(fId ? `/vault?funnel_id=${fId}` : '/vault');
+                    }}
                     className="mb-6 p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
                 >
                     <ArrowLeft className="w-4 h-4" />
@@ -227,124 +230,124 @@ export default function FunnelRecommendationPage() {
 
                 {/* Funnel Selection */}
                 <>
-                        {/* VSL Funnel - Recommended */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            onClick={() => handleSelectFunnel(vslFunnel)}
-                            className={`p-6 rounded-2xl border-2 mb-6 cursor-pointer transition-all ${selectedFunnel?.id === 'vsl'
-                                ? 'bg-cyan/10 border-cyan shadow-xl shadow-cyan/20'
-                                : 'bg-[#1b1b1d] border-[#2a2a2d] hover:border-cyan/50'
-                                }`}
-                        >
-                            <div className="flex items-start gap-6">
-                                <div className="w-14 h-14 rounded-2xl bg-cyan/20 flex items-center justify-center flex-shrink-0">
-                                    <Video className="w-7 h-7 text-cyan" />
-                                </div>
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <h2 className="text-2xl font-bold">{vslFunnel.title}</h2>
-                                        <span className="px-3 py-1 bg-cyan/20 text-cyan text-xs font-bold rounded-full flex items-center gap-1">
-                                            <Star className="w-3 h-3" /> RECOMMENDED
-                                        </span>
-                                    </div>
-                                    <p className="text-gray-400 mb-4">{vslFunnel.description}</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {vslFunnel.features.map((feature, idx) => (
-                                            <span key={idx} className="px-3 py-1.5 bg-[#2a2a2d] text-gray-300 text-sm rounded-lg flex items-center gap-2">
-                                                <CheckCircle className="w-4 h-4 text-green-500" />
-                                                {feature}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                                {selectedFunnel?.id === 'vsl' && (
-                                    <CheckCircle className="w-8 h-8 text-cyan flex-shrink-0" />
-                                )}
+                    {/* VSL Funnel - Recommended */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        onClick={() => handleSelectFunnel(vslFunnel)}
+                        className={`p-6 rounded-2xl border-2 mb-6 cursor-pointer transition-all ${selectedFunnel?.id === 'vsl'
+                            ? 'bg-cyan/10 border-cyan shadow-xl shadow-cyan/20'
+                            : 'bg-[#1b1b1d] border-[#2a2a2d] hover:border-cyan/50'
+                            }`}
+                    >
+                        <div className="flex items-start gap-6">
+                            <div className="w-14 h-14 rounded-2xl bg-cyan/20 flex items-center justify-center flex-shrink-0">
+                                <Video className="w-7 h-7 text-cyan" />
                             </div>
-                        </motion.div>
-
-                        {/* Other Funnels - Locked */}
-                        <div className="mb-8">
-                            <button
-                                onClick={() => setShowAlternatives(!showAlternatives)}
-                                className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-white transition-colors"
-                            >
-                                <span>See other funnel options</span>
-                                <ChevronDown className={`w-5 h-5 transition-transform ${showAlternatives ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            <AnimatePresence>
-                                {showAlternatives && (
-                                    <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        className="space-y-4 overflow-hidden"
-                                    >
-                                        {otherFunnels.map((funnel, idx) => {
-                                            const Icon = funnel.icon;
-                                            return (
-                                                <motion.div
-                                                    key={funnel.id}
-                                                    initial={{ opacity: 0, x: -20 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    transition={{ delay: idx * 0.1 }}
-                                                    className="p-5 rounded-xl border bg-[#131314] border-[#2a2a2d] opacity-60 cursor-not-allowed"
-                                                >
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 rounded-xl bg-gray-700/50 flex items-center justify-center flex-shrink-0">
-                                                            <Lock className="w-5 h-5 text-gray-500" />
-                                                        </div>
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-2">
-                                                                <h3 className="font-bold text-gray-500">{funnel.title}</h3>
-                                                                <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded flex items-center gap-1">
-                                                                    <Wrench className="w-3 h-3" />
-                                                                    {funnel.lockReason}
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-sm text-gray-600">{funnel.description}</p>
-                                                        </div>
-                                                    </div>
-                                                </motion.div>
-                                            );
-                                        })}
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <h2 className="text-2xl font-bold">{vslFunnel.title}</h2>
+                                    <span className="px-3 py-1 bg-cyan/20 text-cyan text-xs font-bold rounded-full flex items-center gap-1">
+                                        <Star className="w-3 h-3" /> RECOMMENDED
+                                    </span>
+                                </div>
+                                <p className="text-gray-400 mb-4">{vslFunnel.description}</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {vslFunnel.features.map((feature, idx) => (
+                                        <span key={idx} className="px-3 py-1.5 bg-[#2a2a2d] text-gray-300 text-sm rounded-lg flex items-center gap-2">
+                                            <CheckCircle className="w-4 h-4 text-green-500" />
+                                            {feature}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                            {selectedFunnel?.id === 'vsl' && (
+                                <CheckCircle className="w-8 h-8 text-cyan flex-shrink-0" />
+                            )}
                         </div>
+                    </motion.div>
 
-                        {/* Continue Button */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="text-center"
+                    {/* Other Funnels - Locked */}
+                    <div className="mb-8">
+                        <button
+                            onClick={() => setShowAlternatives(!showAlternatives)}
+                            className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-white transition-colors"
                         >
-                            <button
-                                onClick={handleSaveFunnelChoice}
-                                disabled={!selectedFunnel || selectedFunnel.locked || isSaving}
-                                className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-2xl font-black text-xl flex items-center justify-center gap-3 hover:brightness-110 transition-all shadow-2xl shadow-cyan/30 mx-auto disabled:opacity-50"
-                            >
-                                {isSaving ? (
-                                    <>
-                                        <Loader2 className="w-6 h-6 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Sparkles className="w-6 h-6" />
-                                        Continue to Vault
-                                        <ArrowRight className="w-6 h-6" />
-                                    </>
-                                )}
-                            </button>
-                            <p className="text-sm text-gray-500 mt-4">
-                                This will unlock Phase 2 marketing assets
-                            </p>
-                        </motion.div>
-                    </>
+                            <span>See other funnel options</span>
+                            <ChevronDown className={`w-5 h-5 transition-transform ${showAlternatives ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        <AnimatePresence>
+                            {showAlternatives && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="space-y-4 overflow-hidden"
+                                >
+                                    {otherFunnels.map((funnel, idx) => {
+                                        const Icon = funnel.icon;
+                                        return (
+                                            <motion.div
+                                                key={funnel.id}
+                                                initial={{ opacity: 0, x: -20 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: idx * 0.1 }}
+                                                className="p-5 rounded-xl border bg-[#131314] border-[#2a2a2d] opacity-60 cursor-not-allowed"
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-xl bg-gray-700/50 flex items-center justify-center flex-shrink-0">
+                                                        <Lock className="w-5 h-5 text-gray-500" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <h3 className="font-bold text-gray-500">{funnel.title}</h3>
+                                                            <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded flex items-center gap-1">
+                                                                <Wrench className="w-3 h-3" />
+                                                                {funnel.lockReason}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm text-gray-600">{funnel.description}</p>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Continue Button */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="text-center"
+                    >
+                        <button
+                            onClick={handleSaveFunnelChoice}
+                            disabled={!selectedFunnel || selectedFunnel.locked || isSaving}
+                            className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-2xl font-black text-xl flex items-center justify-center gap-3 hover:brightness-110 transition-all shadow-2xl shadow-cyan/30 mx-auto disabled:opacity-50"
+                        >
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="w-6 h-6 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="w-6 h-6" />
+                                    Continue to Vault
+                                    <ArrowRight className="w-6 h-6" />
+                                </>
+                            )}
+                        </button>
+                        <p className="text-sm text-gray-500 mt-4">
+                            This will unlock Phase 2 marketing assets
+                        </p>
+                    </motion.div>
+                </>
 
             </div>
 
