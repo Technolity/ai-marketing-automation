@@ -172,7 +172,7 @@ export default function FunnelRecommendationPage() {
 
                 // Redirect to vault - Phase 2 will now be unlocked
                 setTimeout(() => {
-                    router.push(`/vault?funnel_id=${funnelId}`);
+                    router.push(`/vault?funnel_id=${funnelId}&phase=2`);
                 }, 1500);
             } else {
                 throw new Error(data.error || 'Failed to save funnel choice');

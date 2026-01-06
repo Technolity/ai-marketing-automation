@@ -127,7 +127,7 @@ export async function POST(req) {
         let maxTokens = 4000;
         if (sectionKey === 8) maxTokens = 8000;
         if (sectionKey === 7) maxTokens = 7000;
-        if (sectionKey === 5) maxTokens = 6000;
+        if (sectionKey === 5) maxTokens = 12000;
         if (sectionKey === 4) maxTokens = 5000;
         if (sectionKey === 10) maxTokens = 5000;
 

@@ -2155,13 +2155,7 @@ export default function VaultPage() {
                         </button>
                     </div>
 
-                    <button
-                        onClick={() => setShowSaveModal(true)}
-                        className="w-fit inline-flex items-center gap-2 px-4 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] border border-[#2a2a2d] rounded-lg text-sm font-medium transition-colors"
-                    >
-                        <Save className="w-4 h-4 text-cyan" />
-                        Save Session
-                    </button>
+
                 </div>
 
                 {/* Content Header */}
