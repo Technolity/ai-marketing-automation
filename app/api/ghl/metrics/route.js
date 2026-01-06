@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
+// Force dynamic rendering for auth-protected routes
+export const dynamic = 'force-dynamic';
+
 // Base API URL for GHL V2
 const GHL_API_URL = 'https://services.leadconnectorhq.com';
 
