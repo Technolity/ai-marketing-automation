@@ -5,6 +5,7 @@ import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw } from 'lucide
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 /**
  * SetterScriptFields - Granular field-level editing for Setter Script section
@@ -32,7 +33,7 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
     const fetchFields = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
+            const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch fields');
 
             const data = await response.json();
@@ -87,7 +88,7 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
         // The refinedContent should be the new field value
         // Auto-save it via the FieldEditor's save mechanism
         try {
-            const response = await fetch('/api/os/vault-field', {
+            const response = await fetchWithAuth('/api/os/vault-field', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -134,7 +135,7 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
         setIsApproving(true);
         try {
             // Approve all fields in this section
-            const response = await fetch('/api/os/vault-section-approve', {
+            const response = await fetchWithAuth('/api/os/vault-section-approve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

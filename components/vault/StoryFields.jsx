@@ -5,6 +5,7 @@ import { CheckCircle, ChevronDown, ChevronUp, Sparkles, BookOpen, RefreshCw } fr
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 export default function StoryFields({ funnelId, onApprove, onRenderApproveButton }) {
     const [fields, setFields] = useState([]);
@@ -23,7 +24,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
     const fetchFields = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
+            const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch fields');
             const data = await response.json();
             setFields(data.fields || []);
@@ -87,7 +88,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
     const handleApproveSection = async () => {
         setIsApproving(true);
         try {
-            const response = await fetch('/api/os/vault-section-approve', {
+            const response = await fetchWithAuth('/api/os/vault-section-approve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId })

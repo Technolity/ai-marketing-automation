@@ -5,6 +5,7 @@ import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 
 /**
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
  * IdealClientFields - Granular field-level editing for Ideal Client section
  *
  * Props:
@@ -30,7 +31,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
     const fetchFields = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
+            const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch fields');
 
             const data = await response.json();

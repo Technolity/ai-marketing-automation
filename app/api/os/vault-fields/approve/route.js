@@ -24,26 +24,28 @@ export async function POST(req) {
 
         console.log(`[Approve Fields] Approving section ${section_id} for funnel ${funnel_id}`);
 
-        // Mark all fields in this section as approved
+        // Mark all fields in this section as approved (current version only)
         const { error: updateError } = await supabaseAdmin
             .from('vault_content_fields')
             .update({ is_approved: true })
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
-            .eq('user_id', userId);
+            .eq('user_id', userId)
+            .eq('is_current_version', true);
 
         if (updateError) {
             console.error('[Approve Fields] Update error:', updateError);
             return NextResponse.json({ error: 'Failed to approve fields' }, { status: 500 });
         }
 
-        // Also mark the section as approved in vault_content (if exists)
+        // Also mark the section as approved in vault_content (current version only)
         const { error: sectionError } = await supabaseAdmin
             .from('vault_content')
             .update({ status: 'approved' })
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
-            .eq('user_id', userId);
+            .eq('user_id', userId)
+            .eq('is_current_version', true);
 
         // Ignore error if vault_content doesn't have this section yet
         if (sectionError) {
@@ -63,4 +65,3 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
-

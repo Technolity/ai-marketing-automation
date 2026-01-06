@@ -73,11 +73,13 @@ export async function POST(req) {
         }
 
         // ALSO update vault_content.status to 'approved' for Dashboard progress tracking
+        // SECURITY FIX: Added user_id filter to prevent cross-user data access
         const { error: vaultContentError } = await supabaseAdmin
             .from('vault_content')
             .update({ status: 'approved' })
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
+            .eq('user_id', userId)
             .eq('is_current_version', true);
 
         if (vaultContentError) {
@@ -107,4 +109,3 @@ export async function POST(req) {
         });
     }
 }
-

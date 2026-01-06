@@ -56,13 +56,30 @@ export async function GET(req) {
             console.error('[Approvals API] Error fetching funnel:', funnelError);
         }
 
-        const businessCoreApprovals = approvedSections
-            .filter(s => String(s.phase) === '1' || s.phase === 'phase1')
-            .map(s => s.section_id);
+        // Define phases by section ID (source of truth)
+        const PHASE_1_SECTION_IDS = ['idealClient', 'message', 'story', 'offer'];
+        const PHASE_2_SECTION_IDS = ['salesScripts', 'setterScript', 'leadMagnet', 'vsl', 'funnelCopy', 'facebookAds', 'emails', 'appointmentReminders', 'bio', 'media'];
 
-        const funnelAssetsApprovals = approvedSections
-            .filter(s => String(s.phase) === '2' || s.phase === 'phase2')
-            .map(s => s.section_id);
+        // Filter by section ID, not stored phase value (which may be incorrect)
+        const businessCoreApprovals = [...new Set(
+            approvedSections
+                .filter(s => PHASE_1_SECTION_IDS.includes(s.section_id))
+                .map(s => s.section_id)
+        )];
+
+        const funnelAssetsApprovals = [...new Set(
+            approvedSections
+                .filter(s => PHASE_2_SECTION_IDS.includes(s.section_id))
+                .map(s => s.section_id)
+        )];
+
+        console.log('[Approvals API] Returning:', {
+            phase1Count: businessCoreApprovals.length,
+            phase2Count: funnelAssetsApprovals.length,
+            rawCount: approvedSections.length,
+            phase1: businessCoreApprovals,
+            phase2: funnelAssetsApprovals
+        });
 
         return NextResponse.json({
             businessCoreApprovals,
@@ -97,6 +114,7 @@ export async function POST(req) {
         console.log(`[Approvals API] Saving approvals for funnel ${funnelId}`);
 
         // Update status in vault_content for specified sections
+        // SECURITY FIX: Added is_current_version filter to only update current versions
         const allApproved = [...(businessCoreApprovals || []), ...(funnelAssetsApprovals || [])];
 
         if (allApproved.length > 0) {
@@ -105,6 +123,7 @@ export async function POST(req) {
                 .update({ status: 'approved' })
                 .eq('funnel_id', funnelId)
                 .eq('user_id', userId)
+                .eq('is_current_version', true)
                 .in('section_id', allApproved);
 
             if (vaultError) {
@@ -115,7 +134,7 @@ export async function POST(req) {
         // Update phase flags in user_funnels
         const updates = {};
 
-        // If all phase 1 items (6) are approved, mark phase1_approved
+        // Phase 1 has 4 sections, Phase 2 has 10 sections
         // DISABLED AUTO-APPROVAL: We now require manual approval of all sections
         if (businessCoreApprovals && businessCoreApprovals.length >= 100) {
             updates.phase1_approved = true;
@@ -149,5 +168,3 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
-
-

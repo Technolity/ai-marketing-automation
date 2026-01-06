@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Pencil, Sparkles, Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon } from 'lucide-react';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { toast } from 'sonner';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 /**
  * FieldEditor - Individual field editing component
@@ -92,7 +93,7 @@ export default function FieldEditor({
         setSaveSuccess(false);
 
         try {
-            const response = await fetch('/api/os/vault-field', {
+            const response = await fetchWithAuth('/api/os/vault-field', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

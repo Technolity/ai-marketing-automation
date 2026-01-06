@@ -271,13 +271,6 @@ export async function PATCH(req) {
             .eq('is_current_version', true)
             .single();
 
-        if (fetchError || !currentField) {
-            return new Response(JSON.stringify({ error: 'Field not found' }), {
-                status: 404,
-                headers: { 'Content-Type': 'application/json' }
-            });
-        }
-
         // Validate field value if field definition exists
         const fieldDef = getFieldDefinition(section_id, field_id);
         if (fieldDef) {
@@ -294,12 +287,6 @@ export async function PATCH(req) {
             }
         }
 
-        // Mark current version as old
-        await supabaseAdmin
-            .from('vault_content_fields')
-            .update({ is_current_version: false })
-            .eq('id', currentField.id);
-
         // Serialize field_value for storage (arrays to JSON strings)
         const serializedValue = Array.isArray(field_value)
             ? JSON.stringify(field_value)
@@ -307,37 +294,99 @@ export async function PATCH(req) {
                 ? JSON.stringify(field_value)
                 : field_value;
 
-        // Insert new version
-        const { data: newVersion, error: insertError } = await supabaseAdmin
-            .from('vault_content_fields')
-            .insert({
-                funnel_id,
-                user_id: userId,
-                section_id,
+        let newVersion;
+
+        // UPSERT LOGIC: Handle both new fields and existing fields
+        if (!currentField || fetchError) {
+            // Field doesn't exist yet - CREATE IT
+            console.log('[VaultField PATCH] Creating new field (first save):', { field_id });
+
+            // Get field definition for defaults
+            const fieldStructure = fieldDef || {};
+
+            // Get next display_order
+            const { data: maxOrderField } = await supabaseAdmin
+                .from('vault_content_fields')
+                .select('display_order')
+                .eq('funnel_id', funnel_id)
+                .eq('section_id', section_id)
+                .order('display_order', { ascending: false })
+                .limit(1)
+                .single();
+
+            const display_order = (maxOrderField?.display_order || 0) + 1;
+
+            const { data: insertedField, error: insertError } = await supabaseAdmin
+                .from('vault_content_fields')
+                .insert({
+                    funnel_id,
+                    user_id: userId,
+                    section_id,
+                    field_id,
+                    field_label: fieldStructure.label || field_id,
+                    field_value: serializedValue,
+                    field_type: fieldStructure.type || 'text',
+                    field_metadata: fieldStructure.metadata || {},
+                    is_custom: fieldStructure.is_custom || false,
+                    is_approved: false,
+                    display_order,
+                    version: 1,
+                    is_current_version: true
+                })
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error('[VaultField PATCH] Insert error:', insertError);
+                throw insertError;
+            }
+
+            newVersion = insertedField;
+            console.log('[VaultField PATCH] New field created:', { field_id, version: 1 });
+
+        } else {
+            // Field exists - VERSION IT
+            console.log('[VaultField PATCH] Versioning existing field:', { field_id, currentVersion: currentField.version });
+
+            // Mark current version as old
+            await supabaseAdmin
+                .from('vault_content_fields')
+                .update({ is_current_version: false })
+                .eq('id', currentField.id);
+
+            // Insert new version
+            const { data: insertedField, error: insertError } = await supabaseAdmin
+                .from('vault_content_fields')
+                .insert({
+                    funnel_id,
+                    user_id: userId,
+                    section_id,
+                    field_id,
+                    field_label: currentField.field_label,
+                    field_value: serializedValue,
+                    field_type: currentField.field_type,
+                    field_metadata: currentField.field_metadata,
+                    is_custom: currentField.is_custom,
+                    is_approved: false, // Reset approval on edit
+                    display_order: currentField.display_order,
+                    version: currentField.version + 1,
+                    is_current_version: true
+                })
+                .select()
+                .single();
+
+            if (insertError) {
+                console.error('[VaultField PATCH] Insert error:', insertError);
+                throw insertError;
+            }
+
+            newVersion = insertedField;
+            console.log('[VaultField PATCH] Field updated successfully:', {
                 field_id,
-                field_label: currentField.field_label,
-                field_value: serializedValue,
-                field_type: currentField.field_type,
-                field_metadata: currentField.field_metadata,
-                is_custom: currentField.is_custom,
-                is_approved: false, // Reset approval on edit
-                display_order: currentField.display_order,
-                version: currentField.version + 1,
-                is_current_version: true
-            })
-            .select()
-            .single();
-
-        if (insertError) {
-            console.error('[VaultField PATCH] Insert error:', insertError);
-            throw insertError;
+                oldVersion: currentField.version,
+                newVersion: newVersion.version
+            });
         }
-
-        console.log('[VaultField PATCH] Field updated successfully:', {
-            field_id,
-            oldVersion: currentField.version,
-            newVersion: newVersion.version
-        });
 
         return new Response(JSON.stringify({
             success: true,

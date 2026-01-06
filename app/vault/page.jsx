@@ -2,7 +2,7 @@
 /**
  * Vault Page - Unified Results Hub
  * 
- * Phase 1: Business Core (6 items) - Always accessible
+ * Phase 1: Business Core (4 sections) - Always accessible
  * Phase 2: Funnel Assets (7 items) - Locked until funnel approved
  * 
  * After all phases approved, user sees filled vault on every visit.
@@ -464,6 +464,13 @@ export default function VaultPage() {
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [feedbackSection, setFeedbackSection] = useState(null);
 
+    // GHL Deployment states
+    const [showDeployModal, setShowDeployModal] = useState(false);
+    const [ghlLocationId, setGhlLocationId] = useState('');
+    const [ghlAccessToken, setGhlAccessToken] = useState('');
+    const [isDeploying, setIsDeploying] = useState(false);
+    const [deploymentComplete, setDeploymentComplete] = useState(false);
+
     // Computed states
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
@@ -614,14 +621,25 @@ export default function VaultPage() {
             const approvalsRes = await fetchWithAuth(`/api/os/approvals?session_id=${activeSessionId}`);
             if (approvalsRes.ok) {
                 const data = await approvalsRes.json();
-                console.log('[Vault] Approvals loaded:', { phase1: data.businessCoreApprovals, phase2: data.funnelAssetsApprovals });
-                setApprovedPhase1(data.businessCoreApprovals || []);
-                setApprovedPhase2(data.funnelAssetsApprovals || []);
+
+                // Deduplicate arrays to prevent count issues
+                const phase1Deduped = [...new Set(data.businessCoreApprovals || [])];
+                const phase2Deduped = [...new Set(data.funnelAssetsApprovals || [])];
+
+                console.log('[Vault] Approvals loaded:', {
+                    phase1: phase1Deduped,
+                    phase2: phase2Deduped,
+                    phase1Count: phase1Deduped.length,
+                    phase2Count: phase2Deduped.length
+                });
+
+                setApprovedPhase1(phase1Deduped);
+                setApprovedPhase2(phase2Deduped);
 
                 // Keep local storage in sync
                 const approvals = {
-                    phase1: data.businessCoreApprovals || [],
-                    phase2: data.funnelAssetsApprovals || []
+                    phase1: phase1Deduped,
+                    phase2: phase2Deduped
                 };
                 localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
             }
@@ -631,8 +649,11 @@ export default function VaultPage() {
             const saved = localStorage.getItem(`vault_approvals_${session.user.id}_${activeSessionId}`);
             if (saved) {
                 const approvals = JSON.parse(saved);
-                setApprovedPhase1(approvals.phase1 || []);
-                setApprovedPhase2(approvals.phase2 || []);
+                // Deduplicate from localStorage too
+                const phase1Deduped = [...new Set(approvals.phase1 || [])];
+                const phase2Deduped = [...new Set(approvals.phase2 || [])];
+                setApprovedPhase1(phase1Deduped);
+                setApprovedPhase2(phase2Deduped);
             }
         }
     };
@@ -694,6 +715,12 @@ export default function VaultPage() {
         const currentIndex = phaseSections.findIndex(s => s.id === sectionId);
 
         if (phaseNumber === 1) {
+            // Prevent duplicates
+            if (approvedPhase1.includes(sectionId)) {
+                console.log('[Vault] Section already approved:', sectionId);
+                return;
+            }
+
             const newApprovals = [...approvedPhase1, sectionId];
             setApprovedPhase1(newApprovals);
             await saveApprovals(newApprovals, approvedPhase2);
@@ -704,6 +731,12 @@ export default function VaultPage() {
                 toast.success("Section approved!");
             }
         } else {
+            // Prevent duplicates
+            if (approvedPhase2.includes(sectionId)) {
+                console.log('[Vault] Section already approved:', sectionId);
+                return;
+            }
+
             const newApprovals = [...approvedPhase2, sectionId];
             setApprovedPhase2(newApprovals);
             await saveApprovals(approvedPhase1, newApprovals);
@@ -816,6 +849,54 @@ export default function VaultPage() {
             toast.error("Failed to save changes");
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    // Handle GHL Deployment
+    const handleDeployToGHL = async () => {
+        if (!ghlLocationId || !ghlAccessToken) {
+            toast.error('Please enter both Location ID and Access Token');
+            return;
+        }
+
+        const funnelId = dataSource?.id || searchParams.get('funnel_id');
+        if (!funnelId) {
+            toast.error('No funnel ID found');
+            return;
+        }
+
+        setIsDeploying(true);
+        try {
+            const res = await fetchWithAuth('/api/ghl/deploy-funnel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    funnel_id: funnelId,
+                    location_id: ghlLocationId,
+                    access_token: ghlAccessToken
+                })
+            });
+
+            const result = await res.json();
+
+            if (res.ok && result.success) {
+                toast.success(`🎉 Deployed ${result.valuesDeployed} custom values to GHL!`);
+                setDeploymentComplete(true);
+
+                // Close modal and redirect after short delay
+                setTimeout(() => {
+                    setShowDeployModal(false);
+                    router.push('/dashboard');
+                }, 2000);
+            } else {
+                toast.error(result.error || 'Deployment failed');
+                console.error('[Vault] Deployment error:', result);
+            }
+        } catch (error) {
+            console.error('[Vault] Deployment error:', error);
+            toast.error('Failed to deploy to GHL');
+        } finally {
+            setIsDeploying(false);
         }
     };
 
@@ -1752,7 +1833,24 @@ export default function VaultPage() {
                             <PartyPopper className="w-10 h-10 text-white" />
                         </div>
                         <h1 className="text-4xl font-black mb-4">Your Complete Vault</h1>
-                        <p className="text-gray-400">All your content is ready. Use Feedback to refine anytime.</p>
+                        <p className="text-gray-400 mb-6">All your content is ready. Deploy to GoHighLevel or continue editing.</p>
+
+                        {/* Deploy to GHL Button */}
+                        <div className="flex gap-4 justify-center">
+                            <button
+                                onClick={() => setShowDeployModal(true)}
+                                className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-cyan/30 transition-all hover:scale-105 flex items-center gap-2"
+                            >
+                                <ExternalLink className="w-5 h-5" />
+                                Deploy to GoHighLevel
+                            </button>
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-xl font-medium text-white transition-all border border-[#2a2a2d]"
+                            >
+                                Back to Dashboard
+                            </button>
+                        </div>
                     </div>
 
                     {/* Phase 1 */}
@@ -1923,7 +2021,7 @@ export default function VaultPage() {
                                 'bg-[#131314] border-[#2a2a2d] opacity-60'
                     }`}
             >
-                <button
+                <div
                     onClick={() => {
                         if (status !== 'locked' && status !== 'generating') {
                             const newExpanded = new Set(expandedSections);
@@ -1935,7 +2033,6 @@ export default function VaultPage() {
                             setExpandedSections(newExpanded);
                         }
                     }}
-                    disabled={status === 'locked' || status === 'generating'}
                     className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' || status === 'generating' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'
                         }`}
                 >
@@ -2026,7 +2123,7 @@ export default function VaultPage() {
                             <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         )}
                     </div>
-                </button >
+                </div>
 
                 <AnimatePresence>
                     {isExpanded && status !== 'locked' && status !== 'generating' && status !== 'failed' && (
@@ -2498,6 +2595,121 @@ export default function VaultPage() {
                         }}
                     />
                 )}
+
+                {/* GHL Deployment Modal */}
+                <AnimatePresence>
+                    {showDeployModal && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                            onClick={() => !isDeploying && setShowDeployModal(false)}
+                        >
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.9, opacity: 0 }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="bg-[#131314] border border-[#2a2a2d] rounded-2xl p-8 max-w-md w-full"
+                            >
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-2xl font-bold">Deploy to GoHighLevel</h2>
+                                    {!isDeploying && (
+                                        <button
+                                            onClick={() => setShowDeployModal(false)}
+                                            className="p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                {deploymentComplete ? (
+                                    <div className="text-center py-8">
+                                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                                            <CheckCircle className="w-10 h-10 text-green-500" />
+                                        </div>
+                                        <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
+                                        <p className="text-gray-400">Redirecting to dashboard...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="space-y-4 mb-6">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                    GHL Location ID
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={ghlLocationId}
+                                                    onChange={(e) => setGhlLocationId(e.target.value)}
+                                                    placeholder="Your GHL Location ID"
+                                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
+                                                    disabled={isDeploying}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                    GHL Access Token
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={ghlAccessToken}
+                                                    onChange={(e) => setGhlAccessToken(e.target.value)}
+                                                    placeholder="Your GHL Access Token"
+                                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
+                                                    disabled={isDeploying}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
+                                            <div className="flex gap-3">
+                                                <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                                                <div className="text-sm text-blue-300">
+                                                    <p className="font-medium mb-1">What will be deployed:</p>
+                                                    <ul className="list-disc list-inside space-y-1 text-blue-200/80">
+                                                        <li>All vault content (161 custom values)</li>
+                                                        <li>User-uploaded media assets</li>
+                                                        <li>Blank fields will be skipped</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => setShowDeployModal(false)}
+                                                disabled={isDeploying}
+                                                className="flex-1 px-4 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleDeployToGHL}
+                                                disabled={isDeploying || !ghlLocationId || !ghlAccessToken}
+                                                className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                            >
+                                                {isDeploying ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        Deploying...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <ExternalLink className="w-4 h-4" />
+                                                        Deploy Now
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );

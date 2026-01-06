@@ -5,6 +5,7 @@ import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw } from 'lucide
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 export default function MessageFields({ funnelId, onApprove, onRenderApproveButton }) {
     const [fields, setFields] = useState([]);
@@ -25,7 +26,7 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
     const fetchFields = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
+            const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch fields');
 
             const data = await response.json();
@@ -127,7 +128,7 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
         setIsApproving(true);
         try {
             // Approve all fields in this section
-            const response = await fetch('/api/os/vault-section-approve', {
+            const response = await fetchWithAuth('/api/os/vault-section-approve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
