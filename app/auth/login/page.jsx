@@ -35,6 +35,8 @@ export default function Login() {
         password: password,
       });
 
+      console.log("Sign in result:", JSON.stringify(result, null, 2));
+
       if (result.status === "complete") {
         // Set the session as active
         await setActive({ session: result.createdSessionId });
@@ -43,9 +45,12 @@ export default function Login() {
         router.push("/dashboard");
       } else if (result.status === "needs_first_factor") {
         // This shouldn't happen with password auth, but handle it
+        console.log("needs_first_factor - supportedFirstFactors:", result.supportedFirstFactors);
         toast.error("Please enter your password.");
       } else if (result.status === "needs_second_factor") {
-        toast.error("Two-factor authentication required. Disable 2FA in Clerk dashboard or add 2FA support.");
+        // Log details to understand why 2FA is required
+        console.log("needs_second_factor - supportedSecondFactors:", result.supportedSecondFactors);
+        toast.error("Two-factor authentication required. Check Clerk dashboard to disable 2FA for this user.");
       } else if (result.status === "needs_new_password") {
         toast.error("Password reset required.");
       } else {
