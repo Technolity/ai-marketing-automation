@@ -80,7 +80,8 @@ export default function FieldEditor({
     };
 
     const handleCancel = () => {
-        setValue(initialValue);
+        // CRITICAL: Parse initialValue properly - don't use raw value
+        setValue(parseValue(initialValue, field_type));
         setIsEditing(false);
         setValidationErrors([]);
     };
@@ -241,8 +242,7 @@ export default function FieldEditor({
                             <div key={idx} className="flex items-start gap-2 group relative">
                                 <span className="mt-3 text-sm text-gray-500 font-medium">{idx + 1}.</span>
                                 <div className="flex-1 relative">
-                                    <input
-                                        type="text"
+                                    <textarea
                                         value={item || ''}
                                         onChange={(e) => {
                                             const newArray = [...arrayValue];
@@ -251,8 +251,9 @@ export default function FieldEditor({
                                         }}
                                         placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
                                         maxLength={field_metadata.itemMaxLength}
+                                        rows={2}
                                         disabled={!isEditing}
-                                        className={`w-full px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
+                                        className={`w-full px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors resize-none ${isEditing
                                             ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
                                             : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
                                             }`}
