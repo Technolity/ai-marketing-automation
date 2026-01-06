@@ -2496,7 +2496,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             <div className="p-6 border-t border-[#1b1b1d] bg-[#131314] sticky bottom-0 z-20 flex gap-3">
                                 <button
                                     onClick={handleGenerate}
-                                    className="flex-1 py-3 rounded-lg font-medium text-gray-300 hover:bg-[#1b1b1d] border border-[#2a2a2d] transition-colors flex items-center justify-center gap-2"
+                                    className="flex-1 py-3 rounded-lg font-medium text-cyan border border-cyan/30 bg-cyan/10 hover:bg-cyan/20 transition-colors flex items-center justify-center gap-2"
                                 >
                                     <RefreshCw className="w-4 h-4" /> Regenerate
                                 </button>
@@ -2805,7 +2805,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                         setShowContentPreview(false);
                                         generateContentPreview();
                                     }}
-                                    className="flex-1 py-3 bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg text-gray-300 transition-colors flex items-center justify-center gap-2"
+                                    className="flex-1 py-3 rounded-lg font-medium text-cyan border border-cyan/30 bg-cyan/10 hover:bg-cyan/20 transition-colors flex items-center justify-center gap-2"
                                 >
                                     <RefreshCw className="w-4 h-4" /> Regenerate
                                 </button>
