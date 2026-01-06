@@ -52,6 +52,7 @@ export default function FieldEditor({
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [chatbotOpen, setChatbotOpen] = useState(false);
     const [arrayItemChatbot, setArrayItemChatbot] = useState({ open: false, index: -1, itemValue: '' });
+    const [objectSubfieldChatbot, setObjectSubfieldChatbot] = useState({ open: false, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
 
     const {
         field_id,
@@ -424,39 +425,56 @@ export default function FieldEditor({
                                 <label className="text-xs font-medium text-gray-400">
                                     {subfield.field_label}
                                 </label>
-                                {subfield.field_type === 'textarea' ? (
-                                    <textarea
-                                        value={subfieldValue}
-                                        onChange={(e) => {
-                                            const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
-                                            setValue(newObj);
-                                        }}
-                                        placeholder={subfield.placeholder}
-                                        rows={subfield.rows || 3}
-                                        maxLength={subfield.maxLength}
-                                        disabled={!isEditing}
-                                        className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors ${isEditing
-                                            ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                            : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
-                                            }`}
-                                    />
-                                ) : (
-                                    <input
-                                        type="text"
-                                        value={subfieldValue}
-                                        onChange={(e) => {
-                                            const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
-                                            setValue(newObj);
-                                        }}
-                                        placeholder={subfield.placeholder}
-                                        maxLength={subfield.maxLength}
-                                        disabled={!isEditing}
-                                        className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm transition-colors ${isEditing
-                                            ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                            : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
-                                            }`}
-                                    />
-                                )}
+                                <div className="relative group">
+                                    {subfield.field_type === 'textarea' ? (
+                                        <textarea
+                                            value={subfieldValue}
+                                            onChange={(e) => {
+                                                const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
+                                                setValue(newObj);
+                                            }}
+                                            placeholder={subfield.placeholder}
+                                            rows={subfield.rows || 3}
+                                            maxLength={subfield.maxLength}
+                                            disabled={!isEditing}
+                                            className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors ${isEditing
+                                                ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                                : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
+                                                }`}
+                                        />
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={subfieldValue}
+                                            onChange={(e) => {
+                                                const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
+                                                setValue(newObj);
+                                            }}
+                                            placeholder={subfield.placeholder}
+                                            maxLength={subfield.maxLength}
+                                            disabled={!isEditing}
+                                            className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm transition-colors ${isEditing
+                                                ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                                : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
+                                                }`}
+                                        />
+                                    )}
+                                    {/* AI Button for object subfield */}
+                                    {!isEditing && (subfieldValue || '').length > 0 && (
+                                        <button
+                                            onClick={() => setObjectSubfieldChatbot({
+                                                open: true,
+                                                subfieldId: subfield.field_id,
+                                                subfieldLabel: subfield.field_label,
+                                                subfieldValue: subfieldValue
+                                            })}
+                                            className="absolute top-1/2 -translate-y-1/2 right-2 z-10 p-1.5 bg-gradient-to-br from-purple-500/20 to-cyan/20 hover:from-purple-500/40 hover:to-cyan/40 border border-purple-500/30 hover:border-cyan/50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
+                                            title="AI Assistant"
+                                        >
+                                            <Sparkles className="w-3.5 h-3.5 text-cyan" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}
@@ -796,6 +814,46 @@ export default function FieldEditor({
                             setTimeout(() => setSaveSuccess(false), 2000);
                             if (onSave) onSave(field_id, newArray, { version: 'ai-updated' });
                         }).catch(err => console.error('[FieldEditor] Array AI save error:', err));
+                    }}
+                />
+            )}
+
+            {/* Field Chatbot for Object Subfields */}
+            {field_type === 'object' && objectSubfieldChatbot.open && (
+                <FieldChatbot
+                    isOpen={objectSubfieldChatbot.open}
+                    onClose={() => setObjectSubfieldChatbot({ open: false, subfieldId: '', subfieldLabel: '', subfieldValue: '' })}
+                    fieldId={`${field_id}.${objectSubfieldChatbot.subfieldId}`}
+                    fieldLabel={`${field_label} - ${objectSubfieldChatbot.subfieldLabel}`}
+                    fieldValue={objectSubfieldChatbot.subfieldValue}
+                    sectionId={sectionId}
+                    funnelId={funnelId}
+                    onSave={(newValue) => {
+                        // Update the specific subfield within the object
+                        let currentObject = {};
+                        try {
+                            currentObject = typeof value === 'string' ? JSON.parse(value || '{}') : (value || {});
+                        } catch { currentObject = {}; }
+
+                        const newObject = { ...currentObject, [objectSubfieldChatbot.subfieldId]: newValue };
+                        setValue(newObject);
+                        setObjectSubfieldChatbot({ open: false, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
+
+                        // Save to database
+                        fetchWithAuth('/api/os/vault-field', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                funnel_id: funnelId,
+                                section_id: sectionId,
+                                field_id,
+                                field_value: JSON.stringify(newObject)
+                            })
+                        }).then(() => {
+                            setSaveSuccess(true);
+                            setTimeout(() => setSaveSuccess(false), 2000);
+                            if (onSave) onSave(field_id, newObject, { version: 'ai-updated' });
+                        }).catch(err => console.error('[FieldEditor] Object subfield AI save error:', err));
                     }}
                 />
             )}
