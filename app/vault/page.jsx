@@ -2010,13 +2010,13 @@ export default function VaultPage() {
                         {(status === 'current' || status === 'approved') && (
                             <div className="group/tooltip relative p-2 hidden md:block">
                                 <Info className={`w-4 h-4 transition-colors ${status === 'approved' ? 'text-green-500/50 hover:text-green-500' : 'text-cyan/50 hover:text-cyan'}`} />
-                                <div className={`
-                                fixed transform -translate-y-full -translate-x-1/2 left-1/2 w-72 p-4 
-                                rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 
-                                pointer-events-none transition-opacity z-[9999]
-                                ${status === 'approved' ? 'bg-[#232326] border border-green-500/30' : 'bg-[#232326] border border-cyan/30'}
-                            `}
-                                    style={{ top: 'auto', marginTop: '-12px' }}
+                                <div
+                                    className={`
+                                        absolute right-0 bottom-full mb-2 w-72 p-4 
+                                        rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 
+                                        pointer-events-none transition-opacity z-[9999]
+                                        ${status === 'approved' ? 'bg-[#232326] border border-green-500/30' : 'bg-[#232326] border border-cyan/30'}
+                                    `}
                                 >
                                     <p className="text-sm text-gray-200 leading-relaxed">
                                         <span className={`font-bold block mb-1.5 text-base ${status === 'approved' ? 'text-green-400' : 'text-cyan'}`}>Use Case:</span>
