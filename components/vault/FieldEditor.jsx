@@ -51,6 +51,7 @@ export default function FieldEditor({
     const [validationErrors, setValidationErrors] = useState([]);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [chatbotOpen, setChatbotOpen] = useState(false);
+    const [arrayItemChatbot, setArrayItemChatbot] = useState({ open: false, index: -1, itemValue: '' });
 
     const {
         field_id,
@@ -236,24 +237,36 @@ export default function FieldEditor({
                 return (
                     <div className="w-full space-y-3">
                         {arrayValue.map((item, idx) => (
-                            <div key={idx} className="flex items-start gap-2">
+                            <div key={idx} className="flex items-start gap-2 group relative">
                                 <span className="mt-3 text-sm text-gray-500 font-medium">{idx + 1}.</span>
-                                <input
-                                    type="text"
-                                    value={item || ''}
-                                    onChange={(e) => {
-                                        const newArray = [...arrayValue];
-                                        newArray[idx] = e.target.value;
-                                        setValue(newArray);
-                                    }}
-                                    placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
-                                    maxLength={field_metadata.itemMaxLength}
-                                    disabled={!isEditing}
-                                    className={`flex-1 px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
-                                        ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                        : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
-                                        }`}
-                                />
+                                <div className="flex-1 relative">
+                                    <input
+                                        type="text"
+                                        value={item || ''}
+                                        onChange={(e) => {
+                                            const newArray = [...arrayValue];
+                                            newArray[idx] = e.target.value;
+                                            setValue(newArray);
+                                        }}
+                                        placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
+                                        maxLength={field_metadata.itemMaxLength}
+                                        disabled={!isEditing}
+                                        className={`w-full px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
+                                            ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
+                                            : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
+                                            }`}
+                                    />
+                                    {/* AI Button for array item */}
+                                    {!isEditing && (item || '').length > 0 && (
+                                        <button
+                                            onClick={() => setArrayItemChatbot({ open: true, index: idx, itemValue: item })}
+                                            className="absolute top-1/2 -translate-y-1/2 right-2 z-10 p-1.5 bg-gradient-to-br from-purple-500/20 to-cyan/20 hover:from-purple-500/40 hover:to-cyan/40 border border-purple-500/30 hover:border-cyan/50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
+                                            title="AI Assistant"
+                                        >
+                                            <Sparkles className="w-3.5 h-3.5 text-cyan" />
+                                        </button>
+                                    )}
+                                </div>
                                 {isEditing && arrayValue.length > minItems && (
                                     <button
                                         onClick={() => {
@@ -749,6 +762,41 @@ export default function FieldEditor({
                     sectionId={sectionId}
                     funnelId={funnelId}
                     onSave={handleChatbotSave}
+                />
+            )}
+
+            {/* Field Chatbot for Array Items */}
+            {field_type === 'array' && arrayItemChatbot.open && (
+                <FieldChatbot
+                    isOpen={arrayItemChatbot.open}
+                    onClose={() => setArrayItemChatbot({ open: false, index: -1, itemValue: '' })}
+                    fieldId={`${field_id}[${arrayItemChatbot.index}]`}
+                    fieldLabel={`${field_label} - Item ${arrayItemChatbot.index + 1}`}
+                    fieldValue={arrayItemChatbot.itemValue}
+                    sectionId={sectionId}
+                    funnelId={funnelId}
+                    onSave={(newValue) => {
+                        // Update the specific array index
+                        const newArray = [...(Array.isArray(value) ? value : [])];
+                        newArray[arrayItemChatbot.index] = newValue;
+                        setValue(newArray);
+                        setArrayItemChatbot({ open: false, index: -1, itemValue: '' });
+                        // Save to database
+                        fetchWithAuth('/api/os/vault-field', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                funnel_id: funnelId,
+                                section_id: sectionId,
+                                field_id,
+                                field_value: newArray
+                            })
+                        }).then(() => {
+                            setSaveSuccess(true);
+                            setTimeout(() => setSaveSuccess(false), 2000);
+                            if (onSave) onSave(field_id, newArray, { version: 'ai-updated' });
+                        }).catch(err => console.error('[FieldEditor] Array AI save error:', err));
+                    }}
                 />
             )}
         </div>
