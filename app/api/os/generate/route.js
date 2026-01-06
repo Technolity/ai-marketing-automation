@@ -19,7 +19,7 @@ import { idealClientPrompt } from '@/lib/prompts/idealClient';
 import { messagePrompt } from '@/lib/prompts/message';
 import { storyPrompt } from '@/lib/prompts/story';
 import { offerPrompt } from '@/lib/prompts/offer';
-import { salesScriptsPrompt } from '@/lib/prompts/salesScripts';
+import { closerScriptPrompt } from '@/lib/prompts/closerScript';
 import { setterScriptPrompt } from '@/lib/prompts/setterScript';
 import { leadMagnetPrompt } from '@/lib/prompts/leadMagnet';
 import { vslPrompt } from '@/lib/prompts/vsl';
@@ -42,7 +42,7 @@ const osPrompts = {
   2: messagePrompt,
   3: storyPrompt,
   4: offerPrompt,
-  5: salesScriptsPrompt,
+  5: closerScriptPrompt,
   6: leadMagnetPrompt,
   7: vslPrompt,
   8: emailsPrompt,
@@ -658,49 +658,49 @@ export async function POST(req) {
               );
             });
 
-          let parsedResult = parseJsonSafe(rawContent, {
-            throwOnError: false,
-            logErrors: true,
-            defaultValue: null
-          });
+            let parsedResult = parseJsonSafe(rawContent, {
+              throwOnError: false,
+              logErrors: true,
+              defaultValue: null
+            });
 
-          if (!parsedResult) {
-            throw new Error(`Failed to parse JSON for section ${numKey}`);
-          }
-
-          // SCHEMA VALIDATION: Validate and strip extra fields
-          const sectionId = NUMERIC_KEY_TO_SECTION_ID[numKey];
-          if (sectionId) {
-            const validation = validateVaultContent(sectionId, parsedResult);
-
-            if (!validation.success) {
-              console.warn(`[FILL-MISSING Schema] Section ${numKey} (${sectionId}) failed:`, validation.errors);
-              // Strip extra fields to match schema
-              parsedResult = stripExtraFields(sectionId, parsedResult);
-              console.log(`[FILL-MISSING Schema] Stripped extra fields from section ${numKey}`);
-            } else {
-              console.log(`[FILL-MISSING Schema] Section ${numKey} (${sectionId}) passed validation`);
-              parsedResult = validation.data; // Use validated data
+            if (!parsedResult) {
+              throw new Error(`Failed to parse JSON for section ${numKey}`);
             }
-          }
 
-          return {
-            key: numKey,
-            result: parsedResult,
-            name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
-            success: true
-          };
-        } catch (err) {
-          console.error(`[FILL-MISSING] Error generating section ${numKey}:`, err.message);
-          return {
-            key: numKey,
-            result: null,
-            name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
-            success: false,
-            error: err.message
-          };
-        }
-      });
+            // SCHEMA VALIDATION: Validate and strip extra fields
+            const sectionId = NUMERIC_KEY_TO_SECTION_ID[numKey];
+            if (sectionId) {
+              const validation = validateVaultContent(sectionId, parsedResult);
+
+              if (!validation.success) {
+                console.warn(`[FILL-MISSING Schema] Section ${numKey} (${sectionId}) failed:`, validation.errors);
+                // Strip extra fields to match schema
+                parsedResult = stripExtraFields(sectionId, parsedResult);
+                console.log(`[FILL-MISSING Schema] Stripped extra fields from section ${numKey}`);
+              } else {
+                console.log(`[FILL-MISSING Schema] Section ${numKey} (${sectionId}) passed validation`);
+                parsedResult = validation.data; // Use validated data
+              }
+            }
+
+            return {
+              key: numKey,
+              result: parsedResult,
+              name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
+              success: true
+            };
+          } catch (err) {
+            console.error(`[FILL-MISSING] Error generating section ${numKey}:`, err.message);
+            return {
+              key: numKey,
+              result: null,
+              name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
+              success: false,
+              error: err.message
+            };
+          }
+        });
 
         // Wait for this chunk to complete
         const chunkResults = await Promise.all(chunkPromises);
@@ -827,62 +827,62 @@ export async function POST(req) {
                 }
               );
             });
-          let parsedResult = parseJsonSafe(rawContent, {
-            throwOnError: false,
-            logErrors: true,
-            defaultValue: null
-          });
+            let parsedResult = parseJsonSafe(rawContent, {
+              throwOnError: false,
+              logErrors: true,
+              defaultValue: null
+            });
 
-          if (!parsedResult) {
-            throw new Error(`Failed to parse JSON for ${CONTENT_NAMES[key]}`);
-          }
-
-          // DEBUG: Log setter script AI response
-          if (key === 17) {
-            const topLevelKeys = Object.keys(parsedResult);
-            const hasSetterCallScript = 'setterCallScript' in parsedResult;
-            const callFlowKeys = hasSetterCallScript ? Object.keys(parsedResult.setterCallScript?.quickOutline?.callFlow || {}) : [];
-            console.log(`[DEBUG SETTER] AI returned - topLevel:`, topLevelKeys);
-            console.log(`[DEBUG SETTER] Has setterCallScript:`, hasSetterCallScript);
-            console.log(`[DEBUG SETTER] CallFlow keys:`, callFlowKeys.slice(0, 5));
-            console.log(`[DEBUG SETTER] Has part1 (wrong):`, callFlowKeys.includes('part1'));
-            console.log(`[DEBUG SETTER] Has step1_openerPermission (correct):`, callFlowKeys.includes('step1_openerPermission'));
-          }
-
-          // SCHEMA VALIDATION: Validate and strip extra fields
-          const sectionId = NUMERIC_KEY_TO_SECTION_ID[key];
-          if (sectionId) {
-            const validation = validateVaultContent(sectionId, parsedResult);
-
-            if (!validation.success) {
-              console.warn(`[Schema Validation] Section ${key} (${sectionId}) failed:`, validation.errors);
-              // Strip extra fields to match schema
-              parsedResult = stripExtraFields(sectionId, parsedResult);
-              console.log(`[Schema Validation] Stripped extra fields from section ${key}`);
-            } else {
-              console.log(`[Schema Validation] Section ${key} (${sectionId}) passed validation`);
-              parsedResult = validation.data; // Use validated data
+            if (!parsedResult) {
+              throw new Error(`Failed to parse JSON for ${CONTENT_NAMES[key]}`);
             }
-          }
 
-          return {
-            key,
-            result: parsedResult,
-            name: CONTENT_NAMES[key],
-            success: true,
-            error: null
-          };
-        } catch (err) {
-          console.error(`Error generating ${CONTENT_NAMES[key]} after ${MAX_RETRIES} attempts:`, err);
-          return {
-            key,
-            result: null,
-            name: CONTENT_NAMES[key],
-            success: false,
-            error: err.message
-          };
-        }
-      });
+            // DEBUG: Log setter script AI response
+            if (key === 17) {
+              const topLevelKeys = Object.keys(parsedResult);
+              const hasSetterCallScript = 'setterCallScript' in parsedResult;
+              const callFlowKeys = hasSetterCallScript ? Object.keys(parsedResult.setterCallScript?.quickOutline?.callFlow || {}) : [];
+              console.log(`[DEBUG SETTER] AI returned - topLevel:`, topLevelKeys);
+              console.log(`[DEBUG SETTER] Has setterCallScript:`, hasSetterCallScript);
+              console.log(`[DEBUG SETTER] CallFlow keys:`, callFlowKeys.slice(0, 5));
+              console.log(`[DEBUG SETTER] Has part1 (wrong):`, callFlowKeys.includes('part1'));
+              console.log(`[DEBUG SETTER] Has step1_openerPermission (correct):`, callFlowKeys.includes('step1_openerPermission'));
+            }
+
+            // SCHEMA VALIDATION: Validate and strip extra fields
+            const sectionId = NUMERIC_KEY_TO_SECTION_ID[key];
+            if (sectionId) {
+              const validation = validateVaultContent(sectionId, parsedResult);
+
+              if (!validation.success) {
+                console.warn(`[Schema Validation] Section ${key} (${sectionId}) failed:`, validation.errors);
+                // Strip extra fields to match schema
+                parsedResult = stripExtraFields(sectionId, parsedResult);
+                console.log(`[Schema Validation] Stripped extra fields from section ${key}`);
+              } else {
+                console.log(`[Schema Validation] Section ${key} (${sectionId}) passed validation`);
+                parsedResult = validation.data; // Use validated data
+              }
+            }
+
+            return {
+              key,
+              result: parsedResult,
+              name: CONTENT_NAMES[key],
+              success: true,
+              error: null
+            };
+          } catch (err) {
+            console.error(`Error generating ${CONTENT_NAMES[key]} after ${MAX_RETRIES} attempts:`, err);
+            return {
+              key,
+              result: null,
+              name: CONTENT_NAMES[key],
+              success: false,
+              error: err.message
+            };
+          }
+        });
 
         // Wait for this chunk to complete before moving to next
         const chunkResults = await Promise.all(chunkPromises);

@@ -17,7 +17,7 @@ import { idealClientPrompt } from '@/lib/prompts/idealClient';
 import { messagePrompt } from '@/lib/prompts/message';
 import { storyPrompt } from '@/lib/prompts/story';
 import { offerPrompt } from '@/lib/prompts/offer';
-import { salesScriptsPrompt } from '@/lib/prompts/salesScripts';
+import { closerScriptPrompt } from '@/lib/prompts/closerScript';
 import { leadMagnetPrompt } from '@/lib/prompts/leadMagnet';
 import { vslPrompt } from '@/lib/prompts/vsl';
 import { emailsPrompt } from '@/lib/prompts/emails';
@@ -35,7 +35,7 @@ const SECTION_PROMPTS = {
     message: messagePrompt,
     story: storyPrompt,
     offer: offerPrompt,
-    salesScripts: salesScriptsPrompt,
+    salesScripts: closerScriptPrompt,
     leadMagnet: leadMagnetPrompt,
     vsl: vslPrompt,
     emails: emailsPrompt,

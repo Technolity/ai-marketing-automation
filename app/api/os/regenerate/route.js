@@ -13,7 +13,7 @@ import { idealClientPrompt } from '@/lib/prompts/idealClient';
 import { messagePrompt } from '@/lib/prompts/message';
 import { storyPrompt } from '@/lib/prompts/story';
 import { offerPrompt } from '@/lib/prompts/offer';
-import { salesScriptsPrompt } from '@/lib/prompts/salesScripts';
+import { closerScriptPrompt } from '@/lib/prompts/closerScript';
 import { leadMagnetPrompt } from '@/lib/prompts/leadMagnet';
 import { vslPrompt } from '@/lib/prompts/vsl';
 import { emailsPrompt } from '@/lib/prompts/emails';
@@ -111,7 +111,7 @@ const SECTION_PROMPTS = {
     message: { fn: messagePrompt, name: 'Million-Dollar Message', key: 2 },
     story: { fn: storyPrompt, name: 'Personal Story', key: 3 },
     offer: { fn: offerPrompt, name: 'Offer & Program', key: 4 },
-    salesScripts: { fn: salesScriptsPrompt, name: 'Sales Scripts', key: 5 },
+    salesScripts: { fn: closerScriptPrompt, name: 'Sales Scripts', key: 5 },
     leadMagnet: { fn: leadMagnetPrompt, name: 'Lead Magnet', key: 6 },
     vsl: { fn: vslPrompt, name: 'VSL Script', key: 7 },
     emails: { fn: emailsPrompt, name: 'Email Sequence', key: 8 },
