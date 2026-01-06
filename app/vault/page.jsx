@@ -575,9 +575,13 @@ export default function VaultPage() {
                     setInitialLoadComplete(true);
                     console.log('[Vault] Successfully loaded funnel:', result.source?.id, result.source?.name);
 
-                    // Load approvals for this specific session if available
-                    const activeSessionId = result.source?.id || 'current';
-                    await loadApprovals(activeSessionId);
+                    // Load approvals - prioritize URL param which we confirmed exists
+                    const activeSessionId = funnelId || result.source?.id;
+                    if (activeSessionId) {
+                        await loadApprovals(activeSessionId);
+                    } else {
+                        console.log('[Vault] No valid session ID to load approvals');
+                    }
                 } else {
                     toast.info("No content yet. Complete the intake form first.");
                     router.push('/intake_form');
