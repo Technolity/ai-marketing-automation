@@ -27,21 +27,141 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+
         const body = await req.json();
         const { action, sessionId, locationId, accessToken, key, value, customValues: overrideValues } = body;
 
-        if (!sessionId) {
+        console.log('[GHL Test API] Received action:', action);
+
+        // --- 1. LIST FUNNELS ---
+        if (action === 'list_funnels') {
+            const { data: funnels, error } = await supabaseAdmin
+                .from('user_funnels')
+                .select('id, funnel_name, created_at, updated_at, vault_generated')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            return NextResponse.json({ success: true, funnels });
+        }
+
+
+        // For other actions, Session ID is likely required
+        if ((action === 'fetch_details' || action === 'push_single' || action === 'push_all' || action === 'push_batch') && !sessionId) {
             return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
         }
 
-        // 1. Fetch Session Data
-        const { data: session, error: sessionError } = await supabaseAdmin
+
+        // 1. Fetch Session Data (Try Legacy Wizard Session)
+        let session = null;
+        let isVaultFunnel = false;
+        let funnelData = null;
+
+        const { data: legacySession, error: sessionError } = await supabaseAdmin
             .from('saved_sessions')
             .select('*')
             .eq('id', sessionId)
             .single();
 
-        if (sessionError || !session) {
+        if (legacySession) {
+            session = legacySession;
+            console.log('[GHL Test API] Found legacy session');
+        } else {
+            // 1b. Try Fetching as Funnel (Vault)
+            const { data: funnel, error: funnelError } = await supabaseAdmin
+                .from('user_funnels')
+                .select('*')
+                .eq('id', sessionId)
+                .single();
+
+            if (funnel) {
+                console.log('[GHL Test API] Found Vault funnel, fetching content...');
+                isVaultFunnel = true;
+                funnelData = funnel;
+
+                // Fetch Vault Content to reconstruct session-like object
+                const { data: vaultContent } = await supabaseAdmin
+                    .from('vault_content')
+                    .select('section_id, content')
+                    .eq('funnel_id', sessionId)
+                    .eq('is_current_version', true);
+
+                // Reconstruct data for mapper
+                if (vaultContent) {
+                    const results_data = {};
+
+                    // Map section_ids to step numbers expected by mapper
+                    const sectionMap = {
+                        'idealClient': '1',
+                        'message': '2',
+                        'story': '3',
+                        'offer': '4',
+                        'salesScripts': '5',
+                        'leadMagnet': '6',
+                        'vsl': '7',
+                        'emails': '8',
+                        'facebookAds': '9',
+                        'funnelCopy': '10',
+                        // Bio is typically in 15 or 3, mapper says 15
+                        'bio': '15'
+                    };
+
+                    vaultContent.forEach(row => {
+                        const stepNum = sectionMap[row.section_id];
+                        if (stepNum) {
+                            // Mapper expects results[stepNum].data[key]
+                            // We need to know the key the mapper expects for each step
+                            // Step 1: idealClientProfile
+                            // Step 2: millionDollarMessage
+                            // Step 3: signatureStory
+                            // Step 4: programBlueprint
+                            // Step 5: salesScript
+                            // Step 6: leadMagnet
+                            // Step 7: vslScript
+                            // Step 8: emailSequence
+                            // Step 9: facebookAds
+                            // Step 10: funnelCopy
+
+                            const dataKeys = {
+                                '1': 'idealClientProfile',
+                                '2': 'millionDollarMessage',
+                                '3': 'signatureStory',
+                                '4': 'programBlueprint',
+                                '5': 'salesScript',
+                                '6': 'leadMagnet',
+                                '7': 'vslScript',
+                                '8': 'emailSequence',
+                                '9': 'facebookAds',
+                                '10': 'funnelCopy',
+                                '15': 'bio'
+                            };
+
+                            const key = dataKeys[stepNum];
+                            if (key && row.content) {
+                                if (!results_data[stepNum]) results_data[stepNum] = { data: {} };
+                                results_data[stepNum].data[key] = row.content;
+                            }
+                        }
+                    });
+
+                    // Construct pseudo-session
+                    session = {
+                        id: sessionId,
+                        results_data,
+                        answers: {
+                            // Extract basic info that might be in funnel or needed
+                            companyName: funnel.funnel_name,
+                            // If answers aren't stored in user_funnels, we might miss some (like phone, address)
+                            // But mappedValues relies on them. 
+                            // Hopefully they are in vault_content or we accept they are missing.
+                        }
+                    };
+                }
+            }
+        }
+
+        if (!session) {
+            console.error('[GHL Test API] Session/Funnel not found for ID:', sessionId);
             return NextResponse.json({ error: 'Session not found' }, { status: 404 });
         }
 
@@ -55,8 +175,9 @@ export async function POST(req) {
         // 3. Generate Local Mapping
         const mappedValues = mapSessionToCustomValues(session, images || []);
 
+
         // 4. Handle "Fetch" Action
-        if (action === 'fetch') {
+        if (action === 'fetch' || action === 'fetch_details') {
             return NextResponse.json({
                 success: true,
                 mappedValues,
@@ -64,8 +185,9 @@ export async function POST(req) {
             });
         }
 
+
         // 5. Handle "Push" Actions
-        if (action === 'push_single' || action === 'push_all') {
+        if (action === 'push_single' || action === 'push_all' || action === 'push_batch') {
             if (!locationId || !accessToken) {
                 return NextResponse.json({ error: 'Missing GHL credentials' }, { status: 400 });
             }
@@ -105,8 +227,11 @@ export async function POST(req) {
             if (action === 'push_single') {
                 if (!key) return NextResponse.json({ error: 'Missing key for single push' }, { status: 400 });
                 payload[key] = value !== undefined ? value : mappedValues[key];
+            } else if (action === 'push_batch') {
+                // Strictly use provided values (for selective push)
+                payload = { ...overrideValues };
             } else {
-                // push_all
+                // push_all: Default mapped values + overrides
                 payload = { ...mappedValues, ...overrideValues };
             }
 
