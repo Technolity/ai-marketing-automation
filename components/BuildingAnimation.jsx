@@ -92,6 +92,7 @@ export default function BuildingAnimation({
         }
     }, [displayPercentage]);
 
+
     // Get display message - prefer processingMessage from parent, then cycle
     const displayMessage = processingMessage || STATUS_MESSAGES[currentMessageIndex];
 
@@ -109,121 +110,93 @@ export default function BuildingAnimation({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="text-center max-w-2xl px-8"
+                        className="text-center max-w-4xl px-8 w-full"
                     >
-                        {/* TedOS Logo Container */}
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            transition={{ duration: 0.6, ease: "easeOut" }}
-                            className="relative mb-10 mx-auto"
-                            style={{ width: '320px', height: '100px' }}
-                        >
-                            {/* Background: Grayscale outline layer (always visible) */}
+                        {/* Fluid Logo Container */}
+                        <div className="relative mx-auto mb-16" style={{ width: '600px', height: '160px' }}>
+                            {/* 1. Base Layer: Dark/Empty Logo (Opacity 0.2) */}
                             <img
                                 src="/tedos-logo.png"
                                 alt="TedOS"
-                                className="absolute inset-0 w-full h-full object-contain"
-                                style={{
-                                    filter: 'grayscale(100%) brightness(0.4) contrast(1.2)',
-                                    opacity: 0.5,
-                                }}
+                                className="absolute inset-0 w-full h-full object-contain opacity-20 filter grayscale"
                             />
 
-                            {/* Foreground: Color layer with clip mask (reveals on progress) */}
-                            <motion.img
-                                src="/tedos-logo.png"
-                                alt="TedOS"
-                                className="absolute inset-0 w-full h-full object-contain"
+                            {/* 2. Water Fill Layer: Masked by Logo */}
+                            <div
+                                className="absolute inset-0 w-full h-full"
                                 style={{
-                                    clipPath: `inset(0 ${100 - displayPercentage}% 0 0)`,
-                                    filter: isComplete
-                                        ? 'drop-shadow(0 0 30px rgba(0, 245, 255, 0.8)) drop-shadow(0 0 60px rgba(0, 245, 255, 0.4))'
-                                        : 'drop-shadow(0 0 15px rgba(0, 245, 255, 0.5))',
+                                    maskImage: 'url(/tedos-logo.png)',
+                                    maskSize: 'contain',
+                                    maskRepeat: 'no-repeat',
+                                    maskPosition: 'center',
+                                    WebkitMaskImage: 'url(/tedos-logo.png)',
+                                    WebkitMaskSize: 'contain',
+                                    WebkitMaskRepeat: 'no-repeat',
+                                    WebkitMaskPosition: 'center',
                                 }}
-                                animate={isComplete ? {
-                                    filter: [
-                                        'drop-shadow(0 0 30px rgba(0, 245, 255, 0.8)) drop-shadow(0 0 60px rgba(0, 245, 255, 0.4))',
-                                        'drop-shadow(0 0 50px rgba(0, 245, 255, 1)) drop-shadow(0 0 80px rgba(0, 245, 255, 0.6))',
-                                        'drop-shadow(0 0 30px rgba(0, 245, 255, 0.8)) drop-shadow(0 0 60px rgba(0, 245, 255, 0.4))'
-                                    ]
-                                } : {}}
-                                transition={isComplete ? { duration: 2, repeat: Infinity, ease: "easeInOut" } : {}}
-                            />
-
-                            {/* Glow effect behind logo on progress */}
-                            <motion.div
-                                className="absolute inset-0 -z-10"
-                                style={{
-                                    background: `linear-gradient(90deg, 
-                                        rgba(0, 245, 255, 0.15) 0%, 
-                                        rgba(0, 245, 255, 0.05) ${displayPercentage}%, 
-                                        transparent ${displayPercentage}%
-                                    )`,
-                                    filter: 'blur(20px)',
-                                    borderRadius: '20px',
-                                }}
-                            />
-                        </motion.div>
-
-                        {/* Progress Bar */}
-                        <div className="w-full max-w-md mx-auto mb-6">
-                            <div className="h-1.5 bg-[#1a1a1c] rounded-full overflow-hidden">
-                                <div
-                                    className="h-full rounded-full"
-                                    style={{
-                                        width: `${displayPercentage}%`,
-                                        background: 'linear-gradient(90deg, #00F5FF 0%, #00D4E0 50%, #00B8C8 100%)',
-                                        boxShadow: '0 0 20px rgba(0, 245, 255, 0.6), 0 0 40px rgba(0, 245, 255, 0.3)',
-                                    }}
-                                />
+                            >
+                                {/* The Rising Water */}
+                                <div className="absolute inset-0 w-full h-full flex flex-col justify-end overflow-hidden">
+                                    <motion.div
+                                        className="w-full relative bg-cyan"
+                                        style={{ height: `${displayPercentage}%` }}
+                                        transition={{ type: "spring", stiffness: 20, damping: 10 }}
+                                    >
+                                        {/* Wave Surface */}
+                                        <div className="absolute top-[-20px] left-0 right-0 h-[40px] w-[200%] flex animate-wave">
+                                            {/* We simulate a wave using CSS or SVG if available. 
+                                                Since we don't have a wave SVG, we'll use a simple oscillating gradient or border 
+                                                trick for now to keep it robust without assets. 
+                                                A simple solid rise with a glow is often cleaner. */}
+                                            <div className="w-full h-full bg-cyan opacity-50 blur-md transform translate-y-2"></div>
+                                        </div>
+                                    </motion.div>
+                                </div>
                             </div>
 
-                            {/* Percentage text */}
+                            {/* 3. Shine/Glow Overlay */}
+                            <div
+                                className="absolute inset-0 w-full h-full pointer-events-none"
+                                style={{
+                                    background: `linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%)`,
+                                    backgroundSize: '200% 100%',
+                                    animation: 'shine 3s infinite linear'
+                                }}
+                            />
+                        </div>
+
+                        {/* Progress Bar (Thinner & Wider) */}
+                        <div className="w-full max-w-2xl mx-auto mb-8">
+                            <div className="h-1 bg-[#1a1a1c] rounded-full overflow-hidden">
+                                <div
+                                    className="h-full rounded-full bg-cyan shadow-[0_0_20px_rgba(0,245,255,0.6)]"
+                                    style={{ width: `${displayPercentage}%` }}
+                                />
+                            </div>
                             <motion.p
-                                className="text-right text-sm mt-2 font-mono"
-                                style={{ color: '#00F5FF' }}
+                                className="text-right text-lg mt-3 font-mono font-bold text-cyan"
                             >
-                                {formattedPercentage.toFixed(1)}%
+                                {formattedPercentage.toFixed(0)}%
                             </motion.p>
                         </div>
 
-                        {/* Dynamic Status Message */}
+                        {/* Text Content */}
                         <motion.div
-                            key={displayMessage}
                             initial={{ y: 10, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
-                            exit={{ y: -10, opacity: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className="h-8 mb-6"
+                            className="space-y-4"
                         >
-                            <p className="text-lg font-medium" style={{ color: '#00F5FF' }}>
+                            <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">
+                                Building your Marketing Engine
+                            </h2>
+                            <p className="text-xl text-cyan/80 font-medium">
                                 {displayMessage}
                             </p>
+
+                            <p className="text-gray-500 text-sm mt-8">
+                                Please don't close this page. This process takes about 60 seconds.
+                            </p>
                         </motion.div>
-
-                        {/* Completed sections indicator */}
-                        {completedSections.length > 0 && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="text-green-400 text-xs mb-4"
-                            >
-                                ✓ {completedSections.length} sections ready
-                            </motion.div>
-                        )}
-
-                        {/* Subtitle */}
-                        <motion.p
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: 0.4 }}
-                            className="text-gray-500 text-sm"
-                        >
-                            Building your marketing system.
-                            <br />
-                            <span className="text-gray-600">Please don&apos;t close this page.</span>
-                        </motion.p>
                     </motion.div>
                 </div>
             )}

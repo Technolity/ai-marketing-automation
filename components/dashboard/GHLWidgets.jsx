@@ -6,7 +6,7 @@ import {
     DollarSign, Users, LineChart as LineChartIcon,
     ArrowUpRight, Link as LinkIcon,
     PieChart as PieIcon, Activity, BarChart3, Timer, TrendingUp,
-    Calendar, Clock, Info
+    Calendar, Clock, Info, Hammer
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useRouter } from "next/navigation";
@@ -118,10 +118,10 @@ export default function AnalyticsDashboard() {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                 <div className="flex items-center gap-6 relative z-10">
                     <div className="w-16 h-16 rounded-2xl bg-cyan/10 flex items-center justify-center border border-cyan/20 shadow-lg shadow-cyan/5">
-                        <LineChart className="w-8 h-8 text-cyan" />
+                        <Hammer className="w-8 h-8 text-cyan" />
                     </div>
                     <div>
-                        <h3 className="text-2xl font-black text-white mb-2">Connect GoHighLevel</h3>
+                        <h3 className="text-2xl font-black text-white mb-2">Connect Builder</h3>
                         <p className="text-gray-400 max-w-md">
                             Unlock real-time analytics. View your pipeline value, track active opportunities, and monitor lead flow directly in your dashboard.
                         </p>
@@ -132,7 +132,7 @@ export default function AnalyticsDashboard() {
                     className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-500 text-black font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-3 shadow-xl shadow-cyan/20 relative z-10"
                 >
                     <LinkIcon className="w-5 h-5" />
-                    Connect Account
+                    Connect Builder
                 </button>
             </motion.div>
         );

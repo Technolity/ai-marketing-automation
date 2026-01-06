@@ -1391,7 +1391,7 @@ export default function VaultPage() {
         message: "Million-Dollar Message",
         story: "Signature Story",
         tagline: "The Big Tagline",
-        offer: "Business Assets",
+        offer: "Phase 1",
         salesScripts: "Setter Call: Word-for-Word Script",
         leadMagnet: "Free Gift Asset",
         vsl: "VSL Video Script",
@@ -1842,7 +1842,7 @@ export default function VaultPage() {
                                 className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-cyan/30 transition-all hover:scale-105 flex items-center gap-2"
                             >
                                 <ExternalLink className="w-5 h-5" />
-                                Deploy to GoHighLevel
+                                Deploy to Builder
                             </button>
                             <button
                                 onClick={() => router.push('/dashboard')}
@@ -1857,7 +1857,7 @@ export default function VaultPage() {
                     <div className="mb-8">
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                             <CheckCircle className="w-5 h-5 text-green-500" />
-                            Phase 1: Business Assets
+                            Phase 1
                         </h2>
                         <div className="grid gap-3">
                             {PHASE_1_SECTIONS.map((section) => renderCompletedSection(section, 1))}
@@ -1868,7 +1868,7 @@ export default function VaultPage() {
                     <div>
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                             <CheckCircle className="w-5 h-5 text-green-500" />
-                            Phase 2: Marketing Assets
+                            Phase 2
                         </h2>
                         <div className="grid gap-3">
                             {PHASE_2_SECTIONS.map((section) => renderCompletedSection(section, 2))}
@@ -1906,7 +1906,7 @@ export default function VaultPage() {
                         <h3 className="font-bold text-green-400">{section.title}</h3>
                         <p className="text-xs text-gray-500">{section.subtitle}</p>
                     </div>
-                    {/* Tooltip Icon - drops down below with high z-index */}
+                    {/* 1. Info Tooltip (First) */}
                     <div className="group/tooltip relative p-2 hidden md:block z-[100]">
                         <Info className="w-4 h-4 text-green-500/50 hover:text-green-500 transition-colors" />
                         <div className="absolute right-0 top-full mt-2 w-72 p-4 bg-[#232326] border border-green-500/30 rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity z-[200]">
@@ -1916,7 +1916,8 @@ export default function VaultPage() {
                             </p>
                         </div>
                     </div>
-                    {/* Regenerate Button - available even after approval */}
+
+                    {/* 2. Regenerate Button (Icon Only) */}
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
@@ -1928,6 +1929,26 @@ export default function VaultPage() {
                     >
                         <RefreshCw className={`w-4 h-4 text-gray-400 group-hover/regen:text-green-400 transition-colors ${regeneratingSection === section.id ? 'animate-spin' : ''}`} />
                     </button>
+
+                    {/* 3. Approve Button (Icon + Text) */}
+                    {/* Only show if granular (logic based on Granular existence) or generally available? 
+                        Assuming we want to allow approval from header for all? 
+                        The granular component usually handles approval internally, but user asked for header button.
+                        We'll trigger handleApprove which updates state.
+                    */}
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // Assuming handleApprove handles the logic (like incrementing counts)
+                            handleApprove(section.id, phaseNumber);
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-bold uppercase tracking-wider rounded-lg border border-green-500/20 hover:border-green-500/40 transition-all ml-2"
+                    >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Approve
+                    </button>
+
+                    {/* 4. Chevron */}
                     <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -2052,10 +2073,16 @@ export default function VaultPage() {
                         status === 'current' ? 'bg-cyan/20' :
                             status === 'generating' ? 'bg-yellow-500/20' :
                                 status === 'failed' ? 'bg-red-500/20' :
-                                    'bg-gray-700/50'
+                                    status === 'locked' ? 'bg-cyan/5 border border-cyan/20' :
+                                        'bg-gray-700/50'
                         }`}>
                         {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" /> :
-                            status === 'locked' ? <Lock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" /> :
+                            status === 'locked' ? (
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 sm:w-5 sm:h-5">
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" className="text-cyan" />
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" className="text-cyan fill-cyan/20" />
+                                </svg>
+                            ) :
                                 status === 'generating' ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500 animate-spin" /> :
                                     status === 'failed' ? <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" /> :
                                         <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
@@ -2075,7 +2102,27 @@ export default function VaultPage() {
                     </div>
                     {/* Header Actions Container - Target for Portal */}
                     <div id={`section-header-actions-${section.id}`} className="flex items-center gap-3">
-                        {/* Show Regenerate button for current/approved sections using granular components */}
+                        {/* 1. Tooltip Icon (First) */}
+                        {(status === 'current' || status === 'approved') && (
+                            <div className="group/tooltip relative p-2 hidden md:block z-[20]">
+                                <Info className={`w-4 h-4 transition-colors ${status === 'approved' ? 'text-green-500/50 hover:text-green-500' : 'text-cyan/50 hover:text-cyan'}`} />
+                                <div
+                                    className={`
+                                        absolute right-0 bottom-full mb-2 w-72 p-4 
+                                        rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 
+                                        pointer-events-none transition-opacity z-[9999]
+                                        ${status === 'approved' ? 'bg-[#232326] border border-green-500/30' : 'bg-[#232326] border border-cyan/30'}
+                                    `}
+                                >
+                                    <p className="text-sm text-gray-200 leading-relaxed">
+                                        <span className={`font-bold block mb-1.5 text-base ${status === 'approved' ? 'text-green-400' : 'text-cyan'}`}>Use Case:</span>
+                                        {SECTION_USE_CASES[section.id] || "Use this asset to grow your business."}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 2. Regenerate button for current/approved sections (Icon Only) */}
                         {GRANULAR_FIELD_COMPONENTS[section.id] && (status === 'current' || status === 'approved') && (
                             <button
                                 onClick={(e) => {
@@ -2083,18 +2130,18 @@ export default function VaultPage() {
                                     handleRegenerateSection(section.id, section.numericKey);
                                 }}
                                 disabled={regeneratingSection === section.id}
-                                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-cyan/10 border border-cyan/30 text-cyan rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5 hover:bg-cyan/20 transition-all disabled:opacity-50"
+                                className="px-3 py-2 bg-cyan/10 border border-cyan/30 text-cyan rounded-lg text-sm font-bold flex items-center justify-center hover:bg-cyan/20 transition-all disabled:opacity-50"
+                                title="Regenerate"
                             >
                                 {regeneratingSection === section.id ? (
-                                    <Loader2 className="w-3 sm:w-4 h-3 sm:h-4 animate-spin" />
+                                    <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
-                                    <RefreshCw className="w-3 sm:w-4 h-3 sm:h-4" />
+                                    <RefreshCw className="w-4 h-4" />
                                 )}
-                                <span className="hidden sm:inline">Regenerate</span>
                             </button>
                         )}
 
-                        {/* Show Regenerate button for failed sections */}
+                        {/* Regenerate for failed */}
                         {status === 'failed' && (
                             <button
                                 onClick={(e) => {
@@ -2112,25 +2159,22 @@ export default function VaultPage() {
                                 Regenerate
                             </button>
                         )}
-                        {/* Tooltip Icon (Only for current or approved) - OUTSIDE button for better z-index */}
-                        {(status === 'current' || status === 'approved') && (
-                            <div className="group/tooltip relative p-2 hidden md:block">
-                                <Info className={`w-4 h-4 transition-colors ${status === 'approved' ? 'text-green-500/50 hover:text-green-500' : 'text-cyan/50 hover:text-cyan'}`} />
-                                <div
-                                    className={`
-                                        absolute right-0 bottom-full mb-2 w-72 p-4 
-                                        rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 
-                                        pointer-events-none transition-opacity z-[9999]
-                                        ${status === 'approved' ? 'bg-[#232326] border border-green-500/30' : 'bg-[#232326] border border-cyan/30'}
-                                    `}
-                                >
-                                    <p className="text-sm text-gray-200 leading-relaxed">
-                                        <span className={`font-bold block mb-1.5 text-base ${status === 'approved' ? 'text-green-400' : 'text-cyan'}`}>Use Case:</span>
-                                        {SECTION_USE_CASES[section.id] || "Use this asset to grow your business."}
-                                    </p>
-                                </div>
-                            </div>
+
+                        {/* 3. Approve Button (Icon + Text) */}
+                        {status === 'current' && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleApprove(section.id, phase);
+                                }}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-bold uppercase tracking-wider rounded-lg border border-green-500/20 hover:border-green-500/40 transition-all"
+                            >
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                Approve
+                            </button>
                         )}
+
+                        {/* 4. Chevron */}
                         {status !== 'locked' && status !== 'generating' && status !== 'failed' && (
                             <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         )}
@@ -2254,13 +2298,13 @@ export default function VaultPage() {
                             onClick={() => { setActiveTab('dna'); setShowMediaLibrary(false); }}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'dna' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
                         >
-                            Business Assets
+                            Phase 1
                         </button>
                         <button
                             onClick={() => { setActiveTab('assets'); setShowMediaLibrary(false); }}
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'assets' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
                         >
-                            Marketing Assets
+                            Phase 2
                         </button>
                     </div>
 
@@ -2270,7 +2314,7 @@ export default function VaultPage() {
                 {/* Content Header */}
                 <div className="text-center mb-10">
                     <h1 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Business Assets' : 'Marketing Assets')}
+                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Phase 1' : 'Phase 2')}
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto">
                         {showMediaLibrary
@@ -2433,10 +2477,15 @@ export default function VaultPage() {
                                     )
                                 ) : (
                                     <div className="text-center py-16 bg-[#131314] rounded-3xl border border-dashed border-[#2a2a2d]">
-                                        <Lock className="w-16 h-16 text-gray-700 mx-auto mb-6" />
+                                        <div className="w-16 h-16 mx-auto mb-6 relative bg-cyan/5 rounded-2xl flex items-center justify-center border border-cyan/20">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
+                                                <path d="M7 11V7a5 5 0 0 1 10 0v4" className="text-cyan" />
+                                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" className="text-cyan fill-cyan/20" />
+                                            </svg>
+                                        </div>
                                         <h2 className="text-2xl font-bold mb-3">Marketing Assets Locked</h2>
                                         <p className="text-gray-500 max-w-sm mx-auto mb-8">
-                                            Finish your Business Assets and deploy your first funnel to unlock these professional marketing assets.
+                                            Finish your Phase 1 and deploy your first funnel to unlock these professional marketing assets.
                                         </p>
                                         <button
                                             onClick={() => router.push('/funnel-recommendation')}
@@ -2626,7 +2675,7 @@ export default function VaultPage() {
                                 className="bg-[#131314] border border-[#2a2a2d] rounded-2xl p-8 max-w-md w-full"
                             >
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">Deploy to GoHighLevel</h2>
+                                    <h2 className="text-2xl font-bold">Deploy to Builder</h2>
                                     {!isDeploying && (
                                         <button
                                             onClick={() => setShowDeployModal(false)}

@@ -160,18 +160,7 @@ export default function MediaFields({ funnelId, onApprove, onRenderApproveButton
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        {!sectionApproved && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleApproveSection();
-                                }}
-                                disabled={isApproving}
-                                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
-                            >
-                                {isApproving ? 'Approving...' : 'Approve Media'}
-                            </button>
-                        )}
+                        {/* Approve button removed (handled by Vault header) */}
                         {isExpanded ? (
                             <ChevronUp className="w-5 h-5 text-gray-500" />
                         ) : (

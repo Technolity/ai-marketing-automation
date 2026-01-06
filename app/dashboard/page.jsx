@@ -88,12 +88,12 @@ export default function Dashboard() {
 
     const handleCreateBusiness = async () => {
         if (!newBusinessName.trim()) {
-            toast.error("Please enter a business name");
+            toast.error("Please enter a marketing engine name");
             return;
         }
 
         if (businesses.length >= maxFunnels) {
-            toast.error(`You've reached your limit of ${maxFunnels} business(es). Upgrade to create more.`);
+            toast.error(`You've reached your limit of ${maxFunnels} marketing engine(s). Upgrade to create more.`);
             return;
         }
 
@@ -114,7 +114,7 @@ export default function Dashboard() {
             }
 
             const data = await res.json();
-            toast.success("Business created! Let's build your assets.");
+            toast.success("Marketing Engine created! Let's build your assets.");
             setShowCreateModal(false);
             setNewBusinessName('');
             loadUserData(); // Reload list
@@ -140,7 +140,7 @@ export default function Dashboard() {
             if (!res.ok) throw new Error('Delete failed');
 
             setBusinesses(prev => prev.filter(b => b.id !== funnelId));
-            toast.success("Business deleted");
+            toast.success("Marketing Engine deleted");
         } catch (error) {
             console.error('[Dashboard] Delete error:', error);
             toast.error("Failed to delete");
@@ -180,9 +180,9 @@ export default function Dashboard() {
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cyan/10 blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 blur-[120px] rounded-full pointer-events-none" />
 
-            <div className="relative z-10 max-w-7xl mx-auto px-6 py-8">
+            <div className="relative z-10 max-w-7xl mx-auto px-6 pt-0 pb-8">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-8 pt-6">
+                <div className="flex items-center justify-between mb-8">
                     <Link href="/" className="flex items-center gap-6 group cursor-pointer transition-opacity hover:opacity-80">
                         <img src="/tedos-logo.png" alt="TedOS" className="h-16 w-auto object-contain" />
                         <div className="h-10 w-px bg-white/10" />
@@ -219,7 +219,7 @@ export default function Dashboard() {
                 {/* Businesses Section */}
                 <div className="flex items-end justify-between mb-6">
                     <div>
-                        <h2 className="text-2xl font-black text-white mb-1">Your Businesses</h2>
+                        <h2 className="text-2xl font-black text-white mb-1">Your Marketing Engines</h2>
                         <p className="text-gray-400 text-sm">
                             {businesses.length} active of {maxFunnels} allowed slots
                         </p>
@@ -231,7 +231,7 @@ export default function Dashboard() {
                             className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-500 text-black text-sm font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-2"
                         >
                             <Plus className="w-4 h-4" />
-                            New Business
+                            New Marketing Engine
                         </button>
                     )}
                 </div>
@@ -289,7 +289,7 @@ export default function Dashboard() {
                                         <button
                                             onClick={() => handleDeleteBusiness(business.id, business.funnel_name)}
                                             className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                            title="Delete Business"
+                                            title="Delete Marketing Engine"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>

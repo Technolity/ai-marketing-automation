@@ -217,7 +217,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
     return (
         <>
             {/* Expose approve button via onRenderApproveButton callback */}
-            {onRenderApproveButton && onRenderApproveButton(approveButton)}
+            {/* Approve button removed (handled by Vault header) */}
 
             {/* Fields directly rendered - no wrapper card */}
             <div className="space-y-6">

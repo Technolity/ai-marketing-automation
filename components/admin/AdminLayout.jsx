@@ -25,7 +25,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const MENU_ITEMS = [
     { href: "/admin/overview", label: "Overview", icon: LayoutDashboard },
     { href: "/admin/users", label: "Users", icon: Users },
-    { href: "/admin/businesses", label: "Businesses", icon: Building2 },
+    { href: "/admin/businesses", label: "Marketing Engine", icon: Building2 },
     { href: "/admin/transcripts", label: "Transcripts", icon: FileText },
     { href: "/admin/knowledge-base", label: "Knowledge Base", icon: BookOpen },
     { href: "/admin/content-review", label: "Content Review", icon: FileSearch },

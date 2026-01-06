@@ -92,7 +92,7 @@ export default function AdminOverview() {
             color: "cyan"
         },
         {
-            label: "Businesses",
+            label: "Marketing Engines",
             value: stats.businesses?.total?.toLocaleString() || "0",
             change: `${stats.businesses?.completed || 0} completed`,
             up: true,

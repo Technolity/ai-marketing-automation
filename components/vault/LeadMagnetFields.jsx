@@ -139,7 +139,7 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
     return (
         <>
             {/* Expose approve button via onRenderApproveButton callback */}
-            {onRenderApproveButton && onRenderApproveButton(approveButton)}
+            {/* Approve button removed (handled by Vault header) */}
 
             <div className="space-y-6">
                 {isLoading ? (

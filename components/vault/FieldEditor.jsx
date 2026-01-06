@@ -53,6 +53,7 @@ export default function FieldEditor({
     const [chatbotOpen, setChatbotOpen] = useState(false);
     const [arrayItemChatbot, setArrayItemChatbot] = useState({ open: false, index: -1, itemValue: '' });
     const [objectSubfieldChatbot, setObjectSubfieldChatbot] = useState({ open: false, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
+    const [arrayObjectChatbot, setArrayObjectChatbot] = useState({ open: false, index: -1, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
 
     const {
         field_id,
@@ -328,7 +329,7 @@ export default function FieldEditor({
                                         const isTextarea = subfield.field_type === 'textarea';
 
                                         return (
-                                            <div key={sfIdx} className="space-y-1">
+                                            <div key={sfIdx} className="space-y-1 relative group">
                                                 <label className="text-xs font-medium text-gray-500">
                                                     {subfield.field_label}
                                                 </label>
@@ -366,6 +367,22 @@ export default function FieldEditor({
                                                             : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
                                                             }`}
                                                     />
+                                                )}
+                                                {/* AI Button for array object subfield */}
+                                                {!isEditing && (subfieldValue || '').length > 0 && (
+                                                    <button
+                                                        onClick={() => setArrayObjectChatbot({
+                                                            open: true,
+                                                            index: idx,
+                                                            subfieldId: subfield.field_id,
+                                                            subfieldLabel: subfield.field_label,
+                                                            subfieldValue: subfieldValue
+                                                        })}
+                                                        className="absolute top-6 right-2 z-10 p-1.5 bg-gradient-to-br from-purple-500/20 to-cyan/20 hover:from-purple-500/40 hover:to-cyan/40 border border-purple-500/30 hover:border-cyan/50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
+                                                        title="AI Assistant"
+                                                    >
+                                                        <Sparkles className="w-3.5 h-3.5 text-cyan" />
+                                                    </button>
                                                 )}
                                             </div>
                                         );
@@ -855,6 +872,47 @@ export default function FieldEditor({
                             setTimeout(() => setSaveSuccess(false), 2000);
                             if (onSave) onSave(field_id, newObject, { version: 'ai-updated' });
                         }).catch(err => console.error('[FieldEditor] Object subfield AI save error:', err));
+                    }}
+                />
+            )}
+
+            {/* Field Chatbot for Array Object Subfields */}
+            {field_type === 'array' && arrayObjectChatbot.open && (
+                <FieldChatbot
+                    isOpen={arrayObjectChatbot.open}
+                    onClose={() => setArrayObjectChatbot({ open: false, index: -1, subfieldId: '', subfieldLabel: '', subfieldValue: '' })}
+                    fieldId={`${field_id}[${arrayObjectChatbot.index}].${arrayObjectChatbot.subfieldId}`}
+                    fieldLabel={`${field_label} - Item ${arrayObjectChatbot.index + 1} - ${arrayObjectChatbot.subfieldLabel}`}
+                    fieldValue={arrayObjectChatbot.subfieldValue}
+                    sectionId={sectionId}
+                    funnelId={funnelId}
+                    onSave={(newValue) => {
+                        // Update the specific subfield within the array item
+                        const newArray = [...(Array.isArray(value) ? value : [])];
+                        const itemIndex = arrayObjectChatbot.index;
+                        // Determine if item is object or needs parsing (though usually object for this type)
+                        const currentItem = newArray[itemIndex] || {};
+                        const newItem = { ...currentItem, [arrayObjectChatbot.subfieldId]: newValue };
+                        newArray[itemIndex] = newItem;
+
+                        setValue(newArray);
+                        setArrayObjectChatbot({ open: false, index: -1, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
+
+                        // Save to database
+                        fetchWithAuth('/api/os/vault-field', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                funnel_id: funnelId,
+                                section_id: sectionId,
+                                field_id,
+                                field_value: newArray // Sending array directly
+                            })
+                        }).then(() => {
+                            setSaveSuccess(true);
+                            setTimeout(() => setSaveSuccess(false), 2000);
+                            if (onSave) onSave(field_id, newArray, { version: 'ai-updated' });
+                        }).catch(err => console.error('[FieldEditor] Array Object AI save error:', err));
                     }}
                 />
             )}

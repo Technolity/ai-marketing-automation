@@ -30,7 +30,7 @@ import GHLPushProgress from "@/components/GHLPushProgress";
 const FUNNEL_TYPES = [
     {
         id: 'vsl',
-        title: 'Marketing Funnel',
+        title: 'Appointment Generating Funnel with Free Gift',
         icon: Video,
         description: 'Video sales letter to convert viewers into buyers',
         bestFor: ['courses', 'high-ticket', 'digital products'],
@@ -224,10 +224,10 @@ export default function FunnelRecommendationPage() {
                     </motion.div>
 
                     <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4 tracking-tighter">
-                        Choose Your Funnel
+                        Your Recommended Funnel
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto">
-                        Select the funnel type that fits your business. This will unlock Phase 2 Marketing Assets in your vault.
+                        We have selected the best funnel for your Marketing Engine. This will unlock Phase 2 Marketing Assets in your vault.
                     </p>
                 </div>
 
@@ -270,56 +270,7 @@ export default function FunnelRecommendationPage() {
                         </div>
                     </motion.div>
 
-                    {/* Other Funnels - Locked */}
-                    <div className="mb-8">
-                        <button
-                            onClick={() => setShowAlternatives(!showAlternatives)}
-                            className="w-full flex items-center justify-center gap-2 py-4 text-gray-400 hover:text-white transition-colors"
-                        >
-                            <span>See other funnel options</span>
-                            <ChevronDown className={`w-5 h-5 transition-transform ${showAlternatives ? 'rotate-180' : ''}`} />
-                        </button>
 
-                        <AnimatePresence>
-                            {showAlternatives && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    className="space-y-4 overflow-hidden"
-                                >
-                                    {otherFunnels.map((funnel, idx) => {
-                                        const Icon = funnel.icon;
-                                        return (
-                                            <motion.div
-                                                key={funnel.id}
-                                                initial={{ opacity: 0, x: -20 }}
-                                                animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: idx * 0.1 }}
-                                                className="p-5 rounded-xl border bg-[#131314] border-[#2a2a2d] opacity-60 cursor-not-allowed"
-                                            >
-                                                <div className="flex items-center gap-4">
-                                                    <div className="w-12 h-12 rounded-xl bg-gray-700/50 flex items-center justify-center flex-shrink-0">
-                                                        <Lock className="w-5 h-5 text-gray-500" />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <h3 className="font-bold text-gray-500">{funnel.title}</h3>
-                                                            <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded flex items-center gap-1">
-                                                                <Wrench className="w-3 h-3" />
-                                                                {funnel.lockReason}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-sm text-gray-600">{funnel.description}</p>
-                                                    </div>
-                                                </div>
-                                            </motion.div>
-                                        );
-                                    })}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
 
                     {/* Continue Button */}
                     <motion.div
@@ -341,7 +292,7 @@ export default function FunnelRecommendationPage() {
                             ) : (
                                 <>
                                     <Sparkles className="w-6 h-6" />
-                                    Continue to Vault
+                                    Continue to Phase 2
                                     <ArrowRight className="w-6 h-6" />
                                 </>
                             )}
@@ -409,7 +360,7 @@ function StepComplete({ isActive, sessionId, router }) {
 
             <h2 className="text-4xl font-black mb-4 tracking-tight">MISSION ACCOMPLISHED</h2>
             <p className="text-gray-400 mb-12 max-w-md mx-auto leading-relaxed text-lg">
-                Your marketing funnel has been successfully deployed to GoHighLevel. All assets are synchronized and ready for use.
+                Your marketing funnel has been successfully deployed to Builder. All assets are synchronized and ready for use.
             </p>
 
             <div className="flex flex-col items-center gap-6">
