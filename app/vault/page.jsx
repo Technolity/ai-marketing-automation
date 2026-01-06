@@ -1919,7 +1919,7 @@ export default function VaultPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className={`rounded-xl border overflow-hidden transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
+                className={`rounded-xl border transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
                     status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
                         status === 'generating' ? 'bg-yellow-500/5 border-yellow-500/30 animate-pulse' :
                             status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
