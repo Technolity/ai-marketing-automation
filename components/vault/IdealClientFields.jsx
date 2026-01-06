@@ -3,9 +3,9 @@ import { RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 /**
-import { fetchWithAuth } from '@/lib/fetchWithAuth';
  * IdealClientFields - Granular field-level editing for Ideal Client section
  *
  * Props:
