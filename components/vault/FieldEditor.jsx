@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Pencil, Sparkles, Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon } from 'lucide-react';
+import InlineAIButton from './InlineAIButton';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
@@ -136,10 +137,37 @@ export default function FieldEditor({
     };
 
     // Render based on field type
+    // Handle inline AI update
+    const handleInlineAIUpdate = (newValue) => {
+        setValue(newValue);
+        // Trigger auto-save after AI update
+        setTimeout(async () => {
+            try {
+                const response = await fetchWithAuth('/api/os/vault-field', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        funnel_id: funnelId,
+                        section_id: sectionId,
+                        field_id,
+                        field_value: newValue
+                    })
+                });
+                if (response.ok) {
+                    setSaveSuccess(true);
+                    setTimeout(() => setSaveSuccess(false), 2000);
+                    if (onSave) onSave(field_id, newValue, await response.json());
+                }
+            } catch (error) {
+                console.error('[FieldEditor] AI update save error:', error);
+            }
+        }, 100);
+    };
+
     const renderFieldInput = () => {
         if (field_type === 'text' || field_type === 'textarea') {
             return (
-                <div className="w-full">
+                <div className="w-full relative group">
                     {field_type === 'text' ? (
                         <input
                             type="text"
@@ -165,6 +193,17 @@ export default function FieldEditor({
                                 ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
                                 : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
                                 }`}
+                        />
+                    )}
+                    {/* Inline AI Button - appears on hover */}
+                    {!isEditing && (value || '').length > 0 && (
+                        <InlineAIButton
+                            fieldId={field_id}
+                            fieldLabel={field_label}
+                            currentValue={value || ''}
+                            sectionId={sectionId}
+                            funnelId={funnelId}
+                            onUpdate={handleInlineAIUpdate}
                         />
                     )}
                     {field_metadata.hint && isEditing && (
