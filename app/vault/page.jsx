@@ -692,6 +692,10 @@ export default function VaultPage() {
     };
 
     const handleApprove = async (sectionId, phaseNumber) => {
+        // Get sections list for current phase
+        const phaseSections = phaseNumber === 1 ? PHASE_1_SECTIONS : PHASE_2_SECTIONS;
+        const currentIndex = phaseSections.findIndex(s => s.id === sectionId);
+
         if (phaseNumber === 1) {
             const newApprovals = [...approvedPhase1, sectionId];
             setApprovedPhase1(newApprovals);
@@ -713,7 +717,21 @@ export default function VaultPage() {
                 toast.success("Section approved!");
             }
         }
-        // Keep sections expanded after approval
+
+        // Auto-collapse current section and expand next section
+        const newExpanded = new Set(expandedSections);
+        newExpanded.delete(sectionId); // Collapse current
+
+        // Find and expand next section
+        if (currentIndex >= 0 && currentIndex < phaseSections.length - 1) {
+            const nextSection = phaseSections[currentIndex + 1];
+            newExpanded.add(nextSection.id);
+        } else if (phaseNumber === 1 && hasFunnelChoice && PHASE_2_SECTIONS.length > 0) {
+            // If Phase 1 complete and has funnel choice, expand first Phase 2 section
+            newExpanded.add(PHASE_2_SECTIONS[0].id);
+        }
+
+        setExpandedSections(newExpanded);
     };
 
     // REMOVED: handleRegenerate function - replaced by AI Feedback Chat
@@ -1959,7 +1977,7 @@ export default function VaultPage() {
                                     handleRegenerateSection(section.id, section.numericKey);
                                 }}
                                 disabled={regeneratingSection === section.id}
-                                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5 hover:opacity-90 transition-all disabled:opacity-50"
+                                className="px-3 sm:px-4 py-1.5 sm:py-2 bg-cyan/10 border border-cyan/30 text-cyan rounded-lg text-xs sm:text-sm font-bold flex items-center gap-1.5 hover:bg-cyan/20 transition-all disabled:opacity-50"
                             >
                                 {regeneratingSection === section.id ? (
                                     <Loader2 className="w-3 sm:w-4 h-3 sm:h-4 animate-spin" />
