@@ -114,8 +114,11 @@ export default function FunnelRecommendationPage() {
                     // Default to VSL since it's the only active funnel
                     setSelectedFunnel(FUNNEL_TYPES.find(f => f.id === 'vsl'));
 
-                    // Set funnel ID from source
-                    if (data.source?.id) {
+                    // Set funnel ID - prioritize URL param, fallback to source.id
+                    const urlFunnelId = searchParams.get('funnel_id');
+                    if (urlFunnelId) {
+                        setFunnelId(urlFunnelId);
+                    } else if (data.source?.id) {
                         setFunnelId(data.source.id);
                     }
                 }

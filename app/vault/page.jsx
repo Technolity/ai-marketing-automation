@@ -432,11 +432,8 @@ export default function VaultPage() {
     const [hasFunnelChoice, setHasFunnelChoice] = useState(false);
     const [approvedPhase2, setApprovedPhase2] = useState([]);
 
-    // UI states - All sections expanded by default
-    const [expandedSections, setExpandedSections] = useState(() => {
-        const allSectionIds = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS].map(s => s.id);
-        return new Set(allSectionIds);
-    });
+    // UI states - All sections collapsed by default
+    const [expandedSections, setExpandedSections] = useState(() => new Set());
     const [editingSection, setEditingSection] = useState(null);
     const [editedContent, setEditedContent] = useState({});
     const [isRegenerating, setIsRegenerating] = useState(false);
