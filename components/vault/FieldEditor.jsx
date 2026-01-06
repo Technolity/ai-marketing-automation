@@ -340,9 +340,17 @@ export default function FieldEditor({
 
             // Parse stored JSON string into object
             try {
-                objectValue = typeof value === 'string' ? JSON.parse(value) : (value || {});
+                // Handle empty/null values gracefully
+                if (!value || value === '' || value === 'null' || value === 'undefined') {
+                    objectValue = {};
+                } else {
+                    objectValue = typeof value === 'string' ? JSON.parse(value) : (value || {});
+                }
             } catch (e) {
-                console.error('[FieldEditor] Failed to parse object value:', e);
+                // Only log if the value wasn't empty - empty values failing to parse is expected
+                if (value && value.length > 0) {
+                    console.error('[FieldEditor] Failed to parse object value:', e);
+                }
                 objectValue = {};
             }
 
