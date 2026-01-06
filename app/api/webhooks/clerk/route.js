@@ -124,12 +124,14 @@ export async function POST(req) {
  * Create user profile in database
  */
 async function handleUserCreated(data) {
-  const { id, email_addresses, first_name, last_name, image_url } = data;
+  const { id, email_addresses, first_name, last_name, image_url, public_metadata } = data;
 
   const email = email_addresses?.[0]?.email_address;
   const fullName = `${first_name || ''} ${last_name || ''}`.trim();
+  // Check public_metadata for admin status (set in Clerk dashboard)
+  const isAdmin = public_metadata?.is_admin === true || public_metadata?.role === 'admin';
 
-  console.log(`[Webhook] Creating user: ${email}`);
+  console.log(`[Webhook] Creating user: ${email}, admin: ${isAdmin}`);
 
   const { error } = await supabase
     .from('user_profiles')
@@ -138,7 +140,7 @@ async function handleUserCreated(data) {
       email: email,
       full_name: fullName || email?.split('@')[0],
       avatar_url: image_url,
-      is_admin: false,
+      is_admin: isAdmin,
       subscription_tier: 'basic'
     });
 
@@ -151,7 +153,7 @@ async function handleUserCreated(data) {
     throw error;
   }
 
-  console.log(`[Webhook] User created successfully: ${email}`);
+  console.log(`[Webhook] User created successfully: ${email}, admin: ${isAdmin}`);
 }
 
 /**
@@ -159,12 +161,14 @@ async function handleUserCreated(data) {
  * Update user profile in database
  */
 async function handleUserUpdated(data) {
-  const { id, email_addresses, first_name, last_name, image_url } = data;
+  const { id, email_addresses, first_name, last_name, image_url, public_metadata } = data;
 
   const email = email_addresses?.[0]?.email_address;
   const fullName = `${first_name || ''} ${last_name || ''}`.trim();
+  // Check public_metadata for admin status (set in Clerk dashboard)
+  const isAdmin = public_metadata?.is_admin === true || public_metadata?.role === 'admin';
 
-  console.log(`[Webhook] Updating user: ${email}`);
+  console.log(`[Webhook] Updating user: ${email}, admin: ${isAdmin}`);
 
   const { error } = await supabase
     .from('user_profiles')
@@ -172,6 +176,7 @@ async function handleUserUpdated(data) {
       email: email,
       full_name: fullName || email?.split('@')[0],
       avatar_url: image_url,
+      is_admin: isAdmin,
       updated_at: new Date().toISOString()
     })
     .eq('id', id);  // Match by Clerk user ID
@@ -180,7 +185,7 @@ async function handleUserUpdated(data) {
     throw error;
   }
 
-  console.log(`[Webhook] User updated successfully: ${email}`);
+  console.log(`[Webhook] User updated successfully: ${email}, admin: ${isAdmin}`);
 }
 
 /**
