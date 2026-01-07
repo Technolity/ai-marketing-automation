@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw, FileDown, FileText } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import { exportToPDF, exportToDOCX } from '@/lib/exportUtils';
 
 /**
  * SalesScriptsFields - Granular field-level editing for Closer Script section
@@ -190,7 +191,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
         <button
             onClick={handleApproveSection}
             disabled={isApproving}
-            className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="bg-gradient-to-r from-cyan to-cyan/80 text-white font-bold px-6 py-2.5 rounded-xl hover:from-cyan/90 hover:to-cyan/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
             {isApproving ? (
                 <>
@@ -205,11 +206,11 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
             )}
         </button>
     ) : (
-        <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-            <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+        <div className="flex items-center gap-2 px-4 py-2 bg-cyan/10 border border-cyan/20 rounded-xl">
+            <div className="w-5 h-5 bg-cyan rounded-full flex items-center justify-center">
                 <CheckCircle className="w-3 h-3 text-white" />
             </div>
-            <span className="text-sm text-green-400 font-semibold">Approved</span>
+            <span className="text-sm text-cyan font-semibold">Approved</span>
         </div>
     );
 
@@ -263,6 +264,34 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
                     </>
                 )}
             </div>
+
+            {/* Export Buttons - Bottom of Section */}
+            {!isLoading && fields.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-[#2a2a2d]">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-gradient-to-r from-cyan/5 to-purple-500/5 rounded-2xl border border-cyan/20">
+                        <div>
+                            <h3 className="text-lg font-bold text-white mb-1">Export Your Closer Script</h3>
+                            <p className="text-sm text-gray-400">Download your complete script for offline use or printing</p>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => exportToPDF(fields, 'Closer Script')}
+                                className="px-5 py-2.5 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/30 rounded-xl font-semibold flex items-center gap-2 transition-all"
+                            >
+                                <FileDown className="w-4 h-4" />
+                                Export PDF
+                            </button>
+                            <button
+                                onClick={() => exportToDOCX(fields, 'Closer Script')}
+                                className="px-5 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-xl font-semibold flex items-center gap-2 transition-all"
+                            >
+                                <FileText className="w-4 h-4" />
+                                Export Doc
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* AI Feedback Modal */}
             {feedbackModalOpen && selectedField && (

@@ -1,14 +1,21 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-import { mapSessionToCustomValues, formatForGHLAPI } from '@/lib/ghl/customValueMapper';
+import { pushVaultToGHL } from '@/lib/ghl/pushSystem';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/ghl/deploy-funnel
  * Deploy complete vault content to GoHighLevel location
- * Maps all vault content and media to 161 custom values
+ * Uses pushVaultToGHL with caching for optimal performance
+ * 
+ * Body:
+ * {
+ *   funnel_id: string (required)
+ *   location_id?: string (auto-fetched if not provided)
+ *   access_token?: string (auto-fetched if not provided)
+ * }
  */
 export async function POST(req) {
     try {
@@ -18,122 +25,86 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { funnel_id, location_id, access_token } = body;
+        let { funnel_id, location_id, access_token } = body;
 
-        if (!funnel_id || !location_id || !access_token) {
+        if (!funnel_id) {
             return NextResponse.json({
-                error: 'Missing required fields: funnel_id, location_id, access_token'
+                error: 'Missing required field: funnel_id'
             }, { status: 400 });
         }
 
-        console.log('[GHL Deploy] Starting deployment for funnel:', funnel_id);
+        // === AUTO-FETCH CREDENTIALS IF NOT PROVIDED ===
+        if (!location_id || !access_token) {
+            console.log('[GHL Deploy] Fetching saved credentials...');
 
-        // 1. Verify funnel ownership
+            const { data: credentials, error: credError } = await supabaseAdmin
+                .from('ghl_credentials')
+                .select('location_id, access_token')
+                .eq('user_id', userId)
+                .eq('is_active', true)
+                .single();
+
+            if (credError || !credentials) {
+                return NextResponse.json({
+                    error: 'No GHL credentials found. Please connect your GHL account first.',
+                    code: 'NO_CREDENTIALS'
+                }, { status: 400 });
+            }
+
+            location_id = location_id || credentials.location_id;
+            access_token = access_token || credentials.access_token;
+
+            console.log('[GHL Deploy] Using saved credentials for location:', location_id);
+        }
+
+        // Verify funnel exists (for logging purposes)
+        console.log('[GHL Deploy] Looking for funnel:', funnel_id);
+
         const { data: funnel, error: funnelError } = await supabaseAdmin
             .from('user_funnels')
-            .select('id, funnel_name, funnel_type')
+            .select('id, funnel_name')
             .eq('id', funnel_id)
-            .eq('user_id', userId)
             .single();
 
-        if (funnelError || !funnel) {
-            return NextResponse.json({ error: 'Funnel not found or unauthorized' }, { status: 404 });
+        if (funnelError) {
+            console.log('[GHL Deploy] Funnel query error:', funnelError?.message);
+            // Continue anyway - funnel might not exist in user_funnels but vault_content might
         }
 
-        // 2. Fetch all vault content sections
-        const { data: vaultSections, error: vaultError } = await supabaseAdmin
-            .from('vault_content')
-            .select('*')
-            .eq('funnel_id', funnel_id)
-            .eq('is_current_version', true)
-            .order('section_id', { ascending: true });
+        const funnelName = funnel?.funnel_name || 'Unknown Funnel';
+        console.log('[GHL Deploy] Starting deployment for:', funnelName);
 
-        if (vaultError) {
-            console.error('[GHL Deploy] Error fetching vault content:', vaultError);
-            return NextResponse.json({ error: 'Failed to fetch vault content' }, { status: 500 });
-        }
-
-        // 3. Fetch all media fields
-        const { data: mediaFields, error: mediaError } = await supabaseAdmin
-            .from('vault_content_fields')
-            .select('*')
-            .eq('funnel_id', funnel_id)
-            .eq('section_id', 'media')
-            .eq('is_current_version', true);
-
-        if (mediaError) {
-            console.error('[GHL Deploy] Error fetching media:', mediaError);
-        }
-
-        // 4. Reconstruct session-like object for mapper
-        const sessionData = {};
-        vaultSections.forEach(section => {
-            if (section.content) {
-                sessionData[section.section_id] = section.content;
+        // Use pushVaultToGHL with caching
+        const pushResult = await pushVaultToGHL({
+            userId,
+            funnelId: funnel_id,
+            locationId: location_id,
+            accessToken: access_token,
+            onProgress: (progress) => {
+                console.log('[GHL Deploy]', progress.message);
             }
         });
 
-        // 5. Add media to session data
-        if (mediaFields && mediaFields.length > 0) {
-            sessionData.media = {};
-            mediaFields.forEach(field => {
-                if (field.field_value) {
-                    sessionData.media[field.field_id] = field.field_value;
-                }
-            });
-        }
-
-        console.log('[GHL Deploy] Session data prepared:', Object.keys(sessionData));
-
-        // 6. Map to GHL custom values (161 values)
-        const customValuesMap = await mapSessionToCustomValues(sessionData, funnel_id);
-
-        // 7. Format for GHL API
-        const formattedValues = formatForGHLAPI(customValuesMap);
-
-        console.log('[GHL Deploy] Mapped custom values:', Object.keys(formattedValues).length);
-
-        // 8. Push to GHL
-        const ghlResponse = await fetch(`https://services.leadconnectorhq.com/locations/${location_id}/customValues`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${access_token}`,
-                'Content-Type': 'application/json',
-                'Version': '2021-07-28'
-            },
-            body: JSON.stringify(formattedValues)
-        });
-
-        if (!ghlResponse.ok) {
-            const errorText = await ghlResponse.text();
-            console.error('[GHL Deploy] GHL API error:', errorText);
-            return NextResponse.json({
-                error: 'Failed to push to GHL',
-                details: errorText
-            }, { status: ghlResponse.status });
-        }
-
-        const ghlResult = await ghlResponse.json();
-        console.log('[GHL Deploy] Successfully pushed to GHL');
-
-        // 9. Save deployment record
-        const { error: deployError } = await supabaseAdmin
+        // Save deployment record
+        await supabaseAdmin
             .from('ghl_deployments')
             .insert({
                 funnel_id,
                 user_id: userId,
                 location_id,
-                custom_values_count: Object.keys(formattedValues).length,
-                deployment_status: 'success',
-                deployed_at: new Date().toISOString()
+                custom_values_count: pushResult.summary?.total || 0,
+                deployment_status: pushResult.cached ? 'cached' : 'success',
+                deployed_at: new Date().toISOString(),
+                metadata: {
+                    operationId: pushResult.operationId,
+                    cached: pushResult.cached || false,
+                    created: pushResult.summary?.created || 0,
+                    updated: pushResult.summary?.updated || 0,
+                    skipped: pushResult.summary?.skipped || 0
+                }
             });
 
-        if (deployError) {
-            console.error('[GHL Deploy] Error saving deployment record:', deployError);
-            // Don't fail the request, just log it
-        }
-
-        // 10. Update funnel to mark as deployed
+        // Update funnel
         await supabaseAdmin
             .from('user_funnels')
             .update({
@@ -143,15 +114,26 @@ export async function POST(req) {
             })
             .eq('id', funnel_id);
 
+        // Update last_used_at on credentials
+        await supabaseAdmin
+            .from('ghl_credentials')
+            .update({ last_used_at: new Date().toISOString() })
+            .eq('user_id', userId);
+
         return NextResponse.json({
             success: true,
-            message: 'Successfully deployed to GoHighLevel',
-            valuesDeployed: Object.keys(formattedValues).length,
-            funnelName: funnel.funnel_name
+            message: pushResult.cached
+                ? 'Content unchanged - using cached deployment'
+                : 'Successfully deployed to GoHighLevel',
+            cached: pushResult.cached || false,
+            valuesDeployed: pushResult.summary?.total || 0,
+            summary: pushResult.summary,
+            funnelName: funnel.funnel_name,
+            operationId: pushResult.operationId
         });
 
     } catch (error) {
-        console.error('[GHL Deploy] Unexpected error:', error);
+        console.error('[GHL Deploy] Error:', error);
         return NextResponse.json({
             error: 'Internal server error',
             details: error.message

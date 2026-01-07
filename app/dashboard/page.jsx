@@ -342,16 +342,16 @@ export default function Dashboard() {
                                 <Building2 className="w-7 h-7 text-cyan" />
                             </div>
 
-                            <h2 className="text-2xl font-black text-white mb-2">New Business</h2>
+                            <h2 className="text-2xl font-black text-white mb-2">Create New Brand</h2>
                             <p className="text-gray-400 mb-6 font-medium">
-                                Provide a name to get started. You can change this later.
+                                What's your brand or business called?
                             </p>
 
                             <input
                                 type="text"
                                 value={newBusinessName}
                                 onChange={(e) => setNewBusinessName(e.target.value)}
-                                placeholder="e.g. My Marketing Agency"
+                                placeholder="e.g. Acme Coaching, Sarah's Wellness"
                                 className="w-full px-4 py-4 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors mb-6 font-medium"
                                 autoFocus
                                 onKeyPress={(e) => e.key === 'Enter' && handleCreateBusiness()}
@@ -373,7 +373,7 @@ export default function Dashboard() {
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                     ) : (
                                         <>
-                                            Create Business
+                                            Create Brand
                                         </>
                                     )}
                                 </button>

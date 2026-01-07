@@ -14,18 +14,21 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from 'react-dom';
+import FeedbackModal from '@/components/vault/FeedbackModal';
+import { supabase } from '@/lib/supabase';
+
 import {
     Loader2, ChevronRight, RefreshCw, CheckCircle, Lock, AlertTriangle,
     Users, MessageSquare, BookOpen, Gift, Mic, Magnet,
     Video, Mail, Megaphone, Layout, Bell, Lightbulb,
     Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
     ChevronDown, ChevronUp, Save, Image as ImageIcon, Video as VideoIcon, Plus, Trash2 as TrashIcon, ExternalLink,
-    Upload, X, Info, FileImage
+    Upload, X, Info, FileImage, Rocket, AlertOctagon, Play
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import FeedbackChatModal from "@/components/FeedbackChatModal";
+
 
 // Helper component for safe hydration-friendly portaling
 const SafePortal = ({ children, targetId }) => {
@@ -463,6 +466,7 @@ export default function VaultPage() {
     // AI Feedback Chat states
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [feedbackSection, setFeedbackSection] = useState(null);
+    const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
 
     // GHL Deployment states
     const [showDeployModal, setShowDeployModal] = useState(false);
@@ -470,6 +474,8 @@ export default function VaultPage() {
     const [ghlAccessToken, setGhlAccessToken] = useState('');
     const [isDeploying, setIsDeploying] = useState(false);
     const [deploymentComplete, setDeploymentComplete] = useState(false);
+    const [ghlConnected, setGhlConnected] = useState(false);
+    const [checkingGhlConnection, setCheckingGhlConnection] = useState(false);
 
     // Computed states
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
@@ -749,8 +755,11 @@ export default function VaultPage() {
         }
 
         // Auto-collapse current section and expand next section
-        const newExpanded = new Set(expandedSections);
-        newExpanded.delete(sectionId); // Collapse current
+        // "One Action At A Time" Rules:
+        // 1. Collapse current section
+        // 2. Clear ANY other expanded sections (focus mode)
+        // 3. Only expand the IMMEDIATE next section
+        const newExpanded = new Set();
 
         // Find and expand next section
         if (currentIndex >= 0 && currentIndex < phaseSections.length - 1) {
@@ -768,7 +777,7 @@ export default function VaultPage() {
     // Old regeneration was blind - new Feedback system uses user input for targeted refinement
 
     // Handle regeneration of a single failed section
-    const handleRegenerateSection = async (sectionId, numericKey) => {
+    const handleRegenerateSection = async (sectionId, numericKey, feedback = null) => {
         setRegeneratingSection(sectionId);
         setSectionStatuses(prev => ({ ...prev, [sectionId]: 'generating' }));
 
@@ -784,7 +793,8 @@ export default function VaultPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     funnel_id: funnelId,
-                    section_key: numericKey
+                    section_key: numericKey,
+                    feedback: feedback // Pass feedback if present
                 })
             });
 
@@ -796,7 +806,15 @@ export default function VaultPage() {
                     ...prev,
                     [sectionId]: result.section.content
                 }));
+                // Reset granular field components for this section to force re-render/update
+                // Or simply the data update should trigger it if they use props correctly.
+
                 setSectionStatuses(prev => ({ ...prev, [sectionId]: 'generated' }));
+
+                // Reset approval status since content has changed
+                setApprovedPhase1(prev => prev.filter(id => id !== sectionId));
+                setApprovedPhase2(prev => prev.filter(id => id !== sectionId));
+
                 toast.success(`${result.section.name} regenerated successfully!`);
             } else {
                 setSectionStatuses(prev => ({ ...prev, [sectionId]: 'failed' }));
@@ -808,6 +826,30 @@ export default function VaultPage() {
             toast.error('Failed to regenerate section');
         } finally {
             setRegeneratingSection(null);
+        }
+    };
+
+    const handleFeedbackSubmit = async (feedback) => {
+        if (!feedbackSection) return;
+
+        setIsFeedbackSubmitting(true);
+        try {
+            // Find the numeric key for the section
+            const mapping = Object.entries(CONTENT_MAPPING).find(([key, val]) => val === feedbackSection.id);
+            const numericKey = mapping ? parseInt(mapping[0]) : null;
+
+            if (!numericKey) {
+                throw new Error("Section key not found");
+            }
+
+            await handleRegenerateSection(feedbackSection.id, numericKey, feedback);
+            setFeedbackModalOpen(false);
+            setFeedbackSection(null);
+        } catch (error) {
+            console.error("Feedback submission error:", error);
+            toast.error("Failed to submit feedback");
+        } finally {
+            setIsFeedbackSubmitting(false);
         }
     };
 
@@ -852,44 +894,99 @@ export default function VaultPage() {
         }
     };
 
+    // Check for saved GHL credentials when modal opens
+    const checkGhlConnection = async () => {
+        console.log('[Vault] Checking GHL connection...');
+        setCheckingGhlConnection(true);
+        try {
+            const res = await fetchWithAuth('/api/ghl/credentials');
+            const data = await res.json();
+            console.log('[Vault] GHL credentials response:', data);
+
+            if (data.exists && data.credentials?.location_id) {
+                console.log('[Vault] GHL Connected! Location:', data.credentials.location_id);
+                setGhlConnected(true);
+                setGhlLocationId(data.credentials.location_id);
+            } else {
+                console.log('[Vault] No GHL credentials found');
+                setGhlConnected(false);
+            }
+        } catch (error) {
+            console.error('[Vault] Error checking GHL connection:', error);
+            setGhlConnected(false);
+        } finally {
+            setCheckingGhlConnection(false);
+        }
+    };
+
+    // Handle opening deploy modal
+    const handleOpenDeployModal = () => {
+        console.log('[Vault] handleOpenDeployModal called! Setting showDeployModal to true');
+        setShowDeployModal(true);
+        setDeploymentComplete(false);
+        checkGhlConnection();
+        console.log('[Vault] showDeployModal state set');
+    };
+
     // Handle GHL Deployment
     const handleDeployToGHL = async () => {
-        if (!ghlLocationId || !ghlAccessToken) {
-            toast.error('Please enter both Location ID and Access Token');
-            return;
-        }
+        console.log('[Vault] Deploy clicked. States:', { ghlConnected, ghlLocationId, ghlAccessToken: !!ghlAccessToken });
 
         const funnelId = dataSource?.id || searchParams.get('funnel_id');
+        console.log('[Vault] Funnel ID:', funnelId);
+
         if (!funnelId) {
             toast.error('No funnel ID found');
             return;
         }
 
+        // If not connected via saved credentials, require manual entry
+        if (!ghlConnected && (!ghlLocationId || !ghlAccessToken)) {
+            toast.error('Please enter both Location ID and Access Token');
+            return;
+        }
+
         setIsDeploying(true);
+        console.log('[Vault] Starting deployment...');
+
         try {
+            // Build request body - only send credentials if manually entered
+            const requestBody = { funnel_id: funnelId };
+            if (!ghlConnected) {
+                requestBody.location_id = ghlLocationId;
+                requestBody.access_token = ghlAccessToken;
+            }
+
+            console.log('[Vault] Request body:', { ...requestBody, access_token: requestBody.access_token ? '[REDACTED]' : undefined });
+
             const res = await fetchWithAuth('/api/ghl/deploy-funnel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    funnel_id: funnelId,
-                    location_id: ghlLocationId,
-                    access_token: ghlAccessToken
-                })
+                body: JSON.stringify(requestBody)
             });
 
+            console.log('[Vault] Response status:', res.status);
             const result = await res.json();
+            console.log('[Vault] Response:', result);
 
             if (res.ok && result.success) {
-                toast.success(`🎉 Deployed ${result.valuesDeployed} custom values to GHL!`);
+                const message = result.cached
+                    ? '✅ Content unchanged - deployment cached!'
+                    : `🎉 Deployed ${result.valuesDeployed} custom values to GHL!`;
+                toast.success(message);
                 setDeploymentComplete(true);
 
-                // Close modal and redirect after short delay
-                setTimeout(() => {
-                    setShowDeployModal(false);
-                    router.push('/dashboard');
-                }, 2000);
+                // Show deployment summary
+                if (result.summary) {
+                    console.log('[Vault] Deployment summary:', result.summary);
+                }
             } else {
-                toast.error(result.error || 'Deployment failed');
+                if (result.code === 'NO_CREDENTIALS') {
+                    setGhlConnected(false);
+                    toast.error('Please connect your GHL account or enter credentials manually');
+                } else {
+                    toast.error(result.error || 'Deployment failed');
+                }
                 console.error('[Vault] Deployment error:', result);
             }
         } catch (error) {
@@ -1838,7 +1935,11 @@ export default function VaultPage() {
                         {/* Deploy to GHL Button */}
                         <div className="flex gap-4 justify-center">
                             <button
-                                onClick={() => setShowDeployModal(true)}
+                                onClick={() => {
+                                    console.log('[Vault] Deploy to Builder clicked!');
+                                    window.alert('Deploy to Builder button clicked!');
+                                    handleOpenDeployModal();
+                                }}
                                 className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-cyan/30 transition-all hover:scale-105 flex items-center gap-2"
                             >
                                 <ExternalLink className="w-5 h-5" />
@@ -1875,164 +1976,155 @@ export default function VaultPage() {
                         </div>
                     </div>
                 </div>
-            </div>
-        );
-    }
 
-    // Helper to render completed sections
-    function renderCompletedSection(section, phaseNumber) {
-        const Icon = section.icon;
-        const content = vaultData[section.id];
-        const isExpanded = expandedSections.has(section.id);
-
-        return (
-            <div key={section.id} className="rounded-xl border border-green-500/30 bg-green-500/5 overflow-hidden">
-                <button
-                    onClick={() => {
-                        const newExpanded = new Set(expandedSections);
-                        if (isExpanded) {
-                            newExpanded.delete(section.id);
-                        } else {
-                            newExpanded.add(section.id);
-                        }
-                        setExpandedSections(newExpanded);
-                    }}
-                    className="w-full p-4 flex items-center gap-4 text-left hover:bg-green-500/10 transition-colors"
-                >
-                    <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center">
-                        <Icon className="w-5 h-5 text-green-400" />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-green-400">{section.title}</h3>
-                        <p className="text-xs text-gray-500">{section.subtitle}</p>
-                    </div>
-                    {/* 1. Info Tooltip (First) */}
-                    <div className="group/tooltip relative p-2 hidden md:block z-[100]">
-                        <Info className="w-4 h-4 text-green-500/50 hover:text-green-500 transition-colors" />
-                        <div className="absolute right-0 top-full mt-2 w-72 p-4 bg-[#232326] border border-green-500/30 rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity z-[200]">
-                            <p className="text-sm text-gray-200 leading-relaxed">
-                                <span className="font-bold text-green-400 block mb-1.5 text-base">Use Case:</span>
-                                {SECTION_USE_CASES[section.id] || "Use this asset to grow your business."}
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* 2. Regenerate Button (Icon Only) */}
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleRegenerateSection(section.id, section.numericKey);
-                        }}
-                        disabled={regeneratingSection === section.id}
-                        className="p-2 hover:bg-green-500/20 rounded-lg transition-colors group/regen"
-                        title="Regenerate with AI"
-                    >
-                        <RefreshCw className={`w-4 h-4 text-gray-400 group-hover/regen:text-green-400 transition-colors ${regeneratingSection === section.id ? 'animate-spin' : ''}`} />
-                    </button>
-
-                    {/* 3. Approve Button (Icon + Text) */}
-                    {/* Only show if granular (logic based on Granular existence) or generally available? 
-                        Assuming we want to allow approval from header for all? 
-                        The granular component usually handles approval internally, but user asked for header button.
-                        We'll trigger handleApprove which updates state.
-                    */}
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            // Assuming handleApprove handles the logic (like incrementing counts)
-                            handleApprove(section.id, phaseNumber);
-                        }}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-bold uppercase tracking-wider rounded-lg border border-green-500/20 hover:border-green-500/40 transition-all ml-2"
-                    >
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        Approve
-                    </button>
-
-                    {/* 4. Chevron */}
-                    <ChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                </button>
-
+                {/* GHL Deployment Modal - Also needed in vault complete view */}
                 <AnimatePresence>
-                    {isExpanded && (
+                    {showDeployModal && (
                         <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="border-t border-green-500/20"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                            onClick={() => !isDeploying && setShowDeployModal(false)}
                         >
-                            <div className="p-4">
-                                <div className="p-4 sm:p-6">
-                                    {GRANULAR_FIELD_COMPONENTS[section.id] ? (
-                                        (() => {
-                                            const GranularComponent = GRANULAR_FIELD_COMPONENTS[section.id];
-                                            const funnelId = searchParams.get('funnel_id') || dataSource?.id;
-                                            return (
-                                                <GranularComponent
-                                                    funnelId={funnelId}
-                                                    onApprove={(sectionId) => handleApprove(sectionId, phaseNumber)}
-                                                />
-                                            );
-                                        })()
-                                    ) : (
-                                        <div className="bg-[#0e0e0f] rounded-lg p-4 mb-4 max-h-80 overflow-y-auto">
-                                            <ContentRenderer
-                                                content={editingSection === section.id ? editedContent : content}
-                                                sectionId={section.id}
-                                                isEditing={editingSection === section.id}
-                                                onUpdate={updateContentValue}
-                                            />
-                                        </div>
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.9, opacity: 0 }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="bg-[#131314] border border-[#2a2a2d] rounded-2xl p-8 max-w-md w-full"
+                            >
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-2xl font-bold">Deploy to Builder</h2>
+                                    {!isDeploying && (
+                                        <button
+                                            onClick={() => setShowDeployModal(false)}
+                                            className="p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors"
+                                        >
+                                            <X className="w-5 h-5" />
+                                        </button>
                                     )}
                                 </div>
-                                {!GRANULAR_FIELD_COMPONENTS[section.id] && (
-                                    <div className="flex gap-3">
-                                        {editingSection === section.id ? (
-                                            <>
-                                                <button
-                                                    onClick={() => handleSaveEdit(section.id)}
-                                                    className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 transition-all text-sm font-bold"
-                                                >
-                                                    <CheckCircle className="w-4 h-4" /> Save Changes
-                                                </button>
-                                                <button
-                                                    onClick={() => setEditingSection(null)}
-                                                    className="px-4 py-2 bg-[#2a2a2d] text-white rounded-lg flex items-center gap-2 hover:bg-[#3a3a3d] transition-all text-sm"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <button
-                                                    onClick={() => {
-                                                        setFeedbackSection(section);
-                                                        setFeedbackModalOpen(true);
-                                                    }}
-                                                    className="px-4 py-2 btn-feedback rounded-lg flex items-center gap-2 text-sm"
-                                                >
-                                                    <MessageSquare className="w-4 h-4" /> Feedback
-                                                </button>
-                                                {unsavedChanges && (
-                                                    <button
-                                                        onClick={handleSaveChanges}
-                                                        disabled={isSaving}
-                                                        className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black rounded-lg flex items-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 text-sm font-bold"
-                                                    >
-                                                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                                        Save
-                                                    </button>
-                                                )}
-                                            </>
-                                        )}
+
+                                {deploymentComplete ? (
+                                    <div className="text-center py-8">
+                                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                                            <CheckCircle className="w-10 h-10 text-green-500" />
+                                        </div>
+                                        <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
+                                        <p className="text-gray-400 mb-4">Your content is now live in GHL.</p>
+                                        <button
+                                            onClick={() => setShowDeployModal(false)}
+                                            className="px-6 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors"
+                                        >
+                                            Close
+                                        </button>
                                     </div>
+                                ) : (
+                                    <>
+                                        {/* Connection Status */}
+                                        {checkingGhlConnection ? (
+                                            <div className="flex items-center gap-3 mb-6 p-4 bg-[#1b1b1d] rounded-lg">
+                                                <Loader2 className="w-5 h-5 animate-spin text-cyan" />
+                                                <span className="text-gray-400">Checking GHL connection...</span>
+                                            </div>
+                                        ) : ghlConnected ? (
+                                            <div className="flex items-center gap-3 mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                                <CheckCircle className="w-5 h-5 text-green-500" />
+                                                <div>
+                                                    <p className="text-green-400 font-medium">GHL Connected</p>
+                                                    <p className="text-sm text-gray-400">Location: {ghlLocationId}</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4 mb-6">
+                                                <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
+                                                    <Info className="w-5 h-5 text-yellow-500" />
+                                                    <span className="text-sm text-yellow-300">No saved GHL connection. Enter credentials manually:</span>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                        GHL Location ID
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={ghlLocationId}
+                                                        onChange={(e) => setGhlLocationId(e.target.value)}
+                                                        placeholder="Your GHL Location ID"
+                                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
+                                                        disabled={isDeploying}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                        GHL Access Token
+                                                    </label>
+                                                    <input
+                                                        type="password"
+                                                        value={ghlAccessToken}
+                                                        onChange={(e) => setGhlAccessToken(e.target.value)}
+                                                        placeholder="Your GHL Access Token"
+                                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
+                                                        disabled={isDeploying}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
+                                            <div className="flex gap-3">
+                                                <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                                                <div className="text-sm text-blue-300">
+                                                    <p className="font-medium mb-1">What will be deployed:</p>
+                                                    <ul className="list-disc list-inside space-y-1 text-blue-200/80">
+                                                        <li>All vault content (custom values)</li>
+                                                        <li>Uploaded media assets (images & videos)</li>
+                                                        <li>Unchanged content will use cache</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => setShowDeployModal(false)}
+                                                disabled={isDeploying}
+                                                className="flex-1 px-4 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    console.log('[Vault] Deploy Now clicked!');
+                                                    handleDeployToGHL();
+                                                }}
+                                                disabled={isDeploying || checkingGhlConnection || (!ghlConnected && (!ghlLocationId || !ghlAccessToken))}
+                                                className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                            >
+                                                {isDeploying ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                                        Deploying...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <ExternalLink className="w-4 h-4" />
+                                                        Deploy Now
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </>
                                 )}
-                            </div>
+                            </motion.div>
                         </motion.div>
                     )}
                 </AnimatePresence>
             </div>
         );
-    };
+    }
+
+
 
     // Helper to render sections
     function renderSection(section, status, index, phase) {
@@ -2047,139 +2139,98 @@ export default function VaultPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className={`rounded-xl border transition-all ${status === 'approved' ? 'bg-green-500/5 border-green-500/30' :
+                className={`rounded-xl border transition-all ${status === 'approved' ? 'bg-cyan/5 border-cyan/30' :
                     status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
-                        status === 'generating' ? 'bg-yellow-500/5 border-yellow-500/30 animate-pulse' :
+                        status === 'generating' ? 'bg-[#1b1b1d] border-cyan/30' :
                             status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
                                 'bg-[#131314] border-[#2a2a2d] opacity-60'
                     }`}
             >
                 <div
-                    onClick={() => {
-                        if (status !== 'locked' && status !== 'generating') {
-                            const newExpanded = new Set(expandedSections);
-                            if (isExpanded) {
-                                newExpanded.delete(section.id);
-                            } else {
-                                newExpanded.add(section.id);
-                            }
-                            setExpandedSections(newExpanded);
-                        }
-                    }}
-                    className={`w-full p-4 sm:p-5 flex items-center gap-4 text-left ${status === 'locked' || status === 'generating' ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-white/5'
+                    className={`w-full p-4 sm:p-5 flex items-center justify-between gap-4 text-left ${status === 'locked' || status === 'generating' ? 'cursor-not-allowed' : ''
                         }`}
                 >
-                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-green-500/20' :
-                        status === 'current' ? 'bg-cyan/20' :
-                            status === 'generating' ? 'bg-yellow-500/20' :
-                                status === 'failed' ? 'bg-red-500/20' :
-                                    status === 'locked' ? 'bg-cyan/5 border border-cyan/20' :
-                                        'bg-gray-700/50'
-                        }`}>
-                        {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" /> :
-                            status === 'locked' ? (
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 sm:w-5 sm:h-5">
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" className="text-cyan" />
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" className="text-cyan fill-cyan/20" />
-                                </svg>
-                            ) :
-                                status === 'generating' ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500 animate-spin" /> :
-                                    status === 'failed' ? <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" /> :
-                                        <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
+                    <div className="flex items-center gap-4 flex-1">
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-cyan/20' :
+                            status === 'current' ? 'bg-cyan/20' :
+                                status === 'generating' ? 'bg-cyan/20' :
+                                    status === 'failed' ? 'bg-red-500/20' :
+                                        status === 'locked' ? 'bg-cyan/5 border border-cyan/20' :
+                                            'bg-gray-700/50'
+                            }`}>
+                            {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" /> :
+                                status === 'locked' ? (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 sm:w-5 sm:h-5">
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" className="text-cyan" />
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" className="text-cyan fill-cyan/20" />
+                                    </svg>
+                                ) :
+                                    status === 'generating' ? <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" /> :
+                                        status === 'failed' ? <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" /> :
+                                            <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-cyan' :
+                                status === 'current' ? 'text-white' :
+                                    status === 'generating' ? 'text-white' :
+                                        status === 'failed' ? 'text-red-400' :
+                                            'text-gray-400'
+                                }`}>
+                                {section.title}
+                            </h3>
+                            <p className="text-xs sm:text-sm text-gray-500 truncate">{section.subtitle}</p>
+                        </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-green-400' :
-                            status === 'current' ? 'text-white' :
-                                status === 'generating' ? 'text-yellow-400' :
-                                    status === 'failed' ? 'text-red-400' :
-                                        'text-gray-500'
-                            }`}>{section.title}</h3>
-                        <p className="text-xs sm:text-sm text-gray-500">
-                            {status === 'generating' ? 'Generating...' :
-                                status === 'failed' ? 'Generation failed' :
-                                    section.subtitle}
-                        </p>
-                    </div>
-                    {/* Header Actions Container - Target for Portal */}
-                    <div id={`section-header-actions-${section.id}`} className="flex items-center gap-3">
-                        {/* 1. Tooltip Icon (First) */}
-                        {(status === 'current' || status === 'approved') && (
-                            <div className="group/tooltip relative p-2 hidden md:block z-[20]">
-                                <Info className={`w-4 h-4 transition-colors ${status === 'approved' ? 'text-green-500/50 hover:text-green-500' : 'text-cyan/50 hover:text-cyan'}`} />
-                                <div
-                                    className={`
-                                        absolute right-0 bottom-full mb-2 w-72 p-4 
-                                        rounded-xl shadow-2xl opacity-0 group-hover/tooltip:opacity-100 
-                                        pointer-events-none transition-opacity z-[9999]
-                                        ${status === 'approved' ? 'bg-[#232326] border border-green-500/30' : 'bg-[#232326] border border-cyan/30'}
-                                    `}
+
+                    {/* Action Buttons */}
+                    {(status === 'current' || status === 'approved' || status === 'failed') && (
+                        <div className="flex items-center gap-3">
+                            {!isExpanded ? (
+                                <button
+                                    onClick={() => {
+                                        // "One Action At A Time" - Only allow one section expanded
+                                        setExpandedSections(new Set([section.id]));
+                                    }}
+                                    className="px-4 py-2 bg-gradient-to-r from-cyan/20 to-blue-500/20 hover:from-cyan/30 hover:to-blue-500/30 text-cyan border border-cyan/30 rounded-lg text-sm font-bold flex items-center gap-2 transition-all hover:scale-105"
                                 >
-                                    <p className="text-sm text-gray-200 leading-relaxed">
-                                        <span className={`font-bold block mb-1.5 text-base ${status === 'approved' ? 'text-green-400' : 'text-cyan'}`}>Use Case:</span>
-                                        {SECTION_USE_CASES[section.id] || "Use this asset to grow your business."}
-                                    </p>
+                                    Show My {section.title.split(' ')[0]} <ChevronDown className="w-4 h-4" />
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleApprove(section.id, phase)}
+                                        className="px-4 py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
+                                    >
+                                        <CheckCircle className="w-4 h-4" /> Approve
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setFeedbackSection(section);
+                                            setFeedbackModalOpen(true);
+                                        }}
+                                        className="px-4 py-2 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
+                                    >
+                                        <MessageSquare className="w-4 h-4" /> Feedback
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const newExpanded = new Set(expandedSections);
+                                            newExpanded.delete(section.id);
+                                            setExpandedSections(newExpanded);
+                                        }}
+                                        className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-white transition-colors"
+                                    >
+                                        <ChevronUp className="w-5 h-5" />
+                                    </button>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
+                    )}
 
-                        {/* 2. Regenerate button for current/approved sections (Icon Only) */}
-                        {GRANULAR_FIELD_COMPONENTS[section.id] && (status === 'current' || status === 'approved') && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRegenerateSection(section.id, section.numericKey);
-                                }}
-                                disabled={regeneratingSection === section.id}
-                                className="px-3 py-2 bg-cyan/10 border border-cyan/30 text-cyan rounded-lg text-sm font-bold flex items-center justify-center hover:bg-cyan/20 transition-all disabled:opacity-50"
-                                title="Regenerate"
-                            >
-                                {regeneratingSection === section.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="w-4 h-4" />
-                                )}
-                            </button>
-                        )}
-
-                        {/* Regenerate for failed */}
-                        {status === 'failed' && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRegenerateSection(section.id, section.numericKey);
-                                }}
-                                disabled={regeneratingSection === section.id}
-                                className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-red-700 transition-all disabled:opacity-50"
-                            >
-                                {regeneratingSection === section.id ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="w-3 h-3" />
-                                )}
-                                Regenerate
-                            </button>
-                        )}
-
-                        {/* 3. Approve Button (Icon + Text) */}
-                        {status === 'current' && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleApprove(section.id, phase);
-                                }}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-bold uppercase tracking-wider rounded-lg border border-green-500/20 hover:border-green-500/40 transition-all"
-                            >
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                Approve
-                            </button>
-                        )}
-
-                        {/* 4. Chevron */}
-                        {status !== 'locked' && status !== 'generating' && status !== 'failed' && (
-                            <ChevronRight className={`w-5 h-5 text-gray-500 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                        )}
-                    </div>
+                    {/* Portal Target for Granular Section Actions */}
+                    <div id={`section-header-actions-${section.id}`} className="flex items-center gap-2" />
                 </div>
+
 
                 <AnimatePresence>
                     {isExpanded && status !== 'locked' && status !== 'generating' && status !== 'failed' && (
@@ -2197,7 +2248,9 @@ export default function VaultPage() {
                                         const funnelId = searchParams.get('funnel_id') || dataSource?.id;
                                         return (
                                             <GranularComponent
+                                                key={`${section.id}-${status}`}
                                                 funnelId={funnelId}
+                                                isApproved={status === 'approved'}
                                                 onApprove={(sectionId) => handleApprove(sectionId, phase)}
                                                 onRenderApproveButton={(btn) => (
                                                     <SafePortal targetId={`section-header-actions-${section.id}`}>
@@ -2277,6 +2330,18 @@ export default function VaultPage() {
             </motion.div >
         );
     };
+
+    // Initial Loading State
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center">
+                <div className="text-center space-y-4">
+                    <Loader2 className="w-12 h-12 text-cyan animate-spin mx-auto" />
+                    <p className="text-gray-400 animate-pulse">Loading your vault...</p>
+                </div>
+            </div>
+        );
+    }
 
     // Unified Tabbed View
     return (
@@ -2392,43 +2457,39 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: 20 }}
                                 className="space-y-4"
                             >
-                                {isPhase1Complete ? (
-                                    <div className="grid gap-3">
-                                        {PHASE_1_SECTIONS.map((section) => renderCompletedSection(section, 1))}
-
-                                        {!hasFunnelChoice && (
-                                            <motion.div
-                                                initial={{ opacity: 0, scale: 0.95 }}
-                                                animate={{ opacity: 1, scale: 1 }}
-                                                className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-cyan/20 text-center shadow-2xl shadow-cyan/5"
-                                            >
-                                                <div className="w-16 h-16 bg-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                    <Sparkles className="w-8 h-8 text-cyan" />
-                                                </div>
-                                                <h3 className="text-xl font-bold mb-2">Phase 1 Complete!</h3>
-                                                <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                    Your core business assets are approved. Now let's build your marketing assets in Phase 2.
-                                                </p>
-                                                <button
-                                                    onClick={() => {
-                                                        // Redirect to funnel choice page
-                                                        const funnelId = searchParams.get('funnel_id') || dataSource?.id;
-                                                        router.push(`/funnel-recommendation?funnel_id=${funnelId}`);
-                                                    }}
-                                                    className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
-                                                >
-                                                    Show my recommended funnel
-                                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                                </button>
-                                            </motion.div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    PHASE_1_SECTIONS.map((section, index) => {
+                                <div className="grid gap-3">
+                                    {PHASE_1_SECTIONS.map((section, index) => {
                                         const status = getSectionStatus(section.id, 1, approvedPhase1, index);
                                         return renderSection(section, status, index, 1);
-                                    })
-                                )}
+                                    })}
+
+                                    {isPhase1Complete && !hasFunnelChoice && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-cyan/20 text-center shadow-2xl shadow-cyan/5"
+                                        >
+                                            <div className="w-16 h-16 bg-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <Sparkles className="w-8 h-8 text-cyan" />
+                                            </div>
+                                            <h3 className="text-xl font-bold mb-2">Phase 1 Complete!</h3>
+                                            <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+                                                Your core business assets are approved. Now let's build your marketing assets in Phase 2.
+                                            </p>
+                                            <button
+                                                onClick={() => {
+                                                    // Redirect to funnel choice page
+                                                    const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                                                    router.push(`/funnel-recommendation?funnel_id=${funnelId}`);
+                                                }}
+                                                className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
+                                            >
+                                                Show my recommended funnel
+                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </div>
                             </motion.div>
                         ) : (
                             <motion.div
@@ -2439,11 +2500,13 @@ export default function VaultPage() {
                                 className="space-y-4"
                             >
                                 {hasFunnelChoice ? (
-                                    isPhase2Complete ? (
-                                        <div className="grid gap-3">
-                                            {PHASE_2_SECTIONS.map((section) => renderCompletedSection(section, 2))}
+                                    <div className="grid gap-3">
+                                        {PHASE_2_SECTIONS.map((section, index) => {
+                                            const status = getSectionStatus(section.id, 2, approvedPhase2, index);
+                                            return renderSection(section, status, index, 2);
+                                        })}
 
-                                            {/* Deploy/Update Funnel button for Phase 2 complete */}
+                                        {isPhase2Complete && (
                                             <motion.div
                                                 initial={{ opacity: 0, scale: 0.95 }}
                                                 animate={{ opacity: 1, scale: 1 }}
@@ -2468,13 +2531,8 @@ export default function VaultPage() {
                                                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                                 </button>
                                             </motion.div>
-                                        </div>
-                                    ) : (
-                                        PHASE_2_SECTIONS.map((section, index) => {
-                                            const status = getSectionStatus(section.id, 2, approvedPhase2, index);
-                                            return renderSection(section, status, index, 2);
-                                        })
-                                    )
+                                        )}
+                                    </div>
                                 ) : (
                                     <div className="text-center py-16 bg-[#131314] rounded-3xl border border-dashed border-[#2a2a2d]">
                                         <div className="w-16 h-16 mx-auto mb-6 relative bg-cyan/5 rounded-2xl flex items-center justify-center border border-cyan/20">
@@ -2558,104 +2616,7 @@ export default function VaultPage() {
                     )}
                 </AnimatePresence>
 
-                {/* AI Feedback Chat Modal */}
-                {feedbackSection && (
-                    <FeedbackChatModal
-                        isOpen={feedbackModalOpen}
-                        onClose={() => {
-                            setFeedbackModalOpen(false);
-                            setFeedbackSection(null);
-                        }}
-                        sectionId={feedbackSection.id}
-                        sectionTitle={feedbackSection.title}
-                        currentContent={vaultData[feedbackSection.id]}
-                        sessionId={dataSource?.id}
-                        onSave={async (payload) => {
-                            // Extract refined content and subSection from the payload
-                            const { refinedContent, subSection } = typeof payload === 'object' && 'refinedContent' in payload
-                                ? payload
-                                : { refinedContent: payload, subSection: null };
 
-                            console.log('[Vault] onSave called with:', {
-                                sectionId: feedbackSection.id,
-                                subSection,
-                                contentPreview: JSON.stringify(refinedContent).substring(0, 200),
-                                contentSize: JSON.stringify(refinedContent).length
-                            });
-
-                            // Parse and clean the refined content
-                            const cleanContent = parseAndCleanContent(refinedContent);
-                            console.log('[Vault] Cleaned content:', {
-                                keys: Object.keys(cleanContent),
-                                preview: JSON.stringify(cleanContent).substring(0, 200)
-                            });
-
-                            // Get existing content for this section
-                            const existing = vaultData[feedbackSection.id] || {};
-                            console.log('[Vault] Existing content:', {
-                                keys: Object.keys(existing),
-                                size: JSON.stringify(existing).length
-                            });
-
-                            // STRICT REPLACEMENT (no cumulative merge)
-                            const updated = strictReplace(existing, cleanContent, {
-                                subSection: subSection
-                            });
-
-                            console.log('[Vault] Updated content after strictReplace:', {
-                                keys: Object.keys(updated),
-                                size: JSON.stringify(updated).length,
-                                subSectionUsed: subSection
-                            });
-
-                            // Update local state IMMEDIATELY for instant UI feedback
-                            setVaultData(prev => ({
-                                ...prev,
-                                [feedbackSection.id]: updated
-                            }));
-
-                            // Mark that we have unsaved changes (for the Save button)
-                            setUnsavedChanges(true);
-
-                            // Persist to database
-                            try {
-                                const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
-                                console.log('[Vault] Persisting to database:', {
-                                    sessionId,
-                                    sectionId: feedbackSection.id,
-                                    contentSize: JSON.stringify(updated).length
-                                });
-
-                                const response = await fetchWithAuth('/api/os/vault-section', {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        sectionId: feedbackSection.id,
-                                        content: updated,
-                                        funnelId: sessionId
-                                    })
-                                });
-
-                                if (response.ok) {
-                                    const result = await response.json();
-                                    console.log('[Vault] Database save result:', result);
-                                    toast.success('Changes saved!');
-                                    setUnsavedChanges(false);
-                                } else {
-                                    const errorData = await response.json().catch(() => ({}));
-                                    console.error('[Vault] Failed to persist to database:', errorData);
-                                    toast.error('Saved locally. Click Save to sync to database.');
-                                }
-                            } catch (error) {
-                                console.error('[Vault] Database save error:', error);
-                                toast.error('Saved locally. Click Save to sync to database.');
-                            }
-
-                            setFeedbackModalOpen(false);
-                            setFeedbackSection(null);
-                        }}
-                    />
-                )}
 
                 {/* GHL Deployment Modal */}
                 <AnimatePresence>
@@ -2692,38 +2653,64 @@ export default function VaultPage() {
                                             <CheckCircle className="w-10 h-10 text-green-500" />
                                         </div>
                                         <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
-                                        <p className="text-gray-400">Redirecting to dashboard...</p>
+                                        <p className="text-gray-400 mb-4">Your content is now live in GHL.</p>
+                                        <button
+                                            onClick={() => setShowDeployModal(false)}
+                                            className="px-6 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors"
+                                        >
+                                            Close
+                                        </button>
                                     </div>
                                 ) : (
                                     <>
-                                        <div className="space-y-4 mb-6">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-400 mb-2">
-                                                    GHL Location ID
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={ghlLocationId}
-                                                    onChange={(e) => setGhlLocationId(e.target.value)}
-                                                    placeholder="Your GHL Location ID"
-                                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
-                                                    disabled={isDeploying}
-                                                />
+                                        {/* Connection Status */}
+                                        {checkingGhlConnection ? (
+                                            <div className="flex items-center gap-3 mb-6 p-4 bg-[#1b1b1d] rounded-lg">
+                                                <Loader2 className="w-5 h-5 animate-spin text-cyan" />
+                                                <span className="text-gray-400">Checking GHL connection...</span>
                                             </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-400 mb-2">
-                                                    GHL Access Token
-                                                </label>
-                                                <input
-                                                    type="password"
-                                                    value={ghlAccessToken}
-                                                    onChange={(e) => setGhlAccessToken(e.target.value)}
-                                                    placeholder="Your GHL Access Token"
-                                                    className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
-                                                    disabled={isDeploying}
-                                                />
+                                        ) : ghlConnected ? (
+                                            <div className="flex items-center gap-3 mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                                <CheckCircle className="w-5 h-5 text-green-500" />
+                                                <div>
+                                                    <p className="text-green-400 font-medium">GHL Connected</p>
+                                                    <p className="text-sm text-gray-400">Location: {ghlLocationId}</p>
+                                                </div>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <div className="space-y-4 mb-6">
+                                                <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
+                                                    <Info className="w-5 h-5 text-yellow-500" />
+                                                    <span className="text-sm text-yellow-300">No saved GHL connection. Enter credentials manually:</span>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                        GHL Location ID
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={ghlLocationId}
+                                                        onChange={(e) => setGhlLocationId(e.target.value)}
+                                                        placeholder="Your GHL Location ID"
+                                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
+                                                        disabled={isDeploying}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                                                        GHL Access Token
+                                                    </label>
+                                                    <input
+                                                        type="password"
+                                                        value={ghlAccessToken}
+                                                        onChange={(e) => setGhlAccessToken(e.target.value)}
+                                                        placeholder="Your GHL Access Token"
+                                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
+                                                        disabled={isDeploying}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
                                             <div className="flex gap-3">
@@ -2731,9 +2718,9 @@ export default function VaultPage() {
                                                 <div className="text-sm text-blue-300">
                                                     <p className="font-medium mb-1">What will be deployed:</p>
                                                     <ul className="list-disc list-inside space-y-1 text-blue-200/80">
-                                                        <li>All vault content (161 custom values)</li>
-                                                        <li>User-uploaded media assets</li>
-                                                        <li>Blank fields will be skipped</li>
+                                                        <li>All vault content (custom values)</li>
+                                                        <li>Uploaded media assets (images & videos)</li>
+                                                        <li>Unchanged content will use cache</li>
                                                     </ul>
                                                 </div>
                                             </div>
@@ -2748,8 +2735,12 @@ export default function VaultPage() {
                                                 Cancel
                                             </button>
                                             <button
-                                                onClick={handleDeployToGHL}
-                                                disabled={isDeploying || !ghlLocationId || !ghlAccessToken}
+                                                onClick={() => {
+                                                    window.alert('Deploy button clicked!');
+                                                    console.log('[Vault] BUTTON CLICKED!');
+                                                    handleDeployToGHL();
+                                                }}
+                                                disabled={isDeploying || checkingGhlConnection || (!ghlConnected && (!ghlLocationId || !ghlAccessToken))}
                                                 className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                             >
                                                 {isDeploying ? (
@@ -2772,6 +2763,14 @@ export default function VaultPage() {
                     )}
                 </AnimatePresence>
             </div>
+
+            <FeedbackModal
+                isOpen={feedbackModalOpen}
+                onClose={() => setFeedbackModalOpen(false)}
+                section={feedbackSection}
+                onSubmit={handleFeedbackSubmit}
+                isSubmitting={isFeedbackSubmitting}
+            />
         </div>
     );
 }

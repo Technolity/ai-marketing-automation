@@ -190,7 +190,7 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
         <button
             onClick={handleApproveSection}
             disabled={isApproving}
-            className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="bg-gradient-to-r from-cyan to-cyan/80 text-white font-bold px-6 py-2.5 rounded-xl hover:from-cyan/90 hover:to-cyan/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
             {isApproving ? (
                 <>
@@ -205,11 +205,11 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
             )}
         </button>
     ) : (
-        <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-            <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+        <div className="flex items-center gap-2 px-4 py-2 bg-cyan/10 border border-cyan/20 rounded-xl">
+            <div className="w-5 h-5 bg-cyan rounded-full flex items-center justify-center">
                 <CheckCircle className="w-3 h-3 text-white" />
             </div>
-            <span className="text-sm text-green-400 font-semibold">Approved</span>
+            <span className="text-sm text-cyan font-semibold">Approved</span>
         </div>
     );
 

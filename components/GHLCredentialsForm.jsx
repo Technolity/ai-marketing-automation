@@ -175,9 +175,9 @@ export default function GHLCredentialsForm({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold mb-2">Funnel Credentials</h2>
+        <h2 className="text-2xl font-bold mb-2">Connect Marketing Platform</h2>
         <p className="text-gray-400 text-sm">
-          Connect your account to push generated content to your funnels
+          Build funnels, emails, and lead flow
         </p>
       </div>
 
@@ -246,7 +246,7 @@ export default function GHLCredentialsForm({
             className="w-full px-4 py-3 bg-[#0a0a0b] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors font-mono text-sm"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Your Funnel Location ID (found in Settings → Business Profile)
+            Your Platform Location ID (found in Settings)
           </p>
         </div>
 
@@ -287,8 +287,8 @@ export default function GHLCredentialsForm({
         {/* Validation Result */}
         {validationResult && (
           <div className={`border rounded-lg p-4 ${validationResult.valid
-              ? 'bg-green-500/10 border-green-500/30'
-              : 'bg-red-500/10 border-red-500/30'
+            ? 'bg-green-500/10 border-green-500/30'
+            : 'bg-red-500/10 border-red-500/30'
             }`}>
             <div className="flex items-start gap-3">
               {validationResult.valid ? (

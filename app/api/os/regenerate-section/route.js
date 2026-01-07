@@ -68,7 +68,7 @@ export async function POST(req) {
         return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { funnel_id: funnelId, section_key: sectionKey } = body;
+    const { funnel_id: funnelId, section_key: sectionKey, feedback } = body;
 
     if (!funnelId || !sectionKey) {
         return Response.json({ error: 'funnel_id and section_key are required' }, { status: 400 });
@@ -114,13 +114,20 @@ export async function POST(req) {
 
     try {
         console.log(`[REGENERATE] Starting regeneration of ${displayName} (key: ${sectionKey})`);
+        if (feedback) console.log(`[REGENERATE] Including feedback: ${feedback.substring(0, 50)}...`);
 
         const promptFn = getPromptByKey(sectionKey);
         if (!promptFn) {
             return Response.json({ error: `Prompt ${sectionKey} not found` }, { status: 500 });
         }
 
-        const rawPrompt = promptFn(data);
+        let rawPrompt = promptFn(data);
+
+        // Append feedback if provided
+        if (feedback) {
+            rawPrompt += `\n\nCRITICAL USER FEEDBACK - PLEASE IMPLEMENT:\n${feedback}\n\nStrictly adhere to the above feedback while maintaining the overall high-quality standard required.`;
+        }
+
         const sectionTimeout = SECTION_TIMEOUTS[sectionKey] || 90000;
 
         // Token allocation

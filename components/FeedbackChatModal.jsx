@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Send, Loader2, CheckCircle, MessageSquare,
@@ -753,20 +754,23 @@ Be as specific as possible - for example:
 
     if (!isOpen) return null;
 
-    return (
+    // Use portal to render at document body - fixes positioning issues with parent transforms
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
         <AnimatePresence>
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center px-4 py-6"
                 onClick={onClose}
             >
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-2xl max-h-[70vh] flex flex-col overflow-hidden"
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
@@ -1080,6 +1084,7 @@ Be as specific as possible - for example:
                     )}
                 </motion.div>
             </motion.div>
-        </AnimatePresence>
+        </AnimatePresence>,
+        document.body
     );
 }

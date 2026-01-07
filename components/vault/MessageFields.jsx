@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
+import AIFeedbackModal from './AIFeedbackModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
-export default function MessageFields({ funnelId, onApprove, onRenderApproveButton }) {
+export default function MessageFields({ funnelId, onApprove, onRenderApproveButton, isApproved }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -48,6 +49,11 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
             fetchFields();
         }
     }, [funnelId]);
+
+    // Sync with parent approval state
+    useEffect(() => {
+        setSectionApproved(isApproved);
+    }, [isApproved]);
 
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {
@@ -183,7 +189,7 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
         <button
             onClick={handleApproveSection}
             disabled={isApproving}
-            className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="bg-gradient-to-r from-cyan to-cyan/80 text-white font-bold px-6 py-2.5 rounded-xl hover:from-cyan/90 hover:to-cyan/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
             {isApproving ? (
                 <>
@@ -199,16 +205,14 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
                 </>
             )}
         </button>
-    ) : (
-        <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 border border-green-500/20 rounded-xl">
-            <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-            </div>
-            <span className="text-sm text-green-400 font-semibold">Approved</span>
-        </div>
-    );
+    ) : null;
+
+    // Portal the button to the header
+    useEffect(() => {
+        if (onRenderApproveButton) {
+            onRenderApproveButton(approveButton);
+        }
+    }, [onRenderApproveButton, approveButton]);
 
     return (
         <>

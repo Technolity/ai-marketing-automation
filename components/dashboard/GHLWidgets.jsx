@@ -121,9 +121,9 @@ export default function AnalyticsDashboard() {
                         <Hammer className="w-8 h-8 text-cyan" />
                     </div>
                     <div>
-                        <h3 className="text-2xl font-black text-white mb-2">Connect Builder</h3>
+                        <h3 className="text-2xl font-black text-white mb-2">Connect Marketing Platform</h3>
                         <p className="text-gray-400 max-w-md">
-                            Unlock real-time analytics. View your pipeline value, track active opportunities, and monitor lead flow directly in your dashboard.
+                            Build funnels, emails, and lead flow. See your leads and growth metrics directly in your dashboard.
                         </p>
                     </div>
                 </div>
@@ -132,7 +132,7 @@ export default function AnalyticsDashboard() {
                     className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-500 text-black font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-3 shadow-xl shadow-cyan/20 relative z-10"
                 >
                     <LinkIcon className="w-5 h-5" />
-                    Connect Builder
+                    Connect Platform
                 </button>
             </motion.div>
         );
@@ -163,7 +163,7 @@ export default function AnalyticsDashboard() {
             {/* Row 1: Quick Stats - 6 KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <KPICard
-                    title="Pipeline Value"
+                    title="Total Value"
                     value={`$${parseInt(metricsData?.pipelineValue || 0).toLocaleString()}`}
                     icon={DollarSign}
                     color="text-cyan"

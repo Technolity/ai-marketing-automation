@@ -1,8 +1,6 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-import { Pencil, Sparkles, Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon } from 'lucide-react';
-import FieldChatbot from './FieldChatbot';
+import { Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon } from 'lucide-react';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
@@ -44,16 +42,11 @@ export default function FieldEditor({
         return val;
     };
 
-    const [isEditing, setIsEditing] = useState(false);
     const [value, setValue] = useState(parseValue(initialValue, fieldDef.field_type));
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [validationErrors, setValidationErrors] = useState([]);
     const [saveSuccess, setSaveSuccess] = useState(false);
-    const [chatbotOpen, setChatbotOpen] = useState(false);
-    const [arrayItemChatbot, setArrayItemChatbot] = useState({ open: false, index: -1, itemValue: '' });
-    const [objectSubfieldChatbot, setObjectSubfieldChatbot] = useState({ open: false, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
-    const [arrayObjectChatbot, setArrayObjectChatbot] = useState({ open: false, index: -1, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
 
     const {
         field_id,
@@ -69,27 +62,13 @@ export default function FieldEditor({
 
     // Validate on value change
     useEffect(() => {
-        if (isEditing) {
-            const validation = validateFieldValue(fieldDef, value);
-            setValidationErrors(validation.errors);
-        }
-    }, [value, isEditing, fieldDef]);
-
-    const handleEdit = () => {
-        setIsEditing(true);
-        setSaveSuccess(false);
-    };
-
-    const handleCancel = () => {
-        // CRITICAL: Parse initialValue properly - don't use raw value
-        setValue(parseValue(initialValue, field_type));
-        setIsEditing(false);
-        setValidationErrors([]);
-    };
-
-    const handleSave = async () => {
-        // Validate before save
         const validation = validateFieldValue(fieldDef, value);
+        setValidationErrors(validation.errors);
+    }, [value, fieldDef]);
+
+    const handleSave = async (newValue = value) => {
+        // Validate before save
+        const validation = validateFieldValue(fieldDef, newValue);
         if (!validation.valid) {
             setValidationErrors(validation.errors);
             return;
@@ -106,7 +85,7 @@ export default function FieldEditor({
                     funnel_id: funnelId,
                     section_id: sectionId,
                     field_id,
-                    field_value: value
+                    field_value: newValue
                 })
             });
 
@@ -118,13 +97,12 @@ export default function FieldEditor({
             const result = await response.json();
 
             // Success
-            setIsEditing(false);
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2000);
 
             // Callback to parent
             if (onSave) {
-                onSave(field_id, value, result);
+                onSave(field_id, newValue, result);
             }
 
         } catch (error) {
@@ -135,45 +113,14 @@ export default function FieldEditor({
         }
     };
 
-    const handleAIFeedback = () => {
-        // Open the field-level chatbot
-        setChatbotOpen(true);
-    };
+    const handleBlur = () => {
+        // Only save if value has changed from initial
+        const currentValue = JSON.stringify(value);
+        const startValue = JSON.stringify(parseValue(initialValue, field_type));
 
-    // Handle save from chatbot
-    const handleChatbotSave = (newValue) => {
-        setValue(newValue);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 2000);
-        if (onSave) onSave(field_id, newValue, { version: 'ai-updated' });
-    };
-
-    // Render based on field type
-    // Handle inline AI update
-    const handleInlineAIUpdate = (newValue) => {
-        setValue(newValue);
-        // Trigger auto-save after AI update
-        setTimeout(async () => {
-            try {
-                const response = await fetchWithAuth('/api/os/vault-field', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        funnel_id: funnelId,
-                        section_id: sectionId,
-                        field_id,
-                        field_value: newValue
-                    })
-                });
-                if (response.ok) {
-                    setSaveSuccess(true);
-                    setTimeout(() => setSaveSuccess(false), 2000);
-                    if (onSave) onSave(field_id, newValue, await response.json());
-                }
-            } catch (error) {
-                console.error('[FieldEditor] AI update save error:', error);
-            }
-        }, 100);
+        if (currentValue !== startValue) {
+            handleSave();
+        }
     };
 
     const renderFieldInput = () => {
@@ -185,42 +132,26 @@ export default function FieldEditor({
                             type="text"
                             value={value || ''}
                             onChange={(e) => setValue(e.target.value)}
+                            onBlur={handleBlur}
                             placeholder={field_metadata.placeholder || field_label}
                             maxLength={field_metadata.maxLength}
-                            disabled={!isEditing}
-                            className={`w-full px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
-                                ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
-                                }`}
+                            className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
                         />
                     ) : (
                         <textarea
                             value={value || ''}
                             onChange={(e) => setValue(e.target.value)}
+                            onBlur={handleBlur}
                             placeholder={field_metadata.placeholder || field_label}
                             maxLength={field_metadata.maxLength}
                             rows={field_metadata.rows || 3}
-                            disabled={!isEditing}
-                            className={`w-full px-4 py-3 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 resize-none transition-colors ${isEditing
-                                ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
-                                }`}
+                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
                         />
                     )}
-                    {/* AI Chatbot Button - appears on hover for text fields with content */}
-                    {!isEditing && (value || '').length > 0 && (
-                        <button
-                            onClick={() => setChatbotOpen(true)}
-                            className="absolute top-1 right-1 z-10 p-1.5 bg-gradient-to-br from-purple-500/20 to-cyan/20 hover:from-purple-500/40 hover:to-cyan/40 border border-purple-500/30 hover:border-cyan/50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
-                            title="AI Assistant"
-                        >
-                            <Sparkles className="w-3.5 h-3.5 text-cyan" />
-                        </button>
-                    )}
-                    {field_metadata.hint && isEditing && (
+                    {field_metadata.hint && (
                         <p className="mt-2 text-xs text-gray-500">{field_metadata.hint}</p>
                     )}
-                    {field_metadata.maxLength && isEditing && (
+                    {field_metadata.maxLength && (
                         <p className="mt-1 text-xs text-gray-600 text-right">
                             {(value || '').length} / {field_metadata.maxLength}
                         </p>
@@ -250,40 +181,28 @@ export default function FieldEditor({
                                             newArray[idx] = e.target.value;
                                             setValue(newArray);
                                         }}
+                                        onBlur={handleBlur}
                                         placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
                                         maxLength={field_metadata.itemMaxLength}
                                         rows={2}
-                                        disabled={!isEditing}
-                                        className={`w-full px-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors resize-none ${isEditing
-                                            ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                            : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
-                                            }`}
+                                        className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan"
                                     />
-                                    {/* AI Button for array item */}
-                                    {!isEditing && (item || '').length > 0 && (
-                                        <button
-                                            onClick={() => setArrayItemChatbot({ open: true, index: idx, itemValue: item })}
-                                            className="absolute top-1/2 -translate-y-1/2 right-2 z-10 p-1.5 bg-gradient-to-br from-purple-500/20 to-cyan/20 hover:from-purple-500/40 hover:to-cyan/40 border border-purple-500/30 hover:border-cyan/50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
-                                            title="AI Assistant"
-                                        >
-                                            <Sparkles className="w-3.5 h-3.5 text-cyan" />
-                                        </button>
-                                    )}
                                 </div>
-                                {isEditing && arrayValue.length > minItems && (
+                                {arrayValue.length > minItems && (
                                     <button
                                         onClick={() => {
                                             const newArray = arrayValue.filter((_, i) => i !== idx);
                                             setValue(newArray);
+                                            handleSave(newArray); // Immediate save on delete
                                         }}
-                                        className="mt-2 p-2 text-red-400 hover:text-red-300 transition-colors"
+                                        className="mt-2 p-2 text-gray-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
                                 )}
                             </div>
                         ))}
-                        {isEditing && arrayValue.length < maxItems && (
+                        {arrayValue.length < maxItems && (
                             <button
                                 onClick={() => setValue([...arrayValue, ''])}
                                 className="text-sm text-cyan hover:text-cyan/80 transition-colors"
@@ -291,7 +210,7 @@ export default function FieldEditor({
                                 + Add item
                             </button>
                         )}
-                        {field_metadata.hint && isEditing && (
+                        {field_metadata.hint && (
                             <p className="text-xs text-gray-500">{field_metadata.hint}</p>
                         )}
                     </div>
@@ -308,16 +227,17 @@ export default function FieldEditor({
                             const itemValue = typeof item === 'object' ? item : {};
 
                             return (
-                                <div key={idx} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-3">
+                                <div key={idx} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-3 relative group">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-sm font-medium text-gray-400">Item {idx + 1}</span>
-                                        {isEditing && arrayValue.length > minItems && (
+                                        {arrayValue.length > minItems && (
                                             <button
                                                 onClick={() => {
                                                     const newArray = arrayValue.filter((_, i) => i !== idx);
                                                     setValue(newArray);
+                                                    handleSave(newArray);
                                                 }}
-                                                className="p-1 text-red-400 hover:text-red-300 transition-colors"
+                                                className="p-1 text-gray-500 hover:text-red-400 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>
@@ -329,7 +249,7 @@ export default function FieldEditor({
                                         const isTextarea = subfield.field_type === 'textarea';
 
                                         return (
-                                            <div key={sfIdx} className="space-y-1 relative group">
+                                            <div key={sfIdx} className="space-y-1 relative group/sub">
                                                 <label className="text-xs font-medium text-gray-500">
                                                     {subfield.field_label}
                                                 </label>
@@ -341,14 +261,11 @@ export default function FieldEditor({
                                                             newArray[idx] = { ...itemValue, [subfield.field_id]: e.target.value };
                                                             setValue(newArray);
                                                         }}
+                                                        onBlur={handleBlur}
                                                         placeholder={subfield.placeholder}
                                                         maxLength={subfield.maxLength}
                                                         rows={subfield.rows || 2}
-                                                        disabled={!isEditing}
-                                                        className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors ${isEditing
-                                                            ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                                            : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
-                                                            }`}
+                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
                                                     />
                                                 ) : (
                                                     <input
@@ -359,30 +276,11 @@ export default function FieldEditor({
                                                             newArray[idx] = { ...itemValue, [subfield.field_id]: e.target.value };
                                                             setValue(newArray);
                                                         }}
+                                                        onBlur={handleBlur}
                                                         placeholder={subfield.placeholder}
                                                         maxLength={subfield.maxLength}
-                                                        disabled={!isEditing}
-                                                        className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm transition-colors ${isEditing
-                                                            ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                                            : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
-                                                            }`}
+                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
                                                     />
-                                                )}
-                                                {/* AI Button for array object subfield */}
-                                                {!isEditing && (subfieldValue || '').length > 0 && (
-                                                    <button
-                                                        onClick={() => setArrayObjectChatbot({
-                                                            open: true,
-                                                            index: idx,
-                                                            subfieldId: subfield.field_id,
-                                                            subfieldLabel: subfield.field_label,
-                                                            subfieldValue: subfieldValue
-                                                        })}
-                                                        className="absolute top-6 right-2 z-10 p-1.5 bg-gradient-to-br from-purple-500/20 to-cyan/20 hover:from-purple-500/40 hover:to-cyan/40 border border-purple-500/30 hover:border-cyan/50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
-                                                        title="AI Assistant"
-                                                    >
-                                                        <Sparkles className="w-3.5 h-3.5 text-cyan" />
-                                                    </button>
                                                 )}
                                             </div>
                                         );
@@ -391,7 +289,7 @@ export default function FieldEditor({
                             );
                         })}
 
-                        {isEditing && arrayValue.length < maxItems && (
+                        {arrayValue.length < maxItems && (
                             <button
                                 onClick={() => {
                                     // Create empty object with all subfield keys
@@ -404,7 +302,7 @@ export default function FieldEditor({
                                 + Add item
                             </button>
                         )}
-                        {field_metadata.hint && isEditing && (
+                        {field_metadata.hint && (
                             <p className="text-xs text-gray-500 mt-2">{field_metadata.hint}</p>
                         )}
                     </div>
@@ -451,14 +349,11 @@ export default function FieldEditor({
                                                 const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
                                                 setValue(newObj);
                                             }}
+                                            onBlur={handleBlur}
                                             placeholder={subfield.placeholder}
                                             rows={subfield.rows || 3}
                                             maxLength={subfield.maxLength}
-                                            disabled={!isEditing}
-                                            className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors ${isEditing
-                                                ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                                : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
-                                                }`}
+                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
                                         />
                                     ) : (
                                         <input
@@ -468,35 +363,17 @@ export default function FieldEditor({
                                                 const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
                                                 setValue(newObj);
                                             }}
+                                            onBlur={handleBlur}
                                             placeholder={subfield.placeholder}
                                             maxLength={subfield.maxLength}
-                                            disabled={!isEditing}
-                                            className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm transition-colors ${isEditing
-                                                ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                                : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
-                                                }`}
+                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
                                         />
-                                    )}
-                                    {/* AI Button for object subfield */}
-                                    {!isEditing && (subfieldValue || '').length > 0 && (
-                                        <button
-                                            onClick={() => setObjectSubfieldChatbot({
-                                                open: true,
-                                                subfieldId: subfield.field_id,
-                                                subfieldLabel: subfield.field_label,
-                                                subfieldValue: subfieldValue
-                                            })}
-                                            className="absolute top-1/2 -translate-y-1/2 right-2 z-10 p-1.5 bg-gradient-to-br from-purple-500/20 to-cyan/20 hover:from-purple-500/40 hover:to-cyan/40 border border-purple-500/30 hover:border-cyan/50 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
-                                            title="AI Assistant"
-                                        >
-                                            <Sparkles className="w-3.5 h-3.5 text-cyan" />
-                                        </button>
                                     )}
                                 </div>
                             </div>
                         );
                     })}
-                    {field_metadata.hint && isEditing && (
+                    {field_metadata.hint && (
                         <p className="text-xs text-gray-500 mt-2">{field_metadata.hint}</p>
                     )}
                 </div>
@@ -534,6 +411,7 @@ export default function FieldEditor({
 
                     if (res.ok && data.success) {
                         setValue(data.fullUrl);
+                        handleSave(data.fullUrl); // Immediate save on upload
                         toast.success('File uploaded!', { id: toastId });
                     } else {
                         throw new Error(data.error || 'Upload failed');
@@ -551,34 +429,29 @@ export default function FieldEditor({
                     {!value ? (
                         <div className="space-y-3">
                             {/* Upload Area */}
-                            {isEditing && (
-                                <label className={`relative block group cursor-pointer ${isUploading ? 'pointer-events-none opacity-70' : ''}`}>
-                                    <input
-                                        type="file"
-                                        accept={isVideo ? "video/*" : "image/*"}
-                                        onChange={handleFileUpload}
-                                        className="hidden"
-                                        disabled={!isEditing || isUploading}
-                                    />
-                                    <div className={`w-full px-4 py-8 border-2 border-dashed rounded-xl text-center transition-all ${isEditing
-                                        ? 'border-gray-700 hover:border-cyan hover:bg-[#1f1f22]'
-                                        : 'border-[#2a2a2d] cursor-not-allowed'
-                                        }`}>
-                                        {isUploading ? (
-                                            <div className="flex flex-col items-center gap-2 text-cyan">
-                                                <Loader2 className="w-6 h-6 animate-spin" />
-                                                <span className="text-sm">Uploading...</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex flex-col items-center gap-2 text-gray-500 group-hover:text-gray-300">
-                                                <Upload className="w-6 h-6" />
-                                                <span className="text-sm font-medium">Click to upload {isVideo ? 'video' : 'image'}</span>
-                                                <span className="text-xs text-gray-600">Max size: {isVideo ? '100MB' : '10MB'}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </label>
-                            )}
+                            <label className={`relative block group cursor-pointer ${isUploading ? 'pointer-events-none opacity-70' : ''}`}>
+                                <input
+                                    type="file"
+                                    accept={isVideo ? "video/*" : "image/*"}
+                                    onChange={handleFileUpload}
+                                    className="hidden"
+                                    disabled={isUploading}
+                                />
+                                <div className="w-full px-4 py-8 border-2 border-dashed border-[#2a2a2d] rounded-xl text-center transition-all hover:border-cyan hover:bg-[#1f1f22]">
+                                    {isUploading ? (
+                                        <div className="flex flex-col items-center gap-2 text-cyan">
+                                            <Loader2 className="w-6 h-6 animate-spin" />
+                                            <span className="text-sm">Uploading...</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-2 text-gray-500 group-hover:text-gray-300">
+                                            <Upload className="w-6 h-6" />
+                                            <span className="text-sm font-medium">Click to upload {isVideo ? 'video' : 'image'}</span>
+                                            <span className="text-xs text-gray-600">Max size: {isVideo ? '100MB' : '10MB'}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </label>
 
                             {/* URL Input Fallback */}
                             <div className="relative">
@@ -589,12 +462,9 @@ export default function FieldEditor({
                                     type="url"
                                     value={value || ''}
                                     onChange={(e) => setValue(e.target.value)}
+                                    onBlur={handleBlur}
                                     placeholder={field_metadata.placeholder || "Or paste URL..."}
-                                    disabled={!isEditing}
-                                    className={`w-full pl-10 pr-4 py-2 bg-[#18181b] border rounded-xl text-white placeholder-gray-500 transition-colors ${isEditing
-                                        ? 'border-cyan focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                        : 'border-[#3a3a3d] cursor-not-allowed opacity-75'
-                                        }`}
+                                    className="w-full pl-10 pr-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
                                 />
                             </div>
                         </div>
@@ -623,20 +493,21 @@ export default function FieldEditor({
                                     </a>
                                 </div>
 
-                                {isEditing && (
-                                    <button
-                                        onClick={() => setValue('')}
-                                        className="p-2 text-gray-500 hover:text-red-500 transition-colors"
-                                        title="Remove file"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
-                                )}
+                                <button
+                                    onClick={() => {
+                                        setValue('');
+                                        handleSave(''); // Save empty value 
+                                    }}
+                                    className="p-2 text-gray-500 hover:text-red-500 transition-colors"
+                                    title="Remove file"
+                                >
+                                    <Trash2 className="w-5 h-5" />
+                                </button>
                             </div>
                         </div>
                     )}
 
-                    {field_metadata.hint && isEditing && (
+                    {field_metadata.hint && (
                         <p className="text-xs text-gray-500">{field_metadata.hint}</p>
                     )}
                 </div>
@@ -666,14 +537,11 @@ export default function FieldEditor({
                                                 const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
                                                 setValue(newObj);
                                             }}
+                                            onBlur={handleBlur}
                                             placeholder={subfield.placeholder || subfield.field_label}
                                             maxLength={subfield.maxLength}
                                             rows={subfield.rows || 3}
-                                            disabled={!isEditing}
-                                            className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors ${isEditing
-                                                ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                                : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
-                                                }`}
+                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
                                         />
                                     ) : (
                                         <input
@@ -683,20 +551,17 @@ export default function FieldEditor({
                                                 const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
                                                 setValue(newObj);
                                             }}
+                                            onBlur={handleBlur}
                                             placeholder={subfield.placeholder || subfield.field_label}
                                             maxLength={subfield.maxLength}
-                                            disabled={!isEditing}
-                                            className={`w-full px-3 py-2 bg-[#0e0e0f] border rounded-lg text-white placeholder-gray-600 text-sm transition-colors ${isEditing
-                                                ? 'border-cyan/50 focus:border-cyan focus:ring-1 focus:ring-cyan'
-                                                : 'border-[#2a2a2d] cursor-not-allowed opacity-75'
-                                                }`}
+                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
                                         />
                                     )}
                                 </div>
                             );
                         })}
                     </div>
-                    {field_metadata.hint && isEditing && (
+                    {field_metadata.hint && (
                         <p className="text-xs text-gray-500">{field_metadata.hint}</p>
                     )}
                 </div>
@@ -721,53 +586,11 @@ export default function FieldEditor({
                             Saved
                         </span>
                     )}
-
-                    {/* AI Feedback Button */}
-                    <button
-                        onClick={handleAIFeedback}
-                        disabled={isEditing}
-                        className="flex items-center gap-1 px-3 py-1 text-xs bg-purple-600/20 text-purple-400 rounded-lg hover:bg-purple-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Sparkles className="w-3 h-3" />
-                        AI Feedback
-                    </button>
-
-                    {/* Edit/Save/Cancel Buttons */}
-                    {!isEditing ? (
-                        <button
-                            onClick={handleEdit}
-                            className="flex items-center gap-1 px-3 py-1 text-xs bg-cyan/20 text-cyan rounded-lg hover:bg-cyan/30 transition-colors"
-                        >
-                            <Pencil className="w-3 h-3" />
-                            Edit
-                        </button>
-                    ) : (
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={handleCancel}
-                                className="flex items-center gap-1 px-3 py-1 text-xs bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
-                            >
-                                <X className="w-3 h-3" />
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSave}
-                                disabled={isSaving || validationErrors.length > 0}
-                                className="flex items-center gap-1 px-3 py-1 text-xs bg-cyan text-black rounded-lg hover:bg-cyan/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isSaving ? (
-                                    <>
-                                        <div className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Check className="w-3 h-3" />
-                                        Save
-                                    </>
-                                )}
-                            </button>
-                        </div>
+                    {isSaving && (
+                        <span className="flex items-center gap-1 text-xs text-gray-400">
+                            <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                            Saving...
+                        </span>
                     )}
                 </div>
             </div>
@@ -785,136 +608,6 @@ export default function FieldEditor({
                         ))}
                     </div>
                 </div>
-            )}
-
-            {/* Field Chatbot Modal - for text/textarea fields */}
-            {(field_type === 'text' || field_type === 'textarea') && (
-                <FieldChatbot
-                    isOpen={chatbotOpen}
-                    onClose={() => setChatbotOpen(false)}
-                    fieldId={field_id}
-                    fieldLabel={field_label}
-                    fieldValue={value || ''}
-                    sectionId={sectionId}
-                    funnelId={funnelId}
-                    onSave={handleChatbotSave}
-                />
-            )}
-
-            {/* Field Chatbot for Array Items */}
-            {field_type === 'array' && arrayItemChatbot.open && (
-                <FieldChatbot
-                    isOpen={arrayItemChatbot.open}
-                    onClose={() => setArrayItemChatbot({ open: false, index: -1, itemValue: '' })}
-                    fieldId={`${field_id}[${arrayItemChatbot.index}]`}
-                    fieldLabel={`${field_label} - Item ${arrayItemChatbot.index + 1}`}
-                    fieldValue={arrayItemChatbot.itemValue}
-                    sectionId={sectionId}
-                    funnelId={funnelId}
-                    onSave={(newValue) => {
-                        // Update the specific array index
-                        const newArray = [...(Array.isArray(value) ? value : [])];
-                        newArray[arrayItemChatbot.index] = newValue;
-                        setValue(newArray);
-                        setArrayItemChatbot({ open: false, index: -1, itemValue: '' });
-                        // Save to database
-                        fetchWithAuth('/api/os/vault-field', {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                funnel_id: funnelId,
-                                section_id: sectionId,
-                                field_id,
-                                field_value: newArray
-                            })
-                        }).then(() => {
-                            setSaveSuccess(true);
-                            setTimeout(() => setSaveSuccess(false), 2000);
-                            if (onSave) onSave(field_id, newArray, { version: 'ai-updated' });
-                        }).catch(err => console.error('[FieldEditor] Array AI save error:', err));
-                    }}
-                />
-            )}
-
-            {/* Field Chatbot for Object Subfields */}
-            {field_type === 'object' && objectSubfieldChatbot.open && (
-                <FieldChatbot
-                    isOpen={objectSubfieldChatbot.open}
-                    onClose={() => setObjectSubfieldChatbot({ open: false, subfieldId: '', subfieldLabel: '', subfieldValue: '' })}
-                    fieldId={`${field_id}.${objectSubfieldChatbot.subfieldId}`}
-                    fieldLabel={`${field_label} - ${objectSubfieldChatbot.subfieldLabel}`}
-                    fieldValue={objectSubfieldChatbot.subfieldValue}
-                    sectionId={sectionId}
-                    funnelId={funnelId}
-                    onSave={(newValue) => {
-                        // Update the specific subfield within the object
-                        let currentObject = {};
-                        try {
-                            currentObject = typeof value === 'string' ? JSON.parse(value || '{}') : (value || {});
-                        } catch { currentObject = {}; }
-
-                        const newObject = { ...currentObject, [objectSubfieldChatbot.subfieldId]: newValue };
-                        setValue(newObject);
-                        setObjectSubfieldChatbot({ open: false, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
-
-                        // Save to database
-                        fetchWithAuth('/api/os/vault-field', {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                funnel_id: funnelId,
-                                section_id: sectionId,
-                                field_id,
-                                field_value: JSON.stringify(newObject)
-                            })
-                        }).then(() => {
-                            setSaveSuccess(true);
-                            setTimeout(() => setSaveSuccess(false), 2000);
-                            if (onSave) onSave(field_id, newObject, { version: 'ai-updated' });
-                        }).catch(err => console.error('[FieldEditor] Object subfield AI save error:', err));
-                    }}
-                />
-            )}
-
-            {/* Field Chatbot for Array Object Subfields */}
-            {field_type === 'array' && arrayObjectChatbot.open && (
-                <FieldChatbot
-                    isOpen={arrayObjectChatbot.open}
-                    onClose={() => setArrayObjectChatbot({ open: false, index: -1, subfieldId: '', subfieldLabel: '', subfieldValue: '' })}
-                    fieldId={`${field_id}[${arrayObjectChatbot.index}].${arrayObjectChatbot.subfieldId}`}
-                    fieldLabel={`${field_label} - Item ${arrayObjectChatbot.index + 1} - ${arrayObjectChatbot.subfieldLabel}`}
-                    fieldValue={arrayObjectChatbot.subfieldValue}
-                    sectionId={sectionId}
-                    funnelId={funnelId}
-                    onSave={(newValue) => {
-                        // Update the specific subfield within the array item
-                        const newArray = [...(Array.isArray(value) ? value : [])];
-                        const itemIndex = arrayObjectChatbot.index;
-                        // Determine if item is object or needs parsing (though usually object for this type)
-                        const currentItem = newArray[itemIndex] || {};
-                        const newItem = { ...currentItem, [arrayObjectChatbot.subfieldId]: newValue };
-                        newArray[itemIndex] = newItem;
-
-                        setValue(newArray);
-                        setArrayObjectChatbot({ open: false, index: -1, subfieldId: '', subfieldLabel: '', subfieldValue: '' });
-
-                        // Save to database
-                        fetchWithAuth('/api/os/vault-field', {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                funnel_id: funnelId,
-                                section_id: sectionId,
-                                field_id,
-                                field_value: newArray // Sending array directly
-                            })
-                        }).then(() => {
-                            setSaveSuccess(true);
-                            setTimeout(() => setSaveSuccess(false), 2000);
-                            if (onSave) onSave(field_id, newArray, { version: 'ai-updated' });
-                        }).catch(err => console.error('[FieldEditor] Array Object AI save error:', err));
-                    }}
-                />
             )}
         </div>
     );
