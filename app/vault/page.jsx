@@ -704,11 +704,6 @@ export default function VaultPage() {
     };
 
     const getSectionStatus = (sectionId, phaseNumber, approvedList, index) => {
-        // 0. Check background generation statuses first (for early redirect flow)
-        const genStatus = sectionStatuses[sectionId];
-        if (genStatus === 'generating') return 'generating';
-        if (genStatus === 'failed') return 'failed';
-
         // 1. Already approved sections stay approved
         if (approvedList.includes(sectionId)) return 'approved';
 
@@ -716,7 +711,7 @@ export default function VaultPage() {
         if (phaseNumber === 2 && !hasFunnelChoice) return 'locked';
         if (phaseNumber === 3 && !phase2FullyApproved) return 'locked';
 
-        // 3. Check if this section has generated content
+        // 3. Check if this section has generated content FIRST
         const sectionData = vaultData?.[sectionId];
 
         // Check for explicit error in data (from DB or normalization)
@@ -726,24 +721,26 @@ export default function VaultPage() {
 
         // 4. MANUAL SECTIONS: media is user-uploaded, skip AI population check
         const MANUAL_SECTIONS = ['media'];
+        let hasContent = false;
+
         if (MANUAL_SECTIONS.includes(sectionId)) {
-            // For manual sections, skip to sequential unlock check
-            // They don't have AI-generated content, user uploads manually
+            // For manual sections, consider as having content (user uploads)
+            hasContent = true;
         } else {
-            // 5. AI-generated sections: Check population status
+            // 5. AI-generated sections: Check if content exists
             const meaningfulKeys = Object.keys(sectionData || {}).filter(k => !k.startsWith('_') && k !== 'error');
-            const hasContent = meaningfulKeys.length > 0;
-            const isPopulated = sectionData?._isPopulated === true || meaningfulKeys.length > 0;
-
-            // If section has no meaningful content, show as generating
-            if (!hasContent) return 'generating';
-
-            // If content exists but not marked populated and no meaningful keys, still generating
-            if (!isPopulated) return 'generating';
+            hasContent = meaningfulKeys.length > 0;
         }
 
+        // 6. If NO content, check polling status or default to generating
+        if (!hasContent) {
+            const genStatus = sectionStatuses[sectionId];
+            if (genStatus === 'failed') return 'failed';
+            // No content = still generating
+            return 'generating';
+        }
 
-        // 5. Sequential unlock within phase - get correct sections list
+        // 7. CONTENT EXISTS - determine if current or locked based on sequence
         const sections = phaseNumber === 1 ? PHASE_1_SECTIONS
             : phaseNumber === 2 ? PHASE_2_SECTIONS
                 : PHASE_3_SECTIONS;
@@ -752,7 +749,7 @@ export default function VaultPage() {
             return 'current';
         }
 
-        // 6. Normal sections: unlocked only if ALL previous sections are approved
+        // 8. Unlocked only if ALL previous sections are approved
         const allPreviousApproved = sections.slice(0, index).every(s => approvedList.includes(s.id));
         if (allPreviousApproved) {
             return 'current';
@@ -2271,12 +2268,6 @@ export default function VaultPage() {
                             ) : (
                                 <div className="flex items-center gap-2">
                                     <button
-                                        onClick={() => handleApprove(section.id, phase)}
-                                        className="px-4 py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
-                                    >
-                                        <CheckCircle className="w-4 h-4" /> Approve
-                                    </button>
-                                    <button
                                         onClick={() => {
                                             setFeedbackSection(section);
                                             setFeedbackModalOpen(true);
@@ -2285,6 +2276,13 @@ export default function VaultPage() {
                                     >
                                         <MessageSquare className="w-4 h-4" /> Feedback
                                     </button>
+                                    <button
+                                        onClick={() => handleApprove(section.id, phase)}
+                                        className="px-4 py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
+                                    >
+                                        <CheckCircle className="w-4 h-4" /> Approve
+                                    </button>
+
                                     <button
                                         onClick={() => {
                                             const newExpanded = new Set(expandedSections);
