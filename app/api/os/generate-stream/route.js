@@ -38,11 +38,33 @@ const DISPLAY_NAMES = {
     17: 'Setter Script'
 };
 
-// Phase 1: Priority sections (redirect after these complete)
-const PHASE_1_KEYS = [1, 2, 3]; // Ideal Client, Message, Story
+// Phase 1: Fast redirect sections (only wait for these ~30s)
+// Reduced from 3 to 2 for faster redirect
+const REDIRECT_KEYS = [1, 2]; // Ideal Client + Message
 
-// Phase 2: Background sections (continue after redirect)
-const PHASE_2_KEYS = [4, 5, 17, 6, 10, 7, 9, 8, 16, 15];
+// Background generation order - matches UI sequence
+// Phase 1 remaining + Phase 2 + Phase 3
+const BACKGROUND_BATCHES = [
+    // Batch 1: Phase 1 remaining + Offer (parallel)
+    { keys: [3, 4], parallel: true },     // Story + Offer
+
+    // Batch 2: Lead gen + small content (parallel)
+    { keys: [6, 9, 15], parallel: true }, // Lead Magnet + Ads + Bio
+
+    // Batch 3: Long-form content (parallel)
+    { keys: [7, 10], parallel: true },    // VSL + Funnel Copy
+
+    // Batch 4: Sequences (parallel)
+    { keys: [8, 16], parallel: true },    // Emails + Reminders
+
+    // Batch 5: Phase 3 Scripts (parallel)
+    { keys: [5, 17], parallel: true },    // Closer Script + Setter Script
+];
+
+// Legacy keys for backward compatibility
+const PHASE_1_KEYS = [1, 2, 3]; // Still includes Story for status tracking
+const PHASE_2_KEYS = [4, 6, 7, 10, 9, 8, 16, 15, 5, 17]; // Reordered to match UI + scripts
+
 
 /**
  * Generate a single section
@@ -228,45 +250,49 @@ export async function POST(req) {
     // Start generation in background
     (async () => {
         try {
-            console.log(`[STREAM] Starting two-phase generation for funnel ${funnelId}`);
+            console.log(`[STREAM] Starting optimized generation for funnel ${funnelId}`);
 
             // ============================================
-            // PHASE 1: Generate first 3 sections (Priority)
+            // FAST REDIRECT: Generate only 2 sections first (~30s)
             // ============================================
-            console.log('[STREAM] Phase 1: Generating Ideal Client, Message, Story...');
+            console.log('[STREAM] Fast Redirect: Generating Ideal Client + Message...');
 
-            const phase1Results = [];
-            for (const key of PHASE_1_KEYS) {
+            const redirectResults = [];
+            for (const key of REDIRECT_KEYS) {
                 const result = await generateSection(key, data, funnelId, userId, sendEvent);
-                phase1Results.push(result);
+                redirectResults.push(result);
             }
 
-            const phase1Success = phase1Results.filter(r => r.success).length;
-            console.log(`[STREAM] Phase 1 complete: ${phase1Success}/${PHASE_1_KEYS.length} successful`);
+            const redirectSuccess = redirectResults.filter(r => r.success).length;
+            console.log(`[STREAM] Fast redirect sections complete: ${redirectSuccess}/${REDIRECT_KEYS.length}`);
 
-            // Send early_redirect event - user can now view first 3 sections
+            // Send early_redirect event after just 2 sections (~30s)
             await sendEvent('early_redirect', {
                 redirect: `/vault?funnel_id=${funnelId}&generating=true`,
-                completedSections: phase1Results.filter(r => r.success).map(r => DISPLAY_NAMES[r.key]),
-                phase1Complete: true
+                completedSections: redirectResults.filter(r => r.success).map(r => DISPLAY_NAMES[r.key]),
+                phase1Complete: false // Not all Phase 1 yet
             });
 
             // ============================================
-            // PHASE 2: Continue generating remaining sections
+            // BACKGROUND: Parallel batch generation
             // ============================================
-            console.log('[STREAM] Phase 2: Generating remaining sections in background...');
+            console.log('[STREAM] Background: Generating remaining sections in parallel batches...');
 
-            // Generate Phase 2 in chunks for better parallelism
-            const CONCURRENCY_LIMIT = 3;
-            const chunks = [];
-            for (let i = 0; i < PHASE_2_KEYS.length; i += CONCURRENCY_LIMIT) {
-                chunks.push(PHASE_2_KEYS.slice(i, i + CONCURRENCY_LIMIT));
-            }
+            for (let i = 0; i < BACKGROUND_BATCHES.length; i++) {
+                const batch = BACKGROUND_BATCHES[i];
+                console.log(`[STREAM] Batch ${i + 1}/${BACKGROUND_BATCHES.length}: ${batch.keys.map(k => DISPLAY_NAMES[k]).join(' + ')}`);
 
-            for (const chunk of chunks) {
-                await Promise.all(chunk.map(key =>
-                    generateSection(key, data, funnelId, userId, sendEvent)
-                ));
+                if (batch.parallel) {
+                    // Run batch in parallel
+                    await Promise.all(batch.keys.map(key =>
+                        generateSection(key, data, funnelId, userId, sendEvent)
+                    ));
+                } else {
+                    // Run sequentially
+                    for (const key of batch.keys) {
+                        await generateSection(key, data, funnelId, userId, sendEvent);
+                    }
+                }
             }
 
             // Final status update
