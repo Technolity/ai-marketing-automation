@@ -949,7 +949,7 @@ export async function POST(req) {
                 content: sectionData,
                 is_current_version: true,
                 status: 'draft',
-                model_used: 'gpt-4o-mini'
+                model_used: 'gpt-5.2'
               }, {
                 onConflict: 'funnel_id,section_id',
                 ignoreDuplicates: false

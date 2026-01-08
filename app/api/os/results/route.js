@@ -100,11 +100,26 @@ export async function GET(req) {
             throw vaultError;
         }
 
+        // Fetch populated fields to verify granular data existence
+        const { data: populatedFields } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('section_id')
+            .eq('funnel_id', targetFunnelId)
+            .eq('is_current_version', true);
+
+        const populatedSections = new Set(populatedFields?.map(f => f.section_id) || []);
+
         // Aggregate content by section_id
         const aggregatedData = {};
         if (vaultContent && vaultContent.length > 0) {
             for (const item of vaultContent) {
                 aggregatedData[item.section_id] = item.content;
+                // Inject _isPopulated flag if granular fields exist
+                if (populatedSections.has(item.section_id)) {
+                    if (aggregatedData[item.section_id] && typeof aggregatedData[item.section_id] === 'object') {
+                        aggregatedData[item.section_id]._isPopulated = true;
+                    }
+                }
             }
         }
 

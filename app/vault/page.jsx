@@ -89,8 +89,6 @@ const PHASE_1_SECTIONS = [
 
 // Phase 2: Marketing Assets - Funnel & marketing materials (locked until funnel choice made)
 const PHASE_2_SECTIONS = [
-    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic },
-    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell },
     { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet },
     { id: 'vsl', numericKey: 7, title: 'Video Script', subtitle: 'Video Sales Letter (VSL)', icon: Video },
     { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout },
@@ -101,12 +99,19 @@ const PHASE_2_SECTIONS = [
     { id: 'media', numericKey: 18, title: 'Media Library', subtitle: 'Logo, images, and videos', icon: ImageIcon }
 ];
 
+// Phase 3: Sales Scripts - Closer and Setter scripts (locked until Phase 2 approved)
+const PHASE_3_SECTIONS = [
+    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic },
+    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell }
+];
+
+
 // Normalize data structure (handles numeric or named keys)
 function normalizeData(rawData) {
     if (!rawData || typeof rawData !== 'object') return {};
 
     const normalized = {};
-    const allSections = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS];
+    const allSections = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS, ...PHASE_3_SECTIONS];
     const hasNumericKeys = Object.keys(rawData).some(key => !isNaN(key));
 
     if (hasNumericKeys) {
@@ -434,6 +439,12 @@ export default function VaultPage() {
     const [approvedPhase1, setApprovedPhase1] = useState([]);
     const [hasFunnelChoice, setHasFunnelChoice] = useState(false);
     const [approvedPhase2, setApprovedPhase2] = useState([]);
+    const [approvedPhase3, setApprovedPhase3] = useState([]);
+
+    // Phase completion tracking
+    const phase1FullyApproved = approvedPhase1.length >= PHASE_1_SECTIONS.length;
+    const phase2FullyApproved = approvedPhase2.length >= PHASE_2_SECTIONS.length;
+    const phase3FullyApproved = approvedPhase3.length >= PHASE_3_SECTIONS.length;
 
     // UI states - All sections collapsed by default
     const [expandedSections, setExpandedSections] = useState(() => new Set());
@@ -480,7 +491,8 @@ export default function VaultPage() {
     // Computed states
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
-    const isVaultComplete = isPhase1Complete && isPhase2Complete;
+    const isPhase3Complete = approvedPhase3.length >= PHASE_3_SECTIONS.length;
+    const isVaultComplete = isPhase1Complete && isPhase2Complete && isPhase3Complete;
 
     // Track if initial load is complete to prevent re-fetching on tab switch
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -642,10 +654,16 @@ export default function VaultPage() {
                 setApprovedPhase1(phase1Deduped);
                 setApprovedPhase2(phase2Deduped);
 
+                // Handle Phase 3 if present
+                const phase3Raw = data.scriptsApprovals || [];
+                const phase3Deduped = [...new Set(phase3Raw)];
+                setApprovedPhase3(phase3Deduped);
+
                 // Keep local storage in sync
                 const approvals = {
                     phase1: phase1Deduped,
-                    phase2: phase2Deduped
+                    phase2: phase2Deduped,
+                    phase3: phase3Deduped
                 };
                 localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
             }
@@ -664,9 +682,9 @@ export default function VaultPage() {
         }
     };
 
-    const saveApprovals = async (phase1, phase2) => {
+    const saveApprovals = async (phase1, phase2, phase3 = []) => {
         const activeSessionId = dataSource?.id || 'current';
-        const approvals = { phase1, phase2 };
+        const approvals = { phase1, phase2, phase3 };
         localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
 
         try {
@@ -676,7 +694,8 @@ export default function VaultPage() {
                 body: JSON.stringify({
                     sessionId: activeSessionId,
                     businessCoreApprovals: phase1,
-                    funnelAssetsApprovals: phase2
+                    funnelAssetsApprovals: phase2,
+                    scriptsApprovals: phase3
                 })
             });
         } catch (e) {
@@ -693,22 +712,49 @@ export default function VaultPage() {
         // 1. Already approved sections stay approved
         if (approvedList.includes(sectionId)) return 'approved';
 
-        // 2. Unapproved Phase 2 sections are ALWAYS locked until Phase 1 is fully approved AND funnel chosen
+        // 2. Phase gating
         if (phaseNumber === 2 && !hasFunnelChoice) return 'locked';
+        if (phaseNumber === 3 && !phase2FullyApproved) return 'locked';
 
         // 3. Check if this section has generated content
-        const hasContent = vaultData && vaultData[sectionId] && Object.keys(vaultData[sectionId]).length > 0;
+        const sectionData = vaultData?.[sectionId];
 
-        // 4. First section of a phase is 'current' if it has content, otherwise 'locked'
-        const sections = phaseNumber === 1 ? PHASE_1_SECTIONS : PHASE_2_SECTIONS;
+        // Check for explicit error in data (from DB or normalization)
+        if (sectionData?.error) {
+            return 'failed';
+        }
+
+        // 4. MANUAL SECTIONS: media is user-uploaded, skip AI population check
+        const MANUAL_SECTIONS = ['media'];
+        if (MANUAL_SECTIONS.includes(sectionId)) {
+            // For manual sections, skip to sequential unlock check
+            // They don't have AI-generated content, user uploads manually
+        } else {
+            // 5. AI-generated sections: Check population status
+            const meaningfulKeys = Object.keys(sectionData || {}).filter(k => !k.startsWith('_') && k !== 'error');
+            const hasContent = meaningfulKeys.length > 0;
+            const isPopulated = sectionData?._isPopulated === true || meaningfulKeys.length > 0;
+
+            // If section has no meaningful content, show as generating
+            if (!hasContent) return 'generating';
+
+            // If content exists but not marked populated and no meaningful keys, still generating
+            if (!isPopulated) return 'generating';
+        }
+
+
+        // 5. Sequential unlock within phase - get correct sections list
+        const sections = phaseNumber === 1 ? PHASE_1_SECTIONS
+            : phaseNumber === 2 ? PHASE_2_SECTIONS
+                : PHASE_3_SECTIONS;
+
         if (index === 0) {
             return 'current';
         }
 
-        // 5. Normal sections: unlocked only if ALL previous sections are approved
+        // 6. Normal sections: unlocked only if ALL previous sections are approved
         const allPreviousApproved = sections.slice(0, index).every(s => approvedList.includes(s.id));
         if (allPreviousApproved) {
-            // If it's your turn, you are current (unless explicitly generating/failed checked above)
             return 'current';
         }
 
@@ -717,11 +763,12 @@ export default function VaultPage() {
 
     const handleApprove = async (sectionId, phaseNumber) => {
         // Get sections list for current phase
-        const phaseSections = phaseNumber === 1 ? PHASE_1_SECTIONS : PHASE_2_SECTIONS;
+        const phaseSections = phaseNumber === 1 ? PHASE_1_SECTIONS
+            : phaseNumber === 2 ? PHASE_2_SECTIONS
+                : PHASE_3_SECTIONS;
         const currentIndex = phaseSections.findIndex(s => s.id === sectionId);
 
         if (phaseNumber === 1) {
-            // Prevent duplicates
             if (approvedPhase1.includes(sectionId)) {
                 console.log('[Vault] Section already approved:', sectionId);
                 return;
@@ -729,15 +776,14 @@ export default function VaultPage() {
 
             const newApprovals = [...approvedPhase1, sectionId];
             setApprovedPhase1(newApprovals);
-            await saveApprovals(newApprovals, approvedPhase2);
+            await saveApprovals(newApprovals, approvedPhase2, approvedPhase3);
 
             if (newApprovals.length >= PHASE_1_SECTIONS.length) {
                 toast.success("🎉 Phase 1 Complete! Choose your funnel to unlock Phase 2.");
             } else {
                 toast.success("Section approved!");
             }
-        } else {
-            // Prevent duplicates
+        } else if (phaseNumber === 2) {
             if (approvedPhase2.includes(sectionId)) {
                 console.log('[Vault] Section already approved:', sectionId);
                 return;
@@ -745,20 +791,32 @@ export default function VaultPage() {
 
             const newApprovals = [...approvedPhase2, sectionId];
             setApprovedPhase2(newApprovals);
-            await saveApprovals(approvedPhase1, newApprovals);
+            await saveApprovals(approvedPhase1, newApprovals, approvedPhase3);
 
             if (newApprovals.length >= PHASE_2_SECTIONS.length) {
-                toast.success("🎉 Your Vault is Complete!");
+                toast.success("🎉 Phase 2 Complete! Unlock Sales Scripts.");
+            } else {
+                toast.success("Section approved!");
+            }
+        } else {
+            // Phase 3
+            if (approvedPhase3.includes(sectionId)) {
+                console.log('[Vault] Section already approved:', sectionId);
+                return;
+            }
+
+            const newApprovals = [...approvedPhase3, sectionId];
+            setApprovedPhase3(newApprovals);
+            await saveApprovals(approvedPhase1, approvedPhase2, newApprovals);
+
+            if (newApprovals.length >= PHASE_3_SECTIONS.length) {
+                toast.success("🎉 All Phases Complete! Ready to Deploy.");
             } else {
                 toast.success("Section approved!");
             }
         }
 
         // Auto-collapse current section and expand next section
-        // "One Action At A Time" Rules:
-        // 1. Collapse current section
-        // 2. Clear ANY other expanded sections (focus mode)
-        // 3. Only expand the IMMEDIATE next section
         const newExpanded = new Set();
 
         // Find and expand next section
@@ -768,6 +826,9 @@ export default function VaultPage() {
         } else if (phaseNumber === 1 && hasFunnelChoice && PHASE_2_SECTIONS.length > 0) {
             // If Phase 1 complete and has funnel choice, expand first Phase 2 section
             newExpanded.add(PHASE_2_SECTIONS[0].id);
+        } else if (phaseNumber === 2 && phase2FullyApproved && PHASE_3_SECTIONS.length > 0) {
+            // If Phase 2 complete, expand first Phase 3 section
+            newExpanded.add(PHASE_3_SECTIONS[0].id);
         }
 
         setExpandedSections(newExpanded);
@@ -1961,7 +2022,7 @@ export default function VaultPage() {
                             Phase 1
                         </h2>
                         <div className="grid gap-3">
-                            {PHASE_1_SECTIONS.map((section) => renderCompletedSection(section, 1))}
+                            {PHASE_1_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 1))}
                         </div>
                     </div>
 
@@ -1972,7 +2033,18 @@ export default function VaultPage() {
                             Phase 2
                         </h2>
                         <div className="grid gap-3">
-                            {PHASE_2_SECTIONS.map((section) => renderCompletedSection(section, 2))}
+                            {PHASE_2_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 2))}
+                        </div>
+                    </div>
+
+                    {/* Phase 3 */}
+                    <div className="mb-8">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                            Phase 3
+                        </h2>
+                        <div className="grid gap-3">
+                            {PHASE_3_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 3))}
                         </div>
                     </div>
                 </div>
@@ -2165,9 +2237,10 @@ export default function VaultPage() {
                                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" className="text-cyan fill-cyan/20" />
                                     </svg>
                                 ) :
-                                    status === 'generating' ? <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" /> :
+                                    status === 'generating' ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-cyan animate-spin" /> :
                                         status === 'failed' ? <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" /> :
                                             <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
+
                         </div>
                         <div className="flex-1 min-w-0">
                             <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-cyan' :
@@ -2371,6 +2444,13 @@ export default function VaultPage() {
                         >
                             Phase 2
                         </button>
+                        <button
+                            onClick={() => { setActiveTab('scripts'); setShowMediaLibrary(false); }}
+                            disabled={!phase2FullyApproved}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scripts' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : phase2FullyApproved ? 'text-gray-500 hover:text-gray-300' : 'text-gray-700 cursor-not-allowed'}`}
+                        >
+                            Phase 3
+                        </button>
                     </div>
 
 
@@ -2379,14 +2459,16 @@ export default function VaultPage() {
                 {/* Content Header */}
                 <div className="text-center mb-10">
                     <h1 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Phase 1' : 'Phase 2')}
+                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Phase 1' : activeTab === 'assets' ? 'Phase 2' : 'Phase 3')}
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto">
                         {showMediaLibrary
                             ? 'Update your funnel images and videos.'
                             : (activeTab === 'dna'
                                 ? 'Your core business foundations. The foundation for all marketing.'
-                                : 'Deployable assets for your marketing funnels, emails, and ads.')}
+                                : activeTab === 'assets'
+                                    ? 'Deployable assets for your marketing funnels, emails, and ads.'
+                                    : 'Sales scripts to close deals and set appointments.')}
                     </p>
                 </div>
 
@@ -2420,7 +2502,9 @@ export default function VaultPage() {
                             <span className="text-cyan font-bold">
                                 {activeTab === 'dna'
                                     ? `${approvedPhase1.length} of ${PHASE_1_SECTIONS.length}`
-                                    : `${approvedPhase2.length} of ${PHASE_2_SECTIONS.length}`}
+                                    : activeTab === 'assets'
+                                        ? `${approvedPhase2.length} of ${PHASE_2_SECTIONS.length}`
+                                        : `${approvedPhase3.length} of ${PHASE_3_SECTIONS.length}`}
                             </span>
                         </div>
                         <div className="h-2.5 bg-[#0e0e0f] rounded-full overflow-hidden border border-white/5">
@@ -2429,7 +2513,9 @@ export default function VaultPage() {
                                 animate={{
                                     width: `${activeTab === 'dna'
                                         ? (approvedPhase1.length / PHASE_1_SECTIONS.length) * 100
-                                        : (approvedPhase2.length / PHASE_2_SECTIONS.length) * 100}%`
+                                        : activeTab === 'assets'
+                                            ? (approvedPhase2.length / PHASE_2_SECTIONS.length) * 100
+                                            : (approvedPhase3.length / PHASE_3_SECTIONS.length) * 100}%`
                                 }}
                                 className="h-full bg-gradient-to-r from-cyan via-blue-500 to-indigo-600 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.5)]"
                             />
@@ -2491,7 +2577,7 @@ export default function VaultPage() {
                                     )}
                                 </div>
                             </motion.div>
-                        ) : (
+                        ) : activeTab === 'assets' ? (
                             <motion.div
                                 key="assets-content"
                                 initial={{ opacity: 0, x: 20 }}
@@ -2556,8 +2642,48 @@ export default function VaultPage() {
                                     </div>
                                 )}
                             </motion.div>
+                        ) : (
+                            <motion.div
+                                key="scripts-content"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="space-y-4"
+                            >
+                                <div className="grid gap-3">
+                                    {PHASE_3_SECTIONS.map((section, index) => {
+                                        const status = getSectionStatus(section.id, 3, approvedPhase3, index);
+                                        return renderSection(section, status, index, 3);
+                                    })}
+
+                                    {phase3FullyApproved && (
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-green-500/20 text-center shadow-2xl shadow-green-500/5"
+                                        >
+                                            <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <CheckCircle className="w-8 h-8 text-green-500" />
+                                            </div>
+                                            <h3 className="text-xl font-bold mb-2">🎉 All Phases Complete!</h3>
+                                            <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+                                                Your vault is fully approved. Deploy to GoHighLevel to activate your marketing system.
+                                            </p>
+                                            <button
+                                                onClick={() => setShowDeployModal(true)}
+                                                className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
+                                            >
+                                                <ExternalLink className="w-5 h-5" />
+                                                Deploy to GHL
+                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                            </button>
+                                        </motion.div>
+                                    )}
+                                </div>
+                            </motion.div>
                         )}
                     </AnimatePresence>
+
                 </div>
 
                 {/* Save Session Modal */}

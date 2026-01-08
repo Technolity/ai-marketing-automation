@@ -58,7 +58,8 @@ export async function GET(req) {
 
         // Define phases by section ID (source of truth)
         const PHASE_1_SECTION_IDS = ['idealClient', 'message', 'story', 'offer'];
-        const PHASE_2_SECTION_IDS = ['salesScripts', 'setterScript', 'leadMagnet', 'vsl', 'funnelCopy', 'facebookAds', 'emails', 'appointmentReminders', 'bio', 'media'];
+        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'funnelCopy', 'facebookAds', 'emails', 'appointmentReminders', 'bio', 'media'];
+        const PHASE_3_SECTION_IDS = ['salesScripts', 'setterScript'];
 
         // Filter by section ID, not stored phase value (which may be incorrect)
         const businessCoreApprovals = [...new Set(
@@ -73,17 +74,34 @@ export async function GET(req) {
                 .map(s => s.section_id)
         )];
 
+        const scriptsApprovals = [...new Set(
+            approvedSections
+                .filter(s => PHASE_3_SECTION_IDS.includes(s.section_id))
+                .map(s => s.section_id)
+        )];
+
+        // Calculate phase completion
+        const phase1Complete = businessCoreApprovals.length >= PHASE_1_SECTION_IDS.length;
+        const phase2Complete = funnelAssetsApprovals.length >= PHASE_2_SECTION_IDS.length;
+        const phase3Complete = scriptsApprovals.length >= PHASE_3_SECTION_IDS.length;
+
         console.log('[Approvals API] Returning:', {
             phase1Count: businessCoreApprovals.length,
             phase2Count: funnelAssetsApprovals.length,
+            phase3Count: scriptsApprovals.length,
             rawCount: approvedSections.length,
             phase1: businessCoreApprovals,
-            phase2: funnelAssetsApprovals
+            phase2: funnelAssetsApprovals,
+            phase3: scriptsApprovals
         });
 
         return NextResponse.json({
             businessCoreApprovals,
             funnelAssetsApprovals,
+            scriptsApprovals,
+            phase1Complete,
+            phase2Complete,
+            phase3Complete,
             funnelApproved: funnel?.phase2_unlocked || false
         });
 
@@ -105,7 +123,7 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { sessionId: funnelId, businessCoreApprovals, funnelAssetsApprovals, funnelApproved } = body;
+        const { sessionId: funnelId, businessCoreApprovals, funnelAssetsApprovals, scriptsApprovals, funnelApproved } = body;
 
         if (!funnelId) {
             return NextResponse.json({ error: 'Missing funnel ID' }, { status: 400 });
@@ -115,7 +133,8 @@ export async function POST(req) {
 
         // Update status in vault_content for specified sections
         // SECURITY FIX: Added is_current_version filter to only update current versions
-        const allApproved = [...(businessCoreApprovals || []), ...(funnelAssetsApprovals || [])];
+        const allApproved = [...(businessCoreApprovals || []), ...(funnelAssetsApprovals || []), ...(scriptsApprovals || [])];
+
 
         if (allApproved.length > 0) {
             const { error: vaultError } = await supabaseAdmin

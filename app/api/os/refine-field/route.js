@@ -108,7 +108,7 @@ Provide the refined content:`;
 
                 // Initialize OpenAI
                 const model = new ChatOpenAI({
-                    modelName: 'gpt-4o-mini',
+                    modelName: 'gpt-5.2',
                     temperature: 0.7,
                     streaming: true,
                     openAIApiKey: process.env.OPENAI_API_KEY

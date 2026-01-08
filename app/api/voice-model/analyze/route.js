@@ -259,7 +259,7 @@ Return ONLY valid JSON.`;
                 { role: 'user', content: analysisPrompt }
             ],
             response_format: { type: 'json_object' },
-            max_tokens: 1000
+            max_completion_tokens: 1000
         });
 
         const analysis = JSON.parse(completion.choices[0].message.content);

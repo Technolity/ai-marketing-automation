@@ -68,8 +68,16 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             sectionKey: key
         });
 
+
+
         const promptFn = getPromptByKey(key);
-        if (!promptFn) throw new Error(`Prompt ${key} not found`);
+
+        if (!promptFn) {
+            console.error(`[GenerateStream] Error: Prompt function for key ${key} (${displayName}) NOT FOUND`);
+            throw new Error(`Prompt ${key} not found`);
+        } else {
+            console.log(`[GenerateStream] Found prompt function for key ${key} (${displayName})`);
+        }
 
         const rawPrompt = promptFn(data);
         const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;

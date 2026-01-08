@@ -73,7 +73,7 @@ async function generateWithProvider(systemPrompt, userPrompt, options = {}) {
                         ],
                         model: config.models.text,
                         response_format: options.jsonMode ? { type: "json_object" } : undefined,
-                        max_tokens: options.maxTokens || 6000,
+                        max_completion_tokens: options.maxTokens || 6000,
                         temperature: options.temperature || 0.7,
                     });
                     return completion.choices[0].message.content;

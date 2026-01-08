@@ -1,9 +1,28 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon, Info } from 'lucide-react';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+
+// Helper to auto-resize a textarea element
+const autoResizeTextarea = (el, maxHeight = 288) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px';
+};
+
+// Helper to sanitize displayed content
+const sanitizeDisplayContent = (text) => {
+    if (!text || typeof text !== 'string') return text || '';
+    return text
+        .replace(/\\n/g, '\n')           // Fix escaped newlines
+        .replace(/═+/g, '')              // Remove box chars
+        .replace(/─+/g, '')              // Remove line chars
+        .replace(/\[object Object\]/g, '') // Remove object strings
+        .replace(/^\s*[-=]+\s*$/gm, '')   // Remove separator lines
+        .trim();
+};
 
 /**
  * FieldEditor - Individual field editing component
@@ -28,16 +47,26 @@ export default function FieldEditor({
     const parseValue = (val, fieldType) => {
         if (val === null || val === undefined) return fieldType === 'array' ? [] : '';
         if (fieldType === 'array') {
-            if (Array.isArray(val)) return val;
+            if (Array.isArray(val)) {
+                // Sanitize each string item in array
+                return val.map(item => typeof item === 'string' ? sanitizeDisplayContent(item) : item);
+            }
             if (typeof val === 'string') {
                 try {
                     const parsed = JSON.parse(val);
-                    return Array.isArray(parsed) ? parsed : [];
+                    if (Array.isArray(parsed)) {
+                        return parsed.map(item => typeof item === 'string' ? sanitizeDisplayContent(item) : item);
+                    }
+                    return [];
                 } catch {
                     return [];
                 }
             }
             return [];
+        }
+        // Sanitize text values
+        if (typeof val === 'string') {
+            return sanitizeDisplayContent(val);
         }
         return val;
     };
@@ -139,17 +168,18 @@ export default function FieldEditor({
                         />
                     ) : (
                         <textarea
+                            ref={(el) => el && autoResizeTextarea(el)}
                             value={value || ''}
-                            onChange={(e) => setValue(e.target.value)}
+                            onChange={(e) => {
+                                setValue(e.target.value);
+                                autoResizeTextarea(e.target);
+                            }}
                             onBlur={handleBlur}
                             placeholder={field_metadata.placeholder || field_label}
                             maxLength={field_metadata.maxLength}
-                            rows={field_metadata.rows || 3}
-                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
+                            style={{ minHeight: '4.5rem', maxHeight: '18rem', height: 'auto' }}
+                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto"
                         />
-                    )}
-                    {field_metadata.hint && (
-                        <p className="mt-2 text-xs text-gray-500">{field_metadata.hint}</p>
                     )}
                     {field_metadata.maxLength && (
                         <p className="mt-1 text-xs text-gray-600 text-right">
@@ -175,17 +205,19 @@ export default function FieldEditor({
                                 <span className="mt-3 text-sm text-gray-500 font-medium">{idx + 1}.</span>
                                 <div className="flex-1 relative">
                                     <textarea
+                                        ref={(el) => el && autoResizeTextarea(el, 192)}
                                         value={item || ''}
                                         onChange={(e) => {
                                             const newArray = [...arrayValue];
                                             newArray[idx] = e.target.value;
                                             setValue(newArray);
+                                            autoResizeTextarea(e.target, 192);
                                         }}
                                         onBlur={handleBlur}
                                         placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
                                         maxLength={field_metadata.itemMaxLength}
-                                        rows={2}
-                                        className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan"
+                                        style={{ minHeight: '3.5rem', maxHeight: '12rem', height: 'auto' }}
+                                        className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto"
                                     />
                                 </div>
                                 {arrayValue.length > minItems && (
@@ -209,9 +241,6 @@ export default function FieldEditor({
                             >
                                 + Add item
                             </button>
-                        )}
-                        {field_metadata.hint && (
-                            <p className="text-xs text-gray-500">{field_metadata.hint}</p>
                         )}
                     </div>
                 );
@@ -255,17 +284,19 @@ export default function FieldEditor({
                                                 </label>
                                                 {isTextarea ? (
                                                     <textarea
+                                                        ref={(el) => el && autoResizeTextarea(el, 160)}
                                                         value={subfieldValue}
                                                         onChange={(e) => {
                                                             const newArray = [...arrayValue];
                                                             newArray[idx] = { ...itemValue, [subfield.field_id]: e.target.value };
                                                             setValue(newArray);
+                                                            autoResizeTextarea(e.target, 160);
                                                         }}
                                                         onBlur={handleBlur}
                                                         placeholder={subfield.placeholder}
                                                         maxLength={subfield.maxLength}
-                                                        rows={subfield.rows || 2}
-                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
+                                                        style={{ minHeight: '3rem', maxHeight: '10rem', height: 'auto' }}
+                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan overflow-y-auto"
                                                     />
                                                 ) : (
                                                     <input
@@ -301,9 +332,6 @@ export default function FieldEditor({
                             >
                                 + Add item
                             </button>
-                        )}
-                        {field_metadata.hint && (
-                            <p className="text-xs text-gray-500 mt-2">{field_metadata.hint}</p>
                         )}
                     </div>
                 );
@@ -373,9 +401,6 @@ export default function FieldEditor({
                             </div>
                         );
                     })}
-                    {field_metadata.hint && (
-                        <p className="text-xs text-gray-500 mt-2">{field_metadata.hint}</p>
-                    )}
                 </div>
             );
         }
@@ -506,10 +531,6 @@ export default function FieldEditor({
                             </div>
                         </div>
                     )}
-
-                    {field_metadata.hint && (
-                        <p className="text-xs text-gray-500">{field_metadata.hint}</p>
-                    )}
                 </div>
             );
         }
@@ -561,9 +582,6 @@ export default function FieldEditor({
                             );
                         })}
                     </div>
-                    {field_metadata.hint && (
-                        <p className="text-xs text-gray-500">{field_metadata.hint}</p>
-                    )}
                 </div>
             );
         }
@@ -573,11 +591,21 @@ export default function FieldEditor({
 
     return (
         <div className="space-y-3">
-            {/* Field Label */}
+            {/* Field Label with Info Tooltip */}
             <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-300">
-                    {field_label}
-                </label>
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-300">
+                        {field_label}
+                    </label>
+                    {field_metadata.hint && (
+                        <div className="relative group/info">
+                            <Info className="w-3.5 h-3.5 text-gray-500 cursor-help hover:text-cyan transition-colors" />
+                            <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-[#1a1a1d] border border-[#3a3a3d] rounded-lg shadow-xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50">
+                                <p className="text-xs text-gray-400 leading-relaxed">{field_metadata.hint.replace('📍 ', '')}</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
                 <div className="flex items-center gap-2">
                     {/* Save Success Indicator */}
                     {saveSuccess && (
