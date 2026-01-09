@@ -105,6 +105,24 @@ const PHASE_3_SECTIONS = [
     { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell }
 ];
 
+// Content mapping: numeric keys to section IDs (for legacy feedback API compatibility)
+const CONTENT_MAPPING = {
+    1: 'idealClient',
+    2: 'message',
+    3: 'story',
+    4: 'offer',
+    5: 'salesScripts',
+    6: 'leadMagnet',
+    7: 'vsl',
+    8: 'emails',
+    9: 'facebookAds',
+    10: 'funnelCopy',
+    15: 'bio',
+    16: 'appointmentReminders',
+    17: 'setterScript',
+    18: 'media'
+};
+
 
 // Normalize data structure (handles numeric or named keys)
 function normalizeData(rawData) {
@@ -2604,14 +2622,11 @@ export default function VaultPage() {
                                                     Your entire vault is complete. Now let's build your recommended marketing funnel.
                                                 </p>
                                                 <button
-                                                    onClick={() => {
-                                                        const sessionId = dataSource?.id || searchParams.get('session_id');
-                                                        router.push(`/funnel-recommendation${sessionId ? `?session_id=${sessionId}` : ''}`);
-                                                    }}
+                                                    onClick={() => setActiveTab('scripts')}
                                                     className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
                                                 >
                                                     <Sparkles className="w-5 h-5" />
-                                                    Build Recommended Funnel
+                                                    Proceed to Phase 3
                                                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                                 </button>
                                             </motion.div>

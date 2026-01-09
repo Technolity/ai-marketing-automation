@@ -32,6 +32,8 @@ import { youtubeShowPrompt } from '@/lib/prompts/youtubeShow';
 import { contentPillarsPrompt } from '@/lib/prompts/contentPillars';
 import { bioPrompt } from '@/lib/prompts/bio';
 import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
+import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
+import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
 
 // Note: generateWithProvider and retryWithBackoff are now imported from sharedAiUtils
 // This eliminates code duplication and provides enhanced features like caching and circuit breakers
@@ -641,6 +643,90 @@ export async function POST(req) {
               }
             }
 
+            // SPECIAL HANDLING: Emails use parallel chunked generation
+            if (numKey === 8) {
+              console.log('[FILL-MISSING] Using CHUNKED parallel generation for emails (19 emails in 4 chunks)');
+
+              const emailData = {
+                idealClient: userData.idealClient || '',
+                coreProblem: userData.coreProblem || '',
+                outcomes: userData.outcomes || '',
+                uniqueAdvantage: userData.uniqueAdvantage || '',
+                offerProgram: userData.offerProgram || '',
+                testimonials: userData.testimonials || '',
+                leadMagnetTitle: userData.leadMagnetTitle || '[Free Gift Name]'
+              };
+
+              const chunkTimeout = 60000;
+              const chunkMaxTokens = 4000;
+
+              try {
+                const [chunk1Result, chunk2Result, chunk3Result, chunk4Result] = await Promise.all([
+                  retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                      "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                      emailChunk1Prompt(emailData),
+                      { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                  }),
+                  retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                      "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                      emailChunk2Prompt(emailData),
+                      { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                  }),
+                  retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                      "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                      emailChunk3Prompt(emailData),
+                      { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                  }),
+                  retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                      "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                      emailChunk4Prompt(emailData),
+                      { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                  })
+                ]);
+
+                // Merge chunks
+                const mergedContent = mergeEmailChunks(chunk1Result, chunk2Result, chunk3Result, chunk4Result);
+
+                // Validate merged result
+                const validation = validateMergedEmails(mergedContent);
+                if (!validation.valid) {
+                  console.warn('[FILL-MISSING] Email merge has issues:', validation);
+                }
+
+                // Return structured success result directly
+                const sectionId = NUMERIC_KEY_TO_SECTION_ID[numKey];
+
+                return {
+                  key: numKey,
+                  result: mergedContent,
+                  name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
+                  success: true
+                };
+
+              } catch (chunkError) {
+                console.error(`[FILL-MISSING] Error in email chunk generation:`, chunkError);
+                return {
+                  key: numKey,
+                  result: null,
+                  name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
+                  success: false,
+                  error: chunkError.message
+                };
+              }
+            }
+
             // Get section-specific timeout
             const sectionTimeout = SECTION_TIMEOUTS[numKey] || 90000;
 
@@ -804,6 +890,88 @@ export async function POST(req) {
               } catch (ragError) {
                 console.error(`[RAG] Failed to enhance prompt ${key}:`, ragError.message);
                 // Continue without RAG if it fails
+              }
+            }
+
+            // SPECIAL HANDLING: Emails use parallel chunked generation
+            if (key === 8) {
+              console.log('[GENERATION] Using CHUNKED parallel generation for emails (19 emails in 4 chunks)');
+
+              const emailData = {
+                idealClient: data.idealClient || '',
+                coreProblem: data.coreProblem || '',
+                outcomes: data.outcomes || '',
+                uniqueAdvantage: data.uniqueAdvantage || '',
+                offerProgram: data.offerProgram || '',
+                testimonials: data.testimonials || '',
+                leadMagnetTitle: data.leadMagnetTitle || '[Free Gift Name]'
+              };
+
+              const chunkTimeout = 60000;
+              const chunkMaxTokens = 4000;
+
+              try {
+                const [chunk1Result, chunk2Result, chunk3Result, chunk4Result] = await Promise.all([
+                  retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                      "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                      emailChunk1Prompt(emailData),
+                      { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                  }),
+                  retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                      "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                      emailChunk2Prompt(emailData),
+                      { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                  }),
+                  retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                      "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                      emailChunk3Prompt(emailData),
+                      { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                  }),
+                  retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                      "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                      emailChunk4Prompt(emailData),
+                      { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                  })
+                ]);
+
+                // Merge chunks
+                const mergedContent = mergeEmailChunks(chunk1Result, chunk2Result, chunk3Result, chunk4Result);
+
+                // Validate merged result
+                const validation = validateMergedEmails(mergedContent);
+                if (!validation.valid) {
+                  console.warn('[GENERATION] Email merge has issues:', validation);
+                }
+
+                return {
+                  key,
+                  result: mergedContent,
+                  name: CONTENT_NAMES[key],
+                  success: true,
+                  error: null
+                };
+
+              } catch (chunkError) {
+                console.error(`[GENERATION] Error in email chunk generation:`, chunkError);
+                return {
+                  key,
+                  result: null,
+                  name: CONTENT_NAMES[key],
+                  success: false,
+                  error: chunkError.message
+                };
               }
             }
 

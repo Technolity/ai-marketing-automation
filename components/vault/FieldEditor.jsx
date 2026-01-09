@@ -5,11 +5,11 @@ import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
-// Helper to auto-resize a textarea element
-const autoResizeTextarea = (el, maxHeight = 288) => {
+// Helper to auto-resize a textarea element (no max height - grows with content)
+const autoResizeTextarea = (el) => {
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px';
+    el.style.height = el.scrollHeight + 'px';
 };
 
 // Helper to sanitize displayed content
@@ -338,18 +338,59 @@ export default function FieldEditor({
             }
         }
 
+
         // Object fields (e.g., bestIdealClient with demographic subfields)
         if (field_type === 'object') {
             const subfields = field_metadata.subfields || [];
             let objectValue = {};
+
+            // Helper to safely parse JSON with control characters
+            const safeParseJSON = (str) => {
+                if (!str || typeof str !== 'string') return null;
+
+                // If it's already an object, return it
+                if (typeof str === 'object') return str;
+
+                try {
+                    // First try direct parse
+                    return JSON.parse(str);
+                } catch (e) {
+                    // If that fails, try to sanitize the string
+                    try {
+                        // Replace problematic control characters in string values
+                        // This handles raw newlines, tabs, etc. inside JSON strings
+                        let sanitized = str
+                            .replace(/[\u0000-\u001F\u007F-\u009F]/g, (char) => {
+                                // Map control characters to their escaped versions
+                                const map = {
+                                    '\n': '\\n',
+                                    '\r': '\\r',
+                                    '\t': '\\t',
+                                    '\b': '\\b',
+                                    '\f': '\\f'
+                                };
+                                return map[char] || '';
+                            });
+
+                        return JSON.parse(sanitized);
+                    } catch (e2) {
+                        // Last resort: try to extract fields manually
+                        console.warn('[FieldEditor] Could not parse JSON even after sanitization');
+                        return null;
+                    }
+                }
+            };
 
             // Parse stored JSON string into object
             try {
                 // Handle empty/null values gracefully
                 if (!value || value === '' || value === 'null' || value === 'undefined') {
                     objectValue = {};
+                } else if (typeof value === 'object') {
+                    // Already an object
+                    objectValue = value;
                 } else {
-                    objectValue = typeof value === 'string' ? JSON.parse(value) : (value || {});
+                    objectValue = safeParseJSON(value) || {};
                 }
             } catch (e) {
                 // Only log if the value wasn't empty - empty values failing to parse is expected
@@ -358,6 +399,7 @@ export default function FieldEditor({
                 }
                 objectValue = {};
             }
+
 
             return (
                 <div className="w-full space-y-3">
@@ -372,15 +414,17 @@ export default function FieldEditor({
                                 <div className="relative group">
                                     {subfield.field_type === 'textarea' ? (
                                         <textarea
+                                            ref={(el) => el && autoResizeTextarea(el)}
                                             value={subfieldValue}
                                             onChange={(e) => {
                                                 const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
                                                 setValue(newObj);
+                                                autoResizeTextarea(e.target);
                                             }}
                                             onBlur={handleBlur}
                                             placeholder={subfield.placeholder}
-                                            rows={subfield.rows || 3}
                                             maxLength={subfield.maxLength}
+                                            style={{ minHeight: '3rem' }}
                                             className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
                                         />
                                     ) : (

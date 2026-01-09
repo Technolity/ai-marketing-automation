@@ -546,27 +546,31 @@ Be as specific as possible - for example:
                                 } else if (currentEvent === 'complete') {
                                     // COMPREHENSIVE LOGGING: Stream complete
                                     console.log('[FeedbackChat] ========== STREAM COMPLETE ==========');
-                                    console.log('[FeedbackChat] Moving to preview step with validated content');
+                                    console.log('[FeedbackChat] Moving to preview step');
 
-                                    // Move streaming message to messages array with proper preview structure
-                                    if (streamingMessage && streamingMessage.metadata?.validatedContent) {
-                                        const finalMessage = {
-                                            role: 'assistant',
-                                            content: "✓ Content generated successfully. Review the changes below:",
-                                            showPreview: true,
-                                            previewContent: streamingMessage.metadata.validatedContent,
-                                            metadata: streamingMessage.metadata
-                                        };
-                                        console.log('[FeedbackChat] Adding final message to array:', {
-                                            hasShowPreview: finalMessage.showPreview,
-                                            hasPreviewContent: !!finalMessage.previewContent,
-                                            previewContentKeys: Object.keys(finalMessage.previewContent || {}),
-                                            messageContent: finalMessage.content
+                                    // Use functional update to get latest suggestedChanges
+                                    // NOTE: suggestedChanges was already set by the 'validated' event
+                                    setSuggestedChanges(prev => {
+                                        const contentToUse = prev || streamingMessage?.metadata?.validatedContent;
+
+                                        console.log('[FeedbackChat] Complete event - content check:', {
+                                            hasPrevSuggestedChanges: !!prev,
+                                            hasStreamingMetadata: !!streamingMessage?.metadata?.validatedContent,
+                                            usingContent: !!contentToUse
                                         });
-                                        setMessages(prev => [...prev, finalMessage]);
-                                    } else {
-                                        console.warn('[FeedbackChat] No streamingMessage or validated content to move to messages');
-                                    }
+
+                                        if (contentToUse) {
+                                            // Add final message to messages array
+                                            setMessages(msgs => [...msgs, {
+                                                role: 'assistant',
+                                                content: "✓ Content generated successfully. Review the changes below:",
+                                                showPreview: true,
+                                                previewContent: contentToUse
+                                            }]);
+                                        }
+
+                                        return contentToUse || prev;
+                                    });
 
                                     setStreamingMessage(null);
                                     setChatStep(3);
@@ -574,6 +578,7 @@ Be as specific as possible - for example:
                                     setIsStreaming(false);
                                     setIsProcessing(false);
                                 }
+
                             } catch (parseError) {
                                 console.warn('[FeedbackChat] Failed to parse SSE data:', parseError);
                             }

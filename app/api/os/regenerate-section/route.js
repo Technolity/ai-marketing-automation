@@ -138,19 +138,107 @@ export async function POST(req) {
         if (sectionKey === 4) maxTokens = 5000;
         if (sectionKey === 10) maxTokens = 5000;
 
-        const rawContent = await retryWithBackoff(async () => {
-            return await generateWithProvider(
-                "You are an elite business growth strategist. Return ONLY valid JSON.",
-                rawPrompt,
-                {
-                    jsonMode: true,
-                    maxTokens,
-                    timeout: sectionTimeout
-                }
-            );
-        });
+        let parsed;
 
-        const parsed = parseJsonSafe(rawContent);
+        // SPECIAL HANDLING: Emails use parallel chunked generation
+        if (sectionKey === 8) {
+            console.log('[REGENERATE] Using CHUNKED parallel generation for emails (19 emails in 4 chunks)');
+
+            const { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } = await import('@/lib/prompts/emailChunks');
+            const { mergeEmailChunks, validateMergedEmails } = await import('@/lib/prompts/emailMerger');
+
+            // Format data for chunk prompts (map questionnaire field names)
+            const emailData = {
+                idealClient: data[1] || '',
+                coreProblem: data[2] || '',
+                outcomes: data[3] || '',
+                uniqueAdvantage: data[4] || '',
+                offerProgram: data[5] || '',
+                testimonials: data[6] || '',
+                leadMagnetTitle: data[7] || '[Free Gift Name]'
+            };
+
+            const chunkTimeout = 60000; // 60s per chunk
+            const chunkMaxTokens = 4000;
+
+            // Generate all 4 chunks in parallel
+            console.log('[REGENERATE] Starting 4 parallel chunk generations...');
+            const startTime = Date.now();
+
+            const [chunk1Result, chunk2Result, chunk3Result, chunk4Result] = await Promise.all([
+                retryWithBackoff(async () => {
+                    console.log('[REGENERATE] Chunk 1 starting...');
+                    const raw = await generateWithProvider(
+                        "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                        emailChunk1Prompt(emailData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    console.log('[REGENERATE] Chunk 1 complete');
+                    return parseJsonSafe(raw);
+                }),
+                retryWithBackoff(async () => {
+                    console.log('[REGENERATE] Chunk 2 starting...');
+                    const raw = await generateWithProvider(
+                        "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                        emailChunk2Prompt(emailData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    console.log('[REGENERATE] Chunk 2 complete');
+                    return parseJsonSafe(raw);
+                }),
+                retryWithBackoff(async () => {
+                    console.log('[REGENERATE] Chunk 3 starting...');
+                    const raw = await generateWithProvider(
+                        "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                        emailChunk3Prompt(emailData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    console.log('[REGENERATE] Chunk 3 complete');
+                    return parseJsonSafe(raw);
+                }),
+                retryWithBackoff(async () => {
+                    console.log('[REGENERATE] Chunk 4 starting...');
+                    const raw = await generateWithProvider(
+                        "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                        emailChunk4Prompt(emailData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    console.log('[REGENERATE] Chunk 4 complete');
+                    return parseJsonSafe(raw);
+                })
+            ]);
+
+            const elapsed = Date.now() - startTime;
+            console.log(`[REGENERATE] All 4 chunks complete in ${elapsed}ms`);
+
+            // Merge chunks
+            parsed = mergeEmailChunks(chunk1Result, chunk2Result, chunk3Result, chunk4Result);
+
+            // Validate merged result
+            const validation = validateMergedEmails(parsed);
+            console.log('[REGENERATE] Email merge validation:', validation);
+
+            if (!validation.valid) {
+                console.warn('[REGENERATE] Email merge has issues:', validation);
+            }
+
+        } else {
+            // Standard single-call generation for other sections
+            const rawContent = await retryWithBackoff(async () => {
+                return await generateWithProvider(
+                    "You are an elite business growth strategist. Return ONLY valid JSON.",
+                    rawPrompt,
+                    {
+                        jsonMode: true,
+                        maxTokens,
+                        timeout: sectionTimeout
+                    }
+                );
+            });
+
+            parsed = parseJsonSafe(rawContent);
+        }
+
 
         // Get current version to increment
         const { data: currentVersionData } = await supabaseAdmin

@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { populateVaultFields } from '@/lib/vault/fieldMapper';
 
 
 export const dynamic = 'force-dynamic';
@@ -7,6 +8,9 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/os/vault-fields
  * Fetch all fields for a specific section
+ *
+ * AUTO-POPULATION: If no fields exist in vault_content_fields,
+ * this API will attempt to extract and populate them from vault_content.
  *
  * Query params:
  * - funnel_id (required)
@@ -51,7 +55,7 @@ export async function GET(req) {
         }
 
         // Fetch all current version fields for this section
-        const { data: fields, error: fetchError } = await supabaseAdmin
+        let { data: fields, error: fetchError } = await supabaseAdmin
             .from('vault_content_fields')
             .select('*')
             .eq('funnel_id', funnel_id)
@@ -63,6 +67,51 @@ export async function GET(req) {
             console.error('[VaultFields GET] Fetch error:', fetchError);
             throw fetchError;
         }
+
+        // AUTO-POPULATION: If no fields found, try to populate from vault_content
+        if (!fields || fields.length === 0) {
+            console.log(`[VaultFields GET] No fields found for ${section_id}, attempting auto-population...`);
+
+            // Fetch raw content from vault_content
+            const { data: vaultContent } = await supabaseAdmin
+                .from('vault_content')
+                .select('content')
+                .eq('funnel_id', funnel_id)
+                .eq('section_id', section_id)
+                .eq('is_current_version', true)
+                .single();
+
+            if (vaultContent?.content) {
+                console.log(`[VaultFields GET] Found vault_content for ${section_id}, extracting fields...`);
+
+                // Populate fields from raw content using fieldMapper
+                const populateResult = await populateVaultFields(
+                    funnel_id,
+                    section_id,
+                    vaultContent.content,
+                    userId
+                );
+
+                console.log(`[VaultFields GET] Population result:`, populateResult);
+
+                if (populateResult.success && populateResult.fieldsInserted > 0) {
+                    // Re-fetch the newly populated fields
+                    const { data: newFields } = await supabaseAdmin
+                        .from('vault_content_fields')
+                        .select('*')
+                        .eq('funnel_id', funnel_id)
+                        .eq('section_id', section_id)
+                        .eq('is_current_version', true)
+                        .order('display_order', { ascending: true });
+
+                    fields = newFields || [];
+                    console.log(`[VaultFields GET] Auto-populated ${fields.length} fields for ${section_id}`);
+                }
+            } else {
+                console.log(`[VaultFields GET] No vault_content found for ${section_id}`);
+            }
+        }
+
 
         console.log('[VaultFields GET] Fields fetched:', {
             section_id,
@@ -88,4 +137,3 @@ export async function GET(req) {
         });
     }
 }
-

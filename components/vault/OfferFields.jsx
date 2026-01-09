@@ -85,36 +85,70 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
         setFeedbackModalOpen(true);
     };
 
-    // Handle AI feedback save
-    const handleFeedbackSave = async (refinedContent) => {
-        console.log('[OfferFields] AI feedback save:', { selectedField, refinedContent });
+    // Handle AI feedback save - supports both single field and batch multi-field save
+    const handleFeedbackSave = async (feedbackData) => {
+        console.log('[OfferFields] AI feedback save received:', feedbackData);
 
-        if (!selectedField) return;
+        // Extract refined content and subSection from callback
+        const refinedContent = feedbackData?.refinedContent || feedbackData;
+        const subSection = feedbackData?.subSection;
 
-        // The refinedContent should be the new field value
-        // Auto-save it via the FieldEditor's save mechanism
+        if (!refinedContent) {
+            console.error('[OfferFields] No refined content to save');
+            return;
+        }
+
         try {
-            const response = await fetch('/api/os/vault-field', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    funnel_id: funnelId,
-                    section_id: sectionId,
-                    field_id: selectedField.field_id,
-                    field_value: refinedContent
-                })
-            });
+            // Import feedback utils dynamically
+            const { flattenAIResponseToFields, hasMultipleFields } = await import('@/lib/vault/feedbackUtils');
 
-            if (!response.ok) throw new Error('Failed to save AI feedback');
+            // Flatten AI response to field IDs
+            const flatFields = flattenAIResponseToFields(refinedContent, sectionId);
 
-            const result = await response.json();
+            console.log('[OfferFields] Flattened fields:', Object.keys(flatFields));
 
-            // Update local state
-            setFields(prev => prev.map(f =>
-                f.field_id === selectedField.field_id
-                    ? { ...f, field_value: refinedContent, version: result.version }
-                    : f
-            ));
+            // If subSection specified and exists in flatFields, only save that field
+            if (subSection && subSection !== 'all' && flatFields[subSection]) {
+                console.log('[OfferFields] Saving single field:', subSection);
+
+                const response = await fetchWithAuth('/api/os/vault-field', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        funnel_id: funnelId,
+                        section_id: sectionId,
+                        field_id: subSection,
+                        field_value: flatFields[subSection]
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to save field');
+
+            } else if (Object.keys(flatFields).length > 0) {
+                // Batch save all fields via new API
+                console.log('[OfferFields] Batch saving', Object.keys(flatFields).length, 'fields');
+
+                const response = await fetchWithAuth('/api/os/vault-section-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        funnel_id: funnelId,
+                        section_id: sectionId,
+                        fields: flatFields
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to save fields');
+                }
+
+                const result = await response.json();
+                console.log('[OfferFields] Batch save result:', result);
+            }
+
+            // Refresh fields from database
+            await fetchFields();
 
             // Reset section approval
             setSectionApproved(false);
@@ -126,8 +160,12 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
 
         } catch (error) {
             console.error('[OfferFields] AI feedback save error:', error);
+            // Import toast dynamically if not available
+            const { toast } = await import('sonner');
+            toast.error('Failed to save feedback: ' + error.message);
         }
     };
+
 
     // Handle custom field added
     const handleFieldAdded = (newField) => {

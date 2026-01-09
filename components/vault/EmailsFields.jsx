@@ -106,7 +106,21 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
         }
     };
 
-    const getFieldValue = (field_id) => fields.find(f => f.field_id === field_id)?.field_value || null;
+    const getFieldValue = (field_id) => {
+        const field = fields.find(f => f.field_id === field_id);
+        const value = field?.field_value || null;
+        // Debug: Log first few field lookups
+        if (field_id === 'email1' || field_id === 'email2') {
+            console.log(`[EmailsFields] getFieldValue('${field_id}'):`, {
+                found: !!field,
+                hasValue: !!value,
+                valueType: typeof value,
+                valuePreview: typeof value === 'string' ? value.substring(0, 100) : value
+            });
+        }
+        return value;
+    };
+
 
     // Expose approve button for parent to render in header
     const approveButton = !sectionApproved ? (

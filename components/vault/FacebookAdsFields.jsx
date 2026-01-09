@@ -48,22 +48,38 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
         setFeedbackModalOpen(true);
     };
 
-    const handleFeedbackSave = async (refinedContent) => {
-        if (!selectedField) return;
+    const handleFeedbackSave = async (feedbackData) => {
+        const refinedContent = feedbackData?.refinedContent || feedbackData;
+        const subSection = feedbackData?.subSection;
+        if (!refinedContent) return;
         try {
-            const response = await fetch('/api/os/vault-field', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, field_id: selectedField.field_id, field_value: refinedContent })
-            });
-            if (!response.ok) throw new Error('Failed to save');
-            const result = await response.json();
-            setFields(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version } : f));
+            const { flattenAIResponseToFields } = await import('@/lib/vault/feedbackUtils');
+            const flatFields = flattenAIResponseToFields(refinedContent, sectionId);
+            console.log('[FacebookAdsFields] Flattened fields:', Object.keys(flatFields));
+
+            if (subSection && subSection !== 'all' && flatFields[subSection]) {
+                const response = await fetchWithAuth('/api/os/vault-field', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, field_id: subSection, field_value: flatFields[subSection] })
+                });
+                if (!response.ok) throw new Error('Failed to save field');
+            } else if (Object.keys(flatFields).length > 0) {
+                const response = await fetchWithAuth('/api/os/vault-section-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, fields: flatFields })
+                });
+                if (!response.ok) throw new Error('Failed to save fields');
+            }
+            await fetchFields();
             setSectionApproved(false);
             setFeedbackModalOpen(false);
             setSelectedField(null);
         } catch (error) {
             console.error('[FacebookAdsFields] Save error:', error);
+            const { toast } = await import('sonner');
+            toast.error('Failed to save: ' + error.message);
         }
     };
 
