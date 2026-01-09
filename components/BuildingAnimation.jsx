@@ -1,252 +1,138 @@
-"use client";
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles, Loader2 } from 'lucide-react';
+
 /**
  * BuildingAnimation Component
  * 
- * Cinematic loading experience:
- * 1. "TedOS" logo fills up vertically with Cyan/White as progress increases.
- * 2. Glitch effect and screen flash triggered at 100% completion.
- * 3. Modern, non-technical status messages.
+ * DESIGN UPDATE (Classic & Responsive):
+ * - Smaller, classic "TedOS" logo (Cyan/White)
+ * - Circular Loader
+ * - Clean status text (No grid)
+ * - Good spacing from top/bottom
  */
+const BuildingAnimation = ({ isGenerating = false, completedSections = [], processingMessage }) => {
 
-import { motion, AnimatePresence } from 'framer-motion';
-import { useEffect, useState, useRef } from 'react';
+    // Determine progress percentage
+    const totalExpected = 13;
+    const [fakeProgress, setFakeProgress] = useState(0);
 
-// Status messages that cycle during animation
-const STATUS_MESSAGES = [
-    'Getting to know your business...',
-    'Finding your perfect people...',
-    'Sharpening your message...',
-    'Crafting your story...',
-    'Structuring your offer...',
-    'Polishing your words...',
-    'Connecting the dots...',
-    'Making it look professional...',
-    'System Initialized.'
-];
-
-export default function BuildingAnimation({
-    isGenerating,
-    onEarlyRedirect = null,
-    completedSections = [],
-    processingMessage = ""
-}) {
-    // Smooth animated percentage that runs 0-100% over ~50 seconds
-    const [displayPercentage, setDisplayPercentage] = useState(0);
-    const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-    const [isComplete, setIsComplete] = useState(false);
-    const animationRef = useRef(null);
-    const startTimeRef = useRef(null);
-
-    // Total animation duration in ms (~50 seconds)
-    const ANIMATION_DURATION = 50000;
-
-    // Smooth animation using requestAnimationFrame
     useEffect(() => {
-        if (!isGenerating) {
-            setDisplayPercentage(0);
-            setCurrentMessageIndex(0);
-            startTimeRef.current = null;
-            return;
-        }
+        if (!isGenerating) return;
 
-        startTimeRef.current = Date.now();
+        // Fast initial progress
+        const interval = setInterval(() => {
+            setFakeProgress(prev => {
+                if (prev >= 95) return prev; // Stall at 95%
+                // Slow down as we get higher
+                const increment = prev < 50 ? 1 : prev < 80 ? 0.5 : 0.1;
+                return prev + increment;
+            });
+        }, 100);
 
-        const animate = () => {
-            const elapsed = Date.now() - startTimeRef.current;
-            const progress = Math.min(elapsed / ANIMATION_DURATION, 1);
-
-            // Sine-wave easing: faster at start, slower approaching 100%
-            const easedProgress = Math.sin(progress * Math.PI / 2);
-            const percentage = easedProgress * 100;
-
-            setDisplayPercentage(percentage);
-
-            // Update message index based on progress
-            const messageIndex = Math.min(
-                Math.floor(progress * STATUS_MESSAGES.length),
-                STATUS_MESSAGES.length - 1
-            );
-            setCurrentMessageIndex(messageIndex);
-
-            if (progress < 1) {
-                animationRef.current = requestAnimationFrame(animate);
-            }
-        };
-
-        animationRef.current = requestAnimationFrame(animate);
-
-        return () => {
-            if (animationRef.current) {
-                cancelAnimationFrame(animationRef.current);
-            }
-        };
+        return () => clearInterval(interval);
     }, [isGenerating]);
 
-    useEffect(() => {
-        setIsComplete(displayPercentage >= 99);
-    }, [displayPercentage]);
+    // Calculate display percentage
+    const completedCount = completedSections.length;
+    let percent = Math.floor((completedCount / totalExpected) * 100);
 
-    const displayMessage = processingMessage || STATUS_MESSAGES[currentMessageIndex];
-    const formattedPercentage = displayPercentage >= 99.5 ? 100 : Math.floor(displayPercentage * 10) / 10;
-
-    // Determine fill styles based on percentage
-    // The fill will rise from bottom (0%) to top (100%)
-    const fillStyle = {
-        background: `linear-gradient(to top, 
-            var(--fill-color) ${displayPercentage}%, 
-            rgba(255, 255, 255, 0.1) ${displayPercentage}%
-        )`,
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-        backgroundClip: 'text',
-    };
-
-    // Glitch variants for the finale
-    const glitchVariants = {
-        normal: { x: 0, y: 0, opacity: 1, filter: "hue-rotate(0deg)" },
-        glitch: {
-            x: [0, -5, 5, -2, 2, 0],
-            y: [0, 2, -2, 1, -1, 0],
-            opacity: [1, 0.8, 1, 0.9, 1],
-            filter: ["hue-rotate(0deg)", "hue-rotate(90deg)", "hue-rotate(-45deg)", "hue-rotate(0deg)"],
-            transition: {
-                duration: 0.2,
-                repeat: Infinity,
-                repeatType: "mirror"
-            }
-        }
-    };
+    // If we have actual completion data, use it over fake progress once it overtakes
+    if (percent < fakeProgress) percent = Math.floor(fakeProgress);
+    if (percent > 100) percent = 100;
 
     return (
-        <AnimatePresence>
-            {isGenerating && (
-                <div className="fixed inset-0 z-[100] bg-[#050505] flex items-center justify-center overflow-hidden font-sans">
-                    {/* Background Ambience */}
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan/5 via-[#0a0a0b] to-[#000000] opacity-80" />
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#050505] text-white font-sans overflow-hidden">
+            {/* Background Ambience */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan/5 via-[#050505] to-[#050505] opacity-40" />
+            <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-[0.02]" />
 
-                    {/* Grid Pattern */}
-                    <div className="absolute inset-0 opacity-[0.05]"
-                        style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}
+            {/* Main Content Container */}
+            <div className="relative z-10 flex flex-col items-center w-full max-w-4xl px-6 py-12">
+
+                {/* 1. CLASSIC LOGO TEXT (Smaller & Spaced) */}
+                <div className="mb-16 md:mb-20 relative mt-8">
+                    {/* Ghost/Blur Layer for Aura Effect */}
+                    <h1 className="absolute inset-0 text-center text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter blur-2xl select-none pointer-events-none opacity-50">
+                        <span className="text-cyan">Ted</span>
+                        <span className="text-white">OS</span>
+                    </h1>
+
+                    {/* Sharp Visible Layer */}
+                    <h1 className="relative z-10 text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter text-center select-none">
+                        <span className="text-cyan drop-shadow-[0_0_15px_rgba(6,182,212,0.5)]">Ted</span>
+                        <span className="text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">OS</span>
+                    </h1>
+                </div>
+
+
+                {/* 2. CIRCULAR LOADER */}
+                <div className="relative w-40 h-40 md:w-56 md:h-56 mb-16 flex items-center justify-center">
+                    {/* Outer Glow Ring */}
+                    <div className="absolute inset-0 rounded-full border border-cyan/10 shadow-[0_0_40px_rgba(6,182,212,0.05)]" />
+
+                    {/* Spinning Gradient Ring */}
+                    <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                        className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-cyan border-r-cyan/30"
                     />
 
-                    {/* Completion Flash Overlay */}
-                    <AnimatePresence>
-                        {isComplete && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: [0, 1, 0] }}
-                                transition={{ duration: 0.2, times: [0, 0.1, 1] }}
-                                className="absolute inset-0 bg-white z-50 pointer-events-none mix-blend-overlay"
-                            />
-                        )}
-                    </AnimatePresence>
-
+                    {/* Inner Rotating Dashes (Counter-spin) */}
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
-                        transition={{ duration: 0.8 }}
-                        className="relative z-10 w-full max-w-4xl px-4 flex flex-col items-center"
-                    >
-                        {/* THE LOGO CONTAINER */}
+                        animate={{ rotate: -360 }}
+                        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                        className="absolute inset-4 rounded-full border border-dashed border-white/10"
+                    />
+
+                    {/* Center Icon/Percent */}
+                    <div className="flex flex-col items-center justify-center">
+                        <Sparkles className="w-6 h-6 md:w-8 md:h-8 text-cyan mb-3 animate-pulse opacity-80" />
+                        <span className="text-2xl md:text-4xl font-bold font-mono text-white/90">{percent}%</span>
+                    </div>
+                </div>
+
+
+                {/* 3. CLEAN STATUS TEXT (No Cards) */}
+                <div className="text-center w-full max-w-xl mx-auto min-h-[100px] flex flex-col justify-end pb-8">
+                    {/* Dynamic Processing Message */}
+                    <div className="flex items-center justify-center">
                         <motion.div
-                            className="relative mb-24 select-none"
-                            animate={isComplete ? "glitch" : "normal"}
-                            variants={glitchVariants}
+                            key={processingMessage}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="text-cyan text-lg md:text-xl font-medium flex items-center justify-center gap-3"
                         >
-                            <div className="flex items-center justify-center tracking-tighter text-8xl sm:text-[10rem] font-black leading-none">
-                                {/* "Ted" - Fills with Cyan */}
-                                <div className="relative">
-                                    {/* Ghost/Blur Layer */}
-                                    <span className="absolute inset-0 text-cyan/20 blur-xl opacity-50">Ted</span>
-                                    {/* Filled Layer */}
-                                    <span
-                                        className="relative z-10 block transition-all duration-100"
-                                        style={{
-                                            ...fillStyle,
-                                            '--fill-color': '#06b6d4' // Cyan-500
-                                        }}
-                                    >
-                                        Ted
-                                    </span>
-                                </div>
-
-                                {/* "OS" - Fills with White */}
-                                <div className="relative ml-2">
-                                    {/* Ghost/Blur Layer */}
-                                    <span className="absolute inset-0 text-white/10 blur-xl opacity-30">OS</span>
-                                    {/* Filled Layer */}
-                                    <span
-                                        className="relative z-10 block transition-all duration-100"
-                                        style={{
-                                            ...fillStyle,
-                                            '--fill-color': '#ffffff'
-                                        }}
-                                    >
-                                        OS
-                                    </span>
-                                </div>
-                            </div>
-
-                            {/* "System Online" Glitch Text below triggers at end */}
-                            {isComplete && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="absolute -bottom-8 left-0 right-0 text-center"
-                                >
-                                    <span className="text-cyan font-mono text-sm tracking-[0.5em] uppercase animate-pulse">
-                                        System Ready
-                                    </span>
-                                </motion.div>
+                            {processingMessage ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin text-cyan/70" />
+                                    <span className="tracking-wide">{processingMessage}</span>
+                                </>
+                            ) : (
+                                <span className="text-white/40 tracking-widest text-sm uppercase">System Initializing...</span>
                             )}
                         </motion.div>
-
-                        {/* Progress Line */}
-                        <div className="w-full max-w-md relative mb-12">
-                            {/* Line Container */}
-                            <div className="relative h-[2px] w-full bg-[#1a1a1c] overflow-visible">
-                                {/* Active Line */}
-                                <motion.div
-                                    className="absolute top-0 left-0 h-full bg-cyan shadow-[0_0_15px_rgba(6,182,212,0.8)]"
-                                    style={{ width: `${displayPercentage}%` }}
-                                >
-                                    {/* Leading Spark */}
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-24 h-[40px] bg-gradient-to-r from-transparent to-cyan/50 blur-md transform translate-x-12" />
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-white rounded-full shadow-[0_0_10px_white]" />
-                                </motion.div>
-                            </div>
-
-                            {/* Percentage Glitch Text */}
-                            <div className="mt-4 flex justify-between items-end font-mono">
-                                <span className="text-gray-600 text-xs uppercase tracking-widest">
-                                    System Integration
-                                </span>
-                                <span className="text-cyan text-xl font-bold">
-                                    {formattedPercentage.toFixed(0)}%
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Status Message */}
-                        <div className="h-16 flex items-center justify-center">
-                            <AnimatePresence mode='wait'>
-                                <motion.p
-                                    key={currentMessageIndex}
-                                    initial={{ opacity: 0, y: 10, filter: "blur(5px)" }}
-                                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                                    exit={{ opacity: 0, y: -10, filter: "blur(5px)" }}
-                                    transition={{ duration: 0.4 }}
-                                    className="text-gray-400 font-medium text-lg tracking-wide text-center"
-                                >
-                                    {displayMessage}
-                                </motion.p>
-                            </AnimatePresence>
-                        </div>
-
-                    </motion.div>
+                    </div>
                 </div>
-            )}
-        </AnimatePresence>
+
+
+                {/* 4. SLIM PROGRESS BAR (Spaced from bottom) */}
+                <div className="w-full max-w-lg h-[2px] bg-white/5 rounded-full mt-4 overflow-hidden mb-8">
+                    <motion.div
+                        className="h-full bg-gradient-to-r from-cyan/40 via-cyan to-cyan/40 shadow-[0_0_10px_rgba(6,182,212,0.5)]"
+                        initial={{ width: "0%" }}
+                        animate={{ width: `${percent}%` }}
+                        transition={{ duration: 0.5 }}
+                    />
+                </div>
+
+                <p className="text-gray-600 text-[10px] md:text-xs uppercase tracking-widest opacity-50">
+                    AI Processing // Do not close window
+                </p>
+
+            </div>
+        </div>
     );
-}
+};
+
+export default BuildingAnimation;
