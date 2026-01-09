@@ -4,6 +4,8 @@ import { getPromptByKey } from '@/lib/prompts';
 import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { populateVaultFields } from '@/lib/vault/fieldMapper';
+import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
+import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
 
 // Content titles for display
 const CONTENT_NAMES = {
@@ -75,10 +77,10 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
 
     // Heavy sections that need more time (in ms)
     const SECTION_TIMEOUTS = {
-        4: 150000,  // Offer - complex 7-step blueprint
-        5: 180000,  // Sales Script (Closer) - long conversational script
-        7: 150000,  // VSL - 2500-3500 word video script
-        8: 150000,  // Emails - multiple email sequences
+        4: 120000,  // Offer - complex 7-step blueprint (reduced from 150s)
+        5: 120000,  // Sales Script (Closer) - long conversational script (reduced from 180s)
+        7: 120000,  // VSL - 2500-3500 word video script (reduced from 150s)
+        8: 70000,   // Emails - parallel chunked generation (4 chunks x 60s = ~60s total + buffer)
         10: 120000, // Funnel Copy - multiple page copies
         17: 120000  // Setter Script - detailed call flow
     };
@@ -90,41 +92,124 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             sectionKey: key
         });
 
+        let parsed;
+        let rawPrompt = null; // Declare at function scope for database save
 
+        // SPECIAL HANDLING: Emails use parallel chunked generation (19 emails in 4 chunks)
+        if (key === 8) {
+            console.log('[GenerateStream] Using CHUNKED parallel generation for emails (19 emails in 4 chunks)');
 
-        const promptFn = getPromptByKey(key);
+            const emailData = {
+                idealClient: data.idealClient || '',
+                coreProblem: data.coreProblem || '',
+                outcomes: data.outcomes || '',
+                uniqueAdvantage: data.uniqueAdvantage || '',
+                offerProgram: data.offerProgram || '',
+                testimonials: data.testimonials || '',
+                leadMagnetTitle: data.leadMagnetTitle || '[Free Gift Name]'
+            };
 
-        if (!promptFn) {
-            console.error(`[GenerateStream] Error: Prompt function for key ${key} (${displayName}) NOT FOUND`);
-            throw new Error(`Prompt ${key} not found`);
-        } else {
-            console.log(`[GenerateStream] Found prompt function for key ${key} (${displayName})`);
-        }
+            const chunkTimeout = 60000; // 60s per chunk
+            const chunkMaxTokens = 4000;
 
-        const rawPrompt = promptFn(data);
-        const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
+            // Store combined prompt info for logging
+            rawPrompt = `[CHUNKED GENERATION - 4 parallel chunks]\nChunk 1: Emails 1-4\nChunk 2: Emails 5-8c\nChunk 3: Emails 9-12\nChunk 4: Emails 13-15c`;
 
-        // Optimized token allocation per section complexity
-        let maxTokens = 4000;
-        if (key === 8) maxTokens = 8000;      // Emails
-        if (key === 7) maxTokens = 7000;      // VSL
-        if (key === 5) maxTokens = 6000;      // Closer Script
-        if (key === 4) maxTokens = 5000;      // Offer
-        if (key === 10) maxTokens = 5000;     // Funnel Copy
+            try {
+                // Generate all 4 chunks in parallel (4x faster!)
+                const [chunk1Result, chunk2Result, chunk3Result, chunk4Result] = await Promise.all([
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                            emailChunk1Prompt(emailData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                            emailChunk2Prompt(emailData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                            emailChunk3Prompt(emailData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                            emailChunk4Prompt(emailData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    })
+                ]);
 
-        const rawContent = await retryWithBackoff(async () => {
-            return await generateWithProvider(
-                "You are an elite business growth strategist. Return ONLY valid JSON.",
-                rawPrompt,
-                {
-                    jsonMode: true,
-                    maxTokens,
-                    timeout: sectionTimeout
+                // Merge chunks into final structure
+                const mergedContent = mergeEmailChunks(chunk1Result, chunk2Result, chunk3Result, chunk4Result);
+
+                // Validate merged result
+                const validation = validateMergedEmails(mergedContent);
+                if (!validation.valid) {
+                    console.warn('[GenerateStream] Email merge has issues:', validation);
                 }
-            );
-        });
 
-        const parsed = parseJsonSafe(rawContent);
+                console.log(`[GenerateStream] Email chunking completed successfully (${validation.emailCount || 0}/19 emails)`);
+                parsed = mergedContent;
+
+            } catch (chunkError) {
+                console.error(`[GenerateStream] Error in email chunk generation:`, chunkError);
+                throw chunkError;
+            }
+        } else {
+            // Standard generation for all other sections
+            const promptFn = getPromptByKey(key);
+
+            if (!promptFn) {
+                console.error(`[GenerateStream] Error: Prompt function for key ${key} (${displayName}) NOT FOUND`);
+                throw new Error(`Prompt ${key} not found`);
+            } else {
+                console.log(`[GenerateStream] Found prompt function for key ${key} (${displayName})`);
+            }
+
+            rawPrompt = promptFn(data);
+            const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
+
+            // Optimized token allocation per section complexity
+            let maxTokens = 4000;
+            if (key === 7) maxTokens = 7000;      // VSL
+            if (key === 5) maxTokens = 6000;      // Closer Script
+            if (key === 4) maxTokens = 5000;      // Offer
+            if (key === 10) maxTokens = 5000;     // Funnel Copy
+
+            const rawContent = await retryWithBackoff(async () => {
+                return await generateWithProvider(
+                    "You are an elite business growth strategist. Return ONLY valid JSON.",
+                    rawPrompt,
+                    {
+                        jsonMode: true,
+                        maxTokens,
+                        timeout: sectionTimeout
+                    }
+                );
+            });
+
+            // Parse with better error handling
+            try {
+                parsed = parseJsonSafe(rawContent, { throwOnError: true });
+            } catch (parseError) {
+                console.error(`[STREAM] JSON parse error for ${sectionId}:`, parseError.message);
+                console.error(`[STREAM] Raw content preview (first 500 chars):`, rawContent?.substring(0, 500));
+                throw new Error(`Failed to parse ${sectionId}: ${parseError.message}`);
+            }
+        }
 
         // Save to DB - archive old versions first
         await supabaseAdmin
@@ -237,13 +322,16 @@ export async function POST(req) {
     const encoder = new TextEncoder();
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
+    let streamClosed = false; // Track if stream is closed
 
     const sendEvent = async (event, eventData) => {
+        if (streamClosed) return; // Don't write to closed stream
         try {
             const message = `event: ${event}\ndata: ${JSON.stringify(eventData)}\n\n`;
             await writer.write(encoder.encode(message));
         } catch (e) {
             console.error('[STREAM] Write error:', e.message);
+            streamClosed = true; // Mark as closed if write fails
         }
     };
 
@@ -315,7 +403,15 @@ export async function POST(req) {
             console.error('[STREAM] Background Loop Error:', error);
             await sendEvent('error', { message: error.message });
         } finally {
-            await writer.close();
+            // Only close if not already closed
+            if (!streamClosed) {
+                try {
+                    await writer.close();
+                    streamClosed = true;
+                } catch (e) {
+                    console.error('[STREAM] Error closing writer:', e.message);
+                }
+            }
         }
     })();
 
