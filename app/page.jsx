@@ -28,7 +28,7 @@ export default function Home() {
         <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold mb-8 text-white tracking-tight leading-tight drop-shadow-2xl">
           Your Business <br />
           <span className="text-cyan text-glow">Built For You</span> in
-          <span className="text-cyan text-glow-lg"> 12 Minutes</span>
+          <span className="text-cyan text-glow-lg"> 60 Minutes</span>
         </h1>
 
         <p className="text-xl md:text-2xl text-gray-300 mb-12 max-w-3xl mx-auto font-light leading-relaxed">
