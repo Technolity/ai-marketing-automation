@@ -2006,7 +2006,7 @@ export default function VaultPage() {
                             <PartyPopper className="w-10 h-10 text-white" />
                         </div>
                         <h1 className="text-4xl font-black mb-4">Your Complete Vault</h1>
-                        <p className="text-gray-400 mb-6">All your content is ready. Deploy to GoHighLevel or continue editing.</p>
+                        <p className="text-gray-400 mb-6">All your content is ready. Deploy to Builder or continue editing.</p>
 
                         {/* Deploy to GHL Button */}
                         <div className="flex gap-4 justify-center">
@@ -2099,7 +2099,7 @@ export default function VaultPage() {
                                             <CheckCircle className="w-10 h-10 text-green-500" />
                                         </div>
                                         <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
-                                        <p className="text-gray-400 mb-4">Your content is now live in GHL.</p>
+                                        <p className="text-gray-400 mb-4">Your content is now live in Builder.</p>
                                         <button
                                             onClick={() => setShowDeployModal(false)}
                                             className="px-6 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors"
@@ -2113,13 +2113,13 @@ export default function VaultPage() {
                                         {checkingGhlConnection ? (
                                             <div className="flex items-center gap-3 mb-6 p-4 bg-[#1b1b1d] rounded-lg">
                                                 <Loader2 className="w-5 h-5 animate-spin text-cyan" />
-                                                <span className="text-gray-400">Checking GHL connection...</span>
+                                                <span className="text-gray-400">Checking Builder connection...</span>
                                             </div>
                                         ) : ghlConnected ? (
                                             <div className="flex items-center gap-3 mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
                                                 <CheckCircle className="w-5 h-5 text-green-500" />
                                                 <div>
-                                                    <p className="text-green-400 font-medium">GHL Connected</p>
+                                                    <p className="text-green-400 font-medium">Builder Connected</p>
                                                     <p className="text-sm text-gray-400">Location: {ghlLocationId}</p>
                                                 </div>
                                             </div>
@@ -2127,11 +2127,11 @@ export default function VaultPage() {
                                             <div className="space-y-4 mb-6">
                                                 <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
                                                     <Info className="w-5 h-5 text-yellow-500" />
-                                                    <span className="text-sm text-yellow-300">No saved GHL connection. Enter credentials manually:</span>
+                                                    <span className="text-sm text-yellow-300">No saved Builder connection. Enter credentials manually:</span>
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm font-medium text-gray-400 mb-2">
-                                                        GHL Location ID
+                                                        Builder Location ID
                                                     </label>
                                                     <input
                                                         type="text"
@@ -2144,7 +2144,7 @@ export default function VaultPage() {
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm font-medium text-gray-400 mb-2">
-                                                        GHL Access Token
+                                                        Builder Access Token
                                                     </label>
                                                     <input
                                                         type="password"
@@ -2680,14 +2680,14 @@ export default function VaultPage() {
                                             </div>
                                             <h3 className="text-xl font-bold mb-2">🎉 All Phases Complete!</h3>
                                             <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                Your vault is fully approved. Deploy to GoHighLevel to activate your marketing system.
+                                                Your vault is fully approved. Deploy to Builder to activate your marketing system.
                                             </p>
                                             <button
                                                 onClick={() => setShowDeployModal(true)}
                                                 className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
                                             >
                                                 <ExternalLink className="w-5 h-5" />
-                                                Deploy to GHL
+                                                Deploy to Builder
                                                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                             </button>
                                         </motion.div>
@@ -2792,7 +2792,7 @@ export default function VaultPage() {
                                             <CheckCircle className="w-10 h-10 text-green-500" />
                                         </div>
                                         <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
-                                        <p className="text-gray-400 mb-4">Your content is now live in GHL.</p>
+                                        <p className="text-gray-400 mb-4">Your content is now live in Builder.</p>
                                         <button
                                             onClick={() => setShowDeployModal(false)}
                                             className="px-6 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors"
@@ -2806,13 +2806,13 @@ export default function VaultPage() {
                                         {checkingGhlConnection ? (
                                             <div className="flex items-center gap-3 mb-6 p-4 bg-[#1b1b1d] rounded-lg">
                                                 <Loader2 className="w-5 h-5 animate-spin text-cyan" />
-                                                <span className="text-gray-400">Checking GHL connection...</span>
+                                                <span className="text-gray-400">Checking Builder connection...</span>
                                             </div>
                                         ) : ghlConnected ? (
                                             <div className="flex items-center gap-3 mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
                                                 <CheckCircle className="w-5 h-5 text-green-500" />
                                                 <div>
-                                                    <p className="text-green-400 font-medium">GHL Connected</p>
+                                                    <p className="text-green-400 font-medium">Builder Connected</p>
                                                     <p className="text-sm text-gray-400">Location: {ghlLocationId}</p>
                                                 </div>
                                             </div>
@@ -2820,7 +2820,7 @@ export default function VaultPage() {
                                             <div className="space-y-4 mb-6">
                                                 <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
                                                     <Info className="w-5 h-5 text-yellow-500" />
-                                                    <span className="text-sm text-yellow-300">No saved GHL connection. Enter credentials manually:</span>
+                                                    <span className="text-sm text-yellow-300">No saved Builder connection. Enter credentials manually:</span>
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm font-medium text-gray-400 mb-2">
