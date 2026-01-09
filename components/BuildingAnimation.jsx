@@ -60,15 +60,20 @@ const BuildingAnimation = ({ isGenerating = false, completedSections = [], proce
             <div className="relative z-10 flex flex-col items-center w-full max-w-4xl px-6">
 
                 {/* 1. BEATING LOGO TEXT */}
-                <motion.div
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                    className="mb-12"
-                >
-                    <h1 className="text-6xl md:text-7xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-cyan via-white to-cyan drop-shadow-[0_0_15px_rgba(6,182,212,0.5)]">
-                        TedOS
+                {/* 1. STATIC GLOWING LOGO TEXT */}
+                <div className="mb-12 relative">
+                    {/* Ghost/Blur Layer for Aura Effect */}
+                    <h1 className="absolute inset-0 text-center text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter blur-xl select-none pointer-events-none">
+                        <span className="text-cyan/50">Ted</span>
+                        <span className="text-white/30">OS</span>
                     </h1>
-                </motion.div>
+
+                    {/* Sharp Visible Layer */}
+                    <h1 className="relative z-10 text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter text-center select-none">
+                        <span className="text-cyan drop-shadow-[0_0_25px_rgba(6,182,212,0.6)]">Ted</span>
+                        <span className="text-white drop-shadow-[0_0_25px_rgba(255,255,255,0.4)]">OS</span>
+                    </h1>
+                </div>
 
 
                 {/* 2. CIRCULAR LOADER */}
