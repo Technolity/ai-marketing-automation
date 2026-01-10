@@ -9,8 +9,8 @@
 import { motion } from 'framer-motion';
 import { STEPS } from '@/lib/os-wizard-data';
 
-export default function QuestionProgressBar({ 
-    currentStep, 
+export default function QuestionProgressBar({
+    currentStep,
     completedSteps = [],
     onDotClick,
     stepData = {}
@@ -22,7 +22,7 @@ export default function QuestionProgressBar({
     const hasStepData = (stepNum) => {
         // Check if the step is completed or has data
         if (completedSteps.includes(stepNum)) return true;
-        
+
         // Check if stepData has values for this step
         const stepFields = getStepFields(stepNum);
         return stepFields.some(field => {
@@ -93,8 +93,18 @@ export default function QuestionProgressBar({
                 />
             </div>
 
-            {/* Clickable Step Dots */}
-            <div className="flex justify-between mt-2">
+            {/* Clickable Step Dots with Connecting Lines */}
+            <div className="relative flex items-center justify-between mt-3">
+                {/* Connecting dotted line (behind dots) */}
+                <div
+                    className="absolute top-1/2 left-0 right-0 h-0 -translate-y-1/2"
+                    style={{
+                        borderTop: '2px dashed rgba(0, 212, 255, 0.4)',
+                        zIndex: 0
+                    }}
+                />
+
+                {/* Dots */}
                 {[...Array(totalQuestions)].map((_, idx) => {
                     const stepNum = idx + 1;
                     const isCompleted = completedSteps.includes(stepNum);
@@ -108,20 +118,20 @@ export default function QuestionProgressBar({
                             onClick={() => handleDotClick(stepNum)}
                             disabled={!clickable}
                             className={`
-                                w-2.5 h-2.5 rounded-full transition-all duration-200
+                                relative z-10 w-3 h-3 rounded-full transition-all duration-200
                                 ${isCompleted
                                     ? 'bg-cyan hover:bg-cyan/80 cursor-pointer scale-110'
                                     : isCurrent
                                         ? 'bg-cyan animate-pulse scale-125'
                                         : hasFilled
                                             ? 'bg-cyan/60 hover:bg-cyan cursor-pointer'
-                                            : 'bg-[#2a2a2d] cursor-not-allowed'
+                                            : 'bg-[#2a2a2d] border border-cyan/30 cursor-not-allowed'
                                 }
                                 ${clickable && !isCurrent ? 'hover:scale-150' : ''}
                             `}
                             title={
-                                isCompleted 
-                                    ? `Step ${stepNum}: ${STEPS[idx]?.title || ''} (Completed) - Click to edit` 
+                                isCompleted
+                                    ? `Step ${stepNum}: ${STEPS[idx]?.title || ''} (Completed) - Click to edit`
                                     : hasFilled
                                         ? `Step ${stepNum}: ${STEPS[idx]?.title || ''} (Filled) - Click to review`
                                         : `Step ${stepNum}: ${STEPS[idx]?.title || ''}`

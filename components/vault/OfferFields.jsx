@@ -269,21 +269,88 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
                     </div>
                 ) : (
                     <>
-                        {/* Predefined Fields */}
-                        {predefinedFields.map((fieldDef) => {
-                            const currentValue = getFieldValue(fieldDef.field_id);
-                            return (
-                                <FieldEditor
-                                    key={fieldDef.field_id}
-                                    fieldDef={fieldDef}
-                                    initialValue={currentValue}
-                                    sectionId={sectionId}
-                                    funnelId={funnelId}
-                                    onSave={handleFieldSave}
-                                    onAIFeedback={handleAIFeedback}
-                                />
-                            );
-                        })}
+                        {/* Shared Fields (Offer Mode, Name, 7-Step Blueprint) */}
+                        <div className="space-y-6">
+                            {predefinedFields
+                                .filter(f => ['offerMode', 'offerName', 'sevenStepBlueprint'].includes(f.field_id))
+                                .map((fieldDef) => (
+                                    <FieldEditor
+                                        key={fieldDef.field_id}
+                                        fieldDef={fieldDef}
+                                        initialValue={getFieldValue(fieldDef.field_id)}
+                                        sectionId={sectionId}
+                                        funnelId={funnelId}
+                                        onSave={handleFieldSave}
+                                        onAIFeedback={handleAIFeedback}
+                                    />
+                                ))}
+                        </div>
+
+                        {/* Tier 1 Box */}
+                        <div className="mt-8 p-6 bg-[#1a1a1d] border border-[#2a2a2d] rounded-2xl">
+                            <h3 className="text-lg font-bold text-white/90 mb-4 flex items-center gap-2">
+                                <span className="w-7 h-7 bg-white/10 rounded-full flex items-center justify-center text-sm text-white/70">1</span>
+                                Tier 1 — 90-Day Offer
+                            </h3>
+                            <div className="space-y-4">
+                                {predefinedFields
+                                    .filter(f => f.field_id.startsWith('tier1'))
+                                    .map((fieldDef) => (
+                                        <FieldEditor
+                                            key={fieldDef.field_id}
+                                            fieldDef={fieldDef}
+                                            initialValue={getFieldValue(fieldDef.field_id)}
+                                            sectionId={sectionId}
+                                            funnelId={funnelId}
+                                            onSave={handleFieldSave}
+                                            onAIFeedback={handleAIFeedback}
+                                        />
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* Tier 2 Box */}
+                        <div className="mt-6 p-6 bg-[#1a1a1d] border border-[#2a2a2d] rounded-2xl">
+                            <h3 className="text-lg font-bold text-white/90 mb-4 flex items-center gap-2">
+                                <span className="w-7 h-7 bg-white/10 rounded-full flex items-center justify-center text-sm text-white/70">2</span>
+                                Tier 2 — 12-Month Offer
+                            </h3>
+                            <div className="space-y-4">
+                                {predefinedFields
+                                    .filter(f => f.field_id.startsWith('tier2'))
+                                    .map((fieldDef) => (
+                                        <FieldEditor
+                                            key={fieldDef.field_id}
+                                            fieldDef={fieldDef}
+                                            initialValue={getFieldValue(fieldDef.field_id)}
+                                            sectionId={sectionId}
+                                            funnelId={funnelId}
+                                            onSave={handleFieldSave}
+                                            onAIFeedback={handleAIFeedback}
+                                        />
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* Combined Offer Promise */}
+                        <div className="mt-8 p-6 bg-[#1a1a1d] border border-[#2a2a2d] rounded-2xl">
+                            <h3 className="text-lg font-bold text-white/90 mb-4">
+                                Combined Offer Promise
+                            </h3>
+                            {predefinedFields
+                                .filter(f => f.field_id === 'offerPromise')
+                                .map((fieldDef) => (
+                                    <FieldEditor
+                                        key={fieldDef.field_id}
+                                        fieldDef={fieldDef}
+                                        initialValue={getFieldValue(fieldDef.field_id)}
+                                        sectionId={sectionId}
+                                        funnelId={funnelId}
+                                        onSave={handleFieldSave}
+                                        onAIFeedback={handleAIFeedback}
+                                    />
+                                ))}
+                        </div>
 
                         {/* Custom Fields */}
                         {fields

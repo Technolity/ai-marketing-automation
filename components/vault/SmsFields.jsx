@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle, ChevronDown, ChevronUp, Mail, RefreshCw } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronUp, MessageSquare, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
-export default function EmailsFields({ funnelId, onApprove, onRenderApproveButton }) {
+export default function SmsFields({ funnelId, onApprove, onRenderApproveButton }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -17,7 +17,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
 
-    const sectionId = 'emails';
+    const sectionId = 'sms';
     const predefinedFields = getFieldsForSection(sectionId);
 
     const fetchFields = async () => {
@@ -29,7 +29,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
             setFields(data.fields || []);
             setSectionApproved(data.fields.length > 0 && data.fields.every(f => f.is_approved));
         } catch (error) {
-            console.error('[EmailsFields] Fetch error:', error);
+            console.error('[SmsFields] Fetch error:', error);
         } finally {
             setIsLoading(false);
         }
@@ -63,7 +63,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
             setFeedbackModalOpen(false);
             setSelectedField(null);
         } catch (error) {
-            console.error('[EmailsFields] Save error:', error);
+            console.error('[SmsFields] Save error:', error);
         }
     };
 
@@ -82,7 +82,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
             setSectionApproved(true);
             if (onApprove) onApprove(sectionId);
         } catch (error) {
-            console.error('[EmailsFields] Approve error:', error);
+            console.error('[SmsFields] Approve error:', error);
         } finally {
             setIsApproving(false);
         }
@@ -94,13 +94,13 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
             const response = await fetch('/api/os/regenerate-section', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_key: 8 })
+                body: JSON.stringify({ funnel_id: funnelId, section_key: 19 })
             });
             if (!response.ok) throw new Error('Failed to regenerate');
             await fetchFields();
             setSectionApproved(false);
         } catch (error) {
-            console.error('[EmailsFields] Regenerate error:', error);
+            console.error('[SmsFields] Regenerate error:', error);
         } finally {
             setIsRegenerating(false);
         }
@@ -108,19 +108,8 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
 
     const getFieldValue = (field_id) => {
         const field = fields.find(f => f.field_id === field_id);
-        const value = field?.field_value || null;
-        // Debug: Log first few field lookups
-        if (field_id === 'email1' || field_id === 'email2') {
-            console.log(`[EmailsFields] getFieldValue('${field_id}'):`, {
-                found: !!field,
-                hasValue: !!value,
-                valueType: typeof value,
-                valuePreview: typeof value === 'string' ? value.substring(0, 100) : value
-            });
-        }
-        return value;
+        return field?.field_value || null;
     };
-
 
     // Expose approve button for parent to render in header
     const approveButton = !sectionApproved ? (
@@ -145,20 +134,17 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
 
     return (
         <>
-            {/* Expose approve button via onRenderApproveButton callback */}
-            {/* Approve button removed (handled by Vault header) */}
-
+            {/* Approve button handled by Vault header */}
             <div className="space-y-6">
                 {isLoading ? (
-                    <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" /></div>
+                    <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-4 border-green-500/30 border-t-green-500 rounded-full animate-spin" /></div>
                 ) : (
                     <>
                         {predefinedFields.map((fieldDef) => (<FieldEditor key={fieldDef.field_id} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} />))}
                     </>
                 )}
             </div>
-            {feedbackModalOpen && selectedField && (<FeedbackChatModal isOpen={feedbackModalOpen} onClose={() => { setFeedbackModalOpen(false); setSelectedField(null); }} sectionId={sectionId} sectionTitle="Email & SMS Sequences" subSection={selectedField.field_id} subSectionTitle={selectedField.field_label} currentContent={selectedFieldValue} sessionId={funnelId} onSave={handleFeedbackSave} />)}
+            {feedbackModalOpen && selectedField && (<FeedbackChatModal isOpen={feedbackModalOpen} onClose={() => { setFeedbackModalOpen(false); setSelectedField(null); }} sectionId={sectionId} sectionTitle="SMS Sequences" subSection={selectedField.field_id} subSectionTitle={selectedField.field_label} currentContent={selectedFieldValue} sessionId={funnelId} onSave={handleFeedbackSave} />)}
         </>
     );
 }
-

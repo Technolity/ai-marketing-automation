@@ -19,7 +19,8 @@ const CONTENT_NAMES = {
     10: 'funnelCopy',
     15: 'bio',
     16: 'appointmentReminders',
-    17: 'setterScript'
+    17: 'setterScript',
+    19: 'sms'
 };
 
 const DISPLAY_NAMES = {
@@ -30,12 +31,13 @@ const DISPLAY_NAMES = {
     5: 'Closer Script',
     6: 'Free Gift',
     7: 'Video Script',
-    8: 'Email & SMS Sequences',
+    8: 'Email Sequences',
     9: 'Ad Copy',
     10: 'Funnel Page Copy',
     15: 'Professional Bio',
     16: 'Appointment Reminders',
-    17: 'Setter Script'
+    17: 'Setter Script',
+    19: 'SMS Sequences'
 };
 
 // Phase mapping
@@ -101,16 +103,146 @@ export async function POST(req) {
         return Response.json({ error: 'Failed to fetch questionnaire data' }, { status: 500 });
     }
 
-    // Format responses into data object expected by prompts
+    // Map step numbers to named keys that prompts expect
+    // Based on STEP_INPUTS from os-wizard-data.js
     const data = {};
     responses?.forEach(r => {
-        if (r.answer_text) data[r.step_number] = r.answer_text;
-        if (r.answer_selection) data[r.step_number] = r.answer_selection;
-        if (r.answer_selections) data[r.step_number] = r.answer_selections;
+        const value = r.answer_text || r.answer_selection || r.answer_selections;
+        if (!value) return;
+
+        // Map step numbers to their field names
+        switch (r.step_number) {
+            case 1:
+                // Step 1 has businessType and industry - try to parse
+                if (typeof value === 'object') {
+                    data.businessType = value.businessType || '';
+                    data.industry = value.industry || '';
+                } else {
+                    data.industry = value;
+                }
+                break;
+            case 2:
+                data.idealClient = value;
+                break;
+            case 3:
+                data.message = value;
+                break;
+            case 4:
+                data.coreProblem = value;
+                break;
+            case 5:
+                data.outcomes = value;
+                break;
+            case 6:
+                data.uniqueAdvantage = value;
+                break;
+            case 7:
+                // Story fields - may be object with multiple fields
+                if (typeof value === 'object') {
+                    data.storyLowMoment = value.storyLowMoment || '';
+                    data.storyDiscovery = value.storyDiscovery || '';
+                    data.storySearchAgain = value.storySearchAgain || '';
+                    data.storyBreakthrough = value.storyBreakthrough || '';
+                    data.storyBigIdea = value.storyBigIdea || '';
+                    data.storyResults = value.storyResults || '';
+                } else {
+                    data.storyLowMoment = value;
+                }
+                break;
+            case 8:
+                data.testimonials = value;
+                break;
+            case 9:
+                data.offerProgram = value;
+                break;
+            case 10:
+                data.deliverables = value;
+                break;
+            case 11:
+                data.pricing = value;
+                break;
+            case 12:
+                data.assets = value;
+                break;
+            case 13:
+                data.revenue = value;
+                break;
+            case 14:
+                data.brandVoice = value;
+                break;
+            case 15:
+                data.brandColors = value;
+                break;
+            case 16:
+                data.callToAction = value;
+                break;
+            case 17:
+                data.platforms = value;
+                break;
+            case 18:
+                data.goal90Days = value;
+                break;
+            case 19:
+                data.businessStage = value;
+                break;
+            case 20:
+                data.helpNeeded = value;
+                break;
+        }
     });
+
+    // FALLBACK: If data is empty (no questionnaire_responses found), try wizard_progress
+    // This handles the case where data is stored in the user-singleton wizard_progress table
+    // but hasn't been migrated/synced to questionnaire_responses
+    if (Object.keys(data).length === 0) {
+        console.log('[REGENERATE] No questionnaire_responses found, checking wizard_progress...');
+        const { data: progress } = await supabaseAdmin
+            .from('wizard_progress')
+            .select('answers')
+            .eq('user_id', userId)
+            .single();
+
+        if (progress?.answers) {
+            console.log('[REGENERATE] Found data in wizard_progress, using as fallback');
+            // wizard_progress.answers is already an object with named keys (idealClient, etc.)
+            Object.assign(data, progress.answers);
+
+            // Log keys found for debugging
+            console.log('[REGENERATE] Fallback data keys:', Object.keys(data));
+        }
+    }
+
+    console.log('[REGENERATE] Mapped data keys:', Object.keys(data));
+
+    // FETCH LEAD MAGNET TITLE (Approved/Edited version)
+    // This ensures Scripts and Emails reference the actual Free Gift name
+    try {
+        const { data: lmField } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_value')
+            .eq('funnel_id', funnelId)
+            .eq('section_id', 'leadMagnet')
+            .eq('field_id', 'mainTitle')
+            .maybeSingle();
+
+        if (lmField?.field_value) {
+            console.log('[REGENERATE] Found Lead Magnet Title:', lmField.field_value);
+            data.leadMagnetTitle = lmField.field_value;
+        }
+    } catch (lmError) {
+        console.warn('[REGENERATE] Failed to fetch Lead Magnet Title:', lmError);
+    }
 
     const sectionId = CONTENT_NAMES[sectionKey];
     const displayName = DISPLAY_NAMES[sectionKey];
+
+    // DEPENDENCY RESOLUTION: Import and resolve dependencies
+    const { resolveDependencies, buildEnrichedData } = await import('@/lib/vault/dependencyResolver');
+
+    console.log(`[REGENERATE] Resolving dependencies for ${sectionId} (key: ${sectionKey})...`);
+    const resolvedDeps = await resolveDependencies(funnelId, sectionKey, data);
+    const enrichedData = buildEnrichedData(data, resolvedDeps);
+    console.log(`[REGENERATE] Enriched data ready. Free Gift Name: "${enrichedData.freeGiftName || 'not set'}"`);
 
     try {
         console.log(`[REGENERATE] Starting regeneration of ${displayName} (key: ${sectionKey})`);
@@ -121,7 +253,8 @@ export async function POST(req) {
             return Response.json({ error: `Prompt ${sectionKey} not found` }, { status: 500 });
         }
 
-        let rawPrompt = promptFn(data);
+        // Use enrichedData with resolved dependencies
+        let rawPrompt = promptFn(enrichedData);
 
         // Append feedback if provided
         if (feedback) {
@@ -146,17 +279,20 @@ export async function POST(req) {
 
             const { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } = await import('@/lib/prompts/emailChunks');
             const { mergeEmailChunks, validateMergedEmails } = await import('@/lib/prompts/emailMerger');
+            const { smsChunk1Prompt, smsChunk2Prompt } = await import('@/lib/prompts/smsChunks');
+            const { mergeSmsChunks, validateMergedSms } = await import('@/lib/prompts/smsMerger');
 
-            // Format data for chunk prompts (map questionnaire field names)
+            // Format data for chunk prompts (using enrichedData with resolved dependencies)
             const emailData = {
-                idealClient: data[1] || '',
-                coreProblem: data[2] || '',
-                outcomes: data[3] || '',
-                uniqueAdvantage: data[4] || '',
-                offerProgram: data[5] || '',
-                testimonials: data[6] || '',
-                leadMagnetTitle: data[7] || '[Free Gift Name]'
+                idealClient: enrichedData.idealClient || '',
+                coreProblem: enrichedData.coreProblem || '',
+                outcomes: enrichedData.outcomes || '',
+                uniqueAdvantage: enrichedData.uniqueAdvantage || '',
+                offerProgram: enrichedData.offerProgram || '',
+                testimonials: enrichedData.testimonials || '',
+                leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || '[Free Gift Name]'
             };
+            console.log(`[REGENERATE] Email regeneration using Free Gift Name: "${emailData.leadMagnetTitle}"`);
 
             const chunkTimeout = 60000; // 60s per chunk
             const chunkMaxTokens = 4000;
@@ -220,6 +356,169 @@ export async function POST(req) {
 
             if (!validation.valid) {
                 console.warn('[REGENERATE] Email merge has issues:', validation);
+            }
+
+        } else if (sectionKey === 19) {
+            // SPECIAL HANDLING: SMS use parallel chunked generation (10 SMS in 2 chunks)
+            console.log('[REGENERATE] Using CHUNKED parallel generation for SMS (10 SMS in 2 chunks)');
+
+            const { smsChunk1Prompt, smsChunk2Prompt } = await import('@/lib/prompts/smsChunks');
+            const { mergeSmsChunks, validateMergedSms } = await import('@/lib/prompts/smsMerger');
+
+            const smsData = {
+                idealClient: enrichedData.idealClient || '',
+                coreProblem: enrichedData.coreProblem || '',
+                outcomes: enrichedData.outcomes || '',
+                uniqueAdvantage: enrichedData.uniqueAdvantage || '',
+                offerProgram: enrichedData.offerProgram || '',
+                leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || '[Free Gift Name]'
+            };
+            console.log(`[REGENERATE] SMS regeneration using Free Gift Name: "${smsData.leadMagnetTitle}"`);
+
+            const chunkTimeout = 30000; // 30s per chunk
+            const chunkMaxTokens = 2000;
+
+            console.log('[REGENERATE] Starting 2 parallel SMS chunk generations...');
+            const startTime = Date.now();
+
+            const [chunk1Result, chunk2Result] = await Promise.all([
+                retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                        "You are TED-OS SMS Engine. Return ONLY valid JSON.",
+                        smsChunk1Prompt(smsData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                }),
+                retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                        "You are TED-OS SMS Engine. Return ONLY valid JSON.",
+                        smsChunk2Prompt(smsData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                })
+            ]);
+
+            const elapsed = Date.now() - startTime;
+            console.log(`[REGENERATE] SMS chunks complete in ${elapsed}ms`);
+
+            parsed = mergeSmsChunks(chunk1Result, chunk2Result);
+
+            const validation = validateMergedSms(parsed);
+            if (!validation.valid) {
+                console.warn('[REGENERATE] SMS merge has issues:', validation);
+            }
+
+        } else if (sectionKey === 17) {
+            // SPECIAL HANDLING: Setter Script uses parallel chunked generation (2 chunks)
+            console.log('[REGENERATE] Using CHUNKED parallel generation for Setter Script (2 chunks)');
+
+            const { setterChunk1Prompt, setterChunk2Prompt } = await import('@/lib/prompts/setterScriptChunks');
+            const { mergeSetterChunks, validateMergedSetter } = await import('@/lib/prompts/setterScriptMerger');
+
+            const scriptData = {
+                idealClient: enrichedData.idealClient || '',
+                coreProblem: enrichedData.coreProblem || '',
+                outcomes: enrichedData.outcomes || '',
+                uniqueAdvantage: enrichedData.uniqueAdvantage || '',
+                offerName: enrichedData.offerProgram || enrichedData.offerName || '',
+                leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || 'Free Training',
+                callToAction: enrichedData.callToAction || 'Book a strategy call'
+            };
+            console.log(`[REGENERATE] Setter Script regeneration using Free Gift Name: "${scriptData.leadMagnetTitle}"`);
+
+            const chunkTimeout = 45000; // 45s per chunk
+            const chunkMaxTokens = 3500;
+
+            console.log('[REGENERATE] Starting 2 parallel Setter Script chunk generations...');
+            const startTime = Date.now();
+
+            const [chunk1Result, chunk2Result] = await Promise.all([
+                retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                        "You are TED-OS Setter Script Engine. Return ONLY valid JSON.",
+                        setterChunk1Prompt(scriptData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                }),
+                retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                        "You are TED-OS Setter Script Engine. Return ONLY valid JSON.",
+                        setterChunk2Prompt(scriptData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                })
+            ]);
+
+            const elapsed = Date.now() - startTime;
+            console.log(`[REGENERATE] Setter Script chunks complete in ${elapsed}ms`);
+
+            parsed = mergeSetterChunks(chunk1Result, chunk2Result);
+
+            const validation = validateMergedSetter(parsed);
+            if (!validation.valid) {
+                console.warn('[REGENERATE] Setter Script merge has issues:', validation);
+            }
+
+        } else if (sectionKey === 5) {
+            // SPECIAL HANDLING: Closer Script uses parallel chunked generation (2 chunks)
+            console.log('[REGENERATE] Using CHUNKED parallel generation for Closer Script (2 chunks)');
+
+            const { closerChunk1Prompt, closerChunk2Prompt } = await import('@/lib/prompts/closerScriptChunks');
+            const { mergeCloserChunks, validateMergedCloser } = await import('@/lib/prompts/closerScriptMerger');
+
+            const scriptData = {
+                industry: enrichedData.industry || '',
+                idealClient: enrichedData.idealClient || '',
+                coreProblem: enrichedData.coreProblem || '',
+                outcomes: enrichedData.outcomes || '',
+                uniqueAdvantage: enrichedData.uniqueAdvantage || '',
+                offerName: enrichedData.offerContext?.offerName || enrichedData.offerProgram || enrichedData.offerName || '',
+                pricing: enrichedData.offerContext?.pricing || enrichedData.pricing || '',
+                brandVoice: enrichedData.brandVoice || 'Professional but friendly',
+                targetAudience: 'warm',
+                // Inject offer context for closer script
+                offerBlueprint: enrichedData.offerContext?.blueprint || '',
+                offerPromise: enrichedData.offerContext?.tier1Promise || ''
+            };
+            console.log(`[REGENERATE] Closer Script regeneration using Offer: "${scriptData.offerName}", Pricing: "${scriptData.pricing}"`);
+
+            const chunkTimeout = 60000; // 60s per chunk for closer (longer content)
+            const chunkMaxTokens = 4000;
+
+            console.log('[REGENERATE] Starting 2 parallel Closer Script chunk generations...');
+            const startTime = Date.now();
+
+            const [chunk1Result, chunk2Result] = await Promise.all([
+                retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                        "You are TED-OS Closer Script Engine. Return ONLY valid JSON.",
+                        closerChunk1Prompt(scriptData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                }),
+                retryWithBackoff(async () => {
+                    const raw = await generateWithProvider(
+                        "You are TED-OS Closer Script Engine. Return ONLY valid JSON.",
+                        closerChunk2Prompt(scriptData),
+                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                    );
+                    return parseJsonSafe(raw);
+                })
+            ]);
+
+            const elapsed = Date.now() - startTime;
+            console.log(`[REGENERATE] Closer Script chunks complete in ${elapsed}ms`);
+
+            parsed = mergeCloserChunks(chunk1Result, chunk2Result);
+
+            const validation = validateMergedCloser(parsed);
+            if (!validation.valid) {
+                console.warn('[REGENERATE] Closer Script merge has issues:', validation);
             }
 
         } else {

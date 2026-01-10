@@ -54,6 +54,7 @@ import StoryFields from "@/components/vault/StoryFields";
 import LeadMagnetFields from "@/components/vault/LeadMagnetFields";
 import VslFields from "@/components/vault/VslFields";
 import EmailsFields from "@/components/vault/EmailsFields";
+import SmsFields from "@/components/vault/SmsFields";
 import FacebookAdsFields from "@/components/vault/FacebookAdsFields";
 import FunnelCopyFields from "@/components/vault/FunnelCopyFields";
 import BioFields from "@/components/vault/BioFields";
@@ -71,9 +72,9 @@ const GRANULAR_FIELD_COMPONENTS = {
     leadMagnet: LeadMagnetFields,
     vsl: VslFields,
     emails: EmailsFields,
+    sms: SmsFields,
     facebookAds: FacebookAdsFields,
     funnelCopy: FunnelCopyFields,
-    bio: BioFields,
     bio: BioFields,
     appointmentReminders: AppointmentRemindersFields,
     media: MediaFields
@@ -93,16 +94,17 @@ const PHASE_2_SECTIONS = [
     { id: 'vsl', numericKey: 7, title: 'Video Script', subtitle: 'Video Sales Letter (VSL)', icon: Video },
     { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout },
     { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone },
-    { id: 'emails', numericKey: 8, title: 'Email & SMS Sequences', subtitle: '15-day nurture series', icon: Mail },
+    { id: 'emails', numericKey: 8, title: 'Email Sequences', subtitle: '15-day nurture series', icon: Mail },
+    { id: 'sms', numericKey: 19, title: 'SMS Sequences', subtitle: 'Text message nurture', icon: MessageSquare },
     { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
     { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users },
     { id: 'media', numericKey: 18, title: 'Media Library', subtitle: 'Logo, images, and videos', icon: ImageIcon }
 ];
 
-// Phase 3: Sales Scripts - Closer and Setter scripts (locked until Phase 2 approved)
+// Phase 3: Sales Scripts - Setter and Closer scripts (locked until Phase 2 approved)
 const PHASE_3_SECTIONS = [
-    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic },
-    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell }
+    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell },
+    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic }
 ];
 
 // Content mapping: numeric keys to section IDs (for legacy feedback API compatibility)
@@ -120,7 +122,8 @@ const CONTENT_MAPPING = {
     15: 'bio',
     16: 'appointmentReminders',
     17: 'setterScript',
-    18: 'media'
+    18: 'media',
+    19: 'sms'
 };
 
 
@@ -2281,7 +2284,7 @@ export default function VaultPage() {
                                     }}
                                     className="px-4 py-2 bg-gradient-to-r from-cyan/20 to-blue-500/20 hover:from-cyan/30 hover:to-blue-500/30 text-cyan border border-cyan/30 rounded-lg text-sm font-bold flex items-center gap-2 transition-all hover:scale-105"
                                 >
-                                    Show My {section.title.split(' ')[0]} <ChevronDown className="w-4 h-4" />
+                                    Show My {section.title} <ChevronDown className="w-4 h-4" />
                                 </button>
                             ) : (
                                 <div className="flex items-center gap-2">
@@ -2294,12 +2297,18 @@ export default function VaultPage() {
                                     >
                                         <MessageSquare className="w-4 h-4" /> Feedback
                                     </button>
-                                    <button
-                                        onClick={() => handleApprove(section.id, phase)}
-                                        className="px-4 py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
-                                    >
-                                        <CheckCircle className="w-4 h-4" /> Approve
-                                    </button>
+                                    {status === 'approved' ? (
+                                        <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2">
+                                            <CheckCircle className="w-4 h-4" /> Approved
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleApprove(section.id, phase)}
+                                            className="px-4 py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
+                                        >
+                                            <CheckCircle className="w-4 h-4" /> Approve
+                                        </button>
+                                    )}
 
                                     <button
                                         onClick={() => {
@@ -2619,7 +2628,7 @@ export default function VaultPage() {
                                                 </div>
                                                 <h3 className="text-xl font-bold mb-2">All Marketing Assets Complete!</h3>
                                                 <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                    Your entire vault is complete. Now let's build your recommended marketing funnel.
+                                                    Your marketing assets are complete. Now let's focus on closing clients.
                                                 </p>
                                                 <button
                                                     onClick={() => setActiveTab('scripts')}
