@@ -35,11 +35,11 @@ export default function AppNavbar() {
         <div className="flex gap-4 items-center">
           <SignedIn>
             {/* Dashboard Link */}
+            {/* Dashboard Link */}
             <Link
               href="/dashboard"
-              className="flex items-center gap-2 text-sm font-black text-gray-400 hover:text-cyan transition-all duration-300 uppercase tracking-widest"
+              className="text-sm font-bold text-gray-400 hover:text-white transition-all duration-300"
             >
-              <LayoutDashboard className="w-4 h-4" />
               <span>Dashboard</span>
             </Link>
 

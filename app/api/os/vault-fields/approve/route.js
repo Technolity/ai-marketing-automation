@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { getSyncTargets, getNestedValue, applySyncToTarget } from '@/lib/vault/fieldSync';
 
 
 export const dynamic = 'force-dynamic';
@@ -54,10 +55,96 @@ export async function POST(req) {
 
         console.log(`[Approve Fields] Successfully approved ${section_id}`);
 
+        // FEATURE: Auto-sync fields to dependent sections
+        // When Lead Magnet Free Gift is approved, sync to Facebook Ads
+        const syncResults = [];
+
+        if (section_id === 'leadMagnet') {
+            try {
+                console.log('[Approve Fields] Checking for field sync targets...');
+
+                // Fetch the approved lead magnet content
+                const { data: leadMagnetContent, error: fetchError } = await supabaseAdmin
+                    .from('vault_content')
+                    .select('content')
+                    .eq('funnel_id', funnel_id)
+                    .eq('section_id', 'leadMagnet')
+                    .eq('user_id', userId)
+                    .eq('is_current_version', true)
+                    .single();
+
+                if (!fetchError && leadMagnetContent) {
+                    const freeGiftTitle = getNestedValue(leadMagnetContent.content, 'freeGift.title');
+
+                    if (freeGiftTitle) {
+                        console.log(`[Approve Fields] Found Free Gift title: "${freeGiftTitle}"`);
+
+                        // Get sync targets for freeGift.title
+                        const syncTargets = getSyncTargets('leadMagnet', 'freeGift.title');
+
+                        for (const target of syncTargets) {
+                            console.log(`[Approve Fields] Syncing to ${target.targetSection}.${target.targetField}`);
+
+                            // Fetch target section content
+                            const { data: targetData, error: targetFetchError } = await supabaseAdmin
+                                .from('vault_content')
+                                .select('content')
+                                .eq('funnel_id', funnel_id)
+                                .eq('section_id', target.targetSection)
+                                .eq('user_id', userId)
+                                .eq('is_current_version', true)
+                                .single();
+
+                            if (!targetFetchError && targetData) {
+                                // Apply sync transformation
+                                const updatedContent = applySyncToTarget(
+                                    'leadMagnet',
+                                    'freeGift.title',
+                                    freeGiftTitle,
+                                    targetData.content
+                                );
+
+                                // Update target section
+                                const { error: syncUpdateError } = await supabaseAdmin
+                                    .from('vault_content')
+                                    .update({ content: updatedContent })
+                                    .eq('funnel_id', funnel_id)
+                                    .eq('section_id', target.targetSection)
+                                    .eq('user_id', userId)
+                                    .eq('is_current_version', true);
+
+                                if (syncUpdateError) {
+                                    console.error(`[Approve Fields] Sync update failed for ${target.targetSection}:`, syncUpdateError);
+                                    syncResults.push({
+                                        target: target.targetSection,
+                                        success: false,
+                                        error: syncUpdateError.message
+                                    });
+                                } else {
+                                    console.log(`[Approve Fields] Successfully synced to ${target.targetSection}`);
+                                    syncResults.push({
+                                        target: target.targetSection,
+                                        success: true,
+                                        field: target.targetField,
+                                        value: freeGiftTitle
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (syncError) {
+                console.error('[Approve Fields] Sync error:', syncError);
+                // Non-blocking - approval still succeeds even if sync fails
+            }
+        }
+
         return NextResponse.json({
             success: true,
             section_id,
-            approved: true
+            approved: true,
+            syncApplied: syncResults.length > 0,
+            syncResults: syncResults.length > 0 ? syncResults : undefined
         });
 
     } catch (error) {

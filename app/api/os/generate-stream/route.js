@@ -4,8 +4,15 @@ import { getPromptByKey } from '@/lib/prompts';
 import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { populateVaultFields } from '@/lib/vault/fieldMapper';
+import { resolveDependencies, buildEnrichedData } from '@/lib/vault/dependencyResolver';
 import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
 import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
+import { smsChunk1Prompt, smsChunk2Prompt } from '@/lib/prompts/smsChunks';
+import { mergeSmsChunks, validateMergedSms } from '@/lib/prompts/smsMerger';
+import { setterChunk1Prompt, setterChunk2Prompt } from '@/lib/prompts/setterScriptChunks';
+import { mergeSetterChunks, validateMergedSetter } from '@/lib/prompts/setterScriptMerger';
+import { closerChunk1Prompt, closerChunk2Prompt } from '@/lib/prompts/closerScriptChunks';
+import { mergeCloserChunks, validateMergedCloser } from '@/lib/prompts/closerScriptMerger';
 
 // Content titles for display
 const CONTENT_NAMES = {
@@ -21,7 +28,8 @@ const CONTENT_NAMES = {
     10: 'funnelCopy',
     15: 'bio',
     16: 'appointmentReminders',
-    17: 'setterScript'
+    17: 'setterScript',
+    19: 'sms'
 };
 
 const DISPLAY_NAMES = {
@@ -37,7 +45,8 @@ const DISPLAY_NAMES = {
     10: 'Funnel Page Copy',
     15: 'Professional Bio',
     16: 'Appointment Reminders',
-    17: 'Setter Script'
+    17: 'Setter Script',
+    19: 'SMS Sequences'
 };
 
 // Phase 1: Fast redirect sections (only wait for these ~30s)
@@ -57,7 +66,7 @@ const BACKGROUND_BATCHES = [
     { keys: [7, 10], parallel: true },    // VSL + Funnel Copy
 
     // Batch 4: Sequences (parallel)
-    { keys: [8, 16], parallel: true },    // Emails + Reminders
+    { keys: [8, 19, 16], parallel: true },    // Emails + SMS + Reminders
 
     // Batch 5: Phase 3 Scripts (parallel)
     { keys: [5, 17], parallel: true },    // Closer Script + Setter Script
@@ -92,6 +101,12 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             sectionKey: key
         });
 
+        // DEPENDENCY RESOLUTION: Fetch approved content from upstream sections
+        console.log(`[GenerateStream] Resolving dependencies for ${sectionId} (key: ${key})...`);
+        const resolvedDeps = await resolveDependencies(funnelId, key, data);
+        const enrichedData = buildEnrichedData(data, resolvedDeps);
+        console.log(`[GenerateStream] Enriched data ready for ${sectionId}. Free Gift Name: "${enrichedData.freeGiftName || 'not set'}"`);
+
         let parsed;
         let rawPrompt = null; // Declare at function scope for database save
 
@@ -100,14 +115,15 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             console.log('[GenerateStream] Using CHUNKED parallel generation for emails (19 emails in 4 chunks)');
 
             const emailData = {
-                idealClient: data.idealClient || '',
-                coreProblem: data.coreProblem || '',
-                outcomes: data.outcomes || '',
-                uniqueAdvantage: data.uniqueAdvantage || '',
-                offerProgram: data.offerProgram || '',
-                testimonials: data.testimonials || '',
-                leadMagnetTitle: data.leadMagnetTitle || '[Free Gift Name]'
+                idealClient: enrichedData.idealClient || '',
+                coreProblem: enrichedData.coreProblem || '',
+                outcomes: enrichedData.outcomes || '',
+                uniqueAdvantage: enrichedData.uniqueAdvantage || '',
+                offerProgram: enrichedData.offerProgram || '',
+                testimonials: enrichedData.testimonials || '',
+                leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || '[Free Gift Name]'
             };
+            console.log(`[GenerateStream] Email generation using Free Gift Name: "${emailData.leadMagnetTitle}"`);
 
             const chunkTimeout = 60000; // 60s per chunk
             const chunkMaxTokens = 4000;
@@ -168,6 +184,178 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
                 console.error(`[GenerateStream] Error in email chunk generation:`, chunkError);
                 throw chunkError;
             }
+        } else if (key === 19) {
+            // SPECIAL HANDLING: SMS use parallel chunked generation (10 SMS in 2 chunks)
+            console.log('[GenerateStream] Using CHUNKED parallel generation for SMS (10 SMS in 2 chunks)');
+
+            const smsData = {
+                idealClient: enrichedData.idealClient || '',
+                coreProblem: enrichedData.coreProblem || '',
+                outcomes: enrichedData.outcomes || '',
+                uniqueAdvantage: enrichedData.uniqueAdvantage || '',
+                offerProgram: enrichedData.offerProgram || '',
+                leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || '[Free Gift Name]'
+            };
+            console.log(`[GenerateStream] SMS generation using Free Gift Name: "${smsData.leadMagnetTitle}"`);
+
+            const chunkTimeout = 30000; // 30s per chunk for SMS is plenty
+            const chunkMaxTokens = 2000;
+
+            rawPrompt = `[CHUNKED GENERATION - 2 parallel chunks]\nChunk 1: SMS 1-5\nChunk 2: SMS 6-7b + No-Shows`;
+
+            try {
+                const [chunk1Result, chunk2Result] = await Promise.all([
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS SMS Engine. Return ONLY valid JSON.",
+                            smsChunk1Prompt(smsData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS SMS Engine. Return ONLY valid JSON.",
+                            smsChunk2Prompt(smsData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    })
+                ]);
+
+                // Merge chunks
+                const mergedContent = mergeSmsChunks(chunk1Result, chunk2Result);
+
+                // Validate
+                const validation = validateMergedSms(mergedContent);
+                if (!validation.valid) {
+                    console.warn('[GenerateStream] SMS merge has issues:', validation);
+                }
+
+                console.log(`[GenerateStream] SMS chunking completed successfully (${validation.smsCount || 0}/10 SMS)`);
+                parsed = mergedContent;
+
+            } catch (chunkError) {
+                console.error(`[GenerateStream] Error in SMS chunk generation:`, chunkError);
+                throw chunkError;
+            }
+        } else if (key === 17) {
+            // SPECIAL HANDLING: Setter Script uses parallel chunked generation (2 chunks)
+            console.log('[GenerateStream] Using CHUNKED parallel generation for Setter Script (2 chunks)');
+
+            const scriptData = {
+                idealClient: enrichedData.idealClient || '',
+                coreProblem: enrichedData.coreProblem || '',
+                outcomes: enrichedData.outcomes || '',
+                uniqueAdvantage: enrichedData.uniqueAdvantage || '',
+                offerName: enrichedData.offerProgram || enrichedData.offerName || '',
+                leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || 'Free Training',
+                callToAction: enrichedData.callToAction || 'Book a strategy call'
+            };
+            console.log(`[GenerateStream] Setter Script using Free Gift Name: "${scriptData.leadMagnetTitle}"`);
+
+            const chunkTimeout = 45000; // 45s per chunk
+            const chunkMaxTokens = 3500;
+
+            rawPrompt = `[CHUNKED GENERATION - 2 parallel chunks]\nChunk 1: Call Flow (6 fields)\nChunk 2: Qualification + Objections (6 fields)`;
+
+            try {
+                const [chunk1Result, chunk2Result] = await Promise.all([
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS Setter Script Engine. Return ONLY valid JSON.",
+                            setterChunk1Prompt(scriptData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS Setter Script Engine. Return ONLY valid JSON.",
+                            setterChunk2Prompt(scriptData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    })
+                ]);
+
+                // Merge chunks
+                const mergedContent = mergeSetterChunks(chunk1Result, chunk2Result);
+
+                // Validate
+                const validation = validateMergedSetter(mergedContent);
+                if (!validation.valid) {
+                    console.warn('[GenerateStream] Setter Script merge has issues:', validation);
+                }
+
+                console.log(`[GenerateStream] Setter Script chunking completed successfully (${validation.fieldCount || 0}/12 fields)`);
+                parsed = mergedContent;
+
+            } catch (chunkError) {
+                console.error(`[GenerateStream] Error in Setter Script chunk generation:`, chunkError);
+                throw chunkError;
+            }
+        } else if (key === 5) {
+            // SPECIAL HANDLING: Closer Script uses parallel chunked generation (2 chunks)
+            console.log('[GenerateStream] Using CHUNKED parallel generation for Closer Script (2 chunks)');
+
+            const scriptData = {
+                industry: enrichedData.industry || '',
+                idealClient: enrichedData.idealClient || '',
+                coreProblem: enrichedData.coreProblem || '',
+                outcomes: enrichedData.outcomes || '',
+                uniqueAdvantage: enrichedData.uniqueAdvantage || '',
+                offerName: enrichedData.offerContext?.offerName || enrichedData.offerProgram || enrichedData.offerName || '',
+                pricing: enrichedData.offerContext?.pricing || enrichedData.pricing || '',
+                brandVoice: enrichedData.brandVoice || 'Professional but friendly',
+                targetAudience: 'warm',
+                // Inject offer context for closer script
+                offerBlueprint: enrichedData.offerContext?.blueprint || '',
+                offerPromise: enrichedData.offerContext?.tier1Promise || ''
+            };
+            console.log(`[GenerateStream] Closer Script using Offer: "${scriptData.offerName}", Pricing: "${scriptData.pricing}"`);
+
+            const chunkTimeout = 60000; // 60s per chunk for closer (longer content)
+            const chunkMaxTokens = 4000;
+
+            rawPrompt = `[CHUNKED GENERATION - 2 parallel chunks]\nChunk 1: Discovery + Stakes (6 fields)\nChunk 2: Pitch + Close (5 fields)`;
+
+            try {
+                const [chunk1Result, chunk2Result] = await Promise.all([
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS Closer Script Engine. Return ONLY valid JSON.",
+                            closerChunk1Prompt(scriptData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS Closer Script Engine. Return ONLY valid JSON.",
+                            closerChunk2Prompt(scriptData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    })
+                ]);
+
+                // Merge chunks
+                const mergedContent = mergeCloserChunks(chunk1Result, chunk2Result);
+
+                // Validate
+                const validation = validateMergedCloser(mergedContent);
+                if (!validation.valid) {
+                    console.warn('[GenerateStream] Closer Script merge has issues:', validation);
+                }
+
+                console.log(`[GenerateStream] Closer Script chunking completed successfully (${validation.fieldCount || 0}/11 fields)`);
+                parsed = mergedContent;
+
+            } catch (chunkError) {
+                console.error(`[GenerateStream] Error in Closer Script chunk generation:`, chunkError);
+                throw chunkError;
+            }
         } else {
             // Standard generation for all other sections
             const promptFn = getPromptByKey(key);
@@ -179,7 +367,9 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
                 console.log(`[GenerateStream] Found prompt function for key ${key} (${displayName})`);
             }
 
-            rawPrompt = promptFn(data);
+            // Use enrichedData with resolved dependencies
+            console.log(`[GenerateStream] Generating ${displayName} with enriched context...`);
+            rawPrompt = promptFn(enrichedData);
             const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
 
             // Optimized token allocation per section complexity

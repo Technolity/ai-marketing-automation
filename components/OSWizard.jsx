@@ -163,7 +163,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         completedCount: 0,
         totalCount: 13,
         currentSection: null,
-        completedSections: []
+        completedSections: [],
+        allSectionKeys: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17] // All sections being generated
     });
 
     // Handle startAtStepOne prop - immediately go to Step 1 when prop is true
@@ -960,7 +961,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             completedCount: 0,
             totalCount: 13,
             currentSection: null,
-            completedSections: []
+            completedSections: [],
+            allSectionKeys: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
         });
 
         try {
@@ -1052,9 +1054,16 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                 setProcessingMessage(data.current || 'Generating...');
                             } else if (currentEvent === 'section') {
                                 if (data.success) {
+                                    // Find the numeric key for this section name
+                                    const sectionKey = Object.keys(SECTION_NAMES).find(
+                                        key => SECTION_NAMES[key] === data.name
+                                    );
+
                                     setGenerationProgress(prev => ({
                                         ...prev,
-                                        completedSections: [...prev.completedSections, data.name]
+                                        completedSections: sectionKey
+                                            ? [...prev.completedSections, parseInt(sectionKey)]
+                                            : prev.completedSections
                                     }));
                                 }
                                 console.log(`[Generate] Section: ${data.name} - ${data.success ? '✓' : '✗'}`);

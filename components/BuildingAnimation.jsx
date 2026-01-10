@@ -4,14 +4,18 @@ import { Sparkles, Loader2 } from 'lucide-react';
 
 /**
  * BuildingAnimation Component
- * 
+ *
  * DESIGN UPDATE (Classic & Responsive):
  * - Smaller, classic "TedOS" logo (Cyan/White)
  * - Circular Loader
  * - Clean status text (No grid)
  * - Good spacing from top/bottom
  */
-const BuildingAnimation = ({ isGenerating = false, completedSections = [], processingMessage }) => {
+const BuildingAnimation = ({
+    isGenerating = false,
+    completedSections = [],
+    processingMessage
+}) => {
 
     // Determine progress percentage
     const totalExpected = 13;
@@ -94,25 +98,22 @@ const BuildingAnimation = ({ isGenerating = false, completedSections = [], proce
 
 
                 {/* 3. CLEAN STATUS TEXT (No Cards) */}
-                <div className="text-center w-full max-w-xl mx-auto min-h-[100px] flex flex-col justify-end pb-8">
+                <div className="text-center w-full max-w-xl mx-auto min-h-[120px] flex flex-col justify-end pb-8 gap-3">
                     {/* Dynamic Processing Message */}
                     <div className="flex items-center justify-center">
                         <motion.div
-                            key={processingMessage}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             className="text-cyan text-lg md:text-xl font-medium flex items-center justify-center gap-3"
                         >
-                            {processingMessage ? (
-                                <>
-                                    <Loader2 className="w-5 h-5 animate-spin text-cyan/70" />
-                                    <span className="tracking-wide">{processingMessage}</span>
-                                </>
-                            ) : (
-                                <span className="text-white/40 tracking-widest text-sm uppercase">System Initializing...</span>
-                            )}
+                            <Loader2 className="w-5 h-5 animate-spin text-cyan/70" />
+                            <span className="tracking-wide">
+                                Generating Your Assets...
+                            </span>
                         </motion.div>
                     </div>
+
+                    {/* Time Remaining Removed as per request */}
                 </div>
 
 

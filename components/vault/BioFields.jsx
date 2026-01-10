@@ -127,14 +127,7 @@ export default function BioFields({ funnelId, onApprove, onRenderApproveButton }
                 </>
             )}
         </button>
-    ) : (
-        <div className="flex items-center gap-2 px-4 py-2 bg-cyan/10 border border-cyan/20 rounded-xl">
-            <div className="w-5 h-5 bg-cyan rounded-full flex items-center justify-center">
-                <CheckCircle className="w-3 h-3 text-white" />
-            </div>
-            <span className="text-sm text-cyan font-semibold">Approved</span>
-        </div>
-    );
+    ) : null;
 
     return (
         <>

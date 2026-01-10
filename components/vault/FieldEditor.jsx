@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon, Info } from 'lucide-react';
+import { Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon, Info, RefreshCw } from 'lucide-react';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
+import { getSyncPreviewMessage } from '@/lib/vault/fieldSync';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
@@ -75,6 +76,7 @@ export default function FieldEditor({
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [validationErrors, setValidationErrors] = useState([]);
+    const [validationWarnings, setValidationWarnings] = useState([]);
     const [saveSuccess, setSaveSuccess] = useState(false);
 
     const {
@@ -92,7 +94,8 @@ export default function FieldEditor({
     // Validate on value change
     useEffect(() => {
         const validation = validateFieldValue(fieldDef, value);
-        setValidationErrors(validation.errors);
+        setValidationErrors(validation.errors || []);
+        setValidationWarnings(validation.warnings || []);
     }, [value, fieldDef]);
 
     const handleSave = async (newValue = value) => {
@@ -182,9 +185,36 @@ export default function FieldEditor({
                         />
                     )}
                     {field_metadata.maxLength && (
-                        <p className="mt-1 text-xs text-gray-600 text-right">
-                            {(value || '').length} / {field_metadata.maxLength}
-                        </p>
+                        <div className="mt-1 flex items-center justify-between">
+                            <p className={`text-xs ${(value || '').length > field_metadata.maxLength
+                                    ? 'text-red-400'
+                                    : (value || '').length > field_metadata.maxLength * 0.9
+                                        ? 'text-yellow-400'
+                                        : 'text-gray-600'
+                                }`}>
+                                {(value || '').length} / {field_metadata.maxLength}
+                                {(value || '').length > field_metadata.maxLength * 0.9 &&
+                                    (value || '').length <= field_metadata.maxLength && (
+                                        <span className="ml-2 text-yellow-400">
+                                            ({field_metadata.maxLength - (value || '').length} remaining)
+                                        </span>
+                                    )}
+                            </p>
+                            {/* Visual progress bar */}
+                            <div className="flex-1 max-w-[100px] ml-3 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                <div
+                                    className={`h-full transition-all ${(value || '').length > field_metadata.maxLength
+                                            ? 'bg-red-500'
+                                            : (value || '').length > field_metadata.maxLength * 0.9
+                                                ? 'bg-yellow-500'
+                                                : 'bg-cyan'
+                                        }`}
+                                    style={{
+                                        width: `${Math.min(100, ((value || '').length / field_metadata.maxLength) * 100)}%`
+                                    }}
+                                />
+                            </div>
+                        </div>
                     )}
                 </div>
             );
@@ -234,14 +264,7 @@ export default function FieldEditor({
                                 )}
                             </div>
                         ))}
-                        {arrayValue.length < maxItems && (
-                            <button
-                                onClick={() => setValue([...arrayValue, ''])}
-                                className="text-sm text-cyan hover:text-cyan/80 transition-colors"
-                            >
-                                + Add item
-                            </button>
-                        )}
+                        {/* Add item button removed */}
                     </div>
                 );
             }
@@ -320,19 +343,7 @@ export default function FieldEditor({
                             );
                         })}
 
-                        {arrayValue.length < maxItems && (
-                            <button
-                                onClick={() => {
-                                    // Create empty object with all subfield keys
-                                    const emptyItem = {};
-                                    subfields.forEach(sf => emptyItem[sf.field_id] = '');
-                                    setValue([...arrayValue, emptyItem]);
-                                }}
-                                className="text-sm text-cyan hover:text-cyan/80 transition-colors"
-                            >
-                                + Add item
-                            </button>
-                        )}
+                        {/* Add item button removed */}
                     </div>
                 );
             }
@@ -633,6 +644,10 @@ export default function FieldEditor({
         return <p className="text-gray-500">Unsupported field type: {field_type}</p>;
     };
 
+    // Check if this field has sync targets
+    const fieldPath = field_id; // Field ID is the path (e.g., 'freeGift.title')
+    const syncMessage = getSyncPreviewMessage(sectionId, fieldPath);
+
     return (
         <div className="space-y-3">
             {/* Field Label with Info Tooltip */}
@@ -646,6 +661,18 @@ export default function FieldEditor({
                             <Info className="w-3.5 h-3.5 text-gray-500 cursor-help hover:text-cyan transition-colors" />
                             <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-[#1a1a1d] border border-[#3a3a3d] rounded-lg shadow-xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50">
                                 <p className="text-xs text-gray-400 leading-relaxed">{field_metadata.hint.replace('📍 ', '')}</p>
+                            </div>
+                        </div>
+                    )}
+                    {syncMessage && (
+                        <div className="relative group/sync">
+                            <div className="flex items-center gap-1 px-2 py-0.5 bg-cyan/10 border border-cyan/30 rounded-md">
+                                <RefreshCw className="w-3 h-3 text-cyan" />
+                                <span className="text-[10px] font-medium text-cyan uppercase tracking-wide">Auto-Sync</span>
+                            </div>
+                            <div className="absolute left-0 bottom-full mb-2 w-56 p-2 bg-[#1a1a1d] border border-cyan/30 rounded-lg shadow-xl opacity-0 invisible group-hover/sync:opacity-100 group-hover/sync:visible transition-all duration-200 z-50">
+                                <p className="text-xs text-cyan font-medium mb-1">Auto-Sync Enabled</p>
+                                <p className="text-xs text-gray-400 leading-relaxed">{syncMessage}</p>
                             </div>
                         </div>
                     )}
@@ -672,13 +699,46 @@ export default function FieldEditor({
 
             {/* Validation Errors */}
             {validationErrors.length > 0 && (
-                <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                    <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
-                        {validationErrors.map((error, idx) => (
-                            <p key={idx} className="text-sm text-red-400">{error}</p>
-                        ))}
-                    </div>
+                <div className="mt-2 space-y-2">
+                    {validationErrors.map((error, idx) => (
+                        <div key={idx} className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                                <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                    <p className="text-red-400 font-medium text-sm">
+                                        {typeof error === 'string' ? error : error.message}
+                                    </p>
+                                    {typeof error === 'object' && error.detail && (
+                                        <p className="text-red-300/70 text-xs mt-1">{error.detail}</p>
+                                    )}
+                                    {typeof error === 'object' && error.example && (
+                                        <p className="text-red-200/50 text-xs mt-1 font-mono">{error.example}</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Validation Warnings */}
+            {validationWarnings.length > 0 && (
+                <div className="mt-2 space-y-2">
+                    {validationWarnings.map((warning, idx) => (
+                        <div key={idx} className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+                            <div className="flex items-start gap-2">
+                                <Info className="w-5 h-5 text-yellow-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                    <p className="text-yellow-400 font-medium text-sm">
+                                        {typeof warning === 'string' ? warning : warning.message}
+                                    </p>
+                                    {typeof warning === 'object' && warning.detail && (
+                                        <p className="text-yellow-300/70 text-xs mt-1">{warning.detail}</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

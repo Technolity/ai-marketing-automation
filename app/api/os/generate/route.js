@@ -3,7 +3,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { auth } from '@clerk/nextjs';
 
 // Import shared AI utilities (centralized and optimized)
-import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
+import { generateWithProvider, retryWithBackoff, categorizeError } from '@/lib/ai/sharedAiUtils';
 
 // Import RAG retrieval helpers (now with caching)
 import { getRelevantContext, injectContextIntoPrompt, getKnowledgeBaseStats } from '@/lib/rag/retrieve';
@@ -601,7 +601,7 @@ export async function POST(req) {
       const FILL_MISSING_CONCURRENCY = 3;
       const SECTION_TIMEOUTS = {
         4: 120000,  // Offer
-        5: 120000,  // Sales Script (Closer)
+        5: 90000,   // Sales Script (Closer) - optimized prompt
         17: 120000, // Setter Script
         8: 120000,  // Emails
         9: 120000,  // Facebook Ads
@@ -716,13 +716,19 @@ export async function POST(req) {
                 };
 
               } catch (chunkError) {
+                // ENHANCED ERROR TRACKING
+                const errorCategory = categorizeError(chunkError, 'OPENAI', numKey);
                 console.error(`[FILL-MISSING] Error in email chunk generation:`, chunkError);
+                console.error(`[FILL-MISSING EMAIL CHUNKS] Error Category: ${errorCategory}`);
+                console.error(`[FILL-MISSING EMAIL CHUNKS] Chunk timeout: ${chunkTimeout}ms`);
+
                 return {
                   key: numKey,
                   result: null,
                   name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
                   success: false,
-                  error: chunkError.message
+                  error: chunkError.message,
+                  errorCategory
                 };
               }
             }
@@ -777,13 +783,20 @@ export async function POST(req) {
               success: true
             };
           } catch (err) {
+            // ENHANCED ERROR TRACKING
+            const errorCategory = categorizeError(err, 'OPENAI', numKey);
             console.error(`[FILL-MISSING] Error generating section ${numKey}:`, err.message);
+            console.error(`[FILL-MISSING SECTION ${numKey}] Error Category: ${errorCategory}`);
+            console.error(`[FILL-MISSING SECTION ${numKey}] Prompt size: ${basePrompt?.length || 0} chars`);
+            console.error(`[FILL-MISSING SECTION ${numKey}] Timeout setting: ${SECTION_TIMEOUTS[numKey] || 90000}ms`);
+
             return {
               key: numKey,
               result: null,
               name: CONTENT_NAMES[numKey] || `Section ${numKey}`,
               success: false,
-              error: err.message
+              error: err.message,
+              errorCategory
             };
           }
         });
@@ -847,7 +860,7 @@ export async function POST(req) {
       // Heavy sections that need more time (in ms)
       const SECTION_TIMEOUTS = {
         4: 120000,  // Offer - complex 7-step blueprint
-        5: 120000,  // Sales Script (Closer) - long conversational script
+        5: 90000,   // Sales Script (Closer) - optimized prompt
         17: 120000, // Setter Script - detailed call flow
         8: 120000,  // Emails - multiple email sequences
         9: 120000,  // Facebook Ads - 10 ad variations
@@ -964,13 +977,19 @@ export async function POST(req) {
                 };
 
               } catch (chunkError) {
+                // ENHANCED ERROR TRACKING
+                const errorCategory = categorizeError(chunkError, 'OPENAI', key);
                 console.error(`[GENERATION] Error in email chunk generation:`, chunkError);
+                console.error(`[GENERATION EMAIL CHUNKS] Error Category: ${errorCategory}`);
+                console.error(`[GENERATION EMAIL CHUNKS] Chunk timeout: ${chunkTimeout}ms`);
+
                 return {
                   key,
                   result: null,
                   name: CONTENT_NAMES[key],
                   success: false,
-                  error: chunkError.message
+                  error: chunkError.message,
+                  errorCategory
                 };
               }
             }
@@ -1041,13 +1060,20 @@ export async function POST(req) {
               error: null
             };
           } catch (err) {
-            console.error(`Error generating ${CONTENT_NAMES[key]} after ${MAX_RETRIES} attempts:`, err);
+            // ENHANCED ERROR TRACKING
+            const errorCategory = categorizeError(err, 'OPENAI', key);
+            console.error(`Error generating ${CONTENT_NAMES[key]}:`, err);
+            console.error(`[SECTION ${key}] Error Category: ${errorCategory}`);
+            console.error(`[SECTION ${key}] Prompt size: ${basePrompt?.length || 0} chars`);
+            console.error(`[SECTION ${key}] Timeout setting: ${SECTION_TIMEOUTS[key] || 90000}ms`);
+
             return {
               key,
               result: null,
               name: CONTENT_NAMES[key],
               success: false,
-              error: err.message
+              error: err.message,
+              errorCategory
             };
           }
         });
