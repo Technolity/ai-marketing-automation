@@ -6,6 +6,15 @@ import { getSyncPreviewMessage } from '@/lib/vault/fieldSync';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
+// Custom debounce function
+const debounce = (func, wait) => {
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+    };
+};
+
 // Helper to auto-resize a textarea element (no max height - grows with content)
 const autoResizeTextarea = (el) => {
     if (!el) return;
@@ -78,12 +87,13 @@ export default function FieldEditor({
     const [validationErrors, setValidationErrors] = useState([]);
     const [validationWarnings, setValidationWarnings] = useState([]);
     const [saveSuccess, setSaveSuccess] = useState(false);
+    const saveTimeoutRef = useRef(null);
 
     const {
         field_id,
         field_label,
         field_type,
-        field_metadata
+        field_metadata = {}  // Default to empty object to prevent null access errors
     } = fieldDef;
 
     // Sync with external changes
@@ -97,6 +107,14 @@ export default function FieldEditor({
         setValidationErrors(validation.errors || []);
         setValidationWarnings(validation.warnings || []);
     }, [value, fieldDef]);
+
+    // Create debounced save function
+    const debouncedSave = useCallback(
+        debounce((newValue) => {
+            handleSave(newValue);
+        }, 2000), // 2 second debounce
+        [funnelId, sectionId, field_id]
+    );
 
     const handleSave = async (newValue = value) => {
         // Validate before save
@@ -132,6 +150,35 @@ export default function FieldEditor({
             setSaveSuccess(true);
             setTimeout(() => setSaveSuccess(false), 2000);
 
+            // === FREE GIFT TITLE DEPENDENCY TRACKING ===
+            // If this is the Lead Magnet Title, notify about dependent sections
+            if (sectionId === 'leadMagnet' && field_id === 'mainTitle') {
+                const dependentSections = [
+                    'Video Script (VSL)',
+                    'Ad Copy',
+                    'Email Sequences',
+                    'SMS Sequences',
+                    'Funnel Page Copy'
+                ];
+
+                // Show toast with option to regenerate
+                toast.info(
+                    `Lead Magnet Title updated! This is used in: ${dependentSections.join(', ')}. Consider regenerating these sections to reflect the new title.`,
+                    {
+                        duration: 10000,
+                        action: {
+                            label: 'Regenerate All',
+                            onClick: () => {
+                                // TODO: Trigger batch regeneration
+                                toast.info('Batch regeneration coming soon!');
+                            }
+                        }
+                    }
+                );
+
+                console.log('[FieldEditor] Free Gift title changed, dependent sections:', dependentSections);
+            }
+
             // Callback to parent
             if (onSave) {
                 onSave(field_id, newValue, result);
@@ -155,6 +202,12 @@ export default function FieldEditor({
         }
     };
 
+    const handleChange = (newValue) => {
+        setValue(newValue);
+        // Trigger debounced auto-save after 2 seconds of no typing
+        debouncedSave(newValue);
+    };
+
     const renderFieldInput = () => {
         if (field_type === 'text' || field_type === 'textarea') {
             return (
@@ -163,8 +216,7 @@ export default function FieldEditor({
                         <input
                             type="text"
                             value={value || ''}
-                            onChange={(e) => setValue(e.target.value)}
-                            onBlur={handleBlur}
+                            onChange={(e) => handleChange(e.target.value)}
                             placeholder={field_metadata.placeholder || field_label}
                             maxLength={field_metadata.maxLength}
                             className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
@@ -174,10 +226,9 @@ export default function FieldEditor({
                             ref={(el) => el && autoResizeTextarea(el)}
                             value={value || ''}
                             onChange={(e) => {
-                                setValue(e.target.value);
+                                handleChange(e.target.value);
                                 autoResizeTextarea(e.target);
                             }}
-                            onBlur={handleBlur}
                             placeholder={field_metadata.placeholder || field_label}
                             maxLength={field_metadata.maxLength}
                             style={{ minHeight: '4.5rem', maxHeight: '18rem', height: 'auto' }}
@@ -187,10 +238,10 @@ export default function FieldEditor({
                     {field_metadata.maxLength && (
                         <div className="mt-1 flex items-center justify-between">
                             <p className={`text-xs ${(value || '').length > field_metadata.maxLength
-                                    ? 'text-red-400'
-                                    : (value || '').length > field_metadata.maxLength * 0.9
-                                        ? 'text-yellow-400'
-                                        : 'text-gray-600'
+                                ? 'text-red-400'
+                                : (value || '').length > field_metadata.maxLength * 0.9
+                                    ? 'text-yellow-400'
+                                    : 'text-gray-600'
                                 }`}>
                                 {(value || '').length} / {field_metadata.maxLength}
                                 {(value || '').length > field_metadata.maxLength * 0.9 &&
@@ -204,10 +255,10 @@ export default function FieldEditor({
                             <div className="flex-1 max-w-[100px] ml-3 h-1.5 bg-gray-800 rounded-full overflow-hidden">
                                 <div
                                     className={`h-full transition-all ${(value || '').length > field_metadata.maxLength
-                                            ? 'bg-red-500'
-                                            : (value || '').length > field_metadata.maxLength * 0.9
-                                                ? 'bg-yellow-500'
-                                                : 'bg-cyan'
+                                        ? 'bg-red-500'
+                                        : (value || '').length > field_metadata.maxLength * 0.9
+                                            ? 'bg-yellow-500'
+                                            : 'bg-cyan'
                                         }`}
                                     style={{
                                         width: `${Math.min(100, ((value || '').length / field_metadata.maxLength) * 100)}%`
@@ -656,7 +707,7 @@ export default function FieldEditor({
                     <label className="text-sm font-medium text-gray-300">
                         {field_label}
                     </label>
-                    {field_metadata.hint && (
+                    {field_metadata?.hint && (
                         <div className="relative group/info">
                             <Info className="w-3.5 h-3.5 text-gray-500 cursor-help hover:text-cyan transition-colors" />
                             <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-[#1a1a1d] border border-[#3a3a3d] rounded-lg shadow-xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50">

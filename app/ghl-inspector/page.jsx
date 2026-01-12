@@ -50,15 +50,10 @@ export default function GHLInspectorPage() {
         if (!data) return;
 
         const csv = [
-            ['Name', 'Key', 'Value', 'Type', 'Source', 'Category', 'Status'].join(','),
+            ['Name', 'Key'].join(','),
             ...data.customValues.map(cv => [
                 `"${(cv.name || '').replace(/"/g, '""')}"`,
-                `"${(cv.key || '').replace(/"/g, '""')}"`,
-                `"${(cv.value || '').replace(/"/g, '""')}"`,
-                cv.type,
-                `"${cv.source}"`,
-                cv.category,
-                cv.isEmpty ? 'Empty' : 'Filled'
+                `"${(cv.key || '').replace(/"/g, '""')}"`
             ].join(','))
         ].join('\n');
 
@@ -93,9 +88,7 @@ export default function GHLInspectorPage() {
         th { background: #1f2937; color: white; padding: 10px; text-align: left; }
         td { padding: 8px 10px; border-bottom: 1px solid #e5e5e5; }
         tr:nth-child(even) { background: #f9f9f9; }
-        .filled { color: #22c55e; }
-        .empty { color: #f97316; }
-        .value-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .key-cell { font-family: monospace; color: #0ea5e9; }
         @media print { body { padding: 0; } }
     </style>
 </head>
@@ -108,22 +101,17 @@ export default function GHLInspectorPage() {
         <div class="stat"><div class="stat-value">${data.stats.total}</div><div class="stat-label">Total</div></div>
         <div class="stat"><div class="stat-value" style="color:#22c55e">${data.stats.filled}</div><div class="stat-label">Filled</div></div>
         <div class="stat"><div class="stat-value" style="color:#f97316">${data.stats.empty}</div><div class="stat-label">Empty</div></div>
-        <div class="stat"><div class="stat-value" style="color:#a855f7">${Math.round((data.stats.filled / data.stats.total) * 100)}%</div><div class="stat-label">Completion</div></div>
     </div>
     
     <table>
         <thead>
-            <tr><th>Status</th><th>Category</th><th>Name</th><th>Key</th><th>Value</th><th>Type</th></tr>
+            <tr><th>Name</th><th>Key</th></tr>
         </thead>
         <tbody>
             ${filteredValues.map(cv => `
                 <tr>
-                    <td class="${cv.isEmpty ? 'empty' : 'filled'}">${cv.isEmpty ? '✗' : '✓'}</td>
-                    <td>${cv.category || ''}</td>
                     <td>${cv.name || ''}</td>
-                    <td><code>${cv.key || ''}</code></td>
-                    <td class="value-cell">${cv.value || '<em>empty</em>'}</td>
-                    <td>${cv.type || ''}</td>
+                    <td class="key-cell">${cv.key || ''}</td>
                 </tr>
             `).join('')}
         </tbody>
@@ -254,7 +242,7 @@ export default function GHLInspectorPage() {
                                     type="text"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    placeholder="Search by key or value..."
+                                    placeholder="Search by name or key..."
                                     className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-cyan/50"
                                 />
                             </div>
@@ -294,44 +282,18 @@ export default function GHLInspectorPage() {
                                 <table className="w-full">
                                     <thead className="bg-[#0e0e0f] border-b border-[#2a2a2d]">
                                         <tr>
-                                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Status</th>
-                                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Category</th>
-                                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Name</th>
-                                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Key</th>
-                                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Value</th>
-                                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase">Type</th>
+                                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase w-1/2">Name</th>
+                                            <th className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase w-1/2">Key</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[#2a2a2d]">
                                         {filteredValues.map((cv, index) => (
                                             <tr key={index} className="hover:bg-[#252528] transition-colors">
-                                                <td className="px-4 py-3">
-                                                    {cv.isEmpty ? (
-                                                        <XCircle className="w-5 h-5 text-orange-500" />
-                                                    ) : (
-                                                        <CheckCircle className="w-5 h-5 text-green-500" />
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-gray-400">
-                                                    {cv.category}
-                                                </td>
                                                 <td className="px-4 py-3 text-sm text-white font-medium">
                                                     {cv.name || <span className="text-gray-600 italic">—</span>}
                                                 </td>
-                                                <td className="px-4 py-3 font-mono text-xs text-cyan">
+                                                <td className="px-4 py-3 font-mono text-sm text-cyan select-all">
                                                     {cv.key || <span className="text-gray-600 italic">—</span>}
-                                                </td>
-                                                <td className="px-4 py-3 text-sm text-gray-300 max-w-xs truncate">
-                                                    {cv.value || <span className="text-gray-600 italic">empty</span>}
-                                                </td>
-                                                <td className="px-4 py-3 text-sm">
-                                                    <span className={`px-2 py-1 rounded text-xs font-medium ${cv.type === 'text' ? 'bg-blue-500/20 text-blue-400' :
-                                                        cv.type === 'image' ? 'bg-purple-500/20 text-purple-400' :
-                                                            cv.type === 'color' ? 'bg-pink-500/20 text-pink-400' :
-                                                                'bg-gray-500/20 text-gray-400'
-                                                        }`}>
-                                                        {cv.type}
-                                                    </span>
                                                 </td>
                                             </tr>
                                         ))}

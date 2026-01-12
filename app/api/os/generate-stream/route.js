@@ -4,7 +4,7 @@ import { getPromptByKey } from '@/lib/prompts';
 import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { populateVaultFields } from '@/lib/vault/fieldMapper';
-import { resolveDependencies, buildEnrichedData } from '@/lib/vault/dependencyResolver';
+import { resolveDependencies, buildEnrichedData, buildCoreContext, formatContextForPrompt } from '@/lib/vault/dependencyResolver';
 import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
 import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
 import { smsChunk1Prompt, smsChunk2Prompt } from '@/lib/prompts/smsChunks';
@@ -59,11 +59,11 @@ const BACKGROUND_BATCHES = [
     // Batch 1: Phase 1 remaining + Offer (parallel)
     { keys: [3, 4], parallel: true },     // Story + Offer
 
-    // Batch 2: Lead gen + small content (parallel)
-    { keys: [6, 9, 15], parallel: true }, // Lead Magnet + Ads + Bio
+    // Batch 2: Lead Magnet + VSL + Bio (parallel) - VSL is chunked
+    { keys: [6, 7, 15], parallel: true }, // Lead Magnet + VSL + Bio
 
-    // Batch 3: Long-form content (parallel)
-    { keys: [7, 10], parallel: true },    // VSL + Funnel Copy
+    // Batch 3: Ads (single)
+    { keys: [9], parallel: false },       // Facebook Ads
 
     // Batch 4: Sequences (parallel)
     { keys: [8, 19, 16], parallel: true },    // Emails + SMS + Reminders
@@ -74,7 +74,7 @@ const BACKGROUND_BATCHES = [
 
 // Legacy keys for backward compatibility
 const PHASE_1_KEYS = [1, 2, 3]; // Still includes Story for status tracking
-const PHASE_2_KEYS = [4, 6, 7, 10, 9, 8, 16, 15, 5, 17]; // Reordered to match UI + scripts
+const PHASE_2_KEYS = [4, 6, 7, 9, 8, 16, 15, 5, 17]; // Reordered to match UI + scripts (10=Funnel Copy removed - now generated separately)
 
 
 /**
@@ -90,7 +90,7 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
         5: 120000,  // Sales Script (Closer) - long conversational script (reduced from 180s)
         7: 120000,  // VSL - 2500-3500 word video script (reduced from 150s)
         8: 70000,   // Emails - parallel chunked generation (4 chunks x 60s = ~60s total + buffer)
-        10: 120000, // Funnel Copy - multiple page copies
+        // 10: Funnel Copy - removed, now generated separately via conditional trigger
         17: 120000  // Setter Script - detailed call flow
     };
 
@@ -315,7 +315,7 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             };
             console.log(`[GenerateStream] Closer Script using Offer: "${scriptData.offerName}", Pricing: "${scriptData.pricing}"`);
 
-            const chunkTimeout = 60000; // 60s per chunk for closer (longer content)
+            const chunkTimeout = 90000; // 90s per chunk for closer (longer, complex prompts)
             const chunkMaxTokens = 4000;
 
             rawPrompt = `[CHUNKED GENERATION - 2 parallel chunks]\nChunk 1: Discovery + Stakes (6 fields)\nChunk 2: Pitch + Close (5 fields)`;
@@ -370,6 +370,16 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             // Use enrichedData with resolved dependencies
             console.log(`[GenerateStream] Generating ${displayName} with enriched context...`);
             rawPrompt = promptFn(enrichedData);
+
+            // INJECT CORE CONTEXT for non-core sections (key > 3)
+            // Core sections (1=idealClient, 2=message, 3=story) don't need prior context
+            if (key > 3) {
+                const coreContext = await buildCoreContext(funnelId);
+                const formattedContext = formatContextForPrompt(coreContext);
+                console.log(`[GenerateStream] Injecting core context (${formattedContext.length} chars) for ${displayName}`);
+                rawPrompt = formattedContext + '\n\n' + rawPrompt;
+            }
+
             const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
 
             // Optimized token allocation per section complexity

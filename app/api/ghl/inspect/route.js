@@ -70,7 +70,7 @@ export async function GET(req) {
             const schemaInfo = findInSchema(cv.key);
             return {
                 id: cv.id || '',
-                key: cv.key || cv.name || '',
+                key: cv.key || '',
                 name: cv.name || cv.key || '',
                 value: cv.value || '',
                 type: schemaInfo?.type || 'unknown',

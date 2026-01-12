@@ -237,12 +237,35 @@ export async function POST(req) {
     const displayName = DISPLAY_NAMES[sectionKey];
 
     // DEPENDENCY RESOLUTION: Import and resolve dependencies
-    const { resolveDependencies, buildEnrichedData } = await import('@/lib/vault/dependencyResolver');
+    const { resolveDependencies, buildEnrichedData, validateCoreSections, buildCoreContext, formatContextForPrompt } = await import('@/lib/vault/dependencyResolver');
+
+    // CORE SECTION VALIDATION: Require Ideal Client + Message for most sections
+    // Skip validation for core sections themselves (keys 1, 2, 3)
+    const coreSectionKeys = [1, 2, 3]; // idealClient, message, story
+    if (!coreSectionKeys.includes(sectionKey)) {
+        console.log(`[REGENERATE] Validating core sections before regenerating ${displayName}...`);
+        const validation = await validateCoreSections(funnelId);
+
+        if (!validation.isValid) {
+            console.log(`[REGENERATE] ✗ Core section validation failed:`, validation.missing);
+            return Response.json({
+                error: validation.message,
+                code: 'MISSING_CORE_SECTIONS',
+                missing: validation.missing
+            }, { status: 400 });
+        }
+        console.log(`[REGENERATE] ✓ Core sections validated`);
+    }
 
     console.log(`[REGENERATE] Resolving dependencies for ${sectionId} (key: ${sectionKey})...`);
     const resolvedDeps = await resolveDependencies(funnelId, sectionKey, data);
     const enrichedData = buildEnrichedData(data, resolvedDeps);
     console.log(`[REGENERATE] Enriched data ready. Free Gift Name: "${enrichedData.freeGiftName || 'not set'}"`);
+
+    // BUILD CORE CONTEXT: Fetch field-level data from approved sections
+    const coreContext = await buildCoreContext(funnelId);
+    const formattedContext = formatContextForPrompt(coreContext);
+    console.log(`[REGENERATE] Core context ready (${formattedContext.length} chars)`);
 
     try {
         console.log(`[REGENERATE] Starting regeneration of ${displayName} (key: ${sectionKey})`);
@@ -255,6 +278,9 @@ export async function POST(req) {
 
         // Use enrichedData with resolved dependencies
         let rawPrompt = promptFn(enrichedData);
+
+        // INJECT CORE CONTEXT at the beginning of the prompt
+        rawPrompt = formattedContext + '\n\n' + rawPrompt;
 
         // Append feedback if provided
         if (feedback) {

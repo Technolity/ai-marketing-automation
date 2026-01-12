@@ -105,10 +105,46 @@ export async function GET(req) {
                         .order('display_order', { ascending: true });
 
                     fields = newFields || [];
-                    console.log(`[VaultFields GET] Auto-populated ${fields.length} fields for ${section_id}`);
+                    console.log(`[VaultFields GET] Auto-populated ${fields.length} fields from vault_content`);
                 }
             } else {
                 console.log(`[VaultFields GET] No vault_content found for ${section_id}`);
+
+                // For sections without vault_content (e.g., media), create empty predefined fields
+                const { getFieldsForSection } = await import('@/lib/vault/fieldStructures');
+                const predefinedFields = getFieldsForSection(section_id);
+
+                if (predefinedFields && predefinedFields.length > 0) {
+                    console.log(`[VaultFields GET] Creating ${predefinedFields.length} predefined fields for ${section_id}...`);
+
+                    const fieldsToInsert = predefinedFields.map(fieldDef => ({
+                        funnel_id,
+                        user_id: userId,
+                        section_id,
+                        field_id: fieldDef.field_id,
+                        field_label: fieldDef.field_label,
+                        field_value: '', // Empty string for user to fill (NOT NULL constraint)
+                        field_type: fieldDef.field_type,
+                        field_metadata: fieldDef.field_metadata || {},
+                        is_custom: false,
+                        is_approved: false,
+                        display_order: fieldDef.display_order,
+                        version: 1,
+                        is_current_version: true
+                    }));
+
+                    const { data: insertedFields, error: insertError } = await supabaseAdmin
+                        .from('vault_content_fields')
+                        .insert(fieldsToInsert)
+                        .select();
+
+                    if (insertError) {
+                        console.error(`[VaultFields GET] Error creating predefined fields:`, insertError);
+                    } else {
+                        fields = insertedFields || [];
+                        console.log(`[VaultFields GET] Created ${fields.length} predefined fields for ${section_id}`);
+                    }
+                }
             }
         }
 

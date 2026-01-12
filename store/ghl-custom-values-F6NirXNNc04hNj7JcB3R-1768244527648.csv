@@ -1,0 +1,935 @@
+Name,Key,Value,Type,Source,Category,Status
+"vsl_video_url","vsl_video_url","https://www.youtube.com/watch?v=cdZJCrJ1ZxM",unknown,"not mapped",🎬 VSL Page,Filled
+"testimonial_video_url","testimonial_video_url","x",unknown,"not mapped",⭐ Testimonial,Filled
+"thankyou_video_url","thankyou_video_url","x",unknown,"not mapped",📄 Other,Filled
+"survey_next_bg","survey_next_bg","#333333",unknown,"not mapped",📄 Other,Filled
+"survey_next_btn_bg","survey_next_btn_bg","#ffffff",unknown,"not mapped",📄 Other,Filled
+"survey_next_btn_txt","survey_next_btn_txt","#0d6efd",unknown,"not mapped",📄 Other,Filled
+"TEst video","TEst video","https://storage.googleapis.com/msgsndr/F6NirXNNc04hNj7JcB3R/media/694308a32c8abe4226d28ed3.mp4",unknown,"not mapped",📄 Other,Filled
+"fb_ad_headline_1","fb_ad_headline_1","Stuck trading time for money?",unknown,"not mapped",📄 Other,Filled
+"fb_ad_primary_1","fb_ad_primary_1","Are you overwhelmed with client work and feel like you're the bottleneck in your business? 🤔 It's time to break free! Join our FREE training and discover how you can build a self-managing team that works for you. Imagine enjoying 4+ weeks of vacation while your agency grows! 🌴 With the Agency Liberation System, you’ll create standard operating procedures that maintain quality, implement recurring revenue models, and scale to $100K+ months. Sarah went from $25K to $85K/month in just 90 days! Ready to change your life? Click 'Learn More'!",unknown,"not mapped",📄 Other,Filled
+"fb_ad_headline_2","fb_ad_headline_2","Escape the overwhelm now!",unknown,"not mapped",📄 Other,Filled
+"fb_ad_primary_2","fb_ad_primary_2","What if I told you that you could take 4+ weeks of vacation while your agency grows? 🌴 Leave behind the stress of being the bottleneck and step into a world where you can hit $100K+ months consistently! With our Agency Liberation Program, you'll build a self-managing team and create effective SOPs. Imagine the freedom! Mike took a 3-week vacation and made MORE money while he was gone. Don't wait—download our FREE training to start your transformation today! 🚀",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Section Bullet 1 Text","02 VSL Process Section Bullet 1 Text","We clarify your goals and what success looks like so everyone is aligned from the start.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Section Bullet 2 Text","02 VSL Process Section Bullet 2 Text","We identify the biggest obstacles and opportunities so we know exactly what to focus on first.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Section Bullet 3 Text","02 VSL Process Section Bullet 3 Text","We create a simple, step-by-step plan that makes the path forward clear and achievable.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Section Bullet 4 Text","02 VSL Process Section Bullet 4 Text","We put the plan into action and keep things moving so you start seeing measurable progress quickly.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Section Bullet 5 Text","02 VSL Process Section Bullet 5 Text","We review results and refine what’s working so improvements continue and outcomes compound over time.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial 1 Paragraph Text","02 VSL Testimonial 1 Paragraph Text","I came in feeling stuck and unsure what to focus on. The process helped me get clear on my next steps and actually follow through without overthinking everything. It felt practical and supportive the whole way.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial 1 Name Text","02 VSL Testimonial 1 Name Text","Maya R.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial 2 Paragraph Text","02 VSL Testimonial 2 Paragraph Text","What I appreciated most was how straightforward it was. I didn’t feel talked down to or pushed into anything—just guided toward better decisions. I’m leaving with more confidence and a plan I can stick with.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial 2 Name Text","02 VSL Testimonial 2 Name Text","Jordan K.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial 3 Paragraph Text","02 VSL Testimonial 3 Paragraph Text","I was skeptical at first because I’ve tried similar things before. This felt different because it met me where I was and helped me make changes that fit my day-to-day life. I’m calmer and more consistent now.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial 3 Name Text","02 VSL Testimonial 3 Name Text","Elena P.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial 4 Paragraph Text","02 VSL Testimonial 4 Paragraph Text","The communication was clear and the support felt genuine. Whenever I got overwhelmed, I had a simple way to reset and keep moving. I’m really glad I gave it a chance.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial 4 Name Text","02 VSL Testimonial 4 Name Text","Sam T.",unknown,"not mapped",📄 Other,Filled
+"02 Footer Company Name Text","02 Footer Company Name Text","Agency Liberation System™",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 8","Optin_Email_Subject 8","{{contact.first_name}}, want me to map your bottleneck in 20 minutes?",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 8","Optin_Email_Body 8","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">You’ve gotten a handful of daily tips this week. If you’re anything like most agency owners, you’re probably thinking:</p>
+<p style=""margin: 0 0 15px 0;"">“Yep… that’s me. But where do I start without breaking everything?”</p>
+<p style=""margin: 0 0 15px 0;"">That’s exactly why a call helps.</p>
+<p style=""margin: 0 0 15px 0;"">The Bottleneck Breakout Sprint isn’t theory—it’s a quick diagnostic that turns the messy, swirling problems into a simple sequence:</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">What’s the real constraint right now?</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Is it delivery capacity?</li>
+<li style=""margin: 5px 0;"">client comms and revisions?</li>
+<li style=""margin: 5px 0;"">sales + fulfillment overlap?</li>
+<li style=""margin: 5px 0;"">you being the final approver for everything?</li>
+</ul>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">What’s the smallest change that creates the biggest relief?</li>
+</ol>
+We’re looking for leverage. The kind that reduces the number of decisions you personally have to make every day.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">What should NOT be fixed yet?</li>
+</ol>
+This is the part founders love. Most “systems” fail because you try to standardize everything at once. We’ll identify the 1–2 things that actually matter first.
+<p style=""margin: 0 0 15px 0;"">What you’ll leave with:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">a clear bottleneck statement (so you stop guessing)</li><br><li style=""margin: 5px 0;"">a 7–14 day action plan you can execute with your current team</li><br><li style=""margin: 5px 0;"">decision rules you can copy/paste into Slack to reduce pings immediately</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">No pressure, no weird persuasion.<br>If it’s not a fit, I’ll tell you and still send you in the right direction.</p>
+<p style=""margin: 0 0 15px 0;"">If you want that clarity, grab a time that works.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 15","Optin_Email_Subject 15","Final day: want your nights back?",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 15","Optin_Email_Body 15","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hi {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Quick note because it’s the final day of this sequence.</p>
+<p style=""margin: 0 0 15px 0;"">If you’ve been living in “I’ll deal with it after this client launch / after this hire / after this quarter”… you already know what happens.</p>
+<p style=""margin: 0 0 15px 0;"">The business keeps growing.<br>And you stay the operating system.</p>
+<p style=""margin: 0 0 15px 0;"">The Bottleneck Breakout Sprint is for the founder who has proven they can sell—but can’t scale without personally absorbing the cost:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">You’re the strategist on every account</li>
+<li style=""margin: 5px 0;"">You’re the final QA gate</li>
+<li style=""margin: 5px 0;"">You’re the escalation path for the team</li>
+<li style=""margin: 5px 0;"">You’re the one who makes things “actually happen”</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">This isn’t a willpower problem.<br>It’s an operating model problem.</p>
+<p style=""margin: 0 0 15px 0;"">On the call, we’ll:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Identify the single bottleneck creating most of the chaos</li>
+<li style=""margin: 5px 0;"">Map the fastest fix (not 12 new initiatives)</li>
+<li style=""margin: 5px 0;"">Decide if the Sprint is the right fit to implement it quickly</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">The goal is simple: more capacity, less firefighting, and a business that can deliver consistently without you being on Slack at dinner.</p>
+<p style=""margin: 0 0 15px 0;"">If you want 2026 to feel different than 2025, don’t wait for “someday.”</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 8","Optin_Email_Preheader 8","A call isn’t a pitch—think of it as a clarity sprint.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 15","Optin_Email_Preheader 15","Today’s the last day to book your Bottleneck Breakout Sprint call.",unknown,"not mapped",📄 Other,Filled
+"optin_logo_image","optin_logo_image","https://www.logomaker.com/wp-content/uploads/2019/03/horizontal.png",unknown,"not mapped",🎯 Optin Page,Filled
+"optin_mockup_image","optin_mockup_image","n",unknown,"not mapped",🎯 Optin Page,Filled
+"optin_cta_text","optin_cta_text","Watch Free Training",unknown,"not mapped",🎯 Optin Page,Filled
+"optin_sub_headline_text","optin_sub_headline_text","Transform your body and mind without sacrificing your success.",unknown,"not mapped",🎯 Optin Page,Filled
+"optin_headline_text","optin_headline_text","Reclaim Your Energy: The Busy Executive's Guide to Health and Vitality",unknown,"not mapped",🎯 Optin Page,Filled
+"company_name","company_name","Peak Executive Performance",unknown,"not mapped",📄 Other,Filled
+"company_address","company_address","123 Wellness Blvd, Austin, TX 78701",unknown,"not mapped",📄 Other,Filled
+"company_telephone","company_telephone","+1 (512) 555-0199",unknown,"not mapped",📄 Other,Filled
+"company_support_email","company_support_email","support@peakexec.com",unknown,"not mapped",📄 Other,Filled
+"questionnaire_hero_headline","questionnaire_hero_headline","Let's Find the Perfect Solution for You",unknown,"not mapped",❓ Questionnaire,Filled
+"questionnaire_form_headline","questionnaire_form_headline","Tell Us About Your Goals",unknown,"not mapped",❓ Questionnaire,Filled
+"booking_calender_headline","booking_calender_headline","Book Your Scale Strategy Session",unknown,"not mapped",📅 Booking,Filled
+"thankyou_page_headline","thankyou_page_headline","You're In! Here's What Happens Next...",unknown,"not mapped",📄 Other,Filled
+"thankyou_page_sub_headline","thankyou_page_sub_headline","Watch the video below to prepare for your session",unknown,"not mapped",📄 Other,Filled
+"thankyou_page_testimonial_headline","thankyou_page_testimonial_headline","What Others Are Saying...",unknown,"not mapped",📄 Other,Filled
+"vsl_cta_headline","vsl_cta_headline","Book Your Scale Strategy Session",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_cta_sub_headline","vsl_cta_sub_headline","Take the first step toward transformation",unknown,"not mapped",🎬 VSL Page,Filled
+"optin_cta_background_color","optin_cta_background_color","#0891b2",unknown,"not mapped",🎯 Optin Page,Filled
+"vsl_hero_acknowledgement_pill","vsl_hero_acknowledgement_pill","FREE TRAINING",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_headline","vsl_hero_headline","Are you tired of being the bottleneck in your agency? Every client needs you, and it feels like you can't take a break without everything falling apart.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_sub_headline","vsl_hero_sub_headline","What if I told you that working harder isn't the answer? Many agency owners believe they need to be involved in every detail to succeed.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_cta_question_headline","vsl_hero_cta_question_headline","Are You Ready to See Real Results?",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_timer_headline","vsl_hero_timer_headline","We only take on a limited number of new clients each month to ensure everyone gets the support they need.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_testimonial_headline","vsl_testimonial_headline","Real Results From Real People",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_testimonial_sub_headline","vsl_testimonial_sub_headline","John, a tech CEO, went from feeling exhausted and overweight to losing twenty-five pounds in just ninety days.",unknown,"not mapped",🎬 VSL Page,Filled
+"optin_header_bgcolor","optin_header_bgcolor","#131314",unknown,"not mapped",🎯 Optin Page,Filled
+"footer_bgcolor","footer_bgcolor","#0e0e0f",unknown,"not mapped",📄 Other,Filled
+"optin_popup_headline","optin_popup_headline","Yes! Send Me the Free Training",unknown,"not mapped",🎯 Optin Page,Filled
+"vsl_hero_acknowledgement_pill_bgcolor","vsl_hero_acknowledgement_pill_bgcolor","#36454F",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_cta_bgcolor","vsl_cta_bgcolor","#0891b2",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_headline","vsl_faq_headline","Frequently Asked Questions",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_ques_1","vsl_faq_ques_1","I don't have time",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_answer_1","vsl_faq_answer_1","I understand that you're busy. That's exactly why this program is crucial. Investing time now to build systems means you'll save countless hours later.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_ques_2","vsl_faq_ques_2","It's too expensive",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_ques_3","vsl_faq_ques_3","I've tried things before",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_ques_4","vsl_faq_ques_4","I'm not ready yet",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_ques_5","vsl_faq_ques_5","Why a call vs just buy?",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_ques_6","vsl_faq_ques_6","I don't have time",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_ques_7","vsl_faq_ques_7","I can't afford it / It's too expensive",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_answer_2","vsl_faq_answer_2","Think of this as an investment in your future. The revenue you can generate by scaling your agency will far exceed the cost of this program.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_answer_3","vsl_faq_answer_3","This approach is different because it focuses on building a strong foundation before scaling. Many have found success where others have failed.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_answer_4","vsl_faq_answer_4","Consider the cost of waiting. Every month you delay is potential revenue lost and more stress added to your plate.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_answer_5","vsl_faq_answer_5","A consultation allows us to understand your specific challenges and ensure the program is the right fit for your unique situation.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_answer_6","vsl_faq_answer_6","This system is designed for busy professionals. Most clients spend just three to five hours per week, and the templates cut your work in half. Plus, think about all the time you're currently wasting on strategies that don't work.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_answer_7","vsl_faq_answer_7","One new client at your price point covers the entire investment. Most of our clients see ROI within thirty to sixty days. The real question is: can you afford NOT to have a system that works?",unknown,"not mapped",🎬 VSL Page,Filled
+"optin_headline_text_color","optin_headline_text_color","#0891b2",unknown,"not mapped",🎯 Optin Page,Filled
+"optin_popup_headline_color","optin_popup_headline_color","#0891b2",unknown,"not mapped",🎯 Optin Page,Filled
+"optin_cta_text_color","optin_cta_text_color","#ffffff",unknown,"not mapped",🎯 Optin Page,Filled
+"optin_sub_headline_text_color","optin_sub_headline_text_color","#06b6d4",unknown,"not mapped",🎯 Optin Page,Filled
+"vsl_bio_headline","vsl_bio_headline","Meet Your Guide",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_bio_founder_name","vsl_bio_founder_name","Coach Michael Steele",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_acknowledgement_pill_color","vsl_hero_acknowledgement_pill_color","#ffffff",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_bio_image","vsl_bio_image","https://www.tckpublishing.com/wp-content/uploads/2021/07/stephen-king-new-author-photo.jpeg",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_bio_description","vsl_bio_description","Freedom Property Academy is a real estate investing and wealth-building education company known for helping high-earning W2 professionals turn active income into passive cash flow through disciplined, repeatable real estate execution. The Academy is best recognized for its BRRRR Mastery Method—Buy, Rehab, Rent, Refinance, Repeat—paired with proprietary market analysis tools that surface undervalued properties and create forced appreciation, even in competitive markets. Built by a former software engineer who earned $200K yet felt trapped trading time for a paycheck, the program was born from a data-driven breakthrough: analyze 50 deals to find 5 worth pursuing to land 1 winner. That systematic approach—spreadsheets, checklists, and underwriting rigor—turned real estate from “gambling” into a science. The model proved itself when a pivotal acquisition created $80,000 in forced equity and a refinance funded the next two purchases. Today, Freedom Property Academy drives working professionals to buy their first (or next) investment property with confidence through the Real Estate Freedom Blueprint, a 16-week intensive that combines training, tools, and community support.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_cta_question_headline_color","vsl_hero_cta_question_headline_color","#000080",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_headline_color","vsl_hero_headline_color","#0891b2",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_sub_headline_color","vsl_hero_sub_headline_color","#06b6d4",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_hero_timer_headline_color","vsl_hero_timer_headline_color","#ef4444",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_testimonial_headline_color","vsl_testimonial_headline_color","#000080",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_testimonial_sub_headline_color","vsl_testimonial_sub_headline_color","#36454F",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_cta_headline_color","vsl_cta_headline_color","#ffffff",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_bio_headline_colour","vsl_bio_headline_colour","#0891b2",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_bio_founder_name_colour","vsl_bio_founder_name_colour","#06b6d4",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_bio_description_colour","vsl_bio_description_colour","#a1a1aa",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_headline_color","vsl_faq_headline_color","#0891b2",unknown,"not mapped",🎬 VSL Page,Filled
+"questionnaire_form_headline_color","questionnaire_form_headline_color","#06b6d4",unknown,"not mapped",❓ Questionnaire,Filled
+"questionnaire_hero_headline_color","questionnaire_hero_headline_color","#0891b2",unknown,"not mapped",❓ Questionnaire,Filled
+"thankyou_page_headline_color","thankyou_page_headline_color","#0891b2",unknown,"not mapped",📄 Other,Filled
+"thankyou_page_sub_headline_color","thankyou_page_sub_headline_color","#06b6d4",unknown,"not mapped",📄 Other,Filled
+"thankyou_page_testimonial_headline_color","thankyou_page_testimonial_headline_color","#000080",unknown,"not mapped",📄 Other,Filled
+"vsl_cta_sub_headline_text_color","vsl_cta_sub_headline_text_color","#e5e5e5",unknown,"not mapped",🎬 VSL Page,Filled
+"footer_text_color","footer_text_color","#a1a1aa",unknown,"not mapped",📄 Other,Filled
+"vsl_faq_ques_color","vsl_faq_ques_color","#0891b2",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_faq_answer_color","vsl_faq_answer_color","#a1a1aa",unknown,"not mapped",🎬 VSL Page,Filled
+"thankyou_testimonial_bgcolor","thankyou_testimonial_bgcolor","#1b1b1d",unknown,"not mapped",📄 Other,Filled
+"booking_calender_headline_color","booking_calender_headline_color","#0891b2",unknown,"not mapped",📅 Booking,Filled
+"booking_calender_headline_pill_color","booking_calender_headline_pill_color","#06b6d4",unknown,"not mapped",📅 Booking,Filled
+"questionnaire_hero_headline_pill_bgcolor","questionnaire_hero_headline_pill_bgcolor","#0891b2",unknown,"not mapped",❓ Questionnaire,Filled
+"questionnaire_form_bgcolor","questionnaire_form_bgcolor","#1b1b1d",unknown,"not mapped",❓ Questionnaire,Filled
+"vsl_process_headline","vsl_process_headline","Here's How It Works...",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_process_sub_headline","vsl_process_sub_headline","",unknown,"not mapped",🎬 VSL Page,Empty
+"vsl_process_description_pt_1","vsl_process_description_pt_1","Understanding the importance of health in your life.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_process_description_pt_2","vsl_process_description_pt_2","Using a structured approach to regain your health.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_process_description_pt_3","vsl_process_description_pt_3","Receiving support to stay on track.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_process_description_pt_4","vsl_process_description_pt_4","Witnessing the positive changes in your life.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_process_description_pt_5","vsl_process_description_pt_5","Set a strict bedtime and wake-up time, even on weekends.",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_process_headline_color","vsl_process_headline_color","#0891b2",unknown,"not mapped",🎬 VSL Page,Filled
+"vsl_process_sub_headline_color","vsl_process_sub_headline_color","#06b6d4",unknown,"not mapped",🎬 VSL Page,Filled
+"VSL_Process_Description_color","VSL_Process_Description_color","#a1a1aa",unknown,"not mapped",📄 Other,Filled
+"VSL_Process_Border_color","VSL_Process_Border_color","#0891b2",unknown,"not mapped",📄 Other,Filled
+"Question_1","Question_1","Question_1 ?",unknown,"not mapped",📄 Other,Filled
+"Question_2","Question_2","Question_2 ?",unknown,"not mapped",📄 Other,Filled
+"Question_3","Question_3","Question_3 ?",unknown,"not mapped",📄 Other,Filled
+"Question_4","Question_4","Question_4 ?",unknown,"not mapped",📄 Other,Filled
+"Question_5","Question_5","Question_5 ?",unknown,"not mapped",📄 Other,Filled
+"Question_6","Question_6","Question_6 ?",unknown,"not mapped",📄 Other,Filled
+"Question_7","Question_7","Question_7 ?",unknown,"not mapped",📄 Other,Filled
+"Question_8","Question_8","Question_8 ?",unknown,"not mapped",📄 Other,Filled
+"Question_9","Question_9","Question_9 ?",unknown,"not mapped",📄 Other,Filled
+"Question_10","Question_10","Question_10 ?",unknown,"not mapped",📄 Other,Filled
+"Questionnaire_CTA_color","Questionnaire_CTA_color","#0891b2",unknown,"not mapped",📄 Other,Filled
+"VSL_FAQ_ques_background_Color","VSL_FAQ_ques_background_Color","#00FF00",unknown,"not mapped",📄 Other,Filled
+"VSL_FAQ_answer_background_Color","VSL_FAQ_answer_background_Color","#2E8B57",unknown,"not mapped",📄 Other,Filled
+"VSL_FAQ_full_background_color","VSL_FAQ_full_background_color","#808080",unknown,"not mapped",📄 Other,Filled
+"Testimonial_1_image","Testimonial_1_image","https://images.unsplash.com/photo-1544005313-94ddf0286df2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wyNzQ4Mjd8MHwxfHNlYXJjaHwzfHxwZXJzb258ZW58MHx8fHwxNzY3NTQ2ODg0fDA&ixlib=rb-4.1.0&q=80&w=1080",unknown,"not mapped",📄 Other,Filled
+"Testimonial_2_image","Testimonial_2_image","https://images.unsplash.com/photo-1544005313-94ddf0286df2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wyNzQ4Mjd8MHwxfHNlYXJjaHwzfHxwZXJzb258ZW58MHx8fHwxNzY3NTQ2ODg0fDA&ixlib=rb-4.1.0&q=80&w=1080",unknown,"not mapped",📄 Other,Filled
+"Testimonial_3_image","Testimonial_3_image","https://images.unsplash.com/photo-1544005313-94ddf0286df2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wyNzQ4Mjd8MHwxfHNlYXJjaHwzfHxwZXJzb258ZW58MHx8fHwxNzY3NTQ2ODg0fDA&ixlib=rb-4.1.0&q=80&w=1080",unknown,"not mapped",📄 Other,Filled
+"Testimonial_4_image","Testimonial_4_image","https://images.unsplash.com/photo-1544005313-94ddf0286df2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wyNzQ4Mjd8MHwxfHNlYXJjaHwzfHxwZXJzb258ZW58MHx8fHwxNzY3NTQ2ODg0fDA&ixlib=rb-4.1.0&q=80&w=1080",unknown,"not mapped",📄 Other,Filled
+"Testimonial_1_heading","Testimonial_1_heading","Testimonial_1",unknown,"not mapped",📄 Other,Filled
+"Testimonial_1_paragraph","Testimonial_1_paragraph","Testimonial_1",unknown,"not mapped",📄 Other,Filled
+"Testimonial_2_heading","Testimonial_2_heading","Testimonial_2",unknown,"not mapped",📄 Other,Filled
+"Testimonial_2_paragraph","Testimonial_2_paragraph","Testimonial_2",unknown,"not mapped",📄 Other,Filled
+"Testimonial_3_heading","Testimonial_3_heading","Testimonial_3",unknown,"not mapped",📄 Other,Filled
+"Testimonial_4_heading","Testimonial_4_heading","Testimonial_4",unknown,"not mapped",📄 Other,Filled
+"Testimonial_3_paragraph","Testimonial_3_paragraph","Testimonial_3_paragraph",unknown,"not mapped",📄 Other,Filled
+"Testimonial_4_paragraph","Testimonial_4_paragraph","Testimonial_4_paragraph",unknown,"not mapped",📄 Other,Filled
+"Access Token","Access Token","EAAEuCX1RsbQBO7obYQp4ornffiZCUukdZCgGxWTgynCbuc01ZBoaDxWZCivMgmOFYj0v9RzxZA1ZAnwYkaBGfrNuqsvGzcNIheHVsCl7NgdgQ7wPXH4ZAMRS7QwkIUSwTrGaRskZBOIUGOspAKKp8ZAoOQEE6xgejp4viUWJjxIWa9rxhbpbj9yJdiZBENwJICai5LrQZDZD",unknown,"not mapped",📄 Other,Filled
+"Dataset ID","Dataset ID","1183048438379195",unknown,"not mapped",📄 Other,Filled
+"02 VSL Acknowledge Pill Text","02 VSL Acknowledge Pill Text","You're in—your access is confirmed. Watch the video below.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Acknowledge Pill Text Colour","02 VSL Acknowledge Pill Text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"02 VSL Acknowledge Pill bg Colour","02 VSL Acknowledge Pill bg Colour","#0e0e0f",unknown,"not mapped",📄 Other,Filled
+"02 VSL hero Headline text","02 VSL hero Headline text","A clear, repeatable way to build a self-managing delivery team and recurring revenue—so $15K–$50K/month agencies can reach consistent $100K+ months without 60+ hour weeks.",unknown,"not mapped",📄 Other,Filled
+"02 VSL CTA Text","02 VSL CTA Text","Schedule Your Session",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Sub -Headline Text","02 VSL Process Sub -Headline Text","For coaches, consultants, and service businesses",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Headline Text","02 VSL Process Headline Text","Here's How It Works",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Bullet 1 Text","02 VSL Process Bullet 1 Text","Step 1: Get started with our proven system",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Bullet 2 Text","02 VSL Process Bullet 2 Text","Step 2: Implement the strategies that work",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Bullet 3 Text","02 VSL Process Bullet 3 Text","Step 3: Scale your results consistently",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Bullet 4 Text","02 VSL Process Bullet 4 Text","Step 4: Achieve your goals faster",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Bullet 5 Text","02 VSL Process Bullet 5 Text","Step 5: Maintain long-term success",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout Headline Text","02 VSL Audience Callout Headline Text","This Is For Qualified Decision-Makers Only",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout Bullet 1 Text","02 VSL Audience Callout Bullet 1 Text","You’ve tried to “just be consistent,” but you keep falling off after a few days—and you’re tired of blaming yourself when the real issue is you don’t have a clear, simple plan.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout Bullet 2 Text","02 VSL Audience Callout Bullet 2 Text","You’re overwhelmed by conflicting advice, so you bounce between tactics, tools, or routines—spending time researching instead of actually making progress.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout Bullet 3 Text","02 VSL Audience Callout Bullet 3 Text","You feel like you’re working hard but not getting results, and you want something practical you can follow without needing more willpower, more hours, or a total life overhaul.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout CTA Text","02 VSL Audience Callout CTA Text","See If This Fits",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonials Headline Text","02 VSL Testimonials Headline Text","What Clients Commonly Experience",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonials Sub-Headline Text","02 VSL Testimonials Sub-Headline Text","Different businesses. Similar outcomes.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonials Profile Pic 1","02 VSL Testimonials Profile Pic 1","",unknown,"not mapped",📄 Other,Empty
+"02 VSL Testimonials Profile Pic 2","02 VSL Testimonials Profile Pic 2","",unknown,"not mapped",📄 Other,Empty
+"02 VSL Testimonials Profile Pic 3","02 VSL Testimonials Profile Pic 3","",unknown,"not mapped",📄 Other,Empty
+"02 VSL Testimonials Profile Pic 4","02 VSL Testimonials Profile Pic 4","",unknown,"not mapped",📄 Other,Empty
+"02 VSL Testimonial Review 1 Headline","02 VSL Testimonial Review 1 Headline","This has been a game-changer",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Review 2 Headline","02 VSL Testimonial Review 2 Headline","Incredible results",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Review 3 Headline","02 VSL Testimonial Review 3 Headline","Highly recommend",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Review 4 Headline","02 VSL Testimonial Review 4 Headline","Best investment ever",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Review 1 Paragraph with Name","02 VSL Testimonial Review 1 Paragraph with Name","""Great results with this program."" - Client Name",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Review 2 Paragraph with Name","02 VSL Testimonial Review 2 Paragraph with Name","""Amazing transformation."" - Client Name",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Review 3 Paragraph with Name","02 VSL Testimonial Review 3 Paragraph with Name","""Exceeded my expectations."" - Client Name",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Review 4 Paragraph with Name","02 VSL Testimonial Review 4 Paragraph with Name","""Life-changing experience."" - Client Name",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Headline Text","02 VSL FAQ Headline Text","Frequently Asked Questions",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Question 1 Text","02 VSL FAQ Question 1 Text","How much time will this take each week?",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Question 2 Text","02 VSL FAQ Question 2 Text","How do I know if this is a good fit for me?",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Question 3 Text","02 VSL FAQ Question 3 Text","What does it cost, and what if it’s not in my budget?",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Question 4 Text","02 VSL FAQ Question 4 Text","What if I’m not ready yet or I’m worried I won’t follow through?",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Answer 1 Text","02 VSL FAQ Answer 1 Text","It depends on your pace, but most people can make meaningful progress with a few focused hours per week. If your schedule is tight, you can start small and build consistency—there’s no need to do everything at once to see results.",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Answer 2 Text","02 VSL FAQ Answer 2 Text","This is a good fit if you want a clear plan, are willing to follow a process, and prefer steady progress over quick fixes. It may not be a fit if you’re looking for instant results or you don’t have any capacity to implement changes right now. If you’re unsure, it’s okay to take your time and decide when it feels aligned.",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Answer 3 Text","02 VSL FAQ Answer 3 Text","Pricing depends on the option you choose, and you should only move forward if it feels financially comfortable. If it’s not in your budget right now, that’s completely okay—many people wait until the timing is better. The goal is to make a decision you won’t regret later.",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Answer 4 Text","02 VSL FAQ Answer 4 Text","That’s a common concern, and it doesn’t mean you can’t succeed. Readiness often comes from taking one small step and building momentum. If now feels too hectic, it’s okay to pause and come back when you have more bandwidth. If you do start, focus on consistency over perfection—progress counts even when it’s gradual.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Bio Headline Text","02 VSL Bio Headline Text","From midnight Slack pings to a business that runs without you",unknown,"not mapped",📄 Other,Filled
+"02 VSL Bio Paragraph Text","02 VSL Bio Paragraph Text","After building a “successful” agency that still had him answering Slack at midnight and rewriting deliverables to prevent mistakes, he realized the problem wasn’t hiring—it was that quality and delivery lived in his head. He rebuilt the business around a simple Success System (playbooks, video SOPs, metrics, and checklists) so the team could produce consistent work without him as the bottleneck. Now he helps agency owners and service providers turn chaotic delivery into a self-managing operation that protects quality and gives them their time back.",unknown,"not mapped",📄 Other,Filled
+"02 VSL Bio Photo","02 VSL Bio Photo","",unknown,"not mapped",📄 Other,Empty
+"02 Footer Company Name","02 Footer Company Name","YourBrand™",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details Headline text","02 VSL Call Details Headline text","What This Call Is / Is Not",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details IS Heading","02 VSL Call Details IS Heading","This call IS:",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details IS NOT Heading","02 VSL Call Details IS NOT Heading","This call is NOT:",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details IS Bullet 1 Text","02 VSL Call Details IS Bullet 1 Text","A short conversation to understand your situation, goals, and constraints",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details IS Bullet 2 Text","02 VSL Call Details IS Bullet 2 Text","A clarity check to confirm whether your problem is something we can actually help with",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details IS Bullet 3 Text","02 VSL Call Details IS Bullet 3 Text","A next-steps discussion—if there’s a fit, we’ll outline options; if not, you’ll leave knowing what to do next",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details IS NOT Bullet 1 Text","02 VSL Call Details IS NOT Bullet 1 Text","A high-pressure sales call or a pitch you have to sit through",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details IS NOT Bullet 2 Text","02 VSL Call Details IS NOT Bullet 2 Text","A one-size-fits-all “free coaching” session with generic advice",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details IS NOT Bullet 3 Text","02 VSL Call Details IS NOT Bullet 3 Text","A commitment—no obligation to buy, sign, or decide on the call",unknown,"not mapped",📄 Other,Filled
+"02 VSL video","02 VSL video","",unknown,"not mapped",📄 Other,Empty
+"02 VSL video background Colour","02 VSL video background Colour","#0e0e0f",unknown,"not mapped",📄 Other,Filled
+"02 VSL CTA Background Colour","02 VSL CTA Background Colour","#0e0e0f",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Border Colour","02 VSL FAQ Border Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout Bullets Border Colour","02 VSL Audience Callout Bullets Border Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Bullet Border Colour","02 VSL Process Bullet Border Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL hero Headline text Colour","02 VSL hero Headline text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Headline Text Colour","02 VSL Process Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Sub -Headline Text Colour","02 VSL Process Sub -Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Process Bullet Text Colour","02 VSL Process Bullet Text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout CTA Text Colour","02 VSL Audience Callout CTA Text Colour","#000000",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout Headline Text Colour","02 VSL Audience Callout Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Audience Callout bullets text Colour","02 VSL Audience Callout bullets text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"02 VSL CTA Text Colour","02 VSL CTA Text Colour","#000000",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Card Background Colour","02 VSL Testimonial Card Background Colour","#1a1a1d",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonials Headline Text Colour","02 VSL Testimonials Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonials Sub-Headline Text Colour","02 VSL Testimonials Sub-Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Reviews Paragraph with Name Colour","02 VSL Testimonial Reviews Paragraph with Name Colour","#a1a1aa",unknown,"not mapped",📄 Other,Filled
+"02 VSL Testimonial Reviews Headline Colour","02 VSL Testimonial Reviews Headline Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details Headline text Colour","02 VSL Call Details Headline text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details  Heading Colour","02 VSL Call Details  Heading Colour","#000000",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details bullet Text Colour","02 VSL Call Details bullet Text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"02 VSL Call Details Card Background Colour","02 VSL Call Details Card Background Colour","#1a1a1d",unknown,"not mapped",📄 Other,Filled
+"02 VSL Bio Headline Text Colour","02 VSL Bio Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 VSL Bio paragraph text Colour","02 VSL Bio paragraph text Colour","#a1a1aa",unknown,"not mapped",📄 Other,Filled
+"02 VSL Bio Text Card Background","02 VSL Bio Text Card Background","#1a1a1d",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Answer Text Colour","02 VSL FAQ Answer Text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Question Text Colour","02 VSL FAQ Question Text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"02 VSL FAQ Headline Text Colour","02 VSL FAQ Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 Optin Logo Image","02 Optin Logo Image","",unknown,"not mapped",📄 Other,Empty
+"02 Optin Mockup Image","02 Optin Mockup Image","",unknown,"not mapped",📄 Other,Empty
+"02 Optin Sub-headline Text","02 Optin Sub-headline Text","For coaches, consultants, and service businesses",unknown,"not mapped",📄 Other,Filled
+"02 Optin Headline Text","02 Optin Headline Text","Get Your Free Training",unknown,"not mapped",📄 Other,Filled
+"02 Optin CTA Text","02 Optin CTA Text","Get Instant Access",unknown,"not mapped",📄 Other,Filled
+"02 Optin CTA Background Colour","02 Optin CTA Background Colour","#0e0e0f",unknown,"not mapped",📄 Other,Filled
+"02 Optin Sub-headline Text Colour","02 Optin Sub-headline Text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"02 Optin Headline Text Colour","02 Optin Headline Text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"02 Header Background Color","02 Header Background Color","#0e0e0f",unknown,"not mapped",📄 Other,Filled
+"02 Booking Pill Text","02 Booking Pill Text","45-minute Scale Strategy Session • No pressure, no weird tactics • Leave with a clear bottleneck diagnosis + 90-day Liberation Plan (or I’ll comp the session)",unknown,"not mapped",📄 Other,Filled
+"02 Booking Pill Background Colour","02 Booking Pill Background Colour","#0e0e0f",unknown,"not mapped",📄 Other,Filled
+"02 Booking Pill Text Colour","02 Booking Pill Text Colour","#FFFFFF",unknown,"not mapped",📄 Other,Filled
+"03 Booking Calender Embedded Code","03 Booking Calender Embedded Code","",unknown,"not mapped",📄 Other,Empty
+"02 Thankyou Page Headline Text","02 Thankyou Page Headline Text","You’re booked — next step: complete the pre-call questions so I can build your Liberation Plan",unknown,"not mapped",📄 Other,Filled
+"02 Thankyou Page Headline Text Colour","02 Thankyou Page Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 Thankyou Page Sub-Headline Text","02 Thankyou Page Sub-Headline Text","Check your email for the confirmation + calendar invite, then fill out the short questionnaire right now. Your answers let me map your delivery bottlenecks, the next hires in order, and the exact systems to install in the next 90 days.",unknown,"not mapped",📄 Other,Filled
+"02 Thankyou Page Video","02 Thankyou Page Video","",unknown,"not mapped",📄 Other,Empty
+"02 Thankyou Page Sub-Headline Text Colour","02 Thankyou Page Sub-Headline Text Colour","#0891b2",unknown,"not mapped",📄 Other,Filled
+"02 Optin Page Headline Text","02 Optin Page Headline Text","test",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 1","Optin_Email_Body 1","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Glad you’re here.</p>
+<p style=""margin: 0 0 15px 0;"">Here’s your free gift: The Bottleneck Breakout Sprint.</p>
+<p style=""margin: 0 0 15px 0;"">This sprint is built for the “second chapter” founder—the one who already proved they can sell… but the business still depends on them to think, decide, QA, and put out fires.</p>
+<p style=""margin: 0 0 15px 0;"">If that’s you, you’re not broken. You’re just the system right now.</p>
+<p style=""margin: 0 0 15px 0;"">The Bottleneck Breakout Sprint walks you through a simple 60–90 minute reset you can repeat anytime you feel the business tightening around your calendar.</p>
+<p style=""margin: 0 0 15px 0;"">Here’s how to use it (quick + practical):</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Pick ONE constraint (not ten).</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Delivery bottleneck? Sales bottleneck? Team bottleneck? Your own attention?</li>
+</ul>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Run the “3-Layer Bottleneck Scan”</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Demand: What are clients asking for that creates chaos?</li>
+<li style=""margin: 5px 0;"">Delivery: Where does work stall or boomerang back to you?</li>
+<li style=""margin: 5px 0;"">Decisions: What requires your brain because nobody else has the rules?</li>
+</ul>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Choose ONE fix you can ship in 7 days.</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">A checklist, a template, a handoff rule, a “definition of done,” a client boundary, or a role shift.</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">Over the next two weeks, I’ll send you a short daily email with one tip at a time—designed to help you:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Reduce the number of decisions that require you</li>
+<li style=""margin: 5px 0;"">Protect deep work (and your evenings)</li>
+<li style=""margin: 5px 0;"">Make delivery feel consistent without you hovering</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">No fluff, no “just delegate more.” Real moves you can implement while still running client work.</p>
+<p style=""margin: 0 0 15px 0;"">If you want help applying the sprint to your specific situation (team, offers, delivery, margins), book a quick call and we’ll map the fastest path to removing your #1 bottleneck.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 2","Optin_Email_Body 2","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">If your day feels like this—Slack ping, client email, Loom review, “quick question,” proposal tweak, QA pass—then you’re probably acting as the human router.</p>
+<p style=""margin: 0 0 15px 0;"">Everything routes through you because:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">You’re the fastest</li><br><li style=""margin: 5px 0;"">You’re the safest</li><br><li style=""margin: 5px 0;"">You’re the one who “knows what good looks like”</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">That works at $10K/month. It breaks at $30K/month.</p>
+<p style=""margin: 0 0 15px 0;"">Today’s tip is a tiny rule that removes a shocking number of interruptions:</p>
+<p style=""margin: 0 0 15px 0;"">The 2-Question Intake Rule<br>Before anyone brings an issue to you, they must answer:</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">“What outcome are we trying to protect?”</li>
+</ol>
+(Example: client retention, margin, speed, quality, scope control)
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">“What are the two best options, and what do you recommend?”</li>
+</ol>
+(They don’t need certainty. They need to think.)
+<p style=""margin: 0 0 15px 0;"">Why this works:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">It forces clarity (most interruptions are fuzzy)</li><br><li style=""margin: 5px 0;"">It trains your team to decide inside guardrails</li><br><li style=""margin: 5px 0;"">It turns you from firefighter into approver of tradeoffs</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Example (real-world agency scenario):<br>A client asks for “one more round” of revisions.<br>Old way: your PM pings you, you jump in, you rewrite the email, you negotiate scope, you feel annoyed.<br>New way: the PM brings:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Outcome: protect scope + relationship</li><br><li style=""margin: 5px 0;"">Options:</li><br></ul><br>  A) approve one extra round, but push timeline + note it’s outside scope<br>  B) offer a paid add-on for additional rounds<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Recommendation: Option A for this client (high LTV), with a clear boundary moving forward</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Now you reply in 30 seconds: “Agree—Option A. Use this line: ‘Happy to do one additional round this time; any further revisions will be billed at X.’”</p>
+<p style=""margin: 0 0 15px 0;"">Implementation (10 minutes):<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Post the rule in Slack</li><br><li style=""margin: 5px 0;"">Add it to your PM’s SOP</li><br><li style=""margin: 5px 0;"">When someone pings without it, respond once: “Can you send the 2-question intake?”</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">If you want, bring your top 5 recurring interruptions to a call and we’ll convert them into rules, templates, and decision rights so you’re not the default path for everything.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 3","Optin_Email_Body 3","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">If you’re still doing final QA on everything, here’s the uncomfortable truth: you’re not just protecting quality—you’re compensating for missing standards.</p>
+<p style=""margin: 0 0 15px 0;"">When “done” is vague, work boomerangs:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Designer finishes… but copy isn’t aligned</li><br><li style=""margin: 5px 0;"">Media buyer launches… but tracking isn’t verified</li><br><li style=""margin: 5px 0;"">Dev pushes… but edge cases weren’t tested</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">So you step in. Again.</p>
+<p style=""margin: 0 0 15px 0;"">Today’s tip: create a one-page Definition of Done (DoD) for your highest-volume deliverable.</p>
+<p style=""margin: 0 0 15px 0;"">Not for the whole agency. Just ONE deliverable that happens every week.</p>
+<p style=""margin: 0 0 15px 0;"">A strong DoD has 3 parts:</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Inputs required (before work starts)</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Access, assets, approvals, constraints</li>
+<li style=""margin: 5px 0;"">What happens if inputs are missing (pause / reschedule / paid rush)</li>
+</ul>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Quality checklist (before it’s “ready for review”)</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">8–15 bullets max</li>
+<li style=""margin: 5px 0;"">Objective checks, not taste</li>
+</ul>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Approval &amp; handoff rules</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Who reviews what</li>
+<li style=""margin: 5px 0;"">Timebox for feedback</li>
+<li style=""margin: 5px 0;"">What counts as a revision vs. new scope</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">Example (for a client landing page):<br>Inputs: offer doc + brand kit + 3 examples + tracking requirements<br>Quality: headline matches offer promise; CTA above fold; mobile spacing checked; form tested; analytics events firing; load time under X; legal footer present<br>Handoff: PM reviews checklist first; strategist reviews messaging only; founder reviews only if conversion goal changes</p>
+<p style=""margin: 0 0 15px 0;"">The magic isn’t the checklist.<br>It’s the decision: “If it doesn’t meet the DoD, it’s not ready to touch my desk.”</p>
+<p style=""margin: 0 0 15px 0;"">How to build it fast (30 minutes):<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Pull the last 3 times you had to “fix” work</li><br><li style=""margin: 5px 0;"">Write each fix as a checklist item</li><br><li style=""margin: 5px 0;"">Add the top 3 preventable misses as required inputs</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Within a week, you should notice:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Fewer pings</li><br><li style=""margin: 5px 0;"">Fewer “quick reviews”</li><br><li style=""margin: 5px 0;"">Less emotional load (because the standard is the standard)</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">If you want, on a call we can identify your #1 repeatable deliverable and build a DoD that fits your team’s current skill level—so quality stays high without you being the quality department.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 4","Optin_Email_Body 4","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">A lot of agency owners think their problem is sales.</p>
+<p style=""margin: 0 0 15px 0;"">But if you’re already at $15K–$50K/month and still feel underwater, the real issue is usually this:</p>
+<p style=""margin: 0 0 15px 0;"">You’re selling on top of a delivery engine with no capacity floor.</p>
+<p style=""margin: 0 0 15px 0;"">So every new project adds pressure, not profit.<br>And you end up paying for growth with your evenings, your health, and your attention.</p>
+<p style=""margin: 0 0 15px 0;"">Today’s tip: set a Capacity Floor—a hard rule that keeps delivery stable while you scale.</p>
+<p style=""margin: 0 0 15px 0;"">Capacity Floor = the minimum percentage of team bandwidth you keep unassigned each week.</p>
+<p style=""margin: 0 0 15px 0;"">For most boutique service firms, start with 20%.<br>(If you’re currently in chaos, start with 30% for 2–3 weeks to recover.)</p>
+<p style=""margin: 0 0 15px 0;"">What this does:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Creates room for revisions, client surprises, and internal ops</li><br><li style=""margin: 5px 0;"">Prevents “everything is urgent” culture</li><br><li style=""margin: 5px 0;"">Stops you from becoming the overflow resource</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">How to implement (simple version):</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Pick your floor: 20%.</li>
+</ol>
+If your team has 100 total hours/week, only plan 80.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Protect it with one rule:</li>
+</ol>
+“We don’t book new work until next week’s planned load is at or below 80%.”
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Add a release valve:</li>
+</ol>
+If sales closes and you’re above 80%, you must do ONE of these before kickoff:
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">De-scope (reduce deliverables)</li>
+<li style=""margin: 5px 0;"">Extend timeline</li>
+<li style=""margin: 5px 0;"">Raise price (rush fee)</li>
+<li style=""margin: 5px 0;"">Reassign (contractor/partner)</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">Example:<br>You close a $8K/month retainer. Great.<br>But delivery is already packed.<br>Without a floor, you absorb it personally.<br>With a floor, you say:<br>“We can start Monday with X deliverables, and the additional channel begins in week 3,” OR “To start everything immediately, it’s an additional $2K rush fee to add support.”</p>
+<p style=""margin: 0 0 15px 0;"">This is how you scale without resenting your own business.</p>
+<p style=""margin: 0 0 15px 0;"">If you want help setting a realistic capacity model (based on your actual deliverables, not wishful thinking), book a call. We’ll map your current load, identify the true bottleneck, and set rules that protect margin and sanity.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 5","Optin_Email_Body 5","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Here’s Tip #4 that almost always creates immediate relief for founder-led agencies:</p>
+<p style=""margin: 0 0 15px 0;"">Stop being the “human router.”</p>
+<p style=""margin: 0 0 15px 0;"">If every question, decision, and client update routes through you, your calendar will look “full” while the business still feels fragile. The team isn’t failing—you’ve accidentally trained the org that the fastest path is: ask you.</p>
+<p style=""margin: 0 0 15px 0;"">The fix is a tiny operating rule I call the 3-Lane Decision System.</p>
+<p style=""margin: 0 0 15px 0;"">Lane 1: Team-owned decisions (no permission needed)<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Anything under a clear threshold (ex: refunds under $250, scope tweaks under 1 hour, swapping meeting times)</li><br><li style=""margin: 5px 0;"">Anything with a documented SOP</li><br><li style=""margin: 5px 0;"">Anything reversible</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Lane 2: Notify-only decisions (they decide, you get a heads-up)<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Client-facing changes that affect timeline</li><br><li style=""margin: 5px 0;"">Any deliverable with brand risk</li><br><li style=""margin: 5px 0;"">Anything that touches pricing but not margins</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Lane 3: Escalate decisions (you decide)<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Contract changes</li><br><li style=""margin: 5px 0;"">Anything that risks churn</li><br><li style=""margin: 5px 0;"">Anything that impacts margin materially</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">How to implement in 20 minutes:<br><ol style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Pick ONE recurring area that’s draining you (client comms, QA, scope, scheduling).</li><br><li style=""margin: 5px 0;"">Write the lane rules in a single Slack message.</li><br><li style=""margin: 5px 0;"">Pin it. Then enforce it for 7 days.</li><br></ol></p>
+<p style=""margin: 0 0 15px 0;"">The key is enforcement.<br>If someone asks a Lane 1 question, respond with: “Lane 1—run it and post what you did.”</p>
+<p style=""margin: 0 0 15px 0;"">You’ll feel the discomfort for a day or two… and then you’ll notice something wild: your team gets sharper, faster, and more confident. And you stop carrying the whole business in your head.</p>
+<p style=""margin: 0 0 15px 0;"">If you want, bring your messiest “human router” area to a call. In 20 minutes we can:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">define the lanes</li><br><li style=""margin: 5px 0;"">set thresholds that match your risk tolerance</li><br><li style=""margin: 5px 0;"">decide what needs an SOP vs. what needs a decision rule</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 6","Optin_Email_Body 6","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Tip #5 is about protecting your week before it gets stolen.</p>
+<p style=""margin: 0 0 15px 0;"">Most founders don’t have a time-management problem.<br>They have a “no weekly control loop” problem.</p>
+<p style=""margin: 0 0 15px 0;"">Here’s the meeting that fixes it: the Weekly Delivery &amp; Capacity Reset (30 minutes).</p>
+<p style=""margin: 0 0 15px 0;"">Do it every Monday (or Sunday night if Monday is chaos). Agenda:</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Delivery scoreboard (10 minutes)</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">What are the 3–5 active accounts/projects?</li>
+<li style=""margin: 5px 0;"">For each: What is the promised outcome this week?</li>
+<li style=""margin: 5px 0;"">What is the single next deliverable that proves momentum?</li>
+</ul>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Capacity reality check (10 minutes)</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Who is over 80% loaded?</li>
+<li style=""margin: 5px 0;"">What work is “invisible” (client comms, QA, revisions, firefighting)?</li>
+<li style=""margin: 5px 0;"">What’s the one thing we must remove, delay, or simplify to keep quality?</li>
+</ul>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Risk &amp; escalation rules (10 minutes)</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Any client risk (scope creep, late approvals, unclear ownership)?</li>
+<li style=""margin: 5px 0;"">Decide now: who owns the fix, by when, and what “done” looks like.</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">Two rules that make this work:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">No problem-solving in the meeting. Just decisions and owners.</li><br><li style=""margin: 5px 0;"">If it doesn’t have an owner + deadline, it doesn’t exist.</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Why this matters:<br>When you don’t reset weekly, you end up making decisions in micro-panics all week long. That’s when you become the strategist, the PM, and the firefighter—again.</p>
+<p style=""margin: 0 0 15px 0;"">If you implement this, you’ll likely notice:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">fewer surprise Slack threads</li><br><li style=""margin: 5px 0;"">fewer “quick calls” that aren’t quick</li><br><li style=""margin: 5px 0;"">cleaner handoffs and fewer revisions</li><br><li style=""margin: 5px 0;"">a calmer brain on Tuesday</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">If you want help tailoring this to your agency (especially if you’re juggling retainers + projects + sales), I can walk you through a simple version that fits your current team size and service mix.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 7","Optin_Email_Body 7","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Tip #6 is a big one for boutique agencies: scope creep isn’t a client problem—it’s a system problem.</p>
+<p style=""margin: 0 0 15px 0;"">Most founders try to solve it with willpower (“I’ll be firmer”) or resentment (“they always ask for more”). Neither scales.</p>
+<p style=""margin: 0 0 15px 0;"">Here’s the system: The Change Request Loop.</p>
+<p style=""margin: 0 0 15px 0;"">Step 1: Name the request (without emotion)<br>When a client asks for “just one more thing,” respond with:<br>“Totally—let me capture that as a change request so we can protect timeline and quality.”</p>
+<p style=""margin: 0 0 15px 0;"">That sentence does two things:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">it says yes to the relationship</li><br><li style=""margin: 5px 0;"">it says no to chaos</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Step 2: Force a tradeoff (scope, time, or cost)<br>Then ask:<br>“Which do you want to trade: timeline, scope, or budget?”</p>
+<p style=""margin: 0 0 15px 0;"">High-trust clients respect this because it’s how grown-up teams operate.</p>
+<p style=""margin: 0 0 15px 0;"">Step 3: Use a 3-option menu<br>Send three choices (short, clear):<br>A) Keep timeline: remove X to add Y<br>B) Keep scope: extend timeline by Z<br>C) Keep timeline + scope: add $___</p>
+<p style=""margin: 0 0 15px 0;"">Step 4: Log it<br>Have ONE place where changes live (a simple doc or your PM tool). If it isn’t logged, it isn’t real.</p>
+<p style=""margin: 0 0 15px 0;"">Why this works:<br>Scope creep thrives in ambiguity. The moment you turn it into a decision with tradeoffs, it stops being personal.</p>
+<p style=""margin: 0 0 15px 0;"">A small but important note: you’re not doing this to “win” against the client.<br>You’re doing it to protect delivery quality and your team’s sanity.</p>
+<p style=""margin: 0 0 15px 0;"">If you want, on a call we can:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">build your exact 3-option menu (based on your services)</li><br><li style=""margin: 5px 0;"">set default pricing for common add-ons</li><br><li style=""margin: 5px 0;"">create the escalation rules so your team can run this without you</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">That’s how you stop being the bottleneck and start running a business that can breathe.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 9","Optin_Email_Body 9","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">{{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">If you’re still reading, you’re probably past the “how do I get clients?” chapter.</p>
+<p style=""margin: 0 0 15px 0;"">The real game now is: how do you scale without becoming the permanent strategist + QA department + emergency response team.</p>
+<p style=""margin: 0 0 15px 0;"">That requires a few mindset shifts that feel subtle… but change everything.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Stop optimizing for “great work.” Start optimizing for “repeatable outcomes.”</li>
+</ol>
+Great work is subjective and founder-dependent.
+Repeatable outcomes are measurable and transferable.
+<p style=""margin: 0 0 15px 0;"">Instead of “we deliver high-quality paid media,” define the outcome like:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">“We reduce CAC by X% within 60 days”</li><br><li style=""margin: 5px 0;"">“We ship a new landing page test every 7 days”</li><br><li style=""margin: 5px 0;"">“We increase booked calls from Y to Z with a 3-step funnel”</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">When outcomes are clear, you can build SOPs, scorecards, and delegation around them.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Treat your agency like a product, not a custom art studio.</li>
+</ol>
+Most owner-operators are secretly running 6 different businesses—one per client type.
+<p style=""margin: 0 0 15px 0;"">The shift is choosing a “default path”:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">A standard onboarding flow</li><br><li style=""margin: 5px 0;"">A standard reporting cadence</li><br><li style=""margin: 5px 0;"">A standard scope boundary</li><br><li style=""margin: 5px 0;"">A standard escalation rule</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Custom still exists, but it’s the exception—not the operating system.</p>
+<p style=""margin: 0 0 15px 0;"">This is what creates breathing room. Not hustle. Not hiring another generalist.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Your job is no longer “do the work.” Your job is “design the machine.”</li>
+</ol>
+This is the identity shift that stings.
+<p style=""margin: 0 0 15px 0;"">It means:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">You’re not the best closer in the company; you’re the person who builds a sales process that closes without heroics.</li><br><li style=""margin: 5px 0;"">You’re not the best strategist; you’re the person who creates a strategy framework your team can execute.</li><br><li style=""margin: 5px 0;"">You’re not the safety net; you’re the person who makes the net unnecessary.</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">A quick self-check:<br>If you disappeared for 14 days, what would break first?<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Lead flow?</li><br><li style=""margin: 5px 0;"">Fulfillment quality?</li><br><li style=""margin: 5px 0;"">Client communication?</li><br><li style=""margin: 5px 0;"">Cash collection?</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">The first thing that breaks is your current bottleneck.</p>
+<p style=""margin: 0 0 15px 0;"">That’s exactly what we diagnose inside The Bottleneck Breakout Sprint—so you’re not guessing, adding headcount blindly, or “fixing” the wrong thing.</p>
+<p style=""margin: 0 0 15px 0;"">If you want to map your bottleneck and build the next layer of systems around it, grab a call.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 10","Optin_Email_Body 10","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">{{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Let’s talk about what NOT to do when you’re trying to scale a boutique service business.</p>
+<p style=""margin: 0 0 15px 0;"">These are the mistakes I see smart, experienced founders make—usually because they’re moving fast and trying to protect clients.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Hiring to “buy relief” instead of hiring to remove a bottleneck.</li>
+</ol>
+If you don’t know the constraint, every hire becomes expensive hope.
+Relief hires feel good for 2 weeks… then the complexity tax shows up.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Delegating tasks instead of delegating outcomes.</li>
+</ol>
+“Can you post the report?” isn’t delegation.
+“Own retention for these 6 accounts; here’s the scorecard and escalation rules” is.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Letting every client be a new operating model.</li>
+</ol>
+Different onboarding docs, different reports, different Slack channels, different KPIs.
+That’s not premium. That’s chaos with a nice logo.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Keeping scopes fuzzy to avoid uncomfortable conversations.</li>
+</ol>
+Fuzzy scope turns you into a 24/7 help desk.
+Clear scope turns you into a strategic partner.
+<p style=""margin: 0 0 15px 0;"">A useful rule: if it’s not written, it’s not real.<br>Deliverables, turnaround times, revision limits, decision makers—write it down.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Measuring effort instead of throughput.</li>
+</ol>
+Founders often reward “busyness” because it’s visible.
+But the metric that matters is throughput:
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">How many projects shipped?</li>
+<li style=""margin: 5px 0;"">How many experiments launched?</li>
+<li style=""margin: 5px 0;"">How many client decisions unblocked?</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">Throughput exposes where work gets stuck.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Building a “process museum.”</li>
+</ol>
+SOPs that look impressive but nobody uses.
+The goal isn’t documentation—it’s behavior.
+If the process doesn’t live inside the tools your team already uses (project management, checklists, templates), it won’t survive.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Staying the final approver for everything.</li>
+</ol>
+This one is the silent killer.
+When you’re the final approver, you become the queue.
+<p style=""margin: 0 0 15px 0;"">Instead, create approval rules:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">What must be escalated</li><br><li style=""margin: 5px 0;"">What thresholds require review</li><br><li style=""margin: 5px 0;"">What “good enough” looks like</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">That’s how you protect quality without becoming the bottleneck.</p>
+<p style=""margin: 0 0 15px 0;"">If you’re reading this and thinking, “Yep… I’ve done at least three of these,” you’re not behind. You’re normal.</p>
+<p style=""margin: 0 0 15px 0;"">The fix is not more willpower. It’s a clear bottleneck diagnosis + a tight implementation plan.</p>
+<p style=""margin: 0 0 15px 0;"">If you want help identifying the one constraint that’s creating most of the pressure (and the simplest sequence to remove it), let’s talk.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 11","Optin_Email_Body 11","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">{{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">When a founder tells me, “We just need more leads,” I don’t argue.</p>
+<p style=""margin: 0 0 15px 0;"">Sometimes that’s true.</p>
+<p style=""margin: 0 0 15px 0;"">But in the $15k–$50k/month range, the real constraint is often hidden—because it looks like a personality trait (“I’m just picky”) or a virtue (“I care about quality”).</p>
+<p style=""margin: 0 0 15px 0;"">Here are the obstacles that quietly keep owner-operators trapped.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">The “invisible founder approvals” problem</li>
+</ol>
+Even when you delegate, the work still routes back to you:
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">strategy sign-off</li>
+<li style=""margin: 5px 0;"">final QA</li>
+<li style=""margin: 5px 0;"">client messaging</li>
+<li style=""margin: 5px 0;"">pricing exceptions</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">You’re not doing the tasks… but you’re still the system.<br>Until approvals have rules (what must come to you vs. what doesn’t), you’ll never get your time back.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">The “client happiness = instant response” belief</li>
+</ol>
+High-trust clients don’t actually want instant responses.
+They want:
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">predictable communication</li>
+<li style=""margin: 5px 0;"">clear ownership</li>
+<li style=""margin: 5px 0;"">consistent delivery</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">When you train clients that you’re always available, you create a business that requires you.<br>The alternative is a cadence:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">set response windows</li><br><li style=""margin: 5px 0;"">set meeting rhythms</li><br><li style=""margin: 5px 0;"">set escalation paths</li><br></ul></p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">The “we sell strategy but deliver labor” mismatch</li>
+</ol>
+Founders often market premium strategy… but fulfillment is built like a labor shop.
+That creates two problems:
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">margins get squeezed</li>
+<li style=""margin: 5px 0;"">the founder becomes the only person who can deliver “the real value”</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">The fix is productizing the strategy into frameworks your team can execute.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">The “too many priorities” bottleneck</li>
+</ol>
+You can’t scale three things at once.
+Most teams are trying to:
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">improve delivery</li>
+<li style=""margin: 5px 0;"">fix sales</li>
+<li style=""margin: 5px 0;"">hire</li>
+<li style=""margin: 5px 0;"">rebuild ops</li>
+<li style=""margin: 5px 0;"">launch a new offer</li>
+</ul>
+…all in the same month.
+<p style=""margin: 0 0 15px 0;"">That creates thrash, context switching, and half-finished initiatives.</p>
+<p style=""margin: 0 0 15px 0;"">A better approach is constraint sequencing:<br>Fix the one constraint that is currently limiting throughput.<br>Then move to the next.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">The “identity lock”</li>
+</ol>
+This is the hardest one.
+If being the hero is how you’ve stayed safe—financially and emotionally—your nervous system will resist systems that make you less necessary.
+<p style=""margin: 0 0 15px 0;"">Scaling requires becoming less essential.<br>Not less valuable—less essential.</p>
+<p style=""margin: 0 0 15px 0;"">If any of these hit a nerve, that’s useful data.</p>
+<p style=""margin: 0 0 15px 0;"">Inside The Bottleneck Breakout Sprint, we identify which of these is actually happening in your business (not in theory) and map the simplest path to remove it without breaking delivery.</p>
+<p style=""margin: 0 0 15px 0;"">If you want that clarity, book a call.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 12","Optin_Email_Body 12","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">{{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">A lot of founders hear “systems” and picture months of documentation, a new tool stack, and a team that ignores it all.</p>
+<p style=""margin: 0 0 15px 0;"">That’s not how we do it.</p>
+<p style=""margin: 0 0 15px 0;"">Behind the scenes, bottleneck removal is a sequence—because the order determines whether it sticks.</p>
+<p style=""margin: 0 0 15px 0;"">Here’s the playbook we use (and what most people skip).</p>
+<p style=""margin: 0 0 15px 0;"">Step 1: Locate the constraint with evidence (not vibes)<br>We look for where work piles up and decisions stall. Typically it’s one of four places:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Sales: inconsistent pipeline, founder-dependent closing</li><br><li style=""margin: 5px 0;"">Onboarding: messy handoffs, unclear scope, early churn risk</li><br><li style=""margin: 5px 0;"">Fulfillment: quality issues, rework loops, missed deadlines</li><br><li style=""margin: 5px 0;"">Retention/expansion: accounts plateau, founder pulled into saves</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">The key is choosing ONE.<br>Not because the others don’t matter, but because fixing the constraint increases throughput everywhere.</p>
+<p style=""margin: 0 0 15px 0;"">Step 2: Define “done” in a way a team can execute<br>Most bottlenecks persist because “good” is trapped in the founder’s head.</p>
+<p style=""margin: 0 0 15px 0;"">So we translate quality into:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">a scorecard (leading + lagging indicators)</li><br><li style=""margin: 5px 0;"">a definition of done (checklist)</li><br><li style=""margin: 5px 0;"">escalation rules (when to pull you in)</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">This is the moment where delegation becomes real.</p>
+<p style=""margin: 0 0 15px 0;"">Step 3: Install the process where work already happens<br>If it lives in a Google Doc graveyard, it won’t run.</p>
+<p style=""margin: 0 0 15px 0;"">We bake the process into:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">templates</li><br><li style=""margin: 5px 0;"">checklists inside the PM tool</li><br><li style=""margin: 5px 0;"">meeting cadences</li><br><li style=""margin: 5px 0;"">client-facing expectations</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Process is behavior, not documentation.</p>
+<p style=""margin: 0 0 15px 0;"">Step 4: Create a “no-founder” lane<br>This is the insider move.</p>
+<p style=""margin: 0 0 15px 0;"">We don’t try to remove you from everything at once.<br>We pick a lane (a client type, a service line, or a delivery pod) and make it founder-light:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">someone else owns client comms</li><br><li style=""margin: 5px 0;"">someone else owns QA within thresholds</li><br><li style=""margin: 5px 0;"">you only review exceptions</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">That lane becomes proof your business can run without you.<br>Then we replicate.</p>
+<p style=""margin: 0 0 15px 0;"">Step 5: Protect the change with constraints<br>If you keep accepting edge-case scopes and last-minute rushes, the bottleneck returns.<br>So we set constraints:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">scope boundaries</li><br><li style=""margin: 5px 0;"">turnaround times</li><br><li style=""margin: 5px 0;"">capacity rules</li><br><li style=""margin: 5px 0;"">pricing floors</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">That’s how you scale without sacrificing your health or your family time.</p>
+<p style=""margin: 0 0 15px 0;"">If you want to apply this to your business and identify the single constraint that will free up the most time (fast), let’s map it together.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 13","Optin_Email_Body 13","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hi {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">If you’re considering the Bottleneck Breakout Sprint, you’re probably asking the most reasonable question:</p>
+<p style=""margin: 0 0 15px 0;"">“How fast will this actually change my day-to-day?”</p>
+<p style=""margin: 0 0 15px 0;"">Here’s a realistic results timeline for a boutique agency/service founder in the $15K–$50K/month range who’s currently the strategist + QA + firefighter.</p>
+<p style=""margin: 0 0 15px 0;"">WEEK 1: CLARITY + CONTAINMENT<br>In the first week, the biggest “result” is usually relief.</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">We identify the true constraint (not the 12 symptoms).</li>
+<li style=""margin: 5px 0;"">We map where your time is leaking: handoffs, approvals, scope creep, client comms, rework.</li>
+<li style=""margin: 5px 0;"">We choose a single “control point” to fix first (the one that creates downstream calm).</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">What you should feel: fewer surprise fires, clearer priorities, and a plan that doesn’t require a personality transplant.</p>
+<p style=""margin: 0 0 15px 0;"">WEEK 2: SIMPLE SYSTEMS THAT REMOVE YOU<br>This is where your calendar starts to open.</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">We install 1–3 lightweight operating rules (how work enters, how it moves, how it’s approved).</li>
+<li style=""margin: 5px 0;"">We tighten delivery: definition of done, QA checkpoints, and a “no rework” standard.</li>
+<li style=""margin: 5px 0;"">We create a client communication rhythm so you’re not living in Slack.</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">What you should see: fewer pings, fewer late nights, fewer “quick questions” that aren’t quick.</p>
+<p style=""margin: 0 0 15px 0;"">WEEK 3–4: CAPACITY + CONSISTENCY<br>Now the compounding starts.</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Team members make decisions without you because the rules are clear.</li>
+<li style=""margin: 5px 0;"">Accounts run with fewer escalations because expectations are set early.</li>
+<li style=""margin: 5px 0;"">Your best people stop burning out because the work is predictable.</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">What you should notice: you can think again. You can sell without dread. You can take a day off without the business punishing you.</p>
+<p style=""margin: 0 0 15px 0;"">MONTH 2+: SCALE WITHOUT SACRIFICE<br>This is when founders start using the regained bandwidth for what actually moves the needle:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Better offers + pricing</li>
+<li style=""margin: 5px 0;"">Cleaner acquisition channels</li>
+<li style=""margin: 5px 0;"">Hiring the next role with confidence</li>
+<li style=""margin: 5px 0;"">Protecting health, marriage, and parenting time</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">A quick expectation-setter: the Sprint isn’t “motivation.” It’s not a 40-page SOP project. It’s a focused intervention to remove the bottleneck that’s forcing you to be the operating system.</p>
+<p style=""margin: 0 0 15px 0;"">If you want to know what timeline applies to your exact situation, the fastest path is a call. We’ll pinpoint the constraint and whether the Sprint is the right fit.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 14","Optin_Email_Body 14","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hi {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Most founders don’t need more tools.<br>They need less complexity.</p>
+<p style=""margin: 0 0 15px 0;"">When you’re the de facto strategist + QA + firefighter, complexity is what keeps you “required.” It hides in the little things:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Every client has a custom process</li>
+<li style=""margin: 5px 0;"">Every project starts from scratch</li>
+<li style=""margin: 5px 0;"">Every handoff is verbal</li>
+<li style=""margin: 5px 0;"">Every approval is subjective</li>
+<li style=""margin: 5px 0;"">Every “quick tweak” becomes rework</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">Here are three actionable moves to simplify—without slowing down growth.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">CHOOSE ONE DELIVERY PATH</li>
+</ol>
+Pick your primary service line (the one that pays, sells, and you want more of) and standardize around it.
+<p style=""margin: 0 0 15px 0;"">Action today:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Write a 5-bullet “Definition of Done” for that service.</li><br><li style=""margin: 5px 0;"">Make it visible to the team.</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">If you can’t define done, you’ll keep doing more.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">INSTALL A SINGLE INTAKE GATE</li>
+</ol>
+Most agency chaos starts at intake: random requests, unclear priority, missing info.
+<p style=""margin: 0 0 15px 0;"">Action today:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Create one place requests enter (form, ticket, or a dedicated channel).</li><br><li style=""margin: 5px 0;"">Require 3 fields: goal, deadline, and “what happens if this doesn’t ship?”</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">You’re not being rigid—you’re protecting delivery.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">CREATE ONE WEEKLY DECISION RITUAL</li>
+</ol>
+Founders get trapped because decisions are made all day, every day.
+<p style=""margin: 0 0 15px 0;"">Action today:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Set a 30-minute weekly “Ops Decisions” meeting.</li><br><li style=""margin: 5px 0;"">Only two outcomes are allowed:</li><br></ul><br>  – Decide and assign<br>  – Park it with a next review date</p>
+<p style=""margin: 0 0 15px 0;"">This single ritual reduces interruptions and stops the constant context switching that makes you feel busy but behind.</p>
+<p style=""margin: 0 0 15px 0;"">The point of simplification isn’t to be minimalist for its own sake.<br>It’s to create a business that can run without your nervous system holding it together.</p>
+<p style=""margin: 0 0 15px 0;"">If you’re thinking, “This sounds good, but implementing it across my clients/team is the hard part,” you’re right.</p>
+<p style=""margin: 0 0 15px 0;"">That’s exactly why the Bottleneck Breakout Sprint exists: to identify the one constraint that’s creating most of the complexity, then install the few operating rules that make everything else easier.</p>
+<p style=""margin: 0 0 15px 0;"">If you want help choosing the right delivery path, the right intake gate, and the right decision rhythm for your specific model, let’s talk.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 1","Optin_Email_Subject 1","Welcome, {{contact.first_name}} — your Bottleneck Breakout Sprint is inside",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 2","Optin_Email_Subject 2","Tip #1: Stop being the “human router” (use a 2-question intake rule)",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 3","Optin_Email_Subject 3","Tip #2: The “Definition of Done” that stops rework (and late-night QA)",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 4","Optin_Email_Subject 4","Tip #3: The Capacity Floor (so you stop selling into chaos)",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 5","Optin_Email_Subject 5","Day 5 tip: Stop being the “human router” in your agency",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 6","Optin_Email_Subject 6","Day 6 tip: The only meeting you need to protect your week",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 7","Optin_Email_Subject 7","Day 7 tip: Fix scope creep without becoming “the bad guy”",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 9","Optin_Email_Subject 9","Day 9: The 3 mindset shifts that unlock “runs without you” growth",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 10","Optin_Email_Subject 10","Day 10: 7 scaling mistakes that keep founders trapped in Slack",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 11","Optin_Email_Subject 11","Day 11: The hidden obstacles that keep you stuck at $20–$50k/mo",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 12","Optin_Email_Subject 12","Day 12: Behind the scenes—how “bottleneck removal” actually works",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 13","Optin_Email_Subject 13","What results look like (and when) for founders like you",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 14","Optin_Email_Subject 14","Simplify your business in 3 moves (starting today)",unknown,"not mapped",📄 Other,Filled
+"Free_Gift_Email Body","Free_Gift_Email Body","Thank you! Here's your free gift as promised...",unknown,"not mapped",📄 Other,Filled
+"Free_Gift_Email Subject","Free_Gift_Email Subject","Here's your free gift!",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 1","Optin_Email_Preheader 1","If your agency runs on your brain + Slack, this will feel like relief.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 2","Optin_Email_Preheader 2","If every request hits you first, your calendar will never calm down.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 3","Optin_Email_Preheader 3","If work keeps bouncing back to you, it’s not a people problem—it’s a spec problem.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 4","Optin_Email_Preheader 4","When delivery is at 90–100%, every new client feels like a threat.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 5","Optin_Email_Preheader 5","One simple rule that cuts Slack pings and prevents fires.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 6","Optin_Email_Preheader 6","A 30-minute ritual that prevents Friday-night catch-up.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 7","Optin_Email_Preheader 7","One sentence + one system that protects margins and relationships.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 9","Optin_Email_Preheader 9","Strategy isn’t the hard part—identity is.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 10","Optin_Email_Preheader 10","If any of these are true, growth will feel heavy.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 11","Optin_Email_Preheader 11","It’s rarely “lead gen.” It’s usually something quieter.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 12","Optin_Email_Preheader 12","The order matters. Here’s the internal playbook.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 13","Optin_Email_Preheader 13","A realistic timeline for getting out of the weeds—without breaking what’s working.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 14","Optin_Email_Preheader 14","Less complexity. More margin. A calmer team and cleaner delivery.",unknown,"not mapped",📄 Other,Filled
+"Optin_SMS_1","Optin_SMS_1","Test",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 8 Morning","Optin_Email_Body 8 Morning","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">You’ve gotten a handful of daily tips this week. If you’re anything like most agency owners, you’re probably thinking:</p>
+<p style=""margin: 0 0 15px 0;"">“Yep… that’s me. But where do I start without breaking everything?”</p>
+<p style=""margin: 0 0 15px 0;"">That’s exactly why a call helps.</p>
+<p style=""margin: 0 0 15px 0;"">The Bottleneck Breakout Sprint isn’t theory—it’s a quick diagnostic that turns the messy, swirling problems into a simple sequence:</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">What’s the real constraint right now?</li>
+</ol>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Is it delivery capacity?</li>
+<li style=""margin: 5px 0;"">client comms and revisions?</li>
+<li style=""margin: 5px 0;"">sales + fulfillment overlap?</li>
+<li style=""margin: 5px 0;"">you being the final approver for everything?</li>
+</ul>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">What’s the smallest change that creates the biggest relief?</li>
+</ol>
+We’re looking for leverage. The kind that reduces the number of decisions you personally have to make every day.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">What should NOT be fixed yet?</li>
+</ol>
+This is the part founders love. Most “systems” fail because you try to standardize everything at once. We’ll identify the 1–2 things that actually matter first.
+<p style=""margin: 0 0 15px 0;"">What you’ll leave with:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">a clear bottleneck statement (so you stop guessing)</li><br><li style=""margin: 5px 0;"">a 7–14 day action plan you can execute with your current team</li><br><li style=""margin: 5px 0;"">decision rules you can copy/paste into Slack to reduce pings immediately</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">No pressure, no weird persuasion.<br>If it’s not a fit, I’ll tell you and still send you in the right direction.</p>
+<p style=""margin: 0 0 15px 0;"">If you want that clarity, grab a time that works.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 8 Afternoon","Optin_Email_Body 8 Afternoon","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Quick story that might feel familiar.</p>
+<p style=""margin: 0 0 15px 0;"">An agency owner I spoke with was doing ~$30K/month, great clients, solid team… and still felt like they couldn’t breathe.</p>
+<p style=""margin: 0 0 15px 0;"">Their symptoms:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Slack from morning to bedtime</li><br><li style=""margin: 5px 0;"">constant “quick questions” that weren’t quick</li><br><li style=""margin: 5px 0;"">client work was fine, but everything depended on them</li><br><li style=""margin: 5px 0;"">weekends were for catching up, not recovering</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">They assumed the answer was hiring more people.<br>It wasn’t.</p>
+<p style=""margin: 0 0 15px 0;"">The real bottleneck was decision traffic.<br>They were the default approver for:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">scope changes</li><br><li style=""margin: 5px 0;"">QA standards</li><br><li style=""margin: 5px 0;"">client messaging</li><br><li style=""margin: 5px 0;"">prioritization when things got tight</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">So we ran a Bottleneck Breakout Sprint and focused on three moves:</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">A 3-Lane Decision System</li>
+</ol>
+We defined what the team could decide, what required notify-only, and what truly needed escalation.
+Result: fewer pings and faster delivery.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">A weekly delivery reset</li>
+</ol>
+30 minutes to set promises, owners, and deadlines.
+Result: fewer surprises and less midweek panic.
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">A change request menu</li>
+</ol>
+Every “can you also…” got turned into a tradeoff decision.
+Result: margins stabilized and the team stopped absorbing free work.
+<p style=""margin: 0 0 15px 0;"">What changed within a few weeks:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">they stopped being the router for every account</li><br><li style=""margin: 5px 0;"">clients got clearer expectations (and actually respected the process)</li><br><li style=""margin: 5px 0;"">they had multiple nights per week with zero work after dinner</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Not because they worked harder.<br>Because the business stopped requiring them as the operating system.</p>
+<p style=""margin: 0 0 15px 0;"">If you’re in that $15K–$50K/month zone and you can feel the ceiling coming down, a call can help you find the one constraint that—once removed—creates real breathing room.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 8 Evening","Optin_Email_Body 8 Evening","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hey {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Quick note before the week wraps.</p>
+<p style=""margin: 0 0 15px 0;"">If you’ve been meaning to get eyes on your bottleneck (the thing that keeps pulling you back into strategist/QA/firefighter mode), this is your nudge.</p>
+<p style=""margin: 0 0 15px 0;"">When agency owners wait, what usually happens is:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">Monday arrives</li><br><li style=""margin: 5px 0;"">clients need things</li><br><li style=""margin: 5px 0;"">the team has questions</li><br><li style=""margin: 5px 0;"">you tell yourself you’ll “fix ops later”…</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">…and suddenly it’s another month of being the business instead of running it.</p>
+<p style=""margin: 0 0 15px 0;"">A short call is often enough to create immediate traction. We’ll pinpoint:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">where you’re the constraint (decision traffic, QA, client comms, scope)</li><br><li style=""margin: 5px 0;"">the smallest rule/process that removes pressure fast</li><br><li style=""margin: 5px 0;"">what to ignore for now so you don’t start 12 initiatives at once</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">If you want that clarity before next week kicks off, book a time now.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 8 Morning","Optin_Email_Preheader 8 Morning","A call isn’t a pitch—think of it as a clarity sprint.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 8 Afternoon","Optin_Email_Preheader 8 Afternoon","The bottleneck wasn’t workload—it was decision traffic.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 8 Evening","Optin_Email_Preheader 8 Evening","If you want clarity before next week hits, grab a spot.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 8 Morning","Optin_Email_Subject 8 Morning","{{contact.first_name}}, want me to map your bottleneck in 20 minutes?",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 8 Afternoon","Optin_Email_Subject 8 Afternoon","How one agency owner got their nights back (without hiring a COO)",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 8 Evening","Optin_Email_Subject 8 Evening","Last chance to book this week, {{contact.first_name}}",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 15 Afternoon","Optin_Email_Body 15 Afternoon","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hi {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">It’s the final day, so let’s address the questions that usually keep founders on the fence.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">“I don’t have time for this right now.”</li>
+</ol>
+That’s usually the signal you need it most.
+<p style=""margin: 0 0 15px 0;"">The Sprint is designed to reduce time demand, not add to it. We focus on the one constraint that’s forcing you to be involved in everything—then install a few rules that remove you from the loop.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">“My situation is messy / unique.”</li>
+</ol>
+Every founder thinks this.
+<p style=""margin: 0 0 15px 0;"">The details differ, but the patterns repeat: unclear intake, fuzzy ‘done,’ approval bottlenecks, inconsistent client comms, and roles that depend on your brain. The Sprint is built to work with real-world mess, not ideal conditions.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">“I need to hire first.”</li>
+</ol>
+Hiring into chaos makes chaos more expensive.
+<p style=""margin: 0 0 15px 0;"">If you fix the bottleneck first, your next hire is easier to onboard, easier to manage, and more likely to succeed—because the rules of the game are clear.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">“What if my team doesn’t follow the process?”</li>
+</ol>
+Then the process is either too complex, not enforced, or not tied to outcomes.
+<p style=""margin: 0 0 15px 0;"">We keep it lightweight and practical: a small number of operating rules that your team can actually run. And we set expectations so it’s not optional.</p>
+<ol style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">“What if this is just another strategy call?”</li>
+</ol>
+It’s not.
+<p style=""margin: 0 0 15px 0;"">Here’s what happens on the call:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">You explain your delivery model, team, and where you’re getting pulled in.</li>
+<li style=""margin: 5px 0;"">We identify the bottleneck that’s creating the highest cost (time, quality, margin, stress).</li>
+<li style=""margin: 5px 0;"">You leave with a clear plan: what to change first, what to ignore, and what ‘better’ looks like in the next 2–4 weeks.</li>
+<li style=""margin: 5px 0;"">If there’s a fit, we’ll discuss the Bottleneck Breakout Sprint and what implementation would look like.</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">No pressure tactics. Just clarity and a direct path.</p>
+<p style=""margin: 0 0 15px 0;"">If you’ve read these emails and thought, “This is me,” don’t let another quarter go by where the business grows and your life shrinks.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 15 Evening","Optin_Email_Body 15 Evening","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hi {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">This is the last email I’ll send in this sequence.</p>
+<p style=""margin: 0 0 15px 0;"">So here’s the clean choice in front of you.</p>
+<p style=""margin: 0 0 15px 0;"">Option A: You keep doing what you’ve been doing.</p>
+<p style=""margin: 0 0 15px 0;"">You keep being the person who:<br><ul style=""margin: 10px 0; padding-left: 20px;""><br><li style=""margin: 5px 0;"">catches what everyone else misses</li><br><li style=""margin: 5px 0;"">rewrites what should’ve been “done”</li><br><li style=""margin: 5px 0;"">jumps into client threads to save the relationship</li><br><li style=""margin: 5px 0;"">carries the mental load of every deadline</li><br><li style=""margin: 5px 0;"">tries to be present at home while your brain is still at work</li><br></ul></p>
+<p style=""margin: 0 0 15px 0;"">Revenue might hold. It might even grow.<br>But the cost will keep increasing—because the business is using you as the system.</p>
+<p style=""margin: 0 0 15px 0;"">Option B: You fix the bottleneck.</p>
+<p style=""margin: 0 0 15px 0;"">Not with a massive overhaul. Not with a new tool stack. Not with a 6-month “operations project.”</p>
+<p style=""margin: 0 0 15px 0;"">By identifying the one constraint that’s creating most of the chaos and solving it with a small number of enforceable operating rules.</p>
+<p style=""margin: 0 0 15px 0;"">When that bottleneck breaks, a few things happen fast:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Your team stops escalating everything to you</li>
+<li style=""margin: 5px 0;"">Delivery becomes predictable (which protects margin)</li>
+<li style=""margin: 5px 0;"">Client communication gets calmer (which protects retention)</li>
+<li style=""margin: 5px 0;"">You get capacity back (which gives you room to sell, hire, or rest)</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">And here’s the part founders don’t say out loud:</p>
+<p style=""margin: 0 0 15px 0;"">When you’re always on, your family gets the leftovers.<br>Not because you don’t care—because your business is designed to require you.</p>
+<p style=""margin: 0 0 15px 0;"">If you want to scale without sacrificing your health, marriage, or parenting… it has to be built into the operating model.</p>
+<p style=""margin: 0 0 15px 0;"">The Bottleneck Breakout Sprint is a short, focused intervention to do exactly that.</p>
+<p style=""margin: 0 0 15px 0;"">If you’re still reading, you don’t need more information.<br>You need a decision.</p>
+<p style=""margin: 0 0 15px 0;"">Book the call. We’ll diagnose the bottleneck, map the fastest path out, and you’ll know—quickly—whether this is the right next step.</p>
+<p style=""margin: 0 0 15px 0;"">This is the final day and the final email.</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Body 15 Morning","Optin_Email_Body 15 Morning","<div style=""font-family: Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #333333;""><p style=""margin: 0 0 15px 0;"">Hi {{contact.first_name}},</p>
+<p style=""margin: 0 0 15px 0;"">Quick note because it’s the final day of this sequence.</p>
+<p style=""margin: 0 0 15px 0;"">If you’ve been living in “I’ll deal with it after this client launch / after this hire / after this quarter”… you already know what happens.</p>
+<p style=""margin: 0 0 15px 0;"">The business keeps growing.<br>And you stay the operating system.</p>
+<p style=""margin: 0 0 15px 0;"">The Bottleneck Breakout Sprint is for the founder who has proven they can sell—but can’t scale without personally absorbing the cost:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">You’re the strategist on every account</li>
+<li style=""margin: 5px 0;"">You’re the final QA gate</li>
+<li style=""margin: 5px 0;"">You’re the escalation path for the team</li>
+<li style=""margin: 5px 0;"">You’re the one who makes things “actually happen”</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">This isn’t a willpower problem.<br>It’s an operating model problem.</p>
+<p style=""margin: 0 0 15px 0;"">On the call, we’ll:</p>
+<ul style=""margin: 10px 0; padding-left: 20px;"">
+<li style=""margin: 5px 0;"">Identify the single bottleneck creating most of the chaos</li>
+<li style=""margin: 5px 0;"">Map the fastest fix (not 12 new initiatives)</li>
+<li style=""margin: 5px 0;"">Decide if the Sprint is the right fit to implement it quickly</li>
+</ul>
+<p style=""margin: 0 0 15px 0;"">The goal is simple: more capacity, less firefighting, and a business that can deliver consistently without you being on Slack at dinner.</p>
+<p style=""margin: 0 0 15px 0;"">If you want 2026 to feel different than 2025, don’t wait for “someday.”</p>
+<p style=""margin: 0 0 15px 0;"">Book your call here: [Schedule Link]</p></div>",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 15 Afternoon","Optin_Email_Preheader 15 Afternoon","Common objections (time, money, team, timing) + what happens on the call.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 15 Evening","Optin_Email_Preheader 15 Evening","Same revenue, higher stress… or a business that runs without you.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Preheader 15 Morning","Optin_Email_Preheader 15 Morning","Today’s the last day to book your Bottleneck Breakout Sprint call.",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 15 Afternoon","Optin_Email_Subject 15 Afternoon","“Is this actually for me?” Final-day FAQ",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 15 Evening","Optin_Email_Subject 15 Evening","Last email: choose your next 90 days",unknown,"not mapped",📄 Other,Filled
+"Optin_Email_Subject 15 Morning","Optin_Email_Subject 15 Morning","Final day: want your nights back?",unknown,"not mapped",📄 Other,Filled
+"Optin_SMS_2","Optin_SMS_2","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_3","Optin_SMS_3","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_4","Optin_SMS_4","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_5","Optin_SMS_5","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_6","Optin_SMS_6","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_7","Optin_SMS_7","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_8_Morning","Optin_SMS_8_Morning","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_8_Afternoon","Optin_SMS_8_Afternoon","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_8_Evening","Optin_SMS_8_Evening","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_9","Optin_SMS_9","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_10","Optin_SMS_10","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_11","Optin_SMS_11","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_12","Optin_SMS_12","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_13","Optin_SMS_13","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_14","Optin_SMS_14","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_15_Afternoon","Optin_SMS_15_Afternoon","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_15_Evening","Optin_SMS_15_Evening","",unknown,"not mapped",📄 Other,Empty
+"Optin_SMS_15_Morning","Optin_SMS_15_Morning","",unknown,"not mapped",📄 Other,Empty
+"Email Body When Call Booked","Email Body When Call Booked","[Test value for: Email Body When Call Booked]",unknown,"not mapped",📄 Other,Filled
+"Email Subject When Call Booked","Email Subject When Call Booked","[Test value for: Email Subject When Call Booked]",unknown,"not mapped",📄 Other,Filled
+"SMS When Call Booked","SMS When Call Booked","[Test value for: SMS When Call Booked]",unknown,"not mapped",📄 Other,Filled
+"Email PreHeader When Call Booked","Email PreHeader When Call Booked","[Test value for: Email PreHeader When Call Booked]",unknown,"not mapped",📄 Other,Filled
+"SMS 48 Hour before Call Time","SMS 48 Hour before Call Time","[Test value for: SMS 48 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Body 24 Hour before Call Time","Email Body 24 Hour before Call Time","[Test value for: Email Body 24 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email PreHeader 48 Hour before Call Time","Email PreHeader 48 Hour before Call Time","[Test value for: Email PreHeader 48 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"SMS 24 Hour before Call Time","SMS 24 Hour before Call Time","[Test value for: SMS 24 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Subject 48 Hour before Call Time","Email Subject 48 Hour before Call Time","[Test value for: Email Subject 48 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Body 48 Hour before Call Time","Email Body 48 Hour before Call Time","[Test value for: Email Body 48 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email PreHeader 24 Hour before Call Time","Email PreHeader 24 Hour before Call Time","[Test value for: Email PreHeader 24 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Subject 1 Hour before Call Time","Email Subject 1 Hour before Call Time","[Test value for: Email Subject 1 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"SMS 1 Hour before Call Time","SMS 1 Hour before Call Time","[Test value for: SMS 1 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Body 1 Hour before Call Time","Email Body 1 Hour before Call Time","[Test value for: Email Body 1 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Subject 24 Hour before Call Time","Email Subject 24 Hour before Call Time","[Test value for: Email Subject 24 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email PreHeader 1 Hour before Call Time","Email PreHeader 1 Hour before Call Time","[Test value for: Email PreHeader 1 Hour before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email PreHeader 10 min before Call Time","Email PreHeader 10 min before Call Time","[Test value for: Email PreHeader 10 min before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Body 10 min before Call Time","Email Body 10 min before Call Time","[Test value for: Email Body 10 min before Call Time]",unknown,"not mapped",📄 Other,Filled
+"SMS 10 Min before Call Time","SMS 10 Min before Call Time","[Test value for: SMS 10 Min before Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Subject 10 min before Call Time","Email Subject 10 min before Call Time","[Test value for: Email Subject 10 min before Call Time]",unknown,"not mapped",📄 Other,Filled
+"SMS at Call Time","SMS at Call Time","[Test value for: SMS at  Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email PreHeader at Call Time","Email PreHeader at Call Time","[Test value for: Email PreHeader at Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Subject at Call Time","Email Subject at Call Time","[Test value for: Email Subject at Call Time]",unknown,"not mapped",📄 Other,Filled
+"Email Body at Call Time","Email Body at Call Time","[Test value for: Email Body at Call Time]",unknown,"not mapped",📄 Other,Filled

@@ -60,6 +60,7 @@ import FunnelCopyFields from "@/components/vault/FunnelCopyFields";
 import BioFields from "@/components/vault/BioFields";
 import AppointmentRemindersFields from "@/components/vault/AppointmentRemindersFields";
 import MediaFields from "@/components/vault/MediaFields";
+import ApprovalWatcher from "@/components/vault/ApprovalWatcher";
 
 // Map section IDs to granular field components (all 13 sections)
 const GRANULAR_FIELD_COMPONENTS = {
@@ -92,13 +93,13 @@ const PHASE_1_SECTIONS = [
 const PHASE_2_SECTIONS = [
     { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet },
     { id: 'vsl', numericKey: 7, title: 'Video Script', subtitle: 'Video Sales Letter (VSL)', icon: Video },
-    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout },
+    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users },
     { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone },
     { id: 'emails', numericKey: 8, title: 'Email Sequences', subtitle: '15-day nurture series', icon: Mail },
     { id: 'sms', numericKey: 19, title: 'SMS Sequences', subtitle: 'Text message nurture', icon: MessageSquare },
     { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
-    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users },
-    { id: 'media', numericKey: 18, title: 'Media Library', subtitle: 'Logo, images, and videos', icon: ImageIcon }
+    { id: 'media', numericKey: 18, title: 'Media Library', subtitle: 'Logo, images, and videos', icon: ImageIcon },
+    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout }
 ];
 
 // Phase 3: Sales Scripts - Setter and Closer scripts (locked until Phase 2 approved)
@@ -544,7 +545,7 @@ export default function VaultPage() {
                     const normalizedData = normalizeData(result.data);
 
                     // Check which sections are now available
-                    const allSections = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS];
+                    const allSections = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS, ...PHASE_3_SECTIONS];
                     const newStatuses = {};
                     let allComplete = true;
 
@@ -576,7 +577,7 @@ export default function VaultPage() {
             } catch (error) {
                 console.error('[Vault] Polling error:', error);
             }
-        }, 3000); // Poll every 3 seconds
+        }, 2000); // Poll every 2 seconds for faster updates
 
         return () => clearInterval(pollInterval);
     }, [isGeneratingMode, session, initialLoadComplete, searchParams]);
@@ -2919,6 +2920,9 @@ export default function VaultPage() {
                 onSubmit={handleFeedbackSubmit}
                 isSubmitting={isFeedbackSubmitting}
             />
+
+            {/* ApprovalWatcher: Monitors approvals and auto-triggers Funnel Copy generation */}
+            <ApprovalWatcher funnelId={searchParams.get('funnel_id')} userId={session?.userId} />
         </div>
     );
 }
