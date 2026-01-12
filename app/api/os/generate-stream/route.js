@@ -125,7 +125,7 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             };
             console.log(`[GenerateStream] Email generation using Free Gift Name: "${emailData.leadMagnetTitle}"`);
 
-            const chunkTimeout = 60000; // 60s per chunk
+            const chunkTimeout = 120000; // 120s per chunk (emails are complex: 4-5 emails with subject/body/preheader)
             const chunkMaxTokens = 4000;
 
             // Store combined prompt info for logging

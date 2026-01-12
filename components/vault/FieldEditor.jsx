@@ -187,6 +187,7 @@ export default function FieldEditor({
         } catch (error) {
             console.error('[FieldEditor] Save error:', error);
             setValidationErrors([error.message]);
+            toast.error(`Failed to save: ${error.message}`);
         } finally {
             setIsSaving(false);
         }

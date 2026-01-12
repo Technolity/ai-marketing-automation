@@ -320,7 +320,7 @@ export async function POST(req) {
             };
             console.log(`[REGENERATE] Email regeneration using Free Gift Name: "${emailData.leadMagnetTitle}"`);
 
-            const chunkTimeout = 60000; // 60s per chunk
+            const chunkTimeout = 120000; // 120s per chunk (complex generation)
             const chunkMaxTokens = 4000;
 
             // Generate all 4 chunks in parallel
@@ -512,7 +512,7 @@ export async function POST(req) {
             };
             console.log(`[REGENERATE] Closer Script regeneration using Offer: "${scriptData.offerName}", Pricing: "${scriptData.pricing}"`);
 
-            const chunkTimeout = 60000; // 60s per chunk for closer (longer content)
+            const chunkTimeout = 120000; // 120s per chunk (complex generation) for closer (longer content)
             const chunkMaxTokens = 4000;
 
             console.log('[REGENERATE] Starting 2 parallel Closer Script chunk generations...');

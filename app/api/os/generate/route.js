@@ -657,7 +657,7 @@ export async function POST(req) {
                 leadMagnetTitle: userData.leadMagnetTitle || '[Free Gift Name]'
               };
 
-              const chunkTimeout = 60000;
+              const chunkTimeout = 120000; // 120s per chunk (complex email generation)
               const chunkMaxTokens = 4000;
 
               try {
@@ -920,7 +920,7 @@ export async function POST(req) {
                 leadMagnetTitle: data.leadMagnetTitle || '[Free Gift Name]'
               };
 
-              const chunkTimeout = 60000;
+              const chunkTimeout = 120000; // 120s per chunk (complex email generation)
               const chunkMaxTokens = 4000;
 
               try {
