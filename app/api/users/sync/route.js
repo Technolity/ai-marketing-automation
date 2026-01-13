@@ -31,7 +31,7 @@ export async function POST(req) {
     const { data: existingUser, error: fetchError } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
-      .eq('id', userId) // Fixed: use 'id' instead of 'clerk_user_id'
+      .eq('id', userId)
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
@@ -51,7 +51,7 @@ export async function POST(req) {
           full_name: fullName || existingUser.full_name,
           updated_at: new Date().toISOString()
         })
-        .eq('id', userId); // Fixed: use 'id'
+        .eq('id', userId);
 
       if (updateError) {
         console.error('[User Sync API] Error updating user:', updateError);
@@ -72,11 +72,12 @@ export async function POST(req) {
     const { data: newUser, error: insertError } = await supabaseAdmin
       .from('user_profiles')
       .insert({
-        id: userId, // Fixed: set PK 'id' to userId
+        id: userId,
         email: email || null,
         full_name: fullName || null,
         is_admin: false,
-        subscription_tier: 'basic', // Default to basic
+        subscription_tier: 'starter',
+        max_funnels: 1,
         generation_count: 0,
         last_generation_at: null
       })
@@ -102,4 +103,3 @@ export async function POST(req) {
     }, { status: 500 });
   }
 }
-

@@ -75,11 +75,11 @@ export default function AdminOverview() {
         }
     };
 
-    // Format tier data for pie chart
+    // Format tier data for pie chart (TedOS tiers)
     const tierData = stats ? [
-        { name: "Basic", value: stats.users?.byTier?.basic || 0, color: "#6b7280" },
-        { name: "Premium", value: stats.users?.byTier?.premium || 0, color: "#00E5FF" },
-        { name: "Enterprise", value: stats.users?.byTier?.enterprise || 0, color: "#8b5cf6" },
+        { name: "Starter", value: stats.users?.byTier?.starter || 0, color: "#6b7280" },
+        { name: "Growth", value: stats.users?.byTier?.growth || 0, color: "#00E5FF" },
+        { name: "Scale", value: stats.users?.byTier?.scale || 0, color: "#8b5cf6" },
     ] : [];
 
     const STATS_CARDS = stats ? [
@@ -108,9 +108,9 @@ export default function AdminOverview() {
             color: "purple"
         },
         {
-            label: "Premium Users",
-            value: ((stats.users?.byTier?.premium || 0) + (stats.users?.byTier?.enterprise || 0)).toLocaleString(),
-            change: `${Math.round(((stats.users?.byTier?.premium || 0) + (stats.users?.byTier?.enterprise || 0)) / Math.max(stats.users?.total || 1, 1) * 100)}%`,
+            label: "Paid Users",
+            value: ((stats.users?.byTier?.growth || 0) + (stats.users?.byTier?.scale || 0)).toLocaleString(),
+            change: `${Math.round(((stats.users?.byTier?.growth || 0) + (stats.users?.byTier?.scale || 0)) / Math.max(stats.users?.total || 1, 1) * 100)}%`,
             up: true,
             icon: Activity,
             color: "green"

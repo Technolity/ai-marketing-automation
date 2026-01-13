@@ -12,32 +12,39 @@ const supabase = createClient(
     { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
+// TedOS Tier System
+// starter: $297/mo - 1 funnel
+// growth: $497/mo - 3 funnels
+// scale: $997/mo - 10 funnels
 const TIER_FEATURES = {
-    basic: {
-        name: 'Basic',
+    starter: {
+        name: 'TedOS Starter',
+        price: 297,
         aiGeneration: true,
         ragAccess: false,
         tedGuidance: false,
         maxGenerationsPerMonth: 10,
-        maxBusinesses: 1,
+        maxFunnels: 1,
         priority: 'standard'
     },
-    premium: {
-        name: 'Premium',
+    growth: {
+        name: 'TedOS Growth',
+        price: 497,
         aiGeneration: true,
         ragAccess: true,
         tedGuidance: false,
         maxGenerationsPerMonth: 100,
-        maxBusinesses: 5,
+        maxFunnels: 3,
         priority: 'high'
     },
-    enterprise: {
-        name: 'Enterprise',
+    scale: {
+        name: 'TedOS Scale',
+        price: 997,
         aiGeneration: true,
         ragAccess: true,
         tedGuidance: true,
         maxGenerationsPerMonth: -1, // unlimited
-        maxBusinesses: -1, // unlimited
+        maxFunnels: 10,
         priority: 'priority'
     }
 };
@@ -52,7 +59,7 @@ export async function GET(req) {
         // 1. Get user profile from DB
         const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
-            .select('subscription_tier, tier_expires_at, generation_count, last_generation_at')
+            .select('subscription_tier, tier_expires_at, generation_count, last_generation_at, max_funnels')
             .eq('id', userId)
             .single();
 
@@ -67,7 +74,7 @@ export async function GET(req) {
                 // First check if profile actually exists (might have been error for other reason)
                 const { data: checkProfile } = await supabase
                     .from('user_profiles')
-                    .select('id, is_admin, subscription_tier')
+                    .select('id, is_admin, subscription_tier, max_funnels')
                     .eq('id', userId)
                     .maybeSingle();
 
@@ -78,24 +85,25 @@ export async function GET(req) {
                         email: email,
                         full_name: fullName,
                         avatar_url: avatarUrl,
-                        subscription_tier: 'basic',
+                        subscription_tier: 'starter',
+                        max_funnels: 1,
                         is_admin: false
                     });
 
                     return NextResponse.json({
-                        tier: 'basic',
-                        features: TIER_FEATURES.basic,
+                        tier: 'starter',
+                        features: TIER_FEATURES.starter,
                         usage: {
                             generationsThisMonth: 0,
-                            remainingGenerations: TIER_FEATURES.basic.maxGenerationsPerMonth
+                            remainingGenerations: TIER_FEATURES.starter.maxGenerationsPerMonth
                         }
                     });
                 }
 
                 // Profile exists - return actual data (preserving admin status)
                 return NextResponse.json({
-                    tier: checkProfile.subscription_tier || 'basic',
-                    features: TIER_FEATURES[checkProfile.subscription_tier] || TIER_FEATURES.basic,
+                    tier: checkProfile.subscription_tier || 'starter',
+                    features: TIER_FEATURES[checkProfile.subscription_tier] || TIER_FEATURES.starter,
                     usage: {
                         generationsThisMonth: 0,
                         remainingGenerations: TIER_FEATURES[checkProfile.subscription_tier]?.maxGenerationsPerMonth || 10
@@ -105,23 +113,23 @@ export async function GET(req) {
         }
 
         // 3. Return existing profile data
-        const tier = profile?.subscription_tier || 'basic';
-        const features = TIER_FEATURES[tier] || TIER_FEATURES.basic;
+        const tier = profile?.subscription_tier || 'starter';
+        const features = TIER_FEATURES[tier] || TIER_FEATURES.starter;
 
         // Check expiration
         if (profile?.tier_expires_at && new Date(profile.tier_expires_at) < new Date()) {
             await supabase
                 .from('user_profiles')
-                .update({ subscription_tier: 'basic', tier_expires_at: null })
+                .update({ subscription_tier: 'starter', tier_expires_at: null, max_funnels: 1 })
                 .eq('id', userId);
 
             return NextResponse.json({
-                tier: 'basic',
-                features: TIER_FEATURES.basic,
+                tier: 'starter',
+                features: TIER_FEATURES.starter,
                 expired: true,
                 usage: {
                     generationsThisMonth: profile.generation_count || 0,
-                    remainingGenerations: Math.max(0, TIER_FEATURES.basic.maxGenerationsPerMonth - (profile.generation_count || 0))
+                    remainingGenerations: Math.max(0, TIER_FEATURES.starter.maxGenerationsPerMonth - (profile.generation_count || 0))
                 }
             });
         }

@@ -107,10 +107,10 @@ export async function GET() {
             generateWeeklyActivityOptimized(weekAgo)
         ]);
 
-        // Count tiers
-        const tierCounts = { basic: 0, premium: 0, enterprise: 0 };
+        // Count tiers (TedOS: starter, growth, scale)
+        const tierCounts = { starter: 0, growth: 0, scale: 0 };
         userTierStats.data?.forEach(user => {
-            const tier = user.subscription_tier || 'basic';
+            const tier = user.subscription_tier || 'starter';
             if (tierCounts.hasOwnProperty(tier)) {
                 tierCounts[tier]++;
             }
@@ -193,4 +193,3 @@ async function generateWeeklyActivityOptimized(weekAgo) {
 
     return activity;
 }
-
