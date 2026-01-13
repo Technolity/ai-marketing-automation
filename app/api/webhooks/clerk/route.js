@@ -141,7 +141,8 @@ async function handleUserCreated(data) {
       full_name: fullName || email?.split('@')[0],
       avatar_url: image_url,
       is_admin: isAdmin,
-      subscription_tier: 'basic'
+      subscription_tier: 'starter',
+      max_funnels: 1
     });
 
   if (error) {

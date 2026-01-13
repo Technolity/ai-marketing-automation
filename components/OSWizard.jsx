@@ -2134,13 +2134,6 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                                             )}
                                                                         </span>
                                                                     </div>
-
-                                                                    {/* Question Text (formerly placeholder) */}
-                                                                    <div className="flex-1 md:border-l md:border-white/10 md:pl-4">
-                                                                        <span className={`text-sm md:text-base font-medium transition-colors ${isExpanded ? 'text-cyan/90' : 'text-gray-500'}`}>
-                                                                            {input.placeholder}
-                                                                        </span>
-                                                                    </div>
                                                                 </div>
                                                                 <ChevronDown className={`w-5 h-5 text-gray-500 shrink-0 transition-transform duration-300 ${isExpanded ? 'rotate-180 text-cyan' : ''}`} />
                                                             </button>
@@ -2161,7 +2154,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                                                     ${fieldErrors[input.name] ? 'border-red-500' : 'border-white/10'}
                                                                                 `}
                                                                                 rows={input.rows || 4}
-                                                                                placeholder={input.helpText || "Type your story here..."}
+                                                                                placeholder={input.placeholder || "Type your story here..."}
                                                                                 value={currentInput[input.name] || ""}
                                                                                 onChange={(e) => handleInputChange(input.name, e.target.value)}
                                                                                 onFocus={() => setExpandedField(input.name)}

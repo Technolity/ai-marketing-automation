@@ -30,7 +30,7 @@ export async function GET(req) {
                 .insert({
                     id: userId,
                     email: `${userId}@placeholder.com`, // Will be updated when we have real email
-                    subscription_tier: 'basic',
+                    subscription_tier: 'starter',
                     max_funnels: 1,
                     current_funnel_count: 0,
                     max_seats: 1,

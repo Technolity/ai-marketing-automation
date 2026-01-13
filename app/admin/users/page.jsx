@@ -25,9 +25,9 @@ import {
 import AdminLayout from "@/components/admin/AdminLayout";
 
 const tierColors = {
-    basic: "bg-gray-500/20 text-gray-400",
-    premium: "bg-cyan/20 text-cyan",
-    enterprise: "bg-purple-500/20 text-purple-400",
+    starter: "bg-gray-500/20 text-gray-400",
+    growth: "bg-cyan/20 text-cyan",
+    scale: "bg-purple-500/20 text-purple-400",
 };
 
 export default function AdminUsers() {
@@ -37,7 +37,7 @@ export default function AdminUsers() {
     const [globalFilter, setGlobalFilter] = useState("");
     const [sorting, setSorting] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
-    const [tierStats, setTierStats] = useState({ basic: 0, premium: 0, enterprise: 0 });
+    const [tierStats, setTierStats] = useState({ starter: 0, growth: 0, scale: 0 });
 
     useEffect(() => {
         if (!authLoading && session) {
@@ -116,8 +116,8 @@ export default function AdminUsers() {
                 accessorKey: "subscription_tier",
                 header: "Tier",
                 cell: ({ row }) => (
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${tierColors[row.original.subscription_tier] || tierColors.basic}`}>
-                        {row.original.subscription_tier || 'basic'}
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${tierColors[row.original.subscription_tier] || tierColors.starter}`}>
+                        {row.original.subscription_tier || 'starter'}
                     </span>
                 ),
             },
@@ -194,16 +194,16 @@ export default function AdminUsers() {
                 {/* Tier Stats */}
                 <div className="grid grid-cols-3 gap-4">
                     <div className="bg-[#1b1b1d] rounded-xl p-4 border border-[#2a2a2d]">
-                        <p className="text-gray-400 text-sm">Basic</p>
-                        <p className="text-2xl font-bold text-gray-400">{tierStats.basic || 0}</p>
+                        <p className="text-gray-400 text-sm">Starter</p>
+                        <p className="text-2xl font-bold text-gray-400">{tierStats.starter || 0}</p>
                     </div>
                     <div className="bg-[#1b1b1d] rounded-xl p-4 border border-cyan/20">
-                        <p className="text-gray-400 text-sm">Premium</p>
-                        <p className="text-2xl font-bold text-cyan">{tierStats.premium || 0}</p>
+                        <p className="text-gray-400 text-sm">Growth</p>
+                        <p className="text-2xl font-bold text-cyan">{tierStats.growth || 0}</p>
                     </div>
                     <div className="bg-[#1b1b1d] rounded-xl p-4 border border-purple-500/20">
-                        <p className="text-gray-400 text-sm">Enterprise</p>
-                        <p className="text-2xl font-bold text-purple-400">{tierStats.enterprise || 0}</p>
+                        <p className="text-gray-400 text-sm">Scale</p>
+                        <p className="text-2xl font-bold text-purple-400">{tierStats.scale || 0}</p>
                     </div>
                 </div>
 
