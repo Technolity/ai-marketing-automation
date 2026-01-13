@@ -155,6 +155,33 @@ async function handleUserCreated(data) {
   }
 
   console.log(`[Webhook] User created successfully: ${email}, admin: ${isAdmin}`);
+
+  // Optionally create GHL sub-account (non-blocking)
+  // Only if GHL is configured
+  if (process.env.GHL_CLIENT_ID && process.env.GHL_AGENCY_ID) {
+    try {
+      const { createGHLSubAccount } = await import('@/lib/ghl/createSubAccount');
+
+      // Run in background - don't block webhook response
+      createGHLSubAccount(id, {
+        email: email,
+        fullName: fullName,
+        businessName: null // Will be updated when they complete wizard
+      }).then(result => {
+        if (result.success) {
+          console.log(`[Webhook] GHL sub-account created: ${result.locationId}`);
+        } else {
+          console.log(`[Webhook] GHL sub-account skipped: ${result.error}`);
+        }
+      }).catch(err => {
+        console.error('[Webhook] GHL sub-account error:', err);
+      });
+
+    } catch (ghlError) {
+      // Don't fail the webhook if GHL fails
+      console.error('[Webhook] GHL integration error:', ghlError);
+    }
+  }
 }
 
 /**
