@@ -1284,39 +1284,67 @@ export default function VaultPage() {
         if (!feedbackSection) return;
 
         // FeedbackChatModal passes { refinedContent, subSection }
-        // Fallback to direct content if passed directly (legacy)
         const refinedContent = saveData?.refinedContent || saveData;
         const subSection = saveData?.subSection;
+        const funnelId = searchParams.get('funnel_id');
 
         console.log('[Vault] Saving feedback:', { subSection, contentKeys: Object.keys(refinedContent || {}) });
 
-        // Get current content for this section to merge into
+        // Get current content for this section
         const currentSectionContent = vaultData[feedbackSection.id] || {};
 
-        // Merge new content using strictReplace to handle partial updates correctly
-        // detailed log to debug what is being merged
-        console.log('[Vault] Merging into:', Object.keys(currentSectionContent));
-
+        // Merge new content into existing
         const updatedContent = strictReplace(currentSectionContent, refinedContent, { subSection });
 
-        console.log('[Vault] Merge complete. New keys:', Object.keys(updatedContent));
-
-        // Update local state
+        // Update local state immediately for responsive UI
         setVaultData(prev => ({
             ...prev,
             [feedbackSection.id]: updatedContent
         }));
 
-        // Persist to DB
         try {
-            const funnelId = searchParams.get('funnel_id');
-            const { error } = await supabase
+            // 1. Save individual fields to vault_content_fields for granular persistence
+            const fieldsToSave = subSection && subSection !== 'all'
+                ? { [subSection]: refinedContent[subSection] || refinedContent }
+                : refinedContent;
+
+            const fieldSavePromises = Object.entries(fieldsToSave).map(async ([fieldId, fieldValue]) => {
+                try {
+                    const response = await fetchWithAuth('/api/os/vault-field', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            funnel_id: funnelId,
+                            section_id: feedbackSection.id,
+                            field_id: fieldId,
+                            field_value: fieldValue
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        console.warn(`[Vault] Field ${fieldId} save warning:`, errData);
+                    }
+                    return { fieldId, success: response.ok };
+                } catch (err) {
+                    console.warn(`[Vault] Field ${fieldId} save error:`, err);
+                    return { fieldId, success: false };
+                }
+            });
+
+            await Promise.all(fieldSavePromises);
+
+            // 2. Also update vault_content JSONB for backwards compatibility
+            const { error: sectionError } = await supabase
                 .from('vault_content')
                 .update({ content: updatedContent })
                 .eq('funnel_id', funnelId)
                 .eq('section_id', feedbackSection.id);
 
-            if (error) throw error;
+            if (sectionError) {
+                console.warn('[Vault] Section content sync warning:', sectionError);
+            }
+
             toast.success('Changes saved!');
             setFeedbackChatOpen(false);
         } catch (error) {
