@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
  * POST /api/users/accept-license
  * 
  * Records that the user has accepted the TedOS EULA.
- * Updates user_profiles.license_accepted_at with current timestamp.
+ * Uses upsert to handle both new and existing users.
  */
 export async function POST(request) {
     try {
@@ -20,31 +20,72 @@ export async function POST(request) {
 
         console.log('[AcceptLicense] Recording license acceptance for user:', userId);
 
-        // Update the user's license acceptance timestamp
-        const { data, error } = await supabase
+        const timestamp = new Date().toISOString();
+
+        // First, check if user profile exists
+        const { data: existingProfile, error: fetchError } = await supabase
             .from('user_profiles')
-            .update({
-                license_accepted_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            })
+            .select('id')
             .eq('id', userId)
-            .select('license_accepted_at')
             .single();
 
-        if (error) {
-            console.error('[AcceptLicense] Database error:', error);
+        // Ignore "no rows" error - that's expected for new users
+        if (fetchError && fetchError.code !== 'PGRST116') {
+            console.error('[AcceptLicense] Error checking profile:', fetchError);
+        }
+
+        let result;
+
+        if (existingProfile) {
+            // User exists - update
+            console.log('[AcceptLicense] Updating existing user profile');
+            result = await supabase
+                .from('user_profiles')
+                .update({
+                    license_accepted_at: timestamp,
+                    updated_at: timestamp
+                })
+                .eq('id', userId)
+                .select('license_accepted_at')
+                .single();
+        } else {
+            // User doesn't exist - create new profile
+            console.log('[AcceptLicense] Creating new user profile with license acceptance');
+            result = await supabase
+                .from('user_profiles')
+                .insert({
+                    id: userId,
+                    license_accepted_at: timestamp,
+                    created_at: timestamp,
+                    updated_at: timestamp
+                })
+                .select('license_accepted_at')
+                .single();
+        }
+
+        if (result.error) {
+            console.error('[AcceptLicense] Database error:', result.error);
+
+            // Check if it's a missing column error
+            if (result.error.message?.includes('license_accepted_at')) {
+                return NextResponse.json({
+                    error: 'Database migration required',
+                    details: 'Run: ALTER TABLE public.user_profiles ADD COLUMN IF NOT EXISTS license_accepted_at TIMESTAMPTZ DEFAULT NULL;'
+                }, { status: 500 });
+            }
+
             return NextResponse.json({
                 error: 'Failed to record license acceptance',
-                details: error.message
+                details: result.error.message
             }, { status: 500 });
         }
 
-        console.log('[AcceptLicense] License accepted at:', data?.license_accepted_at);
+        console.log('[AcceptLicense] License accepted at:', result.data?.license_accepted_at);
 
         return NextResponse.json({
             success: true,
             message: 'License agreement accepted',
-            acceptedAt: data?.license_accepted_at
+            acceptedAt: result.data?.license_accepted_at
         });
 
     } catch (error) {
@@ -75,7 +116,15 @@ export async function GET(request) {
             .eq('id', userId)
             .single();
 
-        if (error && error.code !== 'PGRST116') {
+        // If no profile exists, license is not accepted
+        if (error && error.code === 'PGRST116') {
+            return NextResponse.json({
+                licenseAccepted: false,
+                acceptedAt: null
+            });
+        }
+
+        if (error) {
             console.error('[AcceptLicense] Database error:', error);
             return NextResponse.json({
                 error: 'Failed to check license status',
