@@ -5,6 +5,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import AppNavbar from "@/components/AppNavbar";
 import MainLayout from "@/components/MainLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
+import LicenseWrapper from "@/components/LicenseWrapper";
 
 export const metadata = {
   title: "TedOS | Your Business Built For You",
@@ -24,10 +25,12 @@ export default function RootLayout({ children }) {
       <html lang="en" className="bg-dark">
         <body className="bg-dark text-white">
           <AuthProvider>
-            <AppNavbar />
-            <MainLayout>
-              {children}
-            </MainLayout>
+            <LicenseWrapper>
+              <AppNavbar />
+              <MainLayout>
+                {children}
+              </MainLayout>
+            </LicenseWrapper>
             <Toaster position="bottom-right" theme="dark" />
           </AuthProvider>
         </body>

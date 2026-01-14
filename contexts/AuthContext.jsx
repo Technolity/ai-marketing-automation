@@ -7,8 +7,10 @@ const AuthContext = createContext({
     session: null,
     isAdmin: false,
     loading: false,
+    licenseAccepted: true, // Default to true to avoid flash
     switchUser: () => { },
     signOut: () => { },
+    acceptLicense: () => { },
 });
 
 export function AuthProvider({ children }) {
@@ -20,6 +22,7 @@ function ClerkAuthProvider({ children }) {
     const { signOut: clerkSignOut } = useClerk();
     const [isAdmin, setIsAdmin] = useState(false);
     const [userSynced, setUserSynced] = useState(false);
+    const [licenseAccepted, setLicenseAccepted] = useState(true); // Default true to avoid flash
 
     // Map Clerk user to our AuthContext shape
     const user = clerkUser ? {
@@ -76,6 +79,17 @@ function ClerkAuthProvider({ children }) {
             setIsAdmin(adminData.isAdmin === true);
 
             console.log('[AuthContext] Admin status:', adminData.isAdmin);
+
+            // Check license acceptance status
+            try {
+                const licenseRes = await fetch('/api/users/accept-license');
+                const licenseData = await licenseRes.json();
+                setLicenseAccepted(licenseData.licenseAccepted === true);
+                console.log('[AuthContext] License accepted:', licenseData.licenseAccepted);
+            } catch (licenseError) {
+                console.error('[AuthContext] License check error:', licenseError);
+                setLicenseAccepted(false); // Assume not accepted on error
+            }
         } catch (error) {
             console.error('[AuthContext] Sync/admin check error:', error);
             setIsAdmin(false);
@@ -97,14 +111,32 @@ function ClerkAuthProvider({ children }) {
         console.warn('switchUser is not available in Clerk mode');
     };
 
+    // Accept license function
+    const acceptLicense = async () => {
+        try {
+            const res = await fetch('/api/users/accept-license', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (res.ok) {
+                setLicenseAccepted(true);
+                console.log('[AuthContext] License accepted successfully');
+            }
+        } catch (error) {
+            console.error('[AuthContext] Error accepting license:', error);
+        }
+    };
+
     const value = {
         user,
         session,
         isAdmin,
         loading: !isLoaded || (clerkUser && !userSynced),
         authLoading: !isLoaded || (clerkUser && !userSynced),
+        licenseAccepted,
         switchUser,
-        signOut
+        signOut,
+        acceptLicense
     };
 
     return (
