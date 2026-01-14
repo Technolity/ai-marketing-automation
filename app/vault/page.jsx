@@ -1346,7 +1346,14 @@ export default function VaultPage() {
         const subSection = saveData?.subSection;
         const funnelId = searchParams.get('funnel_id');
 
-        console.log('[Vault] Saving feedback:', { subSection, contentKeys: Object.keys(refinedContent || {}) });
+        console.log('[Vault] Saving feedback:', { subSection, contentType: typeof refinedContent });
+
+        // PRIMITIVE FIX: If AI returns a simple string value for a field, wrap it with the field name
+        // e.g., "I help..." becomes { oneLineMessage: "I help..." }
+        if (subSection && subSection !== 'all' && typeof refinedContent === 'string') {
+            console.log('[Vault] Wrapping primitive string with field name:', subSection);
+            refinedContent = { [subSection]: refinedContent };
+        }
 
         // UNWRAP FIX: AI sometimes returns content wrapped with the subSection key
         // e.g., {oneLiner: {signatureMessage: {...}}} instead of {signatureMessage: {...}}
