@@ -705,9 +705,19 @@ export default function VaultPage() {
     };
 
     const saveApprovals = async (phase1, phase2, phase3 = []) => {
-        const activeSessionId = dataSource?.id || 'current';
+        // Priority: dataSource.id > URL param > 'current'
+        const funnelIdFromUrl = searchParams.get('funnel_id') || searchParams.get('session_id');
+        const activeSessionId = dataSource?.id || funnelIdFromUrl || 'current';
+
         const approvals = { phase1, phase2, phase3 };
         localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
+
+        // Only call API if we have a valid UUID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(activeSessionId)) {
+            console.log('[Vault] Skipping approval save API - invalid ID:', activeSessionId);
+            return;
+        }
 
         try {
             await fetchWithAuth('/api/os/approvals', {
