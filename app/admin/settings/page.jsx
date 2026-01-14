@@ -16,7 +16,9 @@ import {
     Save,
     Check,
     Trash2,
-    Loader2
+    Loader2,
+    Link2,
+    Unlink
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
@@ -48,10 +50,16 @@ export default function AdminSettings() {
         customCSS: ""
     });
 
+    // GHL integration state
+    const [ghlStatus, setGhlStatus] = useState({ isConnected: false, source: 'none', credentials: null });
+    const [ghlLoading, setGhlLoading] = useState(false);
+    const [ghlForm, setGhlForm] = useState({ agencyId: '', agencyName: '', accessToken: '' });
+
     // Fetch settings on mount
     useEffect(() => {
         if (!authLoading && session) {
             fetchSettings();
+            fetchGhlStatus();
         }
     }, [authLoading, session]);
 
@@ -74,8 +82,70 @@ export default function AdminSettings() {
         }
     };
 
+    // GHL Integration functions
+    const fetchGhlStatus = async () => {
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl');
+            if (response.ok) {
+                const data = await response.json();
+                setGhlStatus(data);
+            }
+        } catch (error) {
+            console.error('Error fetching GHL status:', error);
+        }
+    };
+
+    const handleGhlConnect = async (e) => {
+        e.preventDefault();
+        if (!ghlForm.agencyId || !ghlForm.accessToken) {
+            toast.error('Agency ID and Access Token are required');
+            return;
+        }
+
+        setGhlLoading(true);
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl', {
+                method: 'POST',
+                body: JSON.stringify(ghlForm)
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                toast.success('GHL Agency connected successfully!');
+                setGhlForm({ agencyId: '', agencyName: '', accessToken: '' });
+                fetchGhlStatus();
+            } else {
+                toast.error(data.error || 'Failed to connect');
+            }
+        } catch (error) {
+            console.error('Error connecting GHL:', error);
+            toast.error('Failed to connect GHL Agency');
+        } finally {
+            setGhlLoading(false);
+        }
+    };
+
+    const handleGhlDisconnect = async () => {
+        if (!confirm('Are you sure you want to disconnect the GHL Agency?')) return;
+
+        setGhlLoading(true);
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl', { method: 'DELETE' });
+            if (response.ok) {
+                toast.success('GHL Agency disconnected');
+                fetchGhlStatus();
+            }
+        } catch (error) {
+            console.error('Error disconnecting GHL:', error);
+            toast.error('Failed to disconnect');
+        } finally {
+            setGhlLoading(false);
+        }
+    };
+
     const tabs = [
         { id: "general", label: "General", icon: Settings },
+        { id: "integrations", label: "Integrations", icon: Link2 },
         { id: "users", label: "User Management", icon: Users },
         { id: "database", label: "Database", icon: Database },
         { id: "notifications", label: "Notifications", icon: Bell },
@@ -240,11 +310,10 @@ export default function AdminSettings() {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
-                                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${
-                                    activeTab === tab.id
-                                        ? "bg-cyan/20 text-cyan border border-cyan/30"
-                                        : "bg-[#1b1b1d] text-gray-400 border border-[#2a2a2d] hover:border-cyan/20"
-                                }`}
+                                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all whitespace-nowrap ${activeTab === tab.id
+                                    ? "bg-cyan/20 text-cyan border border-cyan/30"
+                                    : "bg-[#1b1b1d] text-gray-400 border border-[#2a2a2d] hover:border-cyan/20"
+                                    }`}
                             >
                                 <Icon className="w-4 h-4" />
                                 {tab.label}
@@ -296,14 +365,12 @@ export default function AdminSettings() {
                                     </div>
                                     <button
                                         onClick={() => setSettings({ ...settings, userRegistration: !settings.userRegistration })}
-                                        className={`relative w-14 h-7 rounded-full transition-colors ${
-                                            settings.userRegistration ? "bg-cyan" : "bg-gray-600"
-                                        }`}
+                                        className={`relative w-14 h-7 rounded-full transition-colors ${settings.userRegistration ? "bg-cyan" : "bg-gray-600"
+                                            }`}
                                     >
                                         <div
-                                            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                                                settings.userRegistration ? "translate-x-7" : "translate-x-0"
-                                            }`}
+                                            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.userRegistration ? "translate-x-7" : "translate-x-0"
+                                                }`}
                                         />
                                     </button>
                                 </div>
@@ -315,17 +382,122 @@ export default function AdminSettings() {
                                     </div>
                                     <button
                                         onClick={() => setSettings({ ...settings, maintenanceMode: !settings.maintenanceMode })}
-                                        className={`relative w-14 h-7 rounded-full transition-colors ${
-                                            settings.maintenanceMode ? "bg-red-500" : "bg-gray-600"
-                                        }`}
+                                        className={`relative w-14 h-7 rounded-full transition-colors ${settings.maintenanceMode ? "bg-red-500" : "bg-gray-600"
+                                            }`}
                                     >
                                         <div
-                                            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                                                settings.maintenanceMode ? "translate-x-7" : "translate-x-0"
-                                            }`}
+                                            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.maintenanceMode ? "translate-x-7" : "translate-x-0"
+                                                }`}
                                         />
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Integrations */}
+                    {activeTab === "integrations" && (
+                        <div className="space-y-6">
+                            <div>
+                                <h2 className="text-2xl font-bold mb-4">Integrations</h2>
+                                <p className="text-gray-400 mb-8">Connect external services to your TedOS platform</p>
+                            </div>
+
+                            {/* GHL Agency Connection */}
+                            <div className="p-6 bg-[#0e0e0f] rounded-xl border border-[#2a2a2d]">
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${ghlStatus.isConnected ? 'bg-green-500/20' : 'bg-gray-600/20'}`}>
+                                        <Link2 className={`w-5 h-5 ${ghlStatus.isConnected ? 'text-green-500' : 'text-gray-400'}`} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold">GoHighLevel Agency</h3>
+                                        <p className="text-sm text-gray-400">
+                                            {ghlStatus.isConnected
+                                                ? `Connected via ${ghlStatus.source}`
+                                                : 'Connect your GHL Agency for sub-account creation'}
+                                        </p>
+                                    </div>
+                                    {ghlStatus.isConnected && (
+                                        <span className="ml-auto px-3 py-1 bg-green-500/20 text-green-500 rounded-full text-sm font-medium">
+                                            Connected
+                                        </span>
+                                    )}
+                                </div>
+
+                                {ghlStatus.isConnected ? (
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-4 p-4 bg-[#1b1b1d] rounded-lg">
+                                            <div>
+                                                <p className="text-xs text-gray-500 mb-1">Agency ID</p>
+                                                <p className="font-mono text-sm">{ghlStatus.credentials?.agencyId}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-gray-500 mb-1">Agency Name</p>
+                                                <p className="text-sm">{ghlStatus.credentials?.agencyName}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleGhlDisconnect}
+                                            disabled={ghlLoading}
+                                            className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                        >
+                                            {ghlLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlink className="w-4 h-4" />}
+                                            Disconnect Agency
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <form onSubmit={handleGhlConnect} className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Agency ID (Relationship Number)</label>
+                                            <input
+                                                type="text"
+                                                value={ghlForm.agencyId}
+                                                onChange={(e) => setGhlForm({ ...ghlForm, agencyId: e.target.value })}
+                                                placeholder="0-055-684"
+                                                className="w-full px-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan transition-colors"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Agency Name (Optional)</label>
+                                            <input
+                                                type="text"
+                                                value={ghlForm.agencyName}
+                                                onChange={(e) => setGhlForm({ ...ghlForm, agencyName: e.target.value })}
+                                                placeholder="TedOS Agency"
+                                                className="w-full px-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan transition-colors"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-2">Private Integration Token (PIT)</label>
+                                            <input
+                                                type="password"
+                                                value={ghlForm.accessToken}
+                                                onChange={(e) => setGhlForm({ ...ghlForm, accessToken: e.target.value })}
+                                                placeholder="pit-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                                className="w-full px-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan transition-colors font-mono"
+                                                required
+                                            />
+                                            <p className="text-xs text-gray-500 mt-1">Found in GHL Agency Settings → Integrations → Private Integrations</p>
+                                        </div>
+                                        <button
+                                            type="submit"
+                                            disabled={ghlLoading}
+                                            className="flex items-center gap-2 px-6 py-3 bg-cyan hover:brightness-110 text-black font-semibold rounded-lg transition-all disabled:opacity-50"
+                                        >
+                                            {ghlLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                                            Connect Agency
+                                        </button>
+                                    </form>
+                                )}
+                            </div>
+
+                            {/* Help Text */}
+                            <div className="p-4 bg-cyan/5 border border-cyan/20 rounded-lg">
+                                <p className="text-sm text-cyan">
+                                    <strong>Note:</strong> Connecting your GHL Agency enables automatic sub-account creation for new users.
+                                    Each user will get their own GHL location with all funnels and automations pre-configured.
+                                </p>
                             </div>
                         </div>
                     )}
@@ -386,14 +558,12 @@ export default function AdminSettings() {
                                 </div>
                                 <button
                                     onClick={() => setSettings({ ...settings, autoApproveContent: !settings.autoApproveContent })}
-                                    className={`relative w-14 h-7 rounded-full transition-colors ${
-                                        settings.autoApproveContent ? "bg-cyan" : "bg-gray-600"
-                                    }`}
+                                    className={`relative w-14 h-7 rounded-full transition-colors ${settings.autoApproveContent ? "bg-cyan" : "bg-gray-600"
+                                        }`}
                                 >
                                     <div
-                                        className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                                            settings.autoApproveContent ? "translate-x-7" : "translate-x-0"
-                                        }`}
+                                        className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.autoApproveContent ? "translate-x-7" : "translate-x-0"
+                                            }`}
                                     />
                                 </button>
                             </div>
@@ -510,14 +680,12 @@ export default function AdminSettings() {
                                     </div>
                                     <button
                                         onClick={() => setSettings({ ...settings, emailNotifications: !settings.emailNotifications })}
-                                        className={`relative w-14 h-7 rounded-full transition-colors ${
-                                            settings.emailNotifications ? "bg-cyan" : "bg-gray-600"
-                                        }`}
+                                        className={`relative w-14 h-7 rounded-full transition-colors ${settings.emailNotifications ? "bg-cyan" : "bg-gray-600"
+                                            }`}
                                     >
                                         <div
-                                            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${
-                                                settings.emailNotifications ? "translate-x-7" : "translate-x-0"
-                                            }`}
+                                            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.emailNotifications ? "translate-x-7" : "translate-x-0"
+                                                }`}
                                         />
                                     </button>
                                 </div>
