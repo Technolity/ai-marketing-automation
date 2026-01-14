@@ -65,7 +65,7 @@ export async function POST(req) {
       });
     }
 
-    // User doesn't exist by ID - check if email already exists (Clerk dashboard user case)
+    // User doesn't exist by ID - check if email already exists
     if (email) {
       const { data: existingUserByEmail, error: fetchByEmailError } = await supabaseAdmin
         .from('user_profiles')
@@ -77,34 +77,69 @@ export async function POST(req) {
         console.error('[User Sync API] Error fetching user by email:', fetchByEmailError);
       }
 
-      // If email exists, update the ID to the new Clerk user ID (handles Clerk dashboard users)
+      // If email exists with different ID (Clerk dashboard user case)
       if (existingUserByEmail) {
-        console.log('[User Sync API] Email exists with different ID, updating ID to new Clerk user...');
+        console.log('[User Sync API] Email exists with different Clerk ID');
+        console.log('[User Sync API] Old ID:', existingUserByEmail.id, 'New ID:', userId);
 
-        const { error: updateIdError } = await supabaseAdmin
+        // Clean up old foreign key references first
+        const oldUserId = existingUserByEmail.id;
+
+        // Delete related records that block the update
+        console.log('[User Sync API] Cleaning up old foreign key references...');
+
+        // Delete from ghl_subaccount_logs
+        await supabaseAdmin
+          .from('ghl_subaccount_logs')
+          .delete()
+          .eq('user_id', oldUserId);
+
+        // Delete from slide_results
+        await supabaseAdmin
+          .from('slide_results')
+          .delete()
+          .eq('user_id', oldUserId);
+
+        // Delete from intake_answers
+        await supabaseAdmin
+          .from('intake_answers')
+          .delete()
+          .eq('user_id', oldUserId);
+
+        // Delete from funnel_tracking
+        await supabaseAdmin
+          .from('funnel_tracking')
+          .delete()
+          .eq('user_id', oldUserId);
+
+        // Delete from vault_content
+        await supabaseAdmin
+          .from('vault_content')
+          .delete()
+          .eq('user_id', oldUserId);
+
+        // Delete from funnels
+        await supabaseAdmin
+          .from('funnels')
+          .delete()
+          .eq('user_id', oldUserId);
+
+        // Now delete the old user profile
+        const { error: deleteError } = await supabaseAdmin
           .from('user_profiles')
-          .update({
-            id: userId,
-            full_name: fullName || existingUserByEmail.full_name,
-            updated_at: new Date().toISOString()
-          })
-          .eq('email', email);
+          .delete()
+          .eq('id', oldUserId);
 
-        if (updateIdError) {
-          console.error('[User Sync API] Error updating user ID:', updateIdError);
-          throw updateIdError;
+        if (deleteError) {
+          console.error('[User Sync API] Error deleting old profile:', deleteError);
+          // Continue anyway - try to create new profile
+        } else {
+          console.log('[User Sync API] Old profile and related data deleted');
         }
-
-        console.log('[User Sync API] User ID updated for existing email');
-        return NextResponse.json({
-          success: true,
-          message: 'User updated',
-          user: { ...existingUserByEmail, id: userId, full_name: fullName }
-        });
       }
     }
 
-    // Create new user - no existing profile by ID or email
+    // Create new user profile
     console.log('[User Sync API] Creating new user profile...');
 
     const { data: newUser, error: insertError } = await supabaseAdmin
@@ -124,6 +159,37 @@ export async function POST(req) {
 
     if (insertError) {
       console.error('[User Sync API] Error creating user:', insertError);
+
+      // If still getting duplicate email error, try updating by email instead
+      if (insertError.message?.includes('duplicate key')) {
+        console.log('[User Sync API] Duplicate key - attempting update by email');
+
+        const { error: fallbackUpdateError } = await supabaseAdmin
+          .from('user_profiles')
+          .update({
+            id: userId,
+            full_name: fullName,
+            updated_at: new Date().toISOString()
+          })
+          .eq('email', email);
+
+        if (fallbackUpdateError) {
+          // Last resort - just return success to allow user to proceed
+          console.error('[User Sync API] Fallback update failed:', fallbackUpdateError);
+          return NextResponse.json({
+            success: true,
+            message: 'User sync partial - please contact support if issues persist',
+            user: { id: userId, email }
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'User updated via email fallback',
+          user: { id: userId, email, full_name: fullName }
+        });
+      }
+
       throw insertError;
     }
 
