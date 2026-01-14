@@ -1226,24 +1226,7 @@ Be as specific as possible - for example:
                             suggestedChangesKeys: Object.keys(suggestedChanges || {})
                         });
 
-                        return shouldShowActions ? (
-                            <div className="p-4 border-t border-[#2a2a2d] flex flex-wrap gap-3">
-                                <button
-                                    onClick={handleSaveChanges}
-                                    className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2"
-                                >
-                                    <Save className="w-4 h-4" />
-                                    Save Changes
-                                </button>
-                                <button
-                                    onClick={handleTryAgain}
-                                    disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
-                                    className="flex-1 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                                >
-                                    <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
-                                    Try Again
-                                </button>
-                            </div>
+
                         return shouldShowActions ? (
                             <div className="p-4 border-t border-[#2a2a2d] flex flex-col gap-3">
                                 {/* Primary Actions */}
