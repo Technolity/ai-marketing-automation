@@ -192,39 +192,66 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
         }
 
         const pageValue = getPageFieldValue(pageFieldDef.field_id);
+        const subfields = pageFieldDef.field_metadata.subfields;
+
+        // Group by 'group' property, preserving order
+        const groups = [];
+        const seenGroups = new Set();
+        const groupedFields = {};
+
+        subfields.forEach(field => {
+            const group = field.group || 'Other';
+            if (!seenGroups.has(group)) {
+                seenGroups.add(group);
+                groups.push(group);
+                groupedFields[group] = [];
+            }
+            groupedFields[group].push(field);
+        });
 
         return (
-            <div className="space-y-4">
-                {pageFieldDef.field_metadata.subfields.map((subfield) => {
-                    // Create a synthetic fieldDef for the subfield
-                    const subfieldDef = {
-                        ...subfield,
-                        field_id: `${pageFieldDef.field_id}.${subfield.field_id}`, // e.g., "optinPage.headline_text"
-                        parent_field_id: pageFieldDef.field_id
-                    };
+            <div className="space-y-8">
+                {groups.map(groupName => (
+                    <div key={groupName} className="space-y-4">
+                        {groupName !== 'Other' && (
+                            <div className="flex items-center gap-2 border-b border-white/10 pb-2 mb-4 mt-6 first:mt-0">
+                                <h4 className="text-cyan font-bold text-lg">{groupName}</h4>
+                            </div>
+                        )}
+                        <div className="space-y-4">
+                            {groupedFields[groupName].map((subfield) => {
+                                // Create a synthetic fieldDef for the subfield
+                                const subfieldDef = {
+                                    ...subfield,
+                                    field_id: `${pageFieldDef.field_id}.${subfield.field_id}`, // e.g., "optinPage.headline_text"
+                                    parent_field_id: pageFieldDef.field_id
+                                };
 
-                    const subfieldValue = pageValue[subfield.field_id] || null;
+                                const subfieldValue = pageValue[subfield.field_id] || null;
 
-                    return (
-                        <FieldEditor
-                            key={subfieldDef.field_id}
-                            fieldDef={subfieldDef}
-                            initialValue={subfieldValue}
-                            sectionId={sectionId}
-                            funnelId={funnelId}
-                            onSave={handleFieldSave}
-                            onAIFeedback={handleAIFeedback}
-                        />
-                    );
-                })}
+                                return (
+                                    <FieldEditor
+                                        key={subfieldDef.field_id}
+                                        fieldDef={subfieldDef}
+                                        initialValue={subfieldValue}
+                                        sectionId={sectionId}
+                                        funnelId={funnelId}
+                                        onSave={handleFieldSave}
+                                        onAIFeedback={handleAIFeedback}
+                                    />
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
             </div>
         );
     };
 
     const tabs = [
         { id: 'optin', label: 'Optin Page', icon: FileText },
-        { id: 'sales', label: 'Sales Page (VSL)', icon: FileText },
-        { id: 'booking', label: 'Booking Page', icon: FileText },
+        { id: 'sales', label: 'Appointment Booking Video Page', icon: FileText },
+        { id: 'booking', label: 'Calendar Page', icon: FileText },
         { id: 'thankyou', label: 'Thank You Page', icon: FileText }
     ];
 

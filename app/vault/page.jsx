@@ -83,29 +83,29 @@ const GRANULAR_FIELD_COMPONENTS = {
 
 // Phase 1: Business Assets - Core business foundations (4 sections only)
 const PHASE_1_SECTIONS = [
-    { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'Who you serve', icon: Users },
-    { id: 'message', numericKey: 2, title: 'Message', subtitle: 'What you help them with', icon: MessageSquare },
-    { id: 'story', numericKey: 3, title: 'Story', subtitle: 'Why you do this work', icon: BookOpen },
-    { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift }
+    { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'Who you serve', icon: Users, hint: "Use this to dial in your ad targeting, write focused copy, and speak directly to your premium buyer's pains and desires." },
+    { id: 'message', numericKey: 2, title: 'Message', subtitle: 'What you help them with', icon: MessageSquare, hint: "Use your One-Liner for bios and social profiles. Use the Spoken Version for intros, podcasts, and networking events." },
+    { id: 'story', numericKey: 3, title: 'Story', subtitle: 'Why you do this work', icon: BookOpen, hint: "Share your 60s story in networking. Use the 3-5min story for podcasts, stages, and webinars to build deep trust." },
+    { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift, hint: "This is your core product architecture. Use the 7-Step Blueprint names in your marketing to build 'method authority'." }
 ];
 
 // Phase 2: Marketing Assets - Funnel & marketing materials (locked until funnel choice made)
 const PHASE_2_SECTIONS = [
-    { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet },
-    { id: 'vsl', numericKey: 7, title: 'Video Script', subtitle: 'Video Sales Letter (VSL)', icon: Video },
-    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users },
-    { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone },
-    { id: 'emails', numericKey: 8, title: 'Email Sequences', subtitle: '15-day nurture series', icon: Mail },
-    { id: 'sms', numericKey: 19, title: 'SMS Sequences', subtitle: 'Text message nurture', icon: MessageSquare },
-    { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell },
-    { id: 'media', numericKey: 18, title: 'Media Library', subtitle: 'Logo, images, and videos', icon: ImageIcon },
-    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout }
+    { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet, hint: "Give this away in exchange for an email address. Use the title and hook in your ads and landing pages." },
+    { id: 'vsl', numericKey: 7, title: 'Appointment Booking Video', subtitle: 'Video Sales Letter (VSL)', icon: Video, hint: "Record this script for your landing page or sales page video. Keep it authentic and focused on the viewer." },
+    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users, hint: "Use the short bio for guesting (podcasts/events) and the full bio for your 'About' page." },
+    { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone, hint: "Test these ad variations on Facebook/Instagram. Use the hooks as the first line of your captions." },
+    { id: 'emails', numericKey: 8, title: 'Email Campaigns', subtitle: '15-day nurture series', icon: Mail, hint: "Load these into your email autoresponder to nurture new leads over 15 days." },
+    { id: 'sms', numericKey: 19, title: 'Text Messages', subtitle: 'Text message nurture', icon: MessageSquare, hint: "Send these automated texts to increase engagement and show-up rates." },
+    { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell, hint: "Add these to your calendar booking system (Calendly, GHL) to increase show-up rates." },
+    { id: 'media', numericKey: 18, title: 'Upload images & videos for your funnel', subtitle: 'Logo, images, and videos', icon: ImageIcon, hint: "Upload your professional assets here to be used across your funnel pages." },
+    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout, hint: "Copy and paste this into your landing page builder (ClickFunnels, GHL, etc.) for high conversion." }
 ];
 
 // Phase 3: Sales Scripts - Setter and Closer scripts (locked until Phase 2 approved)
 const PHASE_3_SECTIONS = [
-    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell },
-    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic }
+    { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell, hint: "Use this for 15-min triage calls or DM conversations to qualify leads and book them into a sales call." },
+    { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic, hint: "Use this script for booked sales calls. Follow the flow to diagnose deeply before prescribing your solution." }
 ];
 
 // Content mapping: numeric keys to section IDs (for legacy feedback API compatibility)
@@ -2033,7 +2033,7 @@ export default function VaultPage() {
                                 className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-cyan/30 transition-all hover:scale-105 flex items-center gap-2"
                             >
                                 <ExternalLink className="w-5 h-5" />
-                                Deploy to Builder
+                                Build Your Funnel
                             </button>
                             <button
                                 onClick={() => router.push('/dashboard')}
@@ -2096,7 +2096,7 @@ export default function VaultPage() {
                                 className="bg-[#131314] border border-[#2a2a2d] rounded-2xl p-8 max-w-md w-full"
                             >
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">Deploy to Builder</h2>
+                                    <h2 className="text-2xl font-bold">Build Your Funnel</h2>
                                     {!isDeploying && (
                                         <button
                                             onClick={() => setShowDeployModal(false)}
@@ -2272,14 +2272,24 @@ export default function VaultPage() {
 
                         </div>
                         <div className="flex-1 min-w-0">
-                            <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-cyan' :
-                                status === 'current' ? 'text-white' :
-                                    status === 'generating' ? 'text-white' :
-                                        status === 'failed' ? 'text-red-400' :
-                                            'text-gray-400'
-                                }`}>
-                                {section.title}
-                            </h3>
+                            <div className="flex items-center gap-2">
+                                <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-cyan' :
+                                    status === 'current' ? 'text-white' :
+                                        status === 'generating' ? 'text-white' :
+                                            status === 'failed' ? 'text-red-400' :
+                                                'text-gray-400'
+                                    }`}>
+                                    {section.title}
+                                </h3>
+                                {section.hint && (
+                                    <div className="group relative">
+                                        <Info className="w-4 h-4 text-gray-500 hover:text-cyan cursor-help" />
+                                        <div className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 w-64 p-2 bg-black/90 border border-gray-800 rounded-lg text-xs text-gray-300 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-xl">
+                                            {section.hint}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <p className="text-xs sm:text-sm text-gray-500 truncate">{section.subtitle}</p>
                         </div>
                     </div>
@@ -2707,7 +2717,7 @@ export default function VaultPage() {
                                                 className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
                                             >
                                                 <ExternalLink className="w-5 h-5" />
-                                                Deploy to Builder
+                                                Build Your Funnel
                                                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                             </button>
                                         </motion.div>
@@ -2795,7 +2805,7 @@ export default function VaultPage() {
                                 className="bg-[#131314] border border-[#2a2a2d] rounded-2xl p-8 max-w-md w-full"
                             >
                                 <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">Deploy to Builder</h2>
+                                    <h2 className="text-2xl font-bold">Build Your Funnel</h2>
                                     {!isDeploying && (
                                         <button
                                             onClick={() => setShowDeployModal(false)}

@@ -69,7 +69,6 @@ export async function GET(req) {
         id,
         email,
         full_name,
-        business_name,
         ghl_sync_status,
         ghl_location_id,
         ghl_location_name,
@@ -84,7 +83,7 @@ export async function GET(req) {
 
     // Search filter (case-insensitive)
     if (search) {
-      query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%,business_name.ilike.%${search}%`);
+      query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
     }
 
     // Status filter

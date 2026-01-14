@@ -73,25 +73,7 @@ export default function QuestionProgressBar({
 
     return (
         <div className="w-full mb-8">
-            {/* Question Counter */}
-            <div className="flex justify-between items-center mb-3">
-                <span className="text-sm text-gray-400">
-                    Question {currentStep} of {totalQuestions}
-                </span>
-                <span className="text-sm text-cyan font-medium">
-                    {Math.round(progress)}% Complete
-                </span>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="h-2 bg-[#1b1b1d] rounded-full overflow-hidden">
-                <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                    className="h-full bg-gradient-to-r from-cyan to-blue-500 rounded-full"
-                />
-            </div>
+            {/* Top Progress Bar Removed per user request */}
 
             {/* Clickable Step Dots with Connecting Lines */}
             <div className="relative flex items-center justify-between mt-3">
