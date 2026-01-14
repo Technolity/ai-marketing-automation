@@ -52,12 +52,31 @@ export async function POST(req) {
             });
         }
 
-        // 4. Get Agency token from env
-        const agencyToken = process.env.GHL_AGENCY_TOKEN;
+        // 4. Get Agency token - try database first, then env
+        let agencyToken = null;
+        let agencyId = null;
+
+        // Try database first
+        const { data: agencyCreds } = await supabase
+            .from('ghl_agency_credentials')
+            .select('access_token, agency_id')
+            .eq('is_active', true)
+            .single();
+
+        if (agencyCreds?.access_token) {
+            agencyToken = agencyCreds.access_token;
+            agencyId = agencyCreds.agency_id;
+            console.log('[Builder Setup] Using agency token from database');
+        } else if (process.env.GHL_AGENCY_TOKEN) {
+            agencyToken = process.env.GHL_AGENCY_TOKEN;
+            agencyId = process.env.GHL_AGENCY_ID;
+            console.log('[Builder Setup] Using agency token from environment');
+        }
+
         if (!agencyToken) {
-            console.error('[Builder Setup] GHL_AGENCY_TOKEN not configured');
+            console.error('[Builder Setup] No GHL agency token configured');
             return NextResponse.json(
-                { error: 'GHL integration not configured. Contact admin.' },
+                { error: 'GHL integration not configured. Admin must connect GHL Agency in Settings → Integrations.' },
                 { status: 500 }
             );
         }

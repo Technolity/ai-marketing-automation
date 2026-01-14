@@ -61,9 +61,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     // View Management - initialize based on mode prop
     const [viewMode, setViewMode] = useState(mode === 'intake' ? 'step' : 'dashboard'); // 'dashboard' or 'step'
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    // Initialize currentStep to 1 if in intake mode (prevents render errors)
+    // Initialize currentStep to 0 if in intake mode (Builder Setup is Step 0)
     const [currentStep, setCurrentStep] = useState(() => {
-        const initialStep = mode === 'intake' ? 1 : null;
+        const initialStep = mode === 'intake' ? 0 : null;
         console.log('[OSWizard] Initial currentStep:', initialStep, 'mode:', mode);
         return initialStep;
     });
