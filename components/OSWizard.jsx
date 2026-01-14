@@ -30,6 +30,7 @@ import { SAMPLE_DATA, SAMPLE_DATA_OPTIONS } from "@/lib/sampleData";
 // Import modular components and utilities
 import { QuestionProgressBar } from "./OSWizard/components";
 import BuildingAnimation from "./BuildingAnimation";
+import BuilderSetupStep from "./OSWizard/BuilderSetupStep";
 import { formatFieldName, formatValue, formatContentForDisplay } from "./OSWizard/utils/formatters";
 import { validateStepInputs as validateInputs } from "./OSWizard/utils/validators";
 import {
@@ -1927,7 +1928,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     }
 
     // Guard: Ensure currentStep is valid before rendering step view
-    if (!currentStep || currentStep < 1 || currentStep > STEPS.length) {
+    // Note: currentStep now starts at 0 (Builder Setup)
+    const currentStepExists = STEPS.find(s => s.id === currentStep);
+    if (currentStep === null || currentStep === undefined || !currentStepExists) {
         console.warn('[OSWizard] Invalid currentStep:', currentStep, '- showing loading');
         return (
             <div className="flex h-screen items-center justify-center bg-[#0e0e0f]">
@@ -1937,7 +1940,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     }
 
     // Step View with Sidebar
-    const CurrentIcon = STEPS[currentStep - 1].icon;
+    const currentStepConfig = STEPS.find(s => s.id === currentStep);
+    const CurrentIcon = currentStepConfig?.icon || Loader2;
 
     return (
         <div className="h-full bg-[#0e0e0f] text-white font-sans flex overflow-hidden">
@@ -2079,11 +2083,38 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                 {/* Question Title and Description */}
                                 <div className="mb-6">
                                     <h1 className="text-4xl md:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
-                                        {STEPS[currentStep - 1].title}
+                                        {currentStepConfig?.title || 'Loading...'}
                                     </h1>
-                                    <p className="text-gray-400 text-lg font-light leading-relaxed">{STEPS[currentStep - 1].description}</p>
+                                    <p className="text-gray-400 text-lg font-light leading-relaxed">{currentStepConfig?.description || ''}</p>
                                 </div>
                                 {(() => {
+                                    // Special handling for Step 0 (Builder Setup)
+                                    if (currentStep === 0 || currentStepConfig?.isBuilderSetup) {
+                                        return (
+                                            <BuilderSetupStep
+                                                currentInput={currentInput}
+                                                onInputChange={handleInputChange}
+                                                onComplete={(data) => {
+                                                    // Mark step 0 as complete and move to step 1
+                                                    const newCompletedSteps = [...new Set([...completedSteps, 0])];
+                                                    setCompletedSteps(newCompletedSteps);
+
+                                                    // Save business name to stepData for use in other steps
+                                                    setStepData(prev => ({
+                                                        ...prev,
+                                                        0: { businessName: data.businessName, phone: data.phone, locationId: data.locationId }
+                                                    }));
+
+                                                    // Move to step 1
+                                                    setCurrentStep(1);
+                                                    setCurrentInput({});
+                                                    toast.success('Builder setup complete!');
+                                                }}
+                                                existingBusinessName={stepData[0]?.businessName}
+                                            />
+                                        );
+                                    }
+
                                     const stepInputs = STEP_INPUTS[currentStep] || [];
                                     const filteredInputs = stepInputs.filter((input) => {
                                         // Hide conditional fields if their condition isn't met
