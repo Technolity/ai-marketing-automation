@@ -37,7 +37,7 @@ export async function GET(req) {
     try {
         console.log('[GHL OAuth] Exchanging code for tokens...');
 
-        // Exchange code for tokens
+        // Exchange code for tokens - MUST include user_type: Company for Agency token
         const tokenResponse = await fetch('https://services.leadconnectorhq.com/oauth/token', {
             method: 'POST',
             headers: {
@@ -49,6 +49,7 @@ export async function GET(req) {
                 client_secret: process.env.GHL_CLIENT_SECRET,
                 grant_type: 'authorization_code',
                 code: code,
+                user_type: 'Company',  // CRITICAL: Required for Agency-level token
                 redirect_uri: process.env.GHL_REDIRECT_URI
             })
         });
