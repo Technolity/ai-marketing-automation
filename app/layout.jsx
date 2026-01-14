@@ -14,8 +14,8 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <ClerkProvider
-      signInUrl="https://accounts.tedos.ai/sign-in"
-      signUpUrl="https://accounts.tedos.ai/sign-up"
+      signInUrl="/auth/login"
+      signUpUrl="/auth/signup"
       afterSignInUrl="/dashboard"
       afterSignUpUrl="/dashboard"
       signInFallbackRedirectUrl="/dashboard"
