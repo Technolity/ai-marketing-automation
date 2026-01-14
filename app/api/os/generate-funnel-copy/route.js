@@ -332,7 +332,7 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
                 numeric_key: 10,
                 phase: 2,
                 content: generatedContent,
-                status: 'draft',
+                status: 'generated',
                 is_locked: false,
                 is_current_version: true,
                 version: 1

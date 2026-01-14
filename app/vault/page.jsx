@@ -701,6 +701,103 @@ export default function VaultPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [session, authLoading]); // Removed searchParams to prevent reload on tab switch
 
+    // Listen for funnelCopyGenerated custom event from ApprovalWatcher
+    // This enables real-time updates when background generation completes
+    useEffect(() => {
+        const funnelId = searchParams.get('funnel_id');
+        if (!funnelId || !session) return;
+
+        const handleFunnelCopyGenerated = async (e) => {
+            if (e.detail.funnelId === funnelId) {
+                console.log('[Vault] funnelCopyGenerated event received, refreshing data...');
+
+                // Refresh vault data for the specific section
+                try {
+                    const res = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
+                    const result = await res.json();
+
+                    if (result.data && Object.keys(result.data).length > 0) {
+                        const normalizedData = normalizeData(result.data);
+                        setVaultData(normalizedData);
+                        console.log('[Vault] Data refreshed after funnelCopy generation');
+                    }
+
+                    // Also refresh approvals
+                    await loadApprovals(funnelId);
+                } catch (error) {
+                    console.error('[Vault] Error refreshing after funnelCopy generation:', error);
+                }
+            }
+        };
+
+        window.addEventListener('funnelCopyGenerated', handleFunnelCopyGenerated);
+        return () => window.removeEventListener('funnelCopyGenerated', handleFunnelCopyGenerated);
+    }, [searchParams, session]);
+
+    // Poll for active generation jobs (Phase 2/3 background generation)
+    // This provides real-time updates even without the ?generating=true flag
+    useEffect(() => {
+        const funnelId = searchParams.get('funnel_id');
+        if (!funnelId || !session || !initialLoadComplete) return;
+
+        let pollInterval;
+        let isPolling = false;
+
+        const checkGenerationJobs = async () => {
+            if (isPolling) return; // Prevent concurrent polls
+            isPolling = true;
+
+            try {
+                // Check for active generation jobs for this funnel
+                const res = await fetchWithAuth(`/api/os/generation-jobs?funnel_id=${funnelId}`);
+                if (!res.ok) {
+                    isPolling = false;
+                    return;
+                }
+
+                const { activeJobs } = await res.json();
+
+                // If there are active jobs, start more frequent polling
+                if (activeJobs && activeJobs.length > 0) {
+                    console.log('[Vault] Active generation jobs found:', activeJobs.length);
+
+                    // Check if any jobs just completed
+                    const completedJobs = activeJobs.filter(j => j.status === 'completed');
+                    if (completedJobs.length > 0) {
+                        console.log('[Vault] Completed jobs detected, refreshing vault data...');
+
+                        // Refresh vault data
+                        const dataRes = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
+                        const result = await dataRes.json();
+
+                        if (result.data && Object.keys(result.data).length > 0) {
+                            const normalizedData = normalizeData(result.data);
+                            setVaultData(normalizedData);
+                        }
+
+                        // Refresh approvals
+                        await loadApprovals(funnelId);
+                    }
+                }
+            } catch (error) {
+                console.error('[Vault] Error checking generation jobs:', error);
+            } finally {
+                isPolling = false;
+            }
+        };
+
+        // Poll every 5 seconds for generation job updates
+        pollInterval = setInterval(checkGenerationJobs, 5000);
+
+        // Initial check
+        checkGenerationJobs();
+
+        return () => {
+            if (pollInterval) clearInterval(pollInterval);
+        };
+    }, [searchParams, session, initialLoadComplete]);
+
+
     const loadApprovals = async (sId = null) => {
         // Priority: passed parameter > URL param > dataSource.id > 'current' (fallback)
         const funnelIdFromUrl = searchParams.get('funnel_id') || searchParams.get('session_id');
