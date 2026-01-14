@@ -31,16 +31,8 @@ export default function LicenseAgreementModal({ isOpen, onAccept }) {
 
         setIsSubmitting(true);
         try {
-            const response = await fetch('/api/users/accept-license', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (response.ok) {
-                onAccept?.();
-            } else {
-                console.error('Failed to accept license');
-            }
+            // Call the onAccept callback which triggers AuthContext.acceptLicense
+            await onAccept?.();
         } catch (error) {
             console.error('Error accepting license:', error);
         } finally {
@@ -107,10 +99,10 @@ export default function LicenseAgreementModal({ isOpen, onAccept }) {
                                     className="sr-only"
                                 />
                                 <div className={`w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center ${!hasScrolledToBottom
-                                        ? 'border-gray-700 bg-gray-800/50'
-                                        : isChecked
-                                            ? 'bg-cyan border-cyan'
-                                            : 'border-gray-600 group-hover:border-gray-500'
+                                    ? 'border-gray-700 bg-gray-800/50'
+                                    : isChecked
+                                        ? 'bg-cyan border-cyan'
+                                        : 'border-gray-600 group-hover:border-gray-500'
                                     }`}>
                                     {isChecked && <CheckCircle className="w-4 h-4 text-black" />}
                                 </div>
