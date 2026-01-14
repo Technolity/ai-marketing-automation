@@ -1280,13 +1280,31 @@ export default function VaultPage() {
 
 
 
-    const handleFeedbackSave = async (refinedContent) => {
+    const handleFeedbackSave = async (saveData) => {
         if (!feedbackSection) return;
+
+        // FeedbackChatModal passes { refinedContent, subSection }
+        // Fallback to direct content if passed directly (legacy)
+        const refinedContent = saveData?.refinedContent || saveData;
+        const subSection = saveData?.subSection;
+
+        console.log('[Vault] Saving feedback:', { subSection, contentKeys: Object.keys(refinedContent || {}) });
+
+        // Get current content for this section to merge into
+        const currentSectionContent = vaultData[feedbackSection.id] || {};
+
+        // Merge new content using strictReplace to handle partial updates correctly
+        // detailed log to debug what is being merged
+        console.log('[Vault] Merging into:', Object.keys(currentSectionContent));
+
+        const updatedContent = strictReplace(currentSectionContent, refinedContent, { subSection });
+
+        console.log('[Vault] Merge complete. New keys:', Object.keys(updatedContent));
 
         // Update local state
         setVaultData(prev => ({
             ...prev,
-            [feedbackSection.id]: refinedContent
+            [feedbackSection.id]: updatedContent
         }));
 
         // Persist to DB
@@ -1294,7 +1312,7 @@ export default function VaultPage() {
             const funnelId = searchParams.get('funnel_id');
             const { error } = await supabase
                 .from('vault_content')
-                .update({ content: refinedContent })
+                .update({ content: updatedContent })
                 .eq('funnel_id', funnelId)
                 .eq('section_id', feedbackSection.id);
 
