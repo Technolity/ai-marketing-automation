@@ -373,6 +373,7 @@ export default function FeedbackChatModal({
     const [chatStep, setChatStep] = useState(1); // 1: Ask what to change, 2: Get feedback, 3: Show preview
     const [suggestedChanges, setSuggestedChanges] = useState(null);
     const [regenerationCount, setRegenerationCount] = useState(0);
+    const [previousAlternatives, setPreviousAlternatives] = useState([]); // Track all generated alternatives
     const messagesEndRef = useRef(null);
 
     // NEW: Streaming state
@@ -420,6 +421,7 @@ export default function FeedbackChatModal({
             setChatStep(1);
             setSelectedSubSection(null);
             setSuggestedChanges(null);
+            setPreviousAlternatives([]); // Reset previous alternatives for fresh session
             setStreamingMessage(null);
         }
     }, [isOpen]);
@@ -843,8 +845,15 @@ Be as specific as possible - for example:
             return;
         }
 
+        // Track current suggested changes as a previous alternative before generating new one
+        const updatedAlternatives = suggestedChanges
+            ? [...previousAlternatives, suggestedChanges]
+            : previousAlternatives;
+
+        setPreviousAlternatives(updatedAlternatives);
+
         setIsProcessing(true);
-        setMessages(prev => [...prev, { role: 'assistant', content: '🔄 Generating an alternative...', isThinking: true }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: '🔄 Generating a different alternative...', isThinking: true }]);
 
         try {
             const response = await fetchWithAuth('/api/os/refine-section', {
@@ -853,10 +862,11 @@ Be as specific as possible - for example:
                 body: JSON.stringify({
                     sectionId,
                     subSection: selectedSubSection,
-                    feedback: 'Please provide an alternative version',
+                    feedback: 'Please provide a completely different alternative version with different wording and structure',
                     currentContent,
                     sessionId,
-                    iteration: regenerationCount + 1
+                    iteration: regenerationCount + 2, // +2 because first generation was iteration 1
+                    previousAlternatives: updatedAlternatives // Send all previous alternatives so AI knows what to avoid
                 })
             });
 
@@ -870,7 +880,7 @@ Be as specific as possible - for example:
                     ...withoutThinking,
                     {
                         role: 'assistant',
-                        content: "Here's an alternative version:",
+                        content: `Here's alternative #${regenerationCount + 2}:`,
                         showPreview: true,
                         previewContent: data.refinedContent
                     }

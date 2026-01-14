@@ -103,7 +103,7 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { sectionId, subSection, feedback, currentContent, sessionId, iteration = 1 } = body;
+        const { sectionId, subSection, feedback, currentContent, sessionId, iteration = 1, previousAlternatives = [] } = body;
 
         console.log(`[RefineSection] User: ${userId}, Section: ${sectionId}, SubSection: ${subSection}`);
         console.log(`[RefineSection] Feedback: ${feedback?.substring(0, 100)}...`);
@@ -141,7 +141,8 @@ export async function POST(req) {
             feedback,
             currentContent,
             intakeData,
-            iteration
+            iteration,
+            previousAlternatives
         });
 
         console.log('[RefineSection] Calling OpenAI...');
@@ -313,7 +314,7 @@ export async function POST(req) {
 /**
  * Build a context-aware refinement prompt
  */
-function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent, intakeData, iteration }) {
+function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent, intakeData, iteration, previousAlternatives = [] }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
@@ -329,9 +330,18 @@ function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent
         ? `\n\nBUSINESS CONTEXT:\n${contextParts.join('\n')}`
         : '';
 
-    const iterationNote = iteration > 1
-        ? `\n\nNOTE: This is attempt #${iteration}. Please provide a DIFFERENT variation than before.`
-        : '';
+    // Build iteration note with previous alternatives to avoid
+    let iterationNote = '';
+    if (iteration > 1 && previousAlternatives.length > 0) {
+        const alternativesSummary = previousAlternatives.map((alt, i) => {
+            const preview = typeof alt === 'string' ? alt.substring(0, 150) : JSON.stringify(alt).substring(0, 150);
+            return `Alternative ${i + 1}: "${preview}..."`;
+        }).join('\n');
+
+        iterationNote = `\n\n⚠️ IMPORTANT - THIS IS ATTEMPT #${iteration}. You MUST provide a COMPLETELY DIFFERENT variation!\n\nDO NOT repeat these previous alternatives:\n${alternativesSummary}\n\nGenerate something with:\n- Different word choices\n- Different structure/flow\n- Different examples or angles\n- Fresh perspective`;
+    } else if (iteration > 1) {
+        iterationNote = `\n\nNOTE: This is attempt #${iteration}. Please provide a DIFFERENT variation than before.`;
+    }
 
     // Determine if we're updating a sub-section or full section
     const isSubSection = subSection && subSection !== 'all';
