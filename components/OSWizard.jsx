@@ -1056,9 +1056,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             } else if (currentEvent === 'section') {
                                 if (data.success) {
                                     // Find the numeric key for this section name
-                                    const sectionKey = Object.keys(SECTION_NAMES).find(
-                                        key => SECTION_NAMES[key] === data.name
-                                    );
+                                    // Key is sent directly in data
+                                    const sectionKey = data.key;
 
                                     setGenerationProgress(prev => ({
                                         ...prev,

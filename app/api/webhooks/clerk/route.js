@@ -157,8 +157,8 @@ async function handleUserCreated(data) {
   console.log(`[Webhook] User created successfully: ${email}, admin: ${isAdmin}`);
 
   // Optionally create GHL sub-account (non-blocking)
-  // Only if GHL is configured
-  if (process.env.GHL_CLIENT_ID && process.env.GHL_AGENCY_ID) {
+  // Only if GHL is configured (check for agency token OR OAuth credentials)
+  if (process.env.GHL_AGENCY_TOKEN || (process.env.GHL_CLIENT_ID && process.env.GHL_AGENCY_ID)) {
     try {
       const { createGHLSubAccount } = await import('@/lib/ghl/createSubAccount');
 

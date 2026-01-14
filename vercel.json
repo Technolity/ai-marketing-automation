@@ -7,6 +7,12 @@
     "regions": [
         "iad1"
     ],
+    "crons": [
+        {
+            "path": "/api/cron/retry-ghl-subaccounts",
+            "schedule": "0 * * * *"
+        }
+    ],
     "functions": {
         "app/api/os/generate-stream/route.js": {
             "maxDuration": 300

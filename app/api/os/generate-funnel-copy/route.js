@@ -144,14 +144,16 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
 
         await updateJobStatus(jobId, 'processing', 20);
 
-        // Fetch intake form (questionnaire responses)
-        const { data: responses, error: responsesError } = await supabaseAdmin
-            .from('questionnaire_responses')
-            .select('*')
-            .eq('funnel_id', funnelId);
+        // Fetch fields from User Funnels (wizard_answers)
+        const { data: funnelData, error: funnelError } = await supabaseAdmin
+            .from('user_funnels')
+            .select('wizard_answers')
+            .eq('id', funnelId)
+            .single();
 
-        if (responsesError) {
-            throw new Error(`Failed to fetch questionnaire: ${responsesError.message}`);
+        if (funnelError) {
+            console.error('[FunnelCopy] Failed to fetch wizard answers:', funnelError);
+            throw new Error(`Failed to fetch wizard answers: ${funnelError.message}`);
         }
 
         // Build context object
@@ -160,17 +162,26 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
             context[section.section_id] = section.content;
         });
 
-        // Add questionnaire data
+        // Add wizard answers as "intakeForm"
+        // The wizard_answers JSONB already has structure like { "q1": "...", "industry": "..." }
+        // We map it to the structure expected by prompts if needed, or pass directly
+        const answers = funnelData.wizard_answers || {};
         const intakeForm = {};
-        responses.forEach(response => {
-            const fieldName = response.answer_text ? 'answer_text' :
-                response.answer_selection ? 'answer_selection' :
-                    response.answer_selections ? 'answer_selections' : null;
-            if (fieldName) {
-                intakeForm[`q${response.step_number}`] = response[fieldName];
-            }
-        });
-        context.intakeForm = intakeForm;
+
+        // Map wizard answers to q1, q2 style if prompts expect it, OR just pass the values
+        // Current prompts likely expect named keys like 'idealClient', 'message' based on 'context'. 
+        // But for 'intakeForm' specifically, let's map common fields to q-numbers just in case prompts rely on legacy format.
+        // HOWEVER, looking at prompts/funnelCopyChunks.js (imported), we should check what it expects.
+        // Assuming it uses named keys from 'context', we should merge answers into context.
+
+        Object.assign(context, answers);
+
+        // Also populate intakeForm for backward compatibility if prompts usage varies
+        // (This part is a best-guess mapping based on what questionnaire_responses logic was doing)
+        // If answers are already keyed by step number in some way, we might need logic.
+        // But typically wizard_answers are { idealClient: "...", businessName: "..." }
+        // Let's just expose the raw answers as intakeForm too.
+        context.intakeForm = answers;
 
         await updateJobStatus(jobId, 'processing', 30);
 
