@@ -1311,11 +1311,33 @@ export default function VaultPage() {
         if (!feedbackSection) return;
 
         // FeedbackChatModal passes { refinedContent, subSection }
-        const refinedContent = saveData?.refinedContent || saveData;
+        let refinedContent = saveData?.refinedContent || saveData;
         const subSection = saveData?.subSection;
         const funnelId = searchParams.get('funnel_id');
 
         console.log('[Vault] Saving feedback:', { subSection, contentKeys: Object.keys(refinedContent || {}) });
+
+        // UNWRAP FIX: AI sometimes returns content wrapped with the subSection key
+        // e.g., {oneLiner: {signatureMessage: {...}}} instead of {signatureMessage: {...}}
+        // Detect and unwrap this pattern
+        if (subSection && subSection !== 'all' && refinedContent && typeof refinedContent === 'object') {
+            const contentKeys = Object.keys(refinedContent);
+
+            // Check if the content is wrapped with the subSection key
+            if (contentKeys.length === 1 && contentKeys[0] === subSection) {
+                const wrappedContent = refinedContent[subSection];
+
+                // If the wrapped content contains wrapper keys (signatureMessage, idealClientSnapshot, etc.)
+                // then unwrap it and use that as the content
+                const wrapperKeys = ['signatureMessage', 'idealClientSnapshot', 'signatureOffer', 'signatureStory', 'callFlow', 'leadMagnet'];
+                const hasWrapper = Object.keys(wrappedContent || {}).some(k => wrapperKeys.includes(k));
+
+                if (hasWrapper) {
+                    console.log('[Vault] Detected wrapped content, unwrapping:', subSection);
+                    refinedContent = wrappedContent;
+                }
+            }
+        }
 
         // Get current content for this section
         const currentSectionContent = vaultData[feedbackSection.id] || {};
