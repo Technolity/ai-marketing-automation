@@ -2285,10 +2285,22 @@ export default function VaultPage() {
                                 ) : (
                                     <>
                                         {/* Connection Status */}
-                                        {checkingGhlConnection ? (
-                                            <div className="flex items-center gap-3 mb-6 p-4 bg-[#1b1b1d] rounded-lg">
-                                                <Loader2 className="w-5 h-5 animate-spin text-cyan" />
-                                                <span className="text-gray-400">Checking Builder connection...</span>
+                                        {true ? (
+                                            <div className="flex flex-col items-center justify-center py-8 text-center">
+                                                <div className="w-16 h-16 bg-gradient-to-br from-cyan/20 to-blue-500/20 rounded-full flex items-center justify-center mb-4">
+                                                    <Rocket className="w-8 h-8 text-cyan" />
+                                                </div>
+                                                <h3 className="text-xl font-bold text-white mb-2">Coming Soon</h3>
+                                                <p className="text-gray-400 max-w-sm mb-6">
+                                                    Automated builder connection is currently under development.
+                                                    This feature will be available shortly to help you deploy your vault instantly.
+                                                </p>
+                                                <button
+                                                    onClick={() => setShowDeployModal(false)}
+                                                    className="px-6 py-2 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-lg transition-colors"
+                                                >
+                                                    Got it
+                                                </button>
                                             </div>
                                         ) : ghlConnected ? (
                                             <div className="flex items-center gap-3 mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
@@ -2994,10 +3006,22 @@ export default function VaultPage() {
                                 ) : (
                                     <>
                                         {/* Connection Status */}
-                                        {checkingGhlConnection ? (
-                                            <div className="flex items-center gap-3 mb-6 p-4 bg-[#1b1b1d] rounded-lg">
-                                                <Loader2 className="w-5 h-5 animate-spin text-cyan" />
-                                                <span className="text-gray-400">Checking Builder connection...</span>
+                                        {true ? (
+                                            <div className="flex flex-col items-center justify-center py-8 text-center">
+                                                <div className="w-16 h-16 bg-gradient-to-br from-cyan/20 to-blue-500/20 rounded-full flex items-center justify-center mb-4">
+                                                    <Rocket className="w-8 h-8 text-cyan" />
+                                                </div>
+                                                <h3 className="text-xl font-bold text-white mb-2">Coming Soon</h3>
+                                                <p className="text-gray-400 max-w-sm mb-6">
+                                                    Automated builder connection is currently under development.
+                                                    This feature will be available shortly to help you deploy your vault instantly.
+                                                </p>
+                                                <button
+                                                    onClick={() => setShowDeployModal(false)}
+                                                    className="px-6 py-2 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-lg transition-colors"
+                                                >
+                                                    Got it
+                                                </button>
                                             </div>
                                         ) : ghlConnected ? (
                                             <div className="flex items-center gap-3 mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">

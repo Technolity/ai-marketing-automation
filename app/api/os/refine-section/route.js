@@ -4,6 +4,40 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 
+// Explicit length constraints for AI generation to prevent overflow
+const LENGTH_CONSTRAINTS = {
+    // VSL (Appointment Booking Video)
+    vsl: {
+        step1_patternInterrupt: "Max 3-4 sentences. Hook the viewer immediately.",
+        step2_problemAgitation: "Max 3-4 sentences. Focus on the pain.",
+        step3_solutionIntroduction: "Max 3-4 sentences.",
+        step4_psychologicalTriggers: "Max 2-3 sentences.",
+        step5_intro: "Max 1-2 sentences.",
+        step5_tips: "Keep each tip concise (2-3 sentences per tip).",
+        step5_transition: "Max 2-3 sentences.",
+        step6_directEngagement: "Max 2-3 sentences.",
+        step6_urgencyCreation: "Max 2-3 sentences.",
+        step6_clearOffer: "Max 2-3 sentences.",
+        step6_cta: "Max 1-2 sentences."
+    },
+    // Appointment Reminders (SMS/Email)
+    appointmentReminders: {
+        preCallTips: "Keep tips very short (1 sentence each).",
+        smsReminders: "MUST be under 160 characters per SMS.",
+        confirmation: "Email body max 150 words.",
+        reminder24Hour: "Email body max 150 words.",
+        reminder1Hour: "Email body max 100 words.",
+        startingNow: "Email body max 50 words.",
+        noShowFollowup: "Email body max 150 words."
+    },
+    // Funnel Copy (some parts)
+    funnelCopy: {
+        hero_headline_text: "Max 10-15 words. Punchy.",
+        hero_subheadline_text: "Max 20 words.",
+        cta_text: "Max 3-5 words."
+    }
+};
+
 
 export const dynamic = 'force-dynamic';
 
@@ -380,6 +414,20 @@ function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent
 - Maintain exact data types (strings, arrays, objects)`;
     }
 
+    // Add length constraints if applicable
+    let lengthInstructions = '';
+    const sectionConstraints = LENGTH_CONSTRAINTS[sectionId];
+    if (sectionConstraints) {
+        if (isSubSection && sectionConstraints[subSection]) {
+            lengthInstructions = `\n\nLENGTH CONSTRAINTS (${subSection}):\n- ${sectionConstraints[subSection]}`;
+        } else {
+            const constraintList = Object.entries(sectionConstraints)
+                .map(([k, v]) => `- ${k}: ${v}`)
+                .join('\n');
+            lengthInstructions = `\n\nLENGTH CONSTRAINTS:\n${constraintList}`;
+        }
+    }
+
     return `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
 ${currentContentStr}
 ${context}
@@ -388,6 +436,7 @@ USER'S FEEDBACK:
 ${feedback}
 ${schemaExample}
 ${schemaInstructions}
+${lengthInstructions}
 
 TASK:
 ${isSubSection
