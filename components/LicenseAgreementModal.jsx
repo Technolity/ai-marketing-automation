@@ -97,32 +97,42 @@ export default function LicenseAgreementModal({ isOpen, onAccept }) {
 
                     {/* Footer with Checkbox and Accept Button */}
                     <div className="p-6 border-t border-[#2a2a2d] bg-[#0a0a0b] space-y-4">
-                        <label className="flex items-start gap-3 cursor-pointer group">
+                        <label className={`flex items-start gap-3 ${hasScrolledToBottom ? 'cursor-pointer group' : 'cursor-not-allowed opacity-50'}`}>
                             <div className="relative mt-0.5">
                                 <input
                                     type="checkbox"
                                     checked={isChecked}
-                                    onChange={(e) => setIsChecked(e.target.checked)}
+                                    onChange={(e) => hasScrolledToBottom && setIsChecked(e.target.checked)}
+                                    disabled={!hasScrolledToBottom}
                                     className="sr-only"
                                 />
-                                <div className={`w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center ${isChecked
-                                        ? 'bg-cyan border-cyan'
-                                        : 'border-gray-600 group-hover:border-gray-500'
+                                <div className={`w-5 h-5 rounded border-2 transition-all duration-200 flex items-center justify-center ${!hasScrolledToBottom
+                                        ? 'border-gray-700 bg-gray-800/50'
+                                        : isChecked
+                                            ? 'bg-cyan border-cyan'
+                                            : 'border-gray-600 group-hover:border-gray-500'
                                     }`}>
                                     {isChecked && <CheckCircle className="w-4 h-4 text-black" />}
                                 </div>
                             </div>
-                            <span className="text-gray-300 group-hover:text-white transition-colors">
-                                I have read the Licensing Policy and Agree with it
-                            </span>
+                            <div className="flex flex-col">
+                                <span className={`${hasScrolledToBottom ? 'text-gray-300 group-hover:text-white' : 'text-gray-500'} transition-colors`}>
+                                    I have read the Licensing Policy and Agree with it
+                                </span>
+                                {!hasScrolledToBottom && (
+                                    <span className="text-xs text-amber-500 mt-1">
+                                        ⚠️ Please scroll to the bottom to read the full agreement
+                                    </span>
+                                )}
+                            </div>
                         </label>
 
                         <button
                             onClick={handleAccept}
                             disabled={!isChecked || isSubmitting}
                             className={`w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-3 ${isChecked && !isSubmitting
-                                    ? 'bg-gradient-to-r from-cyan to-cyan/80 text-black hover:shadow-glow-lg cursor-pointer'
-                                    : 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                                ? 'bg-gradient-to-r from-cyan to-cyan/80 text-black hover:shadow-glow-lg cursor-pointer'
+                                : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                                 }`}
                         >
                             {isSubmitting ? (
