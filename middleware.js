@@ -11,7 +11,9 @@ export default authMiddleware({
     "/api/webhooks(.*)",
     "/api/webhooks/clerk",
     "/api/rag(.*)",
-    "/api/admin/setup-pgvector"
+    "/api/admin/setup-pgvector",
+    "/api/integrations/oauth/callback",
+    "/api/integrations/oauth/debug"
   ],
   ignoredRoutes: [
     "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",
