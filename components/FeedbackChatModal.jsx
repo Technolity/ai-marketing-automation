@@ -381,7 +381,6 @@ export default function FeedbackChatModal({
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingMessage, setStreamingMessage] = useState(null);
     const [partialContent, setPartialContent] = useState(null);
-    const [partialContent, setPartialContent] = useState(null);
     const [partialError, setPartialError] = useState(null);
     const [latestContent, setLatestContent] = useState(currentContent); // Track latest revision for continuous refinement
     const [showContentPreview, setShowContentPreview] = useState(false); // Toggle for context preview
