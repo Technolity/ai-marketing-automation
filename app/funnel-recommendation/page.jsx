@@ -32,9 +32,9 @@ const FUNNEL_TYPES = [
         id: 'vsl',
         title: 'Appointment Generating Funnel with Free Gift',
         icon: Video,
-        description: 'Video sales letter to convert viewers into buyers',
+        description: '',
         bestFor: ['courses', 'high-ticket', 'digital products'],
-        features: ['Marketing Funnel Page', 'Order Form', 'Upsell Pages', 'Email Follow-up'],
+        features: ['Lead Opt In Page', 'Appointment Booking Page', 'Calendar Page', 'Emails & Text Follow-ups'],
         locked: false
     },
     {

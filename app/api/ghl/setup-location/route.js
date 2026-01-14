@@ -163,7 +163,14 @@ export async function POST(req) {
 
         } else {
             const errorMsg = result.message || result.error || 'Failed to create GHL location';
-            console.error('[Builder Setup] GHL API error:', errorMsg, result);
+            const isForbidden = response.status === 403 || errorMsg.toLowerCase().includes('forbidden');
+
+            console.error(`[Builder Setup] GHL API error (${response.status}):`, errorMsg);
+
+            if (isForbidden) {
+                console.error('CRITICAL: 403 Forbidden indicates missing permissions.');
+                console.error('Please verify your GHL Private Integration Token has "Agency" type and "locations.write" scope enabled.');
+            }
 
             // Log failure
             try {
@@ -174,7 +181,7 @@ export async function POST(req) {
                         request_payload: locationData,
                         response_payload: result,
                         status: 'failed',
-                        error_message: errorMsg
+                        error_message: isForbidden ? 'Forbidden: Missing locations.write scope?' : errorMsg
                     });
             } catch (logError) {
                 // Ignore
@@ -190,8 +197,11 @@ export async function POST(req) {
                 .eq('id', userId);
 
             return NextResponse.json(
-                { error: errorMsg, details: result },
-                { status: 400 }
+                {
+                    error: isForbidden ? 'GHL Permission Error: Check API Scopes' : errorMsg,
+                    details: isForbidden ? 'The Integration Token is missing "locations.write" scope.' : result
+                },
+                { status: isForbidden ? 403 : 400 }
             );
         }
 

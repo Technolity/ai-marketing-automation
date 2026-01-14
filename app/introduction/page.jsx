@@ -108,26 +108,7 @@ export default function IntroductionPage() {
                     </div>
                 </motion.div>
 
-                {/* AI Ted Video Placeholder */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.2, ease: "easeOut" }}
-                    className="mb-8"
-                >
-                    <div className="aspect-video bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] flex items-center justify-center relative overflow-hidden">
-                        <div className="absolute inset-0 bg-gradient-to-br from-cyan/5 to-transparent" />
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                            className="w-20 h-20 rounded-full bg-cyan/20 flex items-center justify-center border border-cyan/30"
-                        >
-                            <Play className="w-8 h-8 text-cyan ml-1" fill="currentColor" />
-                        </motion.button>
-                        <p className="absolute bottom-4 text-gray-500 text-sm">AI Ted Video (30-45 seconds)</p>
-                    </div>
-                </motion.div>
+
 
                 {/* Steps */}
                 <motion.div
