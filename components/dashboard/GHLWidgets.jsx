@@ -107,36 +107,29 @@ export default function AnalyticsDashboard() {
         );
     }
 
-    // Disconnected State
+    // Disconnected State - Coming Soon
     if (!connected) {
         return (
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-8 p-8 bg-gradient-to-r from-blue-900/10 to-cyan/5 rounded-3xl border border-cyan/20 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden"
+                className="mb-8 p-8 bg-gradient-to-r from-blue-900/10 to-cyan/5 rounded-3xl border border-cyan/20 flex flex-col items-center justify-center gap-4 relative overflow-hidden"
             >
                 <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                <div className="flex items-center gap-6 relative z-10">
-                    <div className="w-16 h-16 rounded-2xl bg-cyan/10 flex items-center justify-center border border-cyan/20 shadow-lg shadow-cyan/5">
-                        <Hammer className="w-8 h-8 text-cyan" />
-                    </div>
-                    <div>
-                        <h3 className="text-2xl font-black text-white mb-2">Connect Marketing Platform</h3>
-                        <p className="text-gray-400 max-w-md">
-                            Build funnels, emails, and lead flow. See your leads and growth metrics directly in your dashboard.
-                        </p>
-                    </div>
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan/20 to-blue-500/20 flex items-center justify-center border border-cyan/20 shadow-lg shadow-cyan/5">
+                    <Hammer className="w-8 h-8 text-cyan" />
                 </div>
-                <button
-                    onClick={() => router.push('/settings')}
-                    className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-500 text-black font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-3 shadow-xl shadow-cyan/20 relative z-10"
-                >
-                    <LinkIcon className="w-5 h-5" />
-                    Connect Platform
-                </button>
+                <h3 className="text-xl font-bold text-white">Marketing Platform Integration</h3>
+                <p className="text-gray-400 text-center max-w-md">
+                    Builder connection is currently under development. This feature will be available shortly to connect your marketing platform and view live metrics.
+                </p>
+                <span className="px-4 py-2 bg-cyan/10 text-cyan text-sm font-bold rounded-lg border border-cyan/20">
+                    Coming Soon
+                </span>
             </motion.div>
         );
     }
+
 
     // Connected State
     return (
