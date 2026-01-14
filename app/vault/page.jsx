@@ -333,9 +333,36 @@ function intelligentMerge(target, source, subSection) {
 
             const finalKey = path[path.length - 1];
             current[finalKey] = source[sourceKey];
-        } else {
-            console.warn('[IntelligentMerge] Could not find path for:', sourceKey);
-            // As fallback, merge at top level
+        }
+    }
+
+    // Final fallback: Check common wrapper patterns (idealClientSnapshot, signatureMessage, etc.)
+    for (const sourceKey of sourceKeys) {
+        const commonWrappers = ['idealClientSnapshot', 'signatureMessage', 'signatureOffer', 'signatureStory', 'callFlow', 'leadMagnet'];
+
+        for (const wrapper of commonWrappers) {
+            if (target[wrapper] && typeof target[wrapper] === 'object') {
+                console.log('[IntelligentMerge] Checking wrapper:', wrapper, 'for field:', sourceKey);
+                if (sourceKey in target[wrapper]) {
+                    console.log('[IntelligentMerge] Found', sourceKey, 'in wrapper', wrapper);
+                    target[wrapper][sourceKey] = source[sourceKey];
+                } else {
+                    // Search one level deeper
+                    for (const subKey of Object.keys(target[wrapper])) {
+                        if (typeof target[wrapper][subKey] === 'object' && target[wrapper][subKey] !== null) {
+                            if (sourceKey in target[wrapper][subKey]) {
+                                console.log('[IntelligentMerge] Found', sourceKey, 'in', wrapper + '.' + subKey);
+                                target[wrapper][subKey][sourceKey] = source[sourceKey];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // If still not found, merge at top level (last resort)
+        if (!(sourceKey in target)) {
+            console.log('[IntelligentMerge] Adding to top level:', sourceKey);
             target[sourceKey] = source[sourceKey];
         }
     }
