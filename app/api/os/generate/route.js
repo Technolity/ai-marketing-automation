@@ -1128,9 +1128,11 @@ export async function POST(req) {
           try {
             // Determine phase based on section key
             const numKey = parseInt(key);
-            const phase = numKey <= 6 ? 'phase1' : 'phase2'; // First 6 sections are Phase 1 (Business Assets)
+            const phase = numKey <= 6 ? 1 : 2; // Fixed: Schema expects Integer (1 or 2), not string
 
             // Upsert content (update if exists, insert if not)
+            // Schema has UNIQUE(funnel_id, section_id, version)
+            // We force version=1 for the initial generation
             const { error } = await supabaseAdmin
               .from('vault_content')
               .upsert({
@@ -1142,10 +1144,11 @@ export async function POST(req) {
                 phase: phase,
                 content: sectionData,
                 is_current_version: true,
+                version: 1, // Explicitly set version 1
                 status: 'draft',
                 model_used: 'gpt-5.2'
               }, {
-                onConflict: 'funnel_id,section_id',
+                onConflict: 'funnel_id,section_id,version', // Match the schema unique constraint
                 ignoreDuplicates: false
               });
 

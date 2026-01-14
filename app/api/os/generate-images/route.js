@@ -18,7 +18,7 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { businessData, imageType } = body;
+        const { businessData, imageType, funnelId, sessionId } = body;
         // imageType is optional: if provided, generates ONLY that image. If missing, attempts all (risk of timeout).
 
         console.log('[Generate Images] Request for user:', userId, 'Type:', imageType || 'ALL');
@@ -34,27 +34,32 @@ export async function POST(req) {
             {
                 id: 'hero_book',
                 prompt: `Professional 3D book cover mockup floating at an angle. The book title is "${offerName}" in bold modern typography. Dark moody background with subtle ${brandColors} gradient lighting. High-end product photography style, dramatic shadows, premium feel. No text other than the title.`,
-                folder: 'hero'
+                folder: 'hero',
+                purpose: 'book_cover'
             },
             {
                 id: 'hero_product',
                 prompt: `Premium digital product bundle mockup for ${industry} business. Includes laptop showing dashboard, tablet with ebook, and phone with app. Dark background with ${brandColors} accent glow. Professional product photography, clean minimal style.`,
-                folder: 'hero'
+                folder: 'hero',
+                purpose: 'product_bundle'
             },
             {
                 id: 'testimonial_1',
                 prompt: `Professional headshot portrait of a successful ${industry} business owner in their 40s. Confident smile, business attire. Studio lighting, neutral background. High quality corporate photography style. Photorealistic.`,
-                folder: 'testimonials'
+                folder: 'testimonials',
+                purpose: 'testimonial_avatar'
             },
             {
                 id: 'testimonial_2',
                 prompt: `Professional headshot portrait of a successful entrepreneur in their 30s. Warm genuine smile, smart casual attire. Natural lighting, clean background. High quality portrait photography. Photorealistic.`,
-                folder: 'testimonials'
+                folder: 'testimonials',
+                purpose: 'testimonial_avatar'
             },
             {
                 id: 'feature_icon',
                 prompt: `Minimalist 3D icon representing ${industry} success and growth. Abstract geometric shapes with ${brandColors} gradient colors. Dark background, soft lighting, modern tech aesthetic. Clean vector-like 3D render.`,
-                folder: 'features'
+                folder: 'features',
+                purpose: 'feature_icon'
             }
         ];
 
@@ -106,13 +111,38 @@ export async function POST(req) {
                     .from('funnel-images')
                     .getPublicUrl(fileName);
 
+                // Save to Database (Persist Metadata)
+                const { data: dbImage, error: dbError } = await supabaseAdmin
+                    .from('generated_images')
+                    .insert({
+                        user_id: userId,
+                        funnel_id: funnelId,
+                        session_id: sessionId,
+                        image_type: imageConfig.id,
+                        image_purpose: imageConfig.purpose,
+                        prompt_used: imageConfig.prompt,
+                        supabase_path: fileName,
+                        public_url: urlData.publicUrl,
+                        status: 'completed',
+                        format: 'png',
+                        width: 1024,
+                        height: 1024
+                    })
+                    .select()
+                    .single();
+
+                if (dbError) {
+                    console.error(`[Generate Images] DB Insert error for ${imageConfig.id}:`, dbError);
+                }
+
                 generatedImages.push({
                     id: imageConfig.id,
                     url: urlData.publicUrl,
-                    folder: imageConfig.folder
+                    folder: imageConfig.folder,
+                    dbId: dbImage?.id
                 });
 
-                console.log(`[Generate Images] Successfully created: ${imageConfig.id}`);
+                console.log(`[Generate Images] Successfully created and saved: ${imageConfig.id}`);
 
             } catch (imageError) {
                 console.error(`[Generate Images] Error generating ${imageConfig.id}:`, imageError);

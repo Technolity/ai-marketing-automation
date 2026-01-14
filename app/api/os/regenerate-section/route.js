@@ -81,10 +81,10 @@ export async function POST(req) {
         return Response.json({ error: 'Invalid section_key' }, { status: 400 });
     }
 
-    // Verify funnel ownership
+    // Verify funnel ownership AND get wizard answers
     const { data: funnel, error: funnelError } = await supabaseAdmin
         .from('user_funnels')
-        .select('id, funnel_name')
+        .select('id, funnel_name, wizard_answers')
         .eq('id', funnelId)
         .eq('user_id', userId)
         .single();
@@ -93,124 +93,12 @@ export async function POST(req) {
         return Response.json({ error: 'Funnel not found' }, { status: 404 });
     }
 
-    // Get questionnaire data for this funnel
-    const { data: responses, error: responsesError } = await supabaseAdmin
-        .from('questionnaire_responses')
-        .select('*')
-        .eq('funnel_id', funnelId);
+    // Use wizard_answers directly
+    const data = funnel.wizard_answers || {};
 
-    if (responsesError) {
-        return Response.json({ error: 'Failed to fetch questionnaire data' }, { status: 500 });
-    }
-
-    // Map step numbers to named keys that prompts expect
-    // Based on STEP_INPUTS from os-wizard-data.js
-    const data = {};
-    responses?.forEach(r => {
-        const value = r.answer_text || r.answer_selection || r.answer_selections;
-        if (!value) return;
-
-        // Map step numbers to their field names
-        switch (r.step_number) {
-            case 1:
-                // Step 1 has businessType and industry - try to parse
-                if (typeof value === 'object') {
-                    data.businessType = value.businessType || '';
-                    data.industry = value.industry || '';
-                } else {
-                    data.industry = value;
-                }
-                break;
-            case 2:
-                data.idealClient = value;
-                break;
-            case 3:
-                data.message = value;
-                break;
-            case 4:
-                data.coreProblem = value;
-                break;
-            case 5:
-                data.outcomes = value;
-                break;
-            case 6:
-                data.uniqueAdvantage = value;
-                break;
-            case 7:
-                // Story fields - may be object with multiple fields
-                if (typeof value === 'object') {
-                    data.storyLowMoment = value.storyLowMoment || '';
-                    data.storyDiscovery = value.storyDiscovery || '';
-                    data.storySearchAgain = value.storySearchAgain || '';
-                    data.storyBreakthrough = value.storyBreakthrough || '';
-                    data.storyBigIdea = value.storyBigIdea || '';
-                    data.storyResults = value.storyResults || '';
-                } else {
-                    data.storyLowMoment = value;
-                }
-                break;
-            case 8:
-                data.testimonials = value;
-                break;
-            case 9:
-                data.offerProgram = value;
-                break;
-            case 10:
-                data.deliverables = value;
-                break;
-            case 11:
-                data.pricing = value;
-                break;
-            case 12:
-                data.assets = value;
-                break;
-            case 13:
-                data.revenue = value;
-                break;
-            case 14:
-                data.brandVoice = value;
-                break;
-            case 15:
-                data.brandColors = value;
-                break;
-            case 16:
-                data.callToAction = value;
-                break;
-            case 17:
-                data.platforms = value;
-                break;
-            case 18:
-                data.goal90Days = value;
-                break;
-            case 19:
-                data.businessStage = value;
-                break;
-            case 20:
-                data.helpNeeded = value;
-                break;
-        }
-    });
-
-    // FALLBACK: If data is empty (no questionnaire_responses found), try wizard_progress
-    // This handles the case where data is stored in the user-singleton wizard_progress table
-    // but hasn't been migrated/synced to questionnaire_responses
-    if (Object.keys(data).length === 0) {
-        console.log('[REGENERATE] No questionnaire_responses found, checking wizard_progress...');
-        const { data: progress } = await supabaseAdmin
-            .from('wizard_progress')
-            .select('answers')
-            .eq('user_id', userId)
-            .single();
-
-        if (progress?.answers) {
-            console.log('[REGENERATE] Found data in wizard_progress, using as fallback');
-            // wizard_progress.answers is already an object with named keys (idealClient, etc.)
-            Object.assign(data, progress.answers);
-
-            // Log keys found for debugging
-            console.log('[REGENERATE] Fallback data keys:', Object.keys(data));
-        }
-    }
+    /* REMOVED: Legacy questionnaire_responses and wizard_progress logic
+       Data is now centralized in user_funnels.wizard_answers
+    */
 
     console.log('[REGENERATE] Mapped data keys:', Object.keys(data));
 
