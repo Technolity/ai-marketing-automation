@@ -17,7 +17,10 @@ export default authMiddleware({
   ],
   ignoredRoutes: [
     "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",
-    "/api/webhooks/clerk"
+    "/api/webhooks/clerk",
+    "/api/integrations/oauth/callback",
+    "/api/integrations/oauth/debug",
+    "/api/cron(.*)"
   ]
 });
 
