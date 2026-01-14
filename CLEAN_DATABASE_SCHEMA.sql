@@ -410,6 +410,43 @@ CREATE TABLE public.ghl_subaccount_logs (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX idx_ghl_subaccount_logs_user ON public.ghl_subaccount_logs(user_id);
+-- 3.9d Admin Settings (App Configuration)
+CREATE TABLE public.admin_settings (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    setting_key TEXT NOT NULL UNIQUE,
+    setting_value JSONB NOT NULL DEFAULT '{}',
+    description TEXT,
+    updated_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+-- Seed default settings
+INSERT INTO public.admin_settings (setting_key, setting_value, description)
+VALUES (
+        'general',
+        '{"siteName": "TedOS", "siteDescription": "AI Marketing Automation Platform", "userRegistration": true, "maintenanceMode": false}',
+        'General site settings'
+    ),
+    (
+        'user_management',
+        '{"autoApproveContent": false, "maxUsersPerTier": {"starter": 1000, "growth": 500, "scale": 100}}',
+        'User management settings'
+    ),
+    (
+        'notifications',
+        '{"emailNotifications": true, "adminEmail": "admin@tedos.ai"}',
+        'Notification preferences'
+    ),
+    (
+        'security',
+        '{"require2FA": false, "allowAPIAccess": true}',
+        'Security settings'
+    ),
+    (
+        'advanced',
+        '{"apiEndpoint": "https://api.tedos.ai", "webhookUrl": "", "customCSS": ""}',
+        'Advanced configuration'
+    ) ON CONFLICT (setting_key) DO NOTHING;
 -- 3.10 Media
 CREATE TABLE public.generated_images (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -660,6 +697,16 @@ SELECT USING (
         user_id = current_setting('request.jwt.claims', true)::json->>'sub'
     );
 CREATE POLICY "Service role bypass ghl_push" ON public.ghl_push_operations FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+-- GHL AGENCY TABLES (admin-only)
+ALTER TABLE public.ghl_agency_credentials ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service role bypass ghl_agency" ON public.ghl_agency_credentials FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+CREATE POLICY "Admins manage agency creds" ON public.ghl_agency_credentials FOR ALL USING (is_admin());
+ALTER TABLE public.ghl_subaccount_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Service role bypass subaccount_logs" ON public.ghl_subaccount_logs FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
+-- ADMIN SETTINGS (admin-only)
+ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins manage settings" ON public.admin_settings FOR ALL USING (is_admin());
+CREATE POLICY "Service role bypass admin_settings" ON public.admin_settings FOR ALL USING (auth.role() = 'service_role') WITH CHECK (auth.role() = 'service_role');
 -- MEDIA TABLES
 ALTER TABLE public.generated_images ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users manage own images" ON public.generated_images FOR ALL USING (

@@ -67,21 +67,21 @@ export async function GET(request) {
       // User Management
       autoApproveContent: settings.user_management?.autoApproveContent ?? false,
       maxUsersPerTier: settings.user_management?.maxUsersPerTier || {
-        basic: 1000,
-        premium: 500,
-        enterprise: 100
+        starter: 1000,
+        growth: 500,
+        scale: 100
       },
 
       // Notifications
       emailNotifications: settings.notifications?.emailNotifications ?? true,
-      adminEmail: settings.notifications?.adminEmail || 'admin@tedos.com',
+      adminEmail: settings.notifications?.adminEmail || 'admin@tedos.ai',
 
       // Security
       require2FA: settings.security?.require2FA ?? false,
       allowAPIAccess: settings.security?.allowAPIAccess ?? true,
 
       // Advanced
-      apiEndpoint: settings.advanced?.apiEndpoint || 'https://api.tedos.com',
+      apiEndpoint: settings.advanced?.apiEndpoint || 'https://api.tedos.ai',
       webhookUrl: settings.advanced?.webhookUrl || '',
       customCSS: settings.advanced?.customCSS || ''
     };
