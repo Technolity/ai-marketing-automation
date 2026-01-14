@@ -1255,36 +1255,7 @@ Be as specific as possible - for example:
                         ) : null;
                     })()}
 
-                    {/* Input for Feedback Step */}
-                    {chatStep === 2 && (
-                        <div className="p-4 border-t border-[#2a2a2d]">
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && !isProcessing && !isStreaming && handleSendFeedback()}
-                                    placeholder="Describe what you'd like to change..."
-                                    disabled={isProcessing || isStreaming}
-                                    className="flex-1 px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
-                                />
-                                <button
-                                    onClick={handleSendFeedback}
-                                    disabled={!inputText.trim() || isProcessing || isStreaming}
-                                    className="px-4 py-3 btn-approve rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {isProcessing || isStreaming ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <Send className="w-5 h-5" />
-                                    )}
-                                </button>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2">
-                                <Lightbulb className="w-3 h-3 inline mr-1" />
-                                {isStreaming ? 'AI is generating your response...' : 'Tip: Be specific about what to change and how'}
-                            </p>
-                        </div>
+
                     {/* Input for Feedback Step - Always visible after Step 1 */}
                     {(chatStep >= 2) && (
                         <div className="p-4 border-t border-[#2a2a2d] bg-[#1b1b1d]">
