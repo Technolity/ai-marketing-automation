@@ -37,7 +37,7 @@ export default function Home() {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-          <Link href="/auth/signup">
+          <Link href="https://accounts.tedos.ai/sign-up">
             <motion.button
               whileHover={{ scale: 1.05, boxShadow: "0 0 50px rgba(0, 229, 255, 0.8)" }}
               whileTap={{ scale: 0.98 }}
@@ -49,7 +49,7 @@ export default function Home() {
             </motion.button>
           </Link>
 
-          <Link href="/auth/login">
+          <Link href="https://accounts.tedos.ai/sign-in">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
