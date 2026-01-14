@@ -47,12 +47,12 @@ export async function GET(req) {
             );
         }
 
-        // Build authorization URL
+        // Build authorization URL with full agency scopes
         const params = new URLSearchParams({
             client_id: process.env.GHL_CLIENT_ID,
             redirect_uri: process.env.GHL_REDIRECT_URI,
             response_type: 'code',
-            scope: 'locations.write locations.readonly'
+            scope: 'locations.read locations.write users.read users.write contacts.read contacts.write'
         });
 
         const authUrl = `https://marketplace.gohighlevel.com/oauth/chooselocation?${params}`;
