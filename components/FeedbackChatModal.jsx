@@ -29,15 +29,16 @@ const CHAT_OPENERS = [
 const SECTION_OPTIONS = {
     idealClient: [
         { id: 'bestIdealClient', label: 'Best Ideal Client' },
-        { id: 'topChallenges', label: 'Top 3 Challenges' },
+        { id: 'top3Challenges', label: 'Top 3 Challenges' },
         { id: 'whatTheyWant', label: 'What They Want' },
         { id: 'whatMakesThemPay', label: 'What Makes Them Pay' },
         { id: 'howToTalkToThem', label: 'How to Talk to Them' },
         { id: 'all', label: 'Update the entire section' }
     ],
     message: [
-        { id: 'oneLiner', label: 'One-Liner Message' },
-        { id: 'spokenVersion', label: '30-Second Spoken Version' },
+        { id: 'oneLineMessage', label: 'One-Liner Message' },
+        { id: 'spokenIntroduction', label: '30-Second Spoken Version' },
+        { id: 'powerPositioningLines', label: 'Power Positioning Lines' },
         { id: 'all', label: 'Update the entire section' }
     ],
     story: [
@@ -51,13 +52,15 @@ const SECTION_OPTIONS = {
         { id: 'all', label: 'Update the entire section' }
     ],
     offer: [
-        { id: 'offerName', label: 'Offer Name' },
-        { id: 'whoItsFor', label: 'Who It\'s For' },
-        { id: 'thePromise', label: 'The Promise' },
         { id: 'offerMode', label: 'Offer Mode' },
+        { id: 'offerName', label: 'Offer Name' },
         { id: 'sevenStepBlueprint', label: '7-Step Blueprint' },
-        { id: 'tier1SignatureOffer', label: 'Tier 1 Signature Offer' },
-        { id: 'cta', label: 'Call to Action' },
+        { id: 'tier1WhoItsFor', label: 'Tier 1: Who It\'s For' },
+        { id: 'tier1Promise', label: 'Tier 1: The Promise' },
+        { id: 'tier1Deliverables', label: 'Tier 1: Deliverables' },
+        { id: 'tier2WhoItsFor', label: 'Tier 2: Who It\'s For' },
+        { id: 'tier2Promise', label: 'Tier 2: The Promise' },
+        { id: 'offerPromise', label: 'Offer Promise Summary' },
         { id: 'all', label: 'Update the entire section' }
     ],
     salesScripts: [
