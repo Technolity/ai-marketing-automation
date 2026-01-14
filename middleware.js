@@ -20,7 +20,10 @@ export default authMiddleware({
     "/api/webhooks/clerk",
     "/api/integrations/oauth/callback",
     "/api/integrations/oauth/debug",
-    "/api/cron(.*)"
+    "/api/cron(.*)",
+    "/auth/login",
+    "/auth/signup",
+    "/auth/verify"
   ]
 });
 
