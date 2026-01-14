@@ -21,6 +21,7 @@ export default authMiddleware({
     "/api/integrations/oauth/callback",
     "/api/integrations/oauth/debug",
     "/api/cron(.*)",
+    "/",
     "/auth/login",
     "/auth/signup",
     "/auth/verify"
