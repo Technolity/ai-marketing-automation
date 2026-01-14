@@ -52,7 +52,7 @@ export async function GET(req) {
             client_id: process.env.GHL_CLIENT_ID,
             redirect_uri: process.env.GHL_REDIRECT_URI,
             response_type: 'code',
-            scope: 'locations.read locations.write users.read users.write contacts.read contacts.write'
+            scope: 'locations.read locations.write users.read users.write contacts.read contacts.write companies.read companies.write'
         });
 
         const authUrl = `https://marketplace.gohighlevel.com/oauth/chooselocation?${params}`;

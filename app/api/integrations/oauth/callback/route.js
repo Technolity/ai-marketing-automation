@@ -63,6 +63,15 @@ export async function GET(req) {
         }
 
         console.log('[GHL OAuth] Tokens received successfully');
+        console.log('[GHL OAuth] Token userType:', tokens.userType);
+        console.log('[GHL OAuth] CompanyId:', tokens.companyId);
+        console.log('[GHL OAuth] LocationId:', tokens.locationId);
+
+        // Verify this is an Agency token (userType should be 'Company')
+        if (tokens.userType !== 'Company') {
+            console.warn('[GHL OAuth] WARNING: Token is not Agency level. userType:', tokens.userType);
+            // Continue anyway but log the warning
+        }
 
         // Calculate token expiry
         const expiresAt = new Date(Date.now() + (tokens.expires_in || 86400) * 1000).toISOString();
@@ -71,7 +80,7 @@ export async function GET(req) {
         const { error: dbError } = await supabase
             .from('ghl_agency_credentials')
             .upsert({
-                agency_id: process.env.GHL_AGENCY_ID || 'default',
+                agency_id: tokens.companyId || process.env.GHL_AGENCY_ID || 'default',
                 agency_name: tokens.companyId || 'TedOS Agency',
                 access_token: tokens.access_token,
                 refresh_token: tokens.refresh_token,
@@ -92,7 +101,7 @@ export async function GET(req) {
 
         console.log('[GHL OAuth] Agency credentials saved successfully');
 
-        return NextResponse.redirect(`${baseUrl}/admin/settings?success=ghl_connected`);
+        return NextResponse.redirect(`${baseUrl}/admin/settings?success=ghl_connected&userType=${tokens.userType}`);
 
     } catch (error) {
         console.error('[GHL OAuth] Callback error:', error);
