@@ -877,470 +877,469 @@ Be as specific as possible - for example:
                     previousAlternatives: updatedAlternatives
                 })
             });
-        });
 
-        if (!response.ok) throw new Error('Failed to regenerate');
+            if (!response.ok) throw new Error('Failed to regenerate');
 
-        const data = await response.json();
+            const data = await response.json();
 
-        setMessages(prev => {
-            const withoutThinking = prev.filter(m => !m.isThinking);
-            return [
-                ...withoutThinking,
-                {
-                    role: 'assistant',
-                    content: `Here's alternative #${regenerationCount + 2}:`,
-                    showPreview: true,
-                    previewContent: data.refinedContent
-                }
-            ];
-        });
+            setMessages(prev => {
+                const withoutThinking = prev.filter(m => !m.isThinking);
+                return [
+                    ...withoutThinking,
+                    {
+                        role: 'assistant',
+                        content: `Here's alternative #${regenerationCount + 2}:`,
+                        showPreview: true,
+                        previewContent: data.refinedContent
+                    }
+                ];
+            });
 
-        setSuggestedChanges(data.refinedContent);
-        setLatestContent(data.refinedContent);
-        setRegenerationCount(prev => prev + 1);
+            setSuggestedChanges(data.refinedContent);
+            setLatestContent(data.refinedContent);
+            setRegenerationCount(prev => prev + 1);
 
-    } catch (error) {
-        console.error('Retry error:', error);
-        toast.error("Failed to generate alternative");
-        setMessages(prev => prev.filter(m => !m.isThinking));
-    } finally {
-        setIsProcessing(false);
-    }
-};
+        } catch (error) {
+            console.error('Retry error:', error);
+            toast.error("Failed to generate alternative");
+            setMessages(prev => prev.filter(m => !m.isThinking));
+        } finally {
+            setIsProcessing(false);
+        }
+    };
 
-if (!isOpen) return null;
+    if (!isOpen) return null;
 
-// Use portal to render at document body - fixes positioning issues with parent transforms
-if (typeof document === 'undefined') return null;
+    // Use portal to render at document body - fixes positioning issues with parent transforms
+    if (typeof document === 'undefined') return null;
 
-return createPortal(
-    <AnimatePresence>
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center px-4 py-6"
-            onClick={onClose}
-        >
+    return createPortal(
+        <AnimatePresence>
             <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-2xl max-h-[70vh] flex flex-col overflow-hidden"
-                onClick={e => e.stopPropagation()}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center px-4 py-6"
+                onClick={onClose}
             >
-                {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-[#2a2a2d]">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan/20 to-purple-500/20 flex items-center justify-center">
-                            <MessageSquare className="w-5 h-5 text-cyan" />
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-2xl max-h-[70vh] flex flex-col overflow-hidden"
+                    onClick={e => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 border-b border-[#2a2a2d]">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan/20 to-purple-500/20 flex items-center justify-center">
+                                <MessageSquare className="w-5 h-5 text-cyan" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-white">Improve: {sectionTitle}</h3>
+                                <p className="text-xs text-gray-500">
+                                    {regenerationCount}/{MAX_REGENERATIONS} refinements used
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 className="font-bold text-white">Improve: {sectionTitle}</h3>
-                            <p className="text-xs text-gray-500">
-                                {regenerationCount}/{MAX_REGENERATIONS} refinements used
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
-                    >
-                        <X className="w-5 h-5 text-gray-400" />
-                    </button>
-                </div>
-
-                {/* Content Preview Collapsible (Fix for Bug 1a) */}
-                {latestContent && selectedSubSection && (
-                    <div className="border-b border-[#2a2a2d] bg-[#161618]">
                         <button
-                            onClick={() => setShowContentPreview(!showContentPreview)}
-                            className="w-full px-4 py-2 flex items-center justify-between text-xs font-medium text-gray-400 hover:text-white hover:bg-[#2a2a2d] transition-colors"
+                            onClick={onClose}
+                            className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
                         >
-                            <span className="flex items-center gap-2">
-                                <FileImage className="w-3.5 h-3.5" />
-                                Current Content Preview
-                            </span>
-                            {showContentPreview ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            <X className="w-5 h-5 text-gray-400" />
                         </button>
-                        <AnimatePresence>
-                            {showContentPreview && (
-                                <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    className="overflow-hidden"
-                                >
-                                    <div className="p-4 bg-[#0e0e0f] max-h-40 overflow-y-auto border-b border-[#2a2a2d]">
-                                        <pre className="text-xs text-gray-500 whitespace-pre-wrap font-mono">
-                                            {formatPreviewContent(selectedSubSection === 'all'
-                                                ? latestContent
-                                                : { [selectedSubSection]: latestContent[selectedSubSection] || latestContent }
-                                            )}
-                                        </pre>
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
                     </div>
-                )}
 
-                {/* Chat Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {messages.map((msg, idx) => (
-                        <motion.div
-                            key={idx}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.1 }}
-                            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                        >
-                            <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user'
-                                ? 'bg-cyan text-black'
-                                : 'bg-[#2a2a2d] text-white'
-                                }`}>
-                                {msg.isThinking ? (
-                                    <div className="flex items-center gap-2">
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        <span>{msg.content}</span>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                )}
-
-                                {/* Sub-section options */}
-                                {msg.showOptions && (
-                                    <div className="mt-3 space-y-2">
-                                        {subSectionOptions.map((option) => (
-                                            <button
-                                                key={option.id}
-                                                onClick={() => handleSubSectionSelect(option)}
-                                                className="w-full text-left px-3 py-2 bg-[#1b1b1d] hover:bg-[#0e0e0f] rounded-lg text-sm text-gray-300 transition-colors"
-                                            >
-                                                {option.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Preview content */}
-                                {(() => {
-                                    const shouldShowPreview = (msg.showPreview && msg.previewContent) || msg.metadata?.validatedContent;
-                                    const contentToFormat = msg.previewContent || msg.metadata?.validatedContent;
-
-                                    if (shouldShowPreview && idx === messages.length - 1) {
-                                        console.log('[FeedbackChat] Rendering preview for last message:', {
-                                            msgIndex: idx,
-                                            hasShowPreview: !!msg.showPreview,
-                                            hasPreviewContent: !!msg.previewContent,
-                                            hasMetadataContent: !!msg.metadata?.validatedContent,
-                                            hasPreviewContent: !!msg.previewContent,
-                                            hasMetadataContent: !!msg.metadata?.validatedContent,
-                                            contentKeys: Object.keys(contentToFormat || {}),
-                                            role: msg.role
-                                        });
-                                    }
-
-                                    return shouldShowPreview ? (
-                                        <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
-                                            <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#0e0e0f]/90 backdrop-blur pb-2 border-b border-[#2a2a2d]">
-                                                <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Preview</span>
-                                            </div>
-                                            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                                {formatPreviewContent(contentToFormat)}
+                    {/* Content Preview Collapsible (Fix for Bug 1a) */}
+                    {latestContent && selectedSubSection && (
+                        <div className="border-b border-[#2a2a2d] bg-[#161618]">
+                            <button
+                                onClick={() => setShowContentPreview(!showContentPreview)}
+                                className="w-full px-4 py-2 flex items-center justify-between text-xs font-medium text-gray-400 hover:text-white hover:bg-[#2a2a2d] transition-colors"
+                            >
+                                <span className="flex items-center gap-2">
+                                    <FileImage className="w-3.5 h-3.5" />
+                                    Current Content Preview
+                                </span>
+                                {showContentPreview ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                            <AnimatePresence>
+                                {showContentPreview && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="p-4 bg-[#0e0e0f] max-h-40 overflow-y-auto border-b border-[#2a2a2d]">
+                                            <pre className="text-xs text-gray-500 whitespace-pre-wrap font-mono">
+                                                {formatPreviewContent(selectedSubSection === 'all'
+                                                    ? latestContent
+                                                    : { [selectedSubSection]: latestContent[selectedSubSection] || latestContent }
+                                                )}
                                             </pre>
                                         </div>
-                                    ) : null;
-                                })()}
-                            </div>
-                        </motion.div>
-                    ))}
-
-                    {/* Streaming Message */}
-                    {streamingMessage && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex justify-start"
-                        >
-                            <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] text-white">
-                                {/* While streaming: Show loading indicator with live content preview */}
-                                {streamingMessage.isStreaming && !streamingMessage.metadata?.validatedContent ? (
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex gap-1">
-                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                                                <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                                            </div>
-                                            <span className="text-sm text-gray-400">Generating your refined content...</span>
-                                        </div>
-                                        {/* Show live streaming content */}
-                                        {streamingMessage.content && streamingMessage.content.length > 50 && (
-                                            <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-48 overflow-y-auto">
-                                                <pre className="text-xs text-gray-500 whitespace-pre-wrap font-mono">
-                                                    {streamingMessage.content.substring(0, 500)}
-                                                    {streamingMessage.content.length > 500 && '...'}
-                                                    <span className="inline-block w-2 h-3 bg-cyan animate-pulse ml-1">|</span>
-                                                </pre>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : null}
-
-                                {/* After streaming completes: Show formatted content ONLY */}
-                                {streamingMessage.metadata?.validatedContent && (
-                                    <div className="space-y-3">
-                                        <p className="text-sm text-cyan font-medium">✓ Content generated successfully</p>
-                                        <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-96 overflow-y-auto">
-                                            <div className="text-sm text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                                {formatPreviewContent(streamingMessage.metadata.validatedContent)}
-                                            </div>
-                                        </div>
-                                    </div>
+                                    </motion.div>
                                 )}
-                            </div>
-                        </motion.div>
+                            </AnimatePresence>
+                        </div>
                     )}
 
-                    {/* Partial Content Recovery Dialog */}
-                    {partialError && partialContent && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="flex justify-start"
-                        >
-                            <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] border-2 border-yellow-500/30">
-                                <div className="space-y-3">
-                                    <div className="flex items-start gap-2">
-                                        <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-yellow-500">
-                                                {partialError.reason === 'timeout'
-                                                    ? 'Generation Timed Out'
-                                                    : 'Generation Failed'}
-                                            </p>
-                                            <p className="text-xs text-gray-400 mt-1">
-                                                Received {partialContent.length} characters before {partialError.reason}.
-                                            </p>
+                    {/* Chat Messages */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        {messages.map((msg, idx) => (
+                            <motion.div
+                                key={idx}
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.1 }}
+                                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            >
+                                <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user'
+                                    ? 'bg-cyan text-black'
+                                    : 'bg-[#2a2a2d] text-white'
+                                    }`}>
+                                    {msg.isThinking ? (
+                                        <div className="flex items-center gap-2">
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span>{msg.content}</span>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                                    )}
 
-                                    {/* Partial Content Preview */}
-                                    <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-32 overflow-y-auto">
-                                        <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono">
-                                            {partialContent.substring(0, 500)}
-                                            {partialContent.length > 500 && '...'}
-                                        </pre>
-                                    </div>
+                                    {/* Sub-section options */}
+                                    {msg.showOptions && (
+                                        <div className="mt-3 space-y-2">
+                                            {subSectionOptions.map((option) => (
+                                                <button
+                                                    key={option.id}
+                                                    onClick={() => handleSubSectionSelect(option)}
+                                                    className="w-full text-left px-3 py-2 bg-[#1b1b1d] hover:bg-[#0e0e0f] rounded-lg text-sm text-gray-300 transition-colors"
+                                                >
+                                                    {option.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
 
-                                    {/* Recovery Action Buttons */}
-                                    <div className="flex flex-col gap-2 pt-2">
-                                        {partialError.canRetry && (
-                                            <button
-                                                onClick={() => {
-                                                    console.log('[FeedbackChat] Retry from scratch clicked');
-                                                    setPartialContent(null);
-                                                    setPartialError(null);
-                                                    // Re-send the last user message
-                                                    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
-                                                    if (lastUserMessage) {
-                                                        setInputText(lastUserMessage.content);
-                                                        setTimeout(() => handleSendFeedback(), 100);
-                                                    }
-                                                }}
-                                                className="w-full py-2.5 px-4 bg-cyan hover:bg-cyan/90 text-black rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
-                                            >
-                                                <RefreshCw className="w-4 h-4" />
-                                                Retry from Scratch
-                                            </button>
-                                        )}
+                                    {/* Preview content */}
+                                    {(() => {
+                                        const shouldShowPreview = (msg.showPreview && msg.previewContent) || msg.metadata?.validatedContent;
+                                        const contentToFormat = msg.previewContent || msg.metadata?.validatedContent;
 
-                                        {partialError.canSave && (
-                                            <button
-                                                onClick={async () => {
-                                                    console.log('[FeedbackChat] Save partial clicked');
-                                                    try {
-                                                        // Try to parse and save partial content
-                                                        const parsed = JSON.parse(partialContent);
-                                                        setSuggestedChanges(parsed);
-                                                        setChatStep(3);
+                                        if (shouldShowPreview && idx === messages.length - 1) {
+                                            console.log('[FeedbackChat] Rendering preview for last message:', {
+                                                msgIndex: idx,
+                                                hasShowPreview: !!msg.showPreview,
+                                                hasPreviewContent: !!msg.previewContent,
+                                                hasMetadataContent: !!msg.metadata?.validatedContent,
+                                                hasPreviewContent: !!msg.previewContent,
+                                                hasMetadataContent: !!msg.metadata?.validatedContent,
+                                                contentKeys: Object.keys(contentToFormat || {}),
+                                                role: msg.role
+                                            });
+                                        }
+
+                                        return shouldShowPreview ? (
+                                            <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
+                                                <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#0e0e0f]/90 backdrop-blur pb-2 border-b border-[#2a2a2d]">
+                                                    <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Preview</span>
+                                                </div>
+                                                <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                                    {formatPreviewContent(contentToFormat)}
+                                                </pre>
+                                            </div>
+                                        ) : null;
+                                    })()}
+                                </div>
+                            </motion.div>
+                        ))}
+
+                        {/* Streaming Message */}
+                        {streamingMessage && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex justify-start"
+                            >
+                                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] text-white">
+                                    {/* While streaming: Show loading indicator with live content preview */}
+                                    {streamingMessage.isStreaming && !streamingMessage.metadata?.validatedContent ? (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex gap-1">
+                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                                </div>
+                                                <span className="text-sm text-gray-400">Generating your refined content...</span>
+                                            </div>
+                                            {/* Show live streaming content */}
+                                            {streamingMessage.content && streamingMessage.content.length > 50 && (
+                                                <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-48 overflow-y-auto">
+                                                    <pre className="text-xs text-gray-500 whitespace-pre-wrap font-mono">
+                                                        {streamingMessage.content.substring(0, 500)}
+                                                        {streamingMessage.content.length > 500 && '...'}
+                                                        <span className="inline-block w-2 h-3 bg-cyan animate-pulse ml-1">|</span>
+                                                    </pre>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : null}
+
+                                    {/* After streaming completes: Show formatted content ONLY */}
+                                    {streamingMessage.metadata?.validatedContent && (
+                                        <div className="space-y-3">
+                                            <p className="text-sm text-cyan font-medium">✓ Content generated successfully</p>
+                                            <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-96 overflow-y-auto">
+                                                <div className="text-sm text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                                    {formatPreviewContent(streamingMessage.metadata.validatedContent)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {/* Partial Content Recovery Dialog */}
+                        {partialError && partialContent && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex justify-start"
+                            >
+                                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] border-2 border-yellow-500/30">
+                                    <div className="space-y-3">
+                                        <div className="flex items-start gap-2">
+                                            <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-yellow-500">
+                                                    {partialError.reason === 'timeout'
+                                                        ? 'Generation Timed Out'
+                                                        : 'Generation Failed'}
+                                                </p>
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                    Received {partialContent.length} characters before {partialError.reason}.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Partial Content Preview */}
+                                        <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-32 overflow-y-auto">
+                                            <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono">
+                                                {partialContent.substring(0, 500)}
+                                                {partialContent.length > 500 && '...'}
+                                            </pre>
+                                        </div>
+
+                                        {/* Recovery Action Buttons */}
+                                        <div className="flex flex-col gap-2 pt-2">
+                                            {partialError.canRetry && (
+                                                <button
+                                                    onClick={() => {
+                                                        console.log('[FeedbackChat] Retry from scratch clicked');
+                                                        setPartialContent(null);
+                                                        setPartialError(null);
+                                                        // Re-send the last user message
+                                                        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+                                                        if (lastUserMessage) {
+                                                            setInputText(lastUserMessage.content);
+                                                            setTimeout(() => handleSendFeedback(), 100);
+                                                        }
+                                                    }}
+                                                    className="w-full py-2.5 px-4 bg-cyan hover:bg-cyan/90 text-black rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+                                                >
+                                                    <RefreshCw className="w-4 h-4" />
+                                                    Retry from Scratch
+                                                </button>
+                                            )}
+
+                                            {partialError.canSave && (
+                                                <button
+                                                    onClick={async () => {
+                                                        console.log('[FeedbackChat] Save partial clicked');
+                                                        try {
+                                                            // Try to parse and save partial content
+                                                            const parsed = JSON.parse(partialContent);
+                                                            setSuggestedChanges(parsed);
+                                                            setChatStep(3);
+                                                            setPartialContent(null);
+                                                            setPartialError(null);
+                                                            setMessages(prev => [...prev, {
+                                                                role: 'assistant',
+                                                                content: '✓ Partial content parsed successfully. Review below:',
+                                                                showPreview: true,
+                                                                previewContent: parsed
+                                                            }]);
+                                                        } catch (error) {
+                                                            console.error('[FeedbackChat] Failed to parse partial content:', error);
+                                                            setMessages(prev => [...prev, {
+                                                                role: 'assistant',
+                                                                content: `❌ Cannot save: Partial content is not valid JSON.\n\nError: ${error.message}\n\nPlease retry or discard.`
+                                                            }]);
+                                                        }
+                                                    }}
+                                                    className="w-full py-2.5 px-4 bg-[#3a3a3d] hover:bg-[#4a4a4d] text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
+                                                >
+                                                    <Save className="w-4 h-4" />
+                                                    Save Partial Content
+                                                </button>
+                                            )}
+
+                                            {partialError.canDiscard && (
+                                                <button
+                                                    onClick={() => {
+                                                        console.log('[FeedbackChat] Discard clicked');
                                                         setPartialContent(null);
                                                         setPartialError(null);
                                                         setMessages(prev => [...prev, {
                                                             role: 'assistant',
-                                                            content: '✓ Partial content parsed successfully. Review below:',
-                                                            showPreview: true,
-                                                            previewContent: parsed
+                                                            content: 'Partial content discarded. You can try again with different feedback or close this dialog.'
                                                         }]);
-                                                    } catch (error) {
-                                                        console.error('[FeedbackChat] Failed to parse partial content:', error);
-                                                        setMessages(prev => [...prev, {
-                                                            role: 'assistant',
-                                                            content: `❌ Cannot save: Partial content is not valid JSON.\n\nError: ${error.message}\n\nPlease retry or discard.`
-                                                        }]);
-                                                    }
-                                                }}
-                                                className="w-full py-2.5 px-4 bg-[#3a3a3d] hover:bg-[#4a4a4d] text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
-                                            >
-                                                <Save className="w-4 h-4" />
-                                                Save Partial Content
-                                            </button>
-                                        )}
-
-                                        {partialError.canDiscard && (
-                                            <button
-                                                onClick={() => {
-                                                    console.log('[FeedbackChat] Discard clicked');
-                                                    setPartialContent(null);
-                                                    setPartialError(null);
-                                                    setMessages(prev => [...prev, {
-                                                        role: 'assistant',
-                                                        content: 'Partial content discarded. You can try again with different feedback or close this dialog.'
-                                                    }]);
-                                                }}
-                                                className="w-full py-2.5 px-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-gray-400 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all border border-[#2a2a2d]"
-                                            >
-                                                <X className="w-4 h-4" />
-                                                Discard
-                                            </button>
-                                        )}
+                                                    }}
+                                                    className="w-full py-2.5 px-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-gray-400 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all border border-[#2a2a2d]"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                    Discard
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </motion.div>
-                    )}
+                            </motion.div>
+                        )}
 
-                    <div ref={messagesEndRef} />
-                </div>
+                        <div ref={messagesEndRef} />
+                    </div>
 
-                {/* Actions for Preview Step */}
-                {(() => {
-                    const shouldShowActions = chatStep === 3 && suggestedChanges;
+                    {/* Actions for Preview Step */}
+                    {(() => {
+                        const shouldShowActions = chatStep === 3 && suggestedChanges;
 
-                    // Log button visibility for debugging
-                    console.log('[FeedbackChat] Action buttons state:', {
-                        chatStep,
-                        hasSuggestedChanges: !!suggestedChanges,
-                        shouldShowActions,
-                        suggestedChangesKeys: Object.keys(suggestedChanges || {})
-                    });
+                        // Log button visibility for debugging
+                        console.log('[FeedbackChat] Action buttons state:', {
+                            chatStep,
+                            hasSuggestedChanges: !!suggestedChanges,
+                            shouldShowActions,
+                            suggestedChangesKeys: Object.keys(suggestedChanges || {})
+                        });
 
-                    return shouldShowActions ? (
-                        <div className="p-4 border-t border-[#2a2a2d] flex flex-wrap gap-3">
-                            <button
-                                onClick={handleSaveChanges}
-                                className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2"
-                            >
-                                <Save className="w-4 h-4" />
-                                Save Changes
-                            </button>
-                            <button
-                                onClick={handleTryAgain}
-                                disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
-                                className="flex-1 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
-                                Try Again
-                            </button>
-                        </div>
                         return shouldShowActions ? (
-                        <div className="p-4 border-t border-[#2a2a2d] flex flex-col gap-3">
-                            {/* Primary Actions */}
-                            <div className="flex gap-3">
+                            <div className="p-4 border-t border-[#2a2a2d] flex flex-wrap gap-3">
                                 <button
                                     onClick={handleSaveChanges}
-                                    className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-cyan/10"
+                                    className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2"
                                 >
                                     <Save className="w-4 h-4" />
-                                    Save These Changes
+                                    Save Changes
                                 </button>
-                            </div>
-
-                            {/* Secondary Actions */}
-                            <div className="flex gap-3">
                                 <button
                                     onClick={handleTryAgain}
                                     disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
-                                    className="flex-1 py-2.5 bg-[#2a2a2d] text-gray-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                    className="flex-1 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
                                 >
-                                    <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
+                                    <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} />
                                     Try Again
                                 </button>
                             </div>
-                        </div>
-                    ) : null;
-                })()}
+                        return shouldShowActions ? (
+                            <div className="p-4 border-t border-[#2a2a2d] flex flex-col gap-3">
+                                {/* Primary Actions */}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={handleSaveChanges}
+                                        className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-cyan/10"
+                                    >
+                                        <Save className="w-4 h-4" />
+                                        Save These Changes
+                                    </button>
+                                </div>
 
-                {/* Input for Feedback Step */}
-                {chatStep === 2 && (
-                    <div className="p-4 border-t border-[#2a2a2d]">
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && !isProcessing && !isStreaming && handleSendFeedback()}
-                                placeholder="Describe what you'd like to change..."
-                                disabled={isProcessing || isStreaming}
-                                className="flex-1 px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
-                            />
-                            <button
-                                onClick={handleSendFeedback}
-                                disabled={!inputText.trim() || isProcessing || isStreaming}
-                                className="px-4 py-3 btn-approve rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isProcessing || isStreaming ? (
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                ) : (
-                                    <Send className="w-5 h-5" />
-                                )}
-                            </button>
+                                {/* Secondary Actions */}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={handleTryAgain}
+                                        disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
+                                        className="flex-1 py-2.5 bg-[#2a2a2d] text-gray-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                    >
+                                        <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
+                                        Try Again
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null;
+                    })()}
+
+                    {/* Input for Feedback Step */}
+                    {chatStep === 2 && (
+                        <div className="p-4 border-t border-[#2a2a2d]">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && !isProcessing && !isStreaming && handleSendFeedback()}
+                                    placeholder="Describe what you'd like to change..."
+                                    disabled={isProcessing || isStreaming}
+                                    className="flex-1 px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
+                                />
+                                <button
+                                    onClick={handleSendFeedback}
+                                    disabled={!inputText.trim() || isProcessing || isStreaming}
+                                    className="px-4 py-3 btn-approve rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isProcessing || isStreaming ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <Send className="w-5 h-5" />
+                                    )}
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2">
+                                <Lightbulb className="w-3 h-3 inline mr-1" />
+                                {isStreaming ? 'AI is generating your response...' : 'Tip: Be specific about what to change and how'}
+                            </p>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                            <Lightbulb className="w-3 h-3 inline mr-1" />
-                            {isStreaming ? 'AI is generating your response...' : 'Tip: Be specific about what to change and how'}
-                        </p>
-                    </div>
                     {/* Input for Feedback Step - Always visible after Step 1 */}
-                {(chatStep >= 2) && (
-                    <div className="p-4 border-t border-[#2a2a2d] bg-[#1b1b1d]">
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && !isProcessing && !isStreaming && handleSendFeedback()}
-                                placeholder={chatStep === 3 ? "Ask for more changes..." : "Describe what you'd like to change..."}
-                                disabled={isProcessing || isStreaming}
-                                className="flex-1 px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
-                            />
-                            <button
-                                onClick={handleSendFeedback}
-                                disabled={!inputText.trim() || isProcessing || isStreaming}
-                                className="px-4 py-3 btn-approve rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isProcessing || isStreaming ? (
-                                    <Loader2 className="w-5 h-5 animate-spin" />
-                                ) : (
-                                    <Send className="w-5 h-5" />
+                    {(chatStep >= 2) && (
+                        <div className="p-4 border-t border-[#2a2a2d] bg-[#1b1b1d]">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && !isProcessing && !isStreaming && handleSendFeedback()}
+                                    placeholder={chatStep === 3 ? "Ask for more changes..." : "Describe what you'd like to change..."}
+                                    disabled={isProcessing || isStreaming}
+                                    className="flex-1 px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
+                                />
+                                <button
+                                    onClick={handleSendFeedback}
+                                    disabled={!inputText.trim() || isProcessing || isStreaming}
+                                    className="px-4 py-3 btn-approve rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isProcessing || isStreaming ? (
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                    ) : (
+                                        <Send className="w-5 h-5" />
+                                    )}
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
+                                <Lightbulb className="w-3 h-3" />
+                                {isStreaming ? 'AI is generating your response...' : (
+                                    chatStep === 3
+                                        ? 'Tip: You can continue chatting to further refine the content.'
+                                        : 'Tip: Be specific about what to change and how'
                                 )}
-                            </button>
+                            </p>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
-                            <Lightbulb className="w-3 h-3" />
-                            {isStreaming ? 'AI is generating your response...' : (
-                                chatStep === 3
-                                    ? 'Tip: You can continue chatting to further refine the content.'
-                                    : 'Tip: Be specific about what to change and how'
-                            )}
-                        </p>
-                    </div>
-                )}
+                    )}
+                </motion.div>
             </motion.div>
-        </motion.div>
-    </AnimatePresence>,
-    document.body
-);
+        </AnimatePresence>,
+        document.body
+    );
 }
