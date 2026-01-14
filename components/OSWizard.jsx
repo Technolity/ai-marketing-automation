@@ -1238,7 +1238,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         // AI generation now only happens when user clicks "Generate My Vault" at step 20
 
 
-        if (currentStep < STEPS.length) {
+        if (currentStep < STEPS.length - 1) {
             const nextStep = currentStep + 1;
             setCurrentStep(nextStep);
 
@@ -2362,7 +2362,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                 )}
                                             </button>
                                         </>
-                                    ) : currentStep < STEPS.length ? (
+                                    ) : currentStep < STEPS.length - 1 ? (
                                         <div className="flex justify-between items-center w-full gap-3">
                                             {/* Left side - Back and Polish buttons */}
                                             <div className="flex items-center gap-3">
