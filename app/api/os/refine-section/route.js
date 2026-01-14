@@ -274,8 +274,20 @@ export async function POST(req) {
                 sections_modified: [subSection || sectionId],
                 edit_applied: false
             });
+
+            // NEW: Log to feedback_logs for Chatbot history
+            await supabaseAdmin.from('feedback_logs').insert({
+                user_id: userId,
+                funnel_id: sessionId || null, // Assuming sessionId maps to funnel_id context
+                section_id: sectionId,
+                session_id: sessionId,
+                user_message: feedback,
+                ai_response: 'Refinement generated successfully', // Non-streaming endpoint just returns content
+                applied_changes: refinedContent
+            });
+
         } catch (historyError) {
-            console.log('[RefineSection] Could not log to history:', historyError.message);
+            console.log('[RefineSection] Could not log to history/feedback:', historyError.message);
             // Non-blocking - continue with refinement
         }
 

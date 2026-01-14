@@ -259,8 +259,20 @@ export async function POST(req) {
                     sections_modified: [subSection || sectionId],
                     edit_applied: false
                 });
+
+                // NEW: Log to feedback_logs for Chatbot history
+                await supabaseAdmin.from('feedback_logs').insert({
+                    user_id: userId,
+                    funnel_id: sessionId || null,
+                    section_id: sectionId,
+                    session_id: sessionId,
+                    user_message: latestUserMessage?.content || 'Conversation',
+                    ai_response: fullText, // Store the full streamed text as the response
+                    applied_changes: refinedContent
+                });
+
             } catch (historyError) {
-                console.log('[RefineStream] Could not log to history:', historyError.message);
+                console.log('[RefineStream] Could not log to history/feedback:', historyError.message);
             }
 
             await sendEvent('complete', { success: true });

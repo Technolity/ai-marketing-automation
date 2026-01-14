@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from 'react-dom';
-import FeedbackModal from '@/components/vault/FeedbackModal';
+import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { supabase } from '@/lib/supabase';
 
 import {
@@ -497,9 +497,9 @@ export default function VaultPage() {
     const [uploadingFiles, setUploadingFiles] = useState({});
 
     // AI Feedback Chat states
-    const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+    const [feedbackChatOpen, setFeedbackChatOpen] = useState(false);
     const [feedbackSection, setFeedbackSection] = useState(null);
-    const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
+    const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false); // Kept for compatibility if needed, though ChatModal handles its own loading
 
     // GHL Deployment states
     const [showDeployModal, setShowDeployModal] = useState(false);
@@ -1278,6 +1278,34 @@ export default function VaultPage() {
     };
 
 
+
+
+    const handleFeedbackSave = async (refinedContent) => {
+        if (!feedbackSection) return;
+
+        // Update local state
+        setVaultData(prev => ({
+            ...prev,
+            [feedbackSection.id]: refinedContent
+        }));
+
+        // Persist to DB
+        try {
+            const funnelId = searchParams.get('funnel_id');
+            const { error } = await supabase
+                .from('vault_content')
+                .update({ content: refinedContent })
+                .eq('funnel_id', funnelId)
+                .eq('section_id', feedbackSection.id);
+
+            if (error) throw error;
+            toast.success('Changes saved!');
+            setFeedbackChatOpen(false);
+        } catch (error) {
+            console.error('Save error:', error);
+            toast.error('Failed to save changes');
+        }
+    };
 
     const MediaLibrary = () => (
         <motion.div
@@ -2312,11 +2340,11 @@ export default function VaultPage() {
                                     <button
                                         onClick={() => {
                                             setFeedbackSection(section);
-                                            setFeedbackModalOpen(true);
+                                            setFeedbackChatOpen(true); // Using Chat Modal
                                         }}
-                                        className="px-4 py-2 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 border border-purple-500/30 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
+                                        className="px-4 py-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-purple-300 hover:from-purple-600/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
                                     >
-                                        <MessageSquare className="w-4 h-4" /> Feedback
+                                        <MessageSquare className="w-4 h-4" /> AI Feedback
                                     </button>
                                     {status === 'approved' ? (
                                         <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2">
@@ -2933,12 +2961,14 @@ export default function VaultPage() {
                 </AnimatePresence>
             </div>
 
-            <FeedbackModal
-                isOpen={feedbackModalOpen}
-                onClose={() => setFeedbackModalOpen(false)}
-                section={feedbackSection}
-                onSubmit={handleFeedbackSubmit}
-                isSubmitting={isFeedbackSubmitting}
+            <FeedbackChatModal
+                isOpen={feedbackChatOpen}
+                onClose={() => setFeedbackChatOpen(false)}
+                sectionId={feedbackSection?.id}
+                sectionTitle={feedbackSection?.title}
+                currentContent={feedbackSection ? vaultData[feedbackSection.id] : null}
+                sessionId={session?.activeSessionId || searchParams.get('funnel_id')} // Fallback to funnel_id if session not found
+                onSave={handleFeedbackSave}
             />
 
             {/* ApprovalWatcher: Monitors approvals and auto-triggers Funnel Copy generation */}
