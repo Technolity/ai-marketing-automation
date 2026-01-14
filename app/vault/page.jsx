@@ -336,16 +336,30 @@ function intelligentMerge(target, source, subSection) {
         }
     }
 
-    // Final fallback: Check common wrapper patterns (idealClientSnapshot, signatureMessage, etc.)
+    // DEBUG: Log the target structure to understand vault content
+    console.log('[IntelligentMerge] Target keys:', Object.keys(target));
+
     for (const sourceKey of sourceKeys) {
+        let foundAndUpdated = false;
         const commonWrappers = ['idealClientSnapshot', 'signatureMessage', 'signatureOffer', 'signatureStory', 'callFlow', 'leadMagnet'];
 
+        // First, try to find the field directly in target
+        if (sourceKey in target) {
+            console.log('[IntelligentMerge] Found', sourceKey, 'directly in target');
+            target[sourceKey] = source[sourceKey];
+            foundAndUpdated = true;
+            continue;
+        }
+
+        // Check common wrappers
         for (const wrapper of commonWrappers) {
             if (target[wrapper] && typeof target[wrapper] === 'object') {
                 console.log('[IntelligentMerge] Checking wrapper:', wrapper, 'for field:', sourceKey);
                 if (sourceKey in target[wrapper]) {
                     console.log('[IntelligentMerge] Found', sourceKey, 'in wrapper', wrapper);
                     target[wrapper][sourceKey] = source[sourceKey];
+                    foundAndUpdated = true;
+                    break;
                 } else {
                     // Search one level deeper
                     for (const subKey of Object.keys(target[wrapper])) {
@@ -353,15 +367,32 @@ function intelligentMerge(target, source, subSection) {
                             if (sourceKey in target[wrapper][subKey]) {
                                 console.log('[IntelligentMerge] Found', sourceKey, 'in', wrapper + '.' + subKey);
                                 target[wrapper][subKey][sourceKey] = source[sourceKey];
+                                foundAndUpdated = true;
+                                break;
                             }
                         }
                     }
+                    if (foundAndUpdated) break;
                 }
             }
         }
 
+        // If not found in wrappers, search entire target structure recursively
+        if (!foundAndUpdated) {
+            const path = findFieldPath(target, sourceKey);
+            if (path.length > 0) {
+                console.log('[IntelligentMerge] Found via path search:', path.join('.'));
+                let current = target;
+                for (let i = 0; i < path.length - 1; i++) {
+                    current = current[path[i]];
+                }
+                current[path[path.length - 1]] = source[sourceKey];
+                foundAndUpdated = true;
+            }
+        }
+
         // If still not found, merge at top level (last resort)
-        if (!(sourceKey in target)) {
+        if (!foundAndUpdated) {
             console.log('[IntelligentMerge] Adding to top level:', sourceKey);
             target[sourceKey] = source[sourceKey];
         }
