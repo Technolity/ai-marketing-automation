@@ -25,8 +25,11 @@ const CHAT_OPENERS = [
 ];
 
 // Sub-section options for different vault sections
-// IMPORTANT: IDs must match schema field names exactly
+// IMPORTANT: IDs must match schema field names in fieldStructures.js exactly
 const SECTION_OPTIONS = {
+    // ============================================
+    // PHASE 1: CORE FOUNDATIONS
+    // ============================================
     idealClient: [
         { id: 'bestIdealClient', label: 'Best Ideal Client' },
         { id: 'top3Challenges', label: 'Top 3 Challenges' },
@@ -37,61 +40,187 @@ const SECTION_OPTIONS = {
     ],
     message: [
         { id: 'oneLineMessage', label: 'One-Liner Message' },
-        { id: 'spokenIntroduction', label: '30-Second Spoken Version' },
+        { id: 'spokenIntroduction', label: '30-Second Coffee Talk' },
         { id: 'powerPositioningLines', label: 'Power Positioning Lines' },
         { id: 'all', label: 'Update the entire section' }
     ],
     story: [
-        { id: 'storyBlueprint', label: 'Story Blueprint (6 Phases)' },
-        { id: 'networkingStory', label: '60-90s Networking Story' },
-        { id: 'stageStory', label: '3-5 min Stage/Podcast Story' },
-        { id: 'oneLinerStory', label: '15-25s One-Liner Story' },
-        { id: 'socialPostVersion', label: 'Social Post Version' },
-        { id: 'emailStory', label: 'Short Email Story' },
-        { id: 'pullQuotes', label: 'Signature Pull Quotes' },
+        { id: 'bigIdea', label: 'Big Idea (Core Concept)' },
+        { id: 'networkingStory', label: 'Networking Story (60-90s)' },
+        { id: 'stageStory', label: 'Stage/Podcast Story (3-5 min)' },
+        { id: 'socialPostVersion', label: 'Social Media Version' },
         { id: 'all', label: 'Update the entire section' }
     ],
     offer: [
         { id: 'offerMode', label: 'Offer Mode' },
-        { id: 'offerName', label: 'Offer Name' },
+        { id: 'offerName', label: 'Branded System Name' },
         { id: 'sevenStepBlueprint', label: '7-Step Blueprint' },
         { id: 'tier1WhoItsFor', label: 'Tier 1: Who It\'s For' },
         { id: 'tier1Promise', label: 'Tier 1: The Promise' },
+        { id: 'tier1Timeframe', label: 'Tier 1: Timeframe' },
         { id: 'tier1Deliverables', label: 'Tier 1: Deliverables' },
+        { id: 'tier1RecommendedPrice', label: 'Tier 1: Recommended Price' },
         { id: 'tier2WhoItsFor', label: 'Tier 2: Who It\'s For' },
         { id: 'tier2Promise', label: 'Tier 2: The Promise' },
-        { id: 'offerPromise', label: 'Offer Promise Summary' },
+        { id: 'tier2Timeframe', label: 'Tier 2: Timeframe' },
+        { id: 'tier2Deliverables', label: 'Tier 2: Deliverables' },
+        { id: 'tier2RecommendedPrice', label: 'Tier 2: Recommended Price' },
+        { id: 'offerPromise', label: 'Combined Offer Promise' },
         { id: 'all', label: 'Update the entire section' }
     ],
+
+    // ============================================
+    // PHASE 2: LEAD GENERATION
+    // ============================================
+    leadMagnet: [
+        { id: 'mainTitle', label: 'Lead Magnet Title' },
+        { id: 'subtitle', label: 'Subtitle / Hook' },
+        { id: 'coreDeliverables', label: 'Core Deliverables (5 sections)' },
+        { id: 'optInHeadline', label: 'Opt-In Page Headline' },
+        { id: 'bullets', label: 'Benefit Bullets' },
+        { id: 'ctaButtonText', label: 'CTA Button Text' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+    vsl: [
+        { id: 'step1_patternInterrupt', label: 'Step 1: Pattern Interrupt' },
+        { id: 'step1_characterIntro', label: 'Step 1: Character Introduction' },
+        { id: 'step1_problemStatement', label: 'Step 1: Problem Statement' },
+        { id: 'step1_emotionalConnection', label: 'Step 1: Emotional Connection' },
+        { id: 'step2_benefitLead', label: 'Step 2: Benefit Lead' },
+        { id: 'step2_uniqueSolution', label: 'Step 2: Unique Solution' },
+        { id: 'step2_benefitsHighlight', label: 'Step 2: Benefits Highlight' },
+        { id: 'step2_problemAgitation', label: 'Step 2: Problem Agitation' },
+        { id: 'step3_nightmareStory', label: 'Step 3: Nightmare Story' },
+        { id: 'step3_clientTestimonials', label: 'Step 3: Client Testimonials' },
+        { id: 'step3_dataPoints', label: 'Step 3: Data Points' },
+        { id: 'step3_expertEndorsements', label: 'Step 3: Expert Endorsements' },
+        { id: 'step4_detailedDescription', label: 'Step 4: Detailed Description' },
+        { id: 'step4_demonstration', label: 'Step 4: Demonstration' },
+        { id: 'step4_psychologicalTriggers', label: 'Step 4: Psychological Triggers' },
+        { id: 'step5_intro', label: 'Step 5: Value Tips Intro' },
+        { id: 'step5_tips', label: 'Step 5: 3 Actionable Tips' },
+        { id: 'step5_transition', label: 'Step 5: Transition to Offer' },
+        { id: 'step6_directEngagement', label: 'Step 6: Direct Engagement' },
+        { id: 'step6_urgencyCreation', label: 'Step 6: Urgency Creation' },
+        { id: 'step6_clearOffer', label: 'Step 6: Clear Offer' },
+        { id: 'step6_stepsToSuccess', label: 'Step 6: Steps to Success' },
+        { id: 'step7_recap', label: 'Step 7: Recap' },
+        { id: 'step7_primaryCTA', label: 'Step 7: Primary CTA' },
+        { id: 'step7_offerFeaturesAndPrice', label: 'Step 7: Offer Features & Price' },
+        { id: 'step7_bonuses', label: 'Step 7: Bonuses' },
+        { id: 'step7_secondaryCTA', label: 'Step 7: Secondary CTA' },
+        { id: 'step7_guarantee', label: 'Step 7: Guarantee' },
+        { id: 'step8_theClose', label: 'Step 8: The Close' },
+        { id: 'step8_addressObjections', label: 'Step 8: Address Objections' },
+        { id: 'step8_reiterateValue', label: 'Step 8: Reiterate Value' },
+        { id: 'step9_followUpStrategy', label: 'Step 9: Follow-Up Strategy' },
+        { id: 'step9_finalPersuasion', label: 'Step 9: Final Persuasion' },
+        { id: 'step10_hardClose', label: 'Step 10: Hard Close' },
+        { id: 'step10_handleObjectionsAgain', label: 'Step 10: Handle Objections' },
+        { id: 'step10_scarcityClose', label: 'Step 10: Scarcity Close' },
+        { id: 'step10_inspirationClose', label: 'Step 10: Inspiration Close' },
+        { id: 'step10_speedUpAction', label: 'Step 10: Speed Up Action' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+    facebookAds: [
+        { id: 'shortAd1Headline', label: 'Short Ad #1: Headline' },
+        { id: 'shortAd1PrimaryText', label: 'Short Ad #1: Primary Text' },
+        { id: 'shortAd1CTA', label: 'Short Ad #1: CTA' },
+        { id: 'shortAd2Headline', label: 'Short Ad #2: Headline' },
+        { id: 'shortAd2PrimaryText', label: 'Short Ad #2: Primary Text' },
+        { id: 'shortAd2CTA', label: 'Short Ad #2: CTA' },
+        { id: 'longAdHeadline', label: 'Long Ad: Headline' },
+        { id: 'longAdPrimaryText', label: 'Long Ad: Primary Text' },
+        { id: 'longAdCTA', label: 'Long Ad: CTA' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+    emails: [
+        { id: 'email1', label: 'Day 1: Gift Delivery + Welcome' },
+        { id: 'email2', label: 'Day 2: Tip #1' },
+        { id: 'email3', label: 'Day 3: Tip #2' },
+        { id: 'email4', label: 'Day 4: Tip #3' },
+        { id: 'email5', label: 'Day 5: Tip #4' },
+        { id: 'email6', label: 'Day 6: Tip #5' },
+        { id: 'email7', label: 'Day 7: Tip #6' },
+        { id: 'email8a', label: 'Day 8 AM: Why a Call Helps' },
+        { id: 'email8b', label: 'Day 8 PM: Success Story' },
+        { id: 'email8c', label: 'Day 8 EVE: Last Chance' },
+        { id: 'email9', label: 'Day 9: Mindset/Strategy' },
+        { id: 'email10', label: 'Day 10: Common Mistakes' },
+        { id: 'email11', label: 'Day 11: Hidden Obstacles' },
+        { id: 'email12', label: 'Day 12: Behind Scenes' },
+        { id: 'email13', label: 'Day 13: Results Timeline' },
+        { id: 'email14', label: 'Day 14: Simplify' },
+        { id: 'email15a', label: 'Day 15 AM: Final Day' },
+        { id: 'email15b', label: 'Day 15 PM: FAQ/Objections' },
+        { id: 'email15c', label: 'Day 15 EVE: Final Push' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+
+    // ============================================
+    // PHASE 3: SALES & OPERATIONS
+    // ============================================
     salesScripts: [
-        { id: 'callGoal', label: 'Call Goal' },
-        { id: 'part1_openingPermission', label: 'Part 1: Opening + Permission' },
-        { id: 'part2_discovery', label: 'Part 2: Discovery' },
-        { id: 'part3_challengesStakes', label: 'Part 3: Challenges + Stakes' },
-        { id: 'part4_recapConfirmation', label: 'Part 4: Recap + Confirmation' },
-        { id: 'part5_threeStepPlan', label: 'Part 5: 3-Step Plan' },
-        { id: 'part6_closeNextSteps', label: 'Part 6: Close + Next Steps' },
+        { id: 'agendaPermission', label: 'Box 1: Agenda + Permission' },
+        { id: 'discoveryQuestions', label: 'Box 2: Discovery Questions' },
+        { id: 'stakesImpact', label: 'Box 3: Stakes + Cost of Inaction' },
+        { id: 'commitmentScale', label: 'Box 4: Commitment Scale' },
+        { id: 'decisionGate', label: 'Box 5: Decision Gate' },
+        { id: 'recapConfirmation', label: 'Box 6: Recap + Confirmation' },
+        { id: 'pitchScript', label: 'Box 7: 3-Step Plan Pitch' },
+        { id: 'proofLine', label: 'Box 8: Proof Line' },
+        { id: 'investmentClose', label: 'Box 9: Investment + Close' },
+        { id: 'nextSteps', label: 'Box 10: Next Steps' },
+        { id: 'objectionHandling', label: 'Box 11: Objection Handling' },
         { id: 'all', label: 'Update the entire section' }
     ],
     setterScript: [
-        { id: 'callGoal', label: 'Call Goal' },
-        { id: 'step1_openerPermission', label: 'Step 1: Opener + Permission' },
-        { id: 'step2_referenceOptIn', label: 'Step 2: Reference Opt-In' },
-        { id: 'step3_lowPressureFrame', label: 'Step 3: Low-Pressure Frame' },
-        { id: 'step4_currentSituation', label: 'Step 4: Current Situation' },
-        { id: 'step5_goalMotivation', label: 'Step 5: Goal + Motivation' },
-        { id: 'step6_challengeStakes', label: 'Step 6: Challenge + Stakes' },
-        { id: 'step7_authorityDrop', label: 'Step 7: Authority Drop' },
-        { id: 'step8_qualifyFit', label: 'Step 8: Qualify Fit + Readiness' },
-        { id: 'step9_bookConsultation', label: 'Step 9: Book Consultation' },
-        { id: 'step10_confirmShowUp', label: 'Step 10: Confirm Show-Up' },
+        { id: 'callGoal', label: 'Goal of This Call' },
         { id: 'setterMindset', label: 'Setter Mindset' },
+        { id: 'openingOptIn', label: 'Opening: Free Gift Opt-In' },
+        { id: 'permissionPurpose', label: 'Permission + Purpose' },
+        { id: 'currentSituation', label: 'Current Situation Snapshot' },
+        { id: 'primaryGoal', label: 'Primary Goal' },
+        { id: 'primaryObstacle', label: 'Primary Obstacle + Stakes' },
+        { id: 'authorityDrop', label: 'Authority Drop' },
+        { id: 'fitReadiness', label: 'Fit + Readiness Check' },
+        { id: 'bookCall', label: 'Book Call Live' },
+        { id: 'confirmShowUp', label: 'Confirm Show-Up + Wrap' },
+        { id: 'objectionHandling', label: 'Objection Handling' },
         { id: 'all', label: 'Update the entire section' }
     ],
+    appointmentReminders: [
+        { id: 'preCallTips', label: 'Pre-Call Tips' },
+        { id: 'confirmation', label: 'Confirmation Email' },
+        { id: 'reminder24Hour', label: '24-Hour Reminder' },
+        { id: 'reminder1Hour', label: '1-Hour Reminder' },
+        { id: 'startingNow', label: 'Starting Now' },
+        { id: 'noShowFollowup', label: 'No-Show Follow-up' },
+        { id: 'smsReminders', label: 'SMS Reminders' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+
+    // ============================================
+    // PHASE 4: ASSETS
+    // ============================================
+    bio: [
+        { id: 'fullBio', label: 'Full Bio (200 words)' },
+        { id: 'shortBio', label: 'Short Bio (75 words)' },
+        { id: 'speakerBio', label: 'Speaker Bio (150 words)' },
+        { id: 'oneLiner', label: 'One-Liner' },
+        { id: 'keyAchievements', label: 'Key Achievements' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+    funnelCopy: [
+        { id: 'optinPage', label: 'Opt-In Page' },
+        { id: 'salesPage', label: 'Sales/VSL Page' },
+        { id: 'bookingPage', label: 'Booking Page' },
+        { id: 'thankYouPage', label: 'Thank You Page' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
+
+    // Default fallback for unmapped sections
     default: [
-        { id: 'opening', label: 'Opening / Hook' },
-        { id: 'body', label: 'Main Content' },
-        { id: 'closing', label: 'Closing / CTA' },
         { id: 'all', label: 'Update the entire section' }
     ]
 };
