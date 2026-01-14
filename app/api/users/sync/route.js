@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 /**
  * API Route: /api/users/sync
  * Creates or updates user profile in Supabase when user logs in
+ * Handles users created directly in Clerk dashboard
  */
 export async function POST(req) {
   try {
@@ -21,34 +22,32 @@ export async function POST(req) {
 
     console.log('[User Sync API] User ID:', userId);
 
-    // Get user data from request body (optional - can also fetch from Clerk)
+    // Get user data from request body
     const body = await req.json();
     const { email, fullName } = body;
 
     console.log('[User Sync API] User data:', { email, fullName });
 
-    // Check if user already exists in Supabase (using user_profiles table)
-    const { data: existingUser, error: fetchError } = await supabaseAdmin
+    // Check if user already exists by Clerk user ID
+    const { data: existingUserById, error: fetchByIdError } = await supabaseAdmin
       .from('user_profiles')
       .select('*')
       .eq('id', userId)
       .single();
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      // PGRST116 = no rows returned, which is fine for new users
-      console.error('[User Sync API] Error fetching user:', fetchError);
-      throw fetchError;
+    if (fetchByIdError && fetchByIdError.code !== 'PGRST116') {
+      console.error('[User Sync API] Error fetching user by ID:', fetchByIdError);
     }
 
-    if (existingUser) {
-      console.log('[User Sync API] User already exists, updating...');
+    // If user exists by ID, just update
+    if (existingUserById) {
+      console.log('[User Sync API] User exists by ID, updating...');
 
-      // Update existing user
       const { error: updateError } = await supabaseAdmin
         .from('user_profiles')
         .update({
-          email: email || existingUser.email,
-          full_name: fullName || existingUser.full_name,
+          email: email || existingUserById.email,
+          full_name: fullName || existingUserById.full_name,
           updated_at: new Date().toISOString()
         })
         .eq('id', userId);
@@ -62,11 +61,50 @@ export async function POST(req) {
       return NextResponse.json({
         success: true,
         message: 'User updated',
-        user: { ...existingUser, email, full_name: fullName }
+        user: { ...existingUserById, email, full_name: fullName }
       });
     }
 
-    // Create new user
+    // User doesn't exist by ID - check if email already exists (Clerk dashboard user case)
+    if (email) {
+      const { data: existingUserByEmail, error: fetchByEmailError } = await supabaseAdmin
+        .from('user_profiles')
+        .select('*')
+        .eq('email', email)
+        .single();
+
+      if (fetchByEmailError && fetchByEmailError.code !== 'PGRST116') {
+        console.error('[User Sync API] Error fetching user by email:', fetchByEmailError);
+      }
+
+      // If email exists, update the ID to the new Clerk user ID (handles Clerk dashboard users)
+      if (existingUserByEmail) {
+        console.log('[User Sync API] Email exists with different ID, updating ID to new Clerk user...');
+
+        const { error: updateIdError } = await supabaseAdmin
+          .from('user_profiles')
+          .update({
+            id: userId,
+            full_name: fullName || existingUserByEmail.full_name,
+            updated_at: new Date().toISOString()
+          })
+          .eq('email', email);
+
+        if (updateIdError) {
+          console.error('[User Sync API] Error updating user ID:', updateIdError);
+          throw updateIdError;
+        }
+
+        console.log('[User Sync API] User ID updated for existing email');
+        return NextResponse.json({
+          success: true,
+          message: 'User updated',
+          user: { ...existingUserByEmail, id: userId, full_name: fullName }
+        });
+      }
+    }
+
+    // Create new user - no existing profile by ID or email
     console.log('[User Sync API] Creating new user profile...');
 
     const { data: newUser, error: insertError } = await supabaseAdmin
