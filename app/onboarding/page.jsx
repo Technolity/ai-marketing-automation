@@ -10,28 +10,6 @@ import {
 } from "lucide-react";
 import LicenseAgreementModal from "@/components/LicenseAgreementModal";
 
-// ... (constants remain same if not in range, but I'll assume they are not in lines 1-85 or I can preserve them. 
-// Wait, the replaced block includes constants? No, lines 1-85 covers imports and start of component.
-// I need to be careful not to overwrite constants if they are in that range.
-// Looking at file content from Step 5705:
-// Lines 1-11 are imports.
-// Lines 13-47 are constants.
-// Lines 49-85 are component start.
-// I should only replace specific blocks or be careful.)
-
-// Let's use smaller chunks or handle the whole start carefully.
-
-import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
-import { useAuth } from "@/contexts/AuthContext";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { motion } from "framer-motion";
-import {
-  User, Building2, MapPin, Phone, Globe, Clock, Loader2, FileCheck
-} from "lucide-react";
-import LicenseAgreementModal from "@/components/LicenseAgreementModal";
-
 // Common timezones - simplified list
 const TIMEZONES = [
   { value: 'America/New_York', label: 'Eastern Time (ET)' },
