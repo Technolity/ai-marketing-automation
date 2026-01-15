@@ -136,47 +136,80 @@ async function handleUserCreated(data) {
 
   console.log(`[Webhook] Creating user: ${email}, admin: ${isAdmin}`);
   console.log(`[Webhook] unsafe_metadata:`, JSON.stringify(unsafe_metadata, null, 2));
-  console.log(`[Webhook] businessData:`, JSON.stringify(businessData, null, 2));
 
-  const { error } = await supabase
-    .from('user_profiles')
-    .insert({
-      id: id,  // Use 'id' to match schema (Clerk user ID)
-      email: email,
-      full_name: fullName || email?.split('@')[0],
-      first_name: first_name || null,
-      last_name: last_name || null,
-      avatar_url: image_url,
-      is_admin: isAdmin,
-      subscription_tier: 'starter',
-      max_funnels: 1,
-      // Business fields from unsafe_metadata
-      business_name: businessData.businessName || null,
-      phone: businessData.phone || null,
-      country_code: businessData.countryCode || null,
-      address: businessData.address || null,
-      city: businessData.city || null,
-      state: businessData.state || null,
-      postal_code: businessData.postalCode || null,
-      country: businessData.country || null,
-      timezone: businessData.timezone || null
-    });
+  // 1. Idempotency Check: Check if we've already processed this user's GHL setup
+  const { data: existingLog } = await supabase
+    .from('ghl_subaccount_logs')
+    .select('id')
+    .eq('user_id', id)
+    .limit(1)
+    .single();
 
-  if (error) {
-    // Check if it's a duplicate key error (user already exists)
-    if (error.code === '23505') {
-      console.log(`[Webhook] User already exists: ${email}`);
-      return;
-    }
-    throw error;
+  if (existingLog) {
+    console.log(`[Webhook] GHL sub-account log already exists for ${email}. Skipping Pabbly trigger to prevent duplicates.`);
+    return;
   }
 
-  console.log(`[Webhook] User created successfully: ${email}, admin: ${isAdmin}`);
+  // 2. Check if user profile already exists (to prevent duplicate insert attempts)
+  const { data: existingProfile } = await supabase
+    .from('user_profiles')
+    .select('id, ghl_sync_status')
+    .eq('id', id)
+    .single();
 
-  // Trigger Pabbly automation for GHL sub-account creation (non-blocking)
+  if (existingProfile) {
+    console.log(`[Webhook] User profile already exists for ${email}. Status: ${existingProfile.ghl_sync_status}`);
+
+    // If already synced or pending, don't re-trigger
+    if (existingProfile.ghl_sync_status === 'synced' || existingProfile.ghl_sync_status === 'pending') {
+      console.log(`[Webhook] Skipping Pabbly trigger (Status is ${existingProfile.ghl_sync_status}).`);
+      return;
+    }
+    // If failed or not_synced, we might want to retry, but for now let's be conservative to stop the loop
+    // matching the user's "6 duplicates" issue.
+    // To enable retries, we would proceed here. But let's verify logic first.
+  } else {
+    // 3. Insert User Profile (only if not found)
+    const { error } = await supabase
+      .from('user_profiles')
+      .insert({
+        id: id,  // Use 'id' to match schema (Clerk user ID)
+        email: email,
+        full_name: fullName || email?.split('@')[0],
+        first_name: first_name || null,
+        last_name: last_name || null,
+        avatar_url: image_url,
+        is_admin: isAdmin,
+        subscription_tier: 'starter',
+        max_funnels: 1,
+        // Business fields from unsafe_metadata
+        business_name: businessData.businessName || null,
+        phone: businessData.phone || null,
+        country_code: businessData.countryCode || null,
+        address: businessData.address || null,
+        city: businessData.city || null,
+        state: businessData.state || null,
+        postal_code: businessData.postalCode || null,
+        country: businessData.country || null,
+        timezone: businessData.timezone || null
+      });
+
+    if (error) {
+      if (error.code === '23505') {
+        console.log(`[Webhook] Concurrent insert detected for ${email}. Skipping.`);
+        return;
+      }
+      throw error;
+    }
+    console.log(`[Webhook] User profile created successfully: ${email}`);
+  }
+
+  // 4. Trigger Pabbly automation (Only if we haven't returned yet)
   try {
     const { triggerPabblyAutomation } = await import('@/lib/integrations/pabbly');
 
+    // We do NOT await this promise to let the webhook respond quickly to Clerk
+    // preventing timeouts and retries.
     triggerPabblyAutomation({
       clerkId: id,
       email: email,
@@ -192,23 +225,18 @@ async function handleUserCreated(data) {
       country: businessData.country,
       timezone: businessData.timezone
     }).then(result => {
-      if (result.success) {
-        console.log(`[Webhook] Pabbly automation triggered for: ${email}`);
-      } else {
-        console.log(`[Webhook] Pabbly automation skipped: ${result.error}`);
-      }
+      console.log(result.success ?
+        `[Webhook] Pabbly automation triggered for: ${email}` :
+        `[Webhook] Pabbly automation skipped: ${result.error}`
+      );
     }).catch(err => {
       console.error('[Webhook] Pabbly automation error:', err);
     });
 
   } catch (pabblyError) {
-    // Don't fail the webhook if Pabbly fails
     console.error('[Webhook] Pabbly integration error:', pabblyError);
   }
 
-  // Legacy GHL sub-account creation removed.
-  // We now rely entirely on the Pabbly webhook (triggered above) to handle
-  // sub-account creation and logging to ghl_subaccount_logs.
 }
 
 /**
