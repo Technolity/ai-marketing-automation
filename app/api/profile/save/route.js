@@ -63,10 +63,10 @@ export async function POST(req) {
       }, { status: 400 });
     }
 
-    // 4. Get user profile to get email
+    // 4. Get user profile to get email and GHL status
     const { data: existingProfile, error: fetchError } = await supabase
       .from('user_profiles')
-      .select('email')
+      .select('email, ghl_setup_triggered_at')
       .eq('id', userId)
       .single();
 
@@ -110,33 +110,45 @@ export async function POST(req) {
 
     console.log(`[Profile Save] Profile updated successfully for user: ${email}`);
 
-    // 6. Trigger Pabbly automation (this is where the webhook fires)
-    try {
-      const pabblyResult = await triggerPabblyAutomation({
-        clerkId: userId,
-        email: email,
-        firstName: firstName,
-        lastName: lastName,
-        phone: phone,
-        countryCode: countryCode,
-        businessName: businessName || `${firstName}'s Business`,
-        address: address,
-        city: city,
-        state: state,
-        postalCode: postalCode,
-        country: country,
-        timezone: timezone
-      });
+    // 6. Trigger Pabbly automation (Only if not already triggered)
+    if (!existingProfile.ghl_setup_triggered_at) {
+      console.log(`[Profile Save] Triggering Pabbly automation for the first time...`);
+      try {
+        const pabblyResult = await triggerPabblyAutomation({
+          clerkId: userId,
+          email: email,
+          firstName: firstName,
+          lastName: lastName,
+          phone: phone,
+          countryCode: countryCode,
+          businessName: businessName || `${firstName}'s Business`,
+          address: address,
+          city: city,
+          state: state,
+          postalCode: postalCode,
+          country: country,
+          timezone: timezone
+        });
 
-      if (pabblyResult.success) {
-        console.log(`[Profile Save] Pabbly automation triggered successfully for: ${email}`);
-      } else {
-        console.error(`[Profile Save] Pabbly automation failed:`, pabblyResult.error);
-        // Don't fail the whole request if Pabbly fails - profile is already saved
+        if (pabblyResult.success) {
+          console.log(`[Profile Save] Pabbly automation triggered successfully for: ${email}`);
+
+          // Mark as triggered to prevent duplicates
+          await supabase
+            .from('user_profiles')
+            .update({ ghl_setup_triggered_at: new Date().toISOString() })
+            .eq('id', userId);
+
+        } else {
+          console.error(`[Profile Save] Pabbly automation failed:`, pabblyResult.error);
+          // We don't mark as triggered so it can try again next time? 
+          // Or maybe we should allow retries. For now, let's allow retry if it failed.
+        }
+      } catch (pabblyError) {
+        console.error('[Profile Save] Pabbly automation error:', pabblyError);
       }
-    } catch (pabblyError) {
-      console.error('[Profile Save] Pabbly automation error:', pabblyError);
-      // Continue - profile is saved, Pabbly failure is non-critical
+    } else {
+      console.log(`[Profile Save] Pabbly automation skipped - already triggered at ${existingProfile.ghl_setup_triggered_at}`);
     }
 
     // 7. Return success
