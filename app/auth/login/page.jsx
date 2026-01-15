@@ -80,6 +80,10 @@ export default function Login() {
         toast.error("Incorrect password.");
       } else if (errorCode === "form_identifier_not_found") {
         toast.error("No account with this email.");
+      } else if (errorCode === "form_identifier_exists" || errorMessage.includes("verification") || errorMessage.includes("verified")) {
+        toast.error("This account needs verification. Please signup again or contact support.");
+      } else if (error.status === 422) {
+        toast.error("Account verification issue. Please signup again with a new account.");
       } else {
         toast.error(errorMessage);
       }

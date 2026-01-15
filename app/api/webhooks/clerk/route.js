@@ -121,17 +121,22 @@ export async function POST(req) {
 
 /**
  * Handle user.created event
- * Create user profile in database
+ * Create user profile in database and trigger Pabbly automation
  */
 async function handleUserCreated(data) {
-  const { id, email_addresses, first_name, last_name, image_url, public_metadata } = data;
+  const { id, email_addresses, first_name, last_name, image_url, public_metadata, unsafe_metadata } = data;
 
   const email = email_addresses?.[0]?.email_address;
   const fullName = `${first_name || ''} ${last_name || ''}`.trim();
   // Check public_metadata for admin status (set in Clerk dashboard)
   const isAdmin = public_metadata?.is_admin === true || public_metadata?.role === 'admin';
 
+  // Extract business data from unsafe_metadata (set during signup)
+  const businessData = unsafe_metadata || {};
+
   console.log(`[Webhook] Creating user: ${email}, admin: ${isAdmin}`);
+  console.log(`[Webhook] unsafe_metadata:`, JSON.stringify(unsafe_metadata, null, 2));
+  console.log(`[Webhook] businessData:`, JSON.stringify(businessData, null, 2));
 
   const { error } = await supabase
     .from('user_profiles')
@@ -139,10 +144,22 @@ async function handleUserCreated(data) {
       id: id,  // Use 'id' to match schema (Clerk user ID)
       email: email,
       full_name: fullName || email?.split('@')[0],
+      first_name: first_name || null,
+      last_name: last_name || null,
       avatar_url: image_url,
       is_admin: isAdmin,
       subscription_tier: 'starter',
-      max_funnels: 1
+      max_funnels: 1,
+      // Business fields from unsafe_metadata
+      business_name: businessData.businessName || null,
+      phone: businessData.phone || null,
+      country_code: businessData.countryCode || null,
+      address: businessData.address || null,
+      city: businessData.city || null,
+      state: businessData.state || null,
+      postal_code: businessData.postalCode || null,
+      country: businessData.country || null,
+      timezone: businessData.timezone || null
     });
 
   if (error) {
@@ -156,8 +173,41 @@ async function handleUserCreated(data) {
 
   console.log(`[Webhook] User created successfully: ${email}, admin: ${isAdmin}`);
 
-  // Optionally create GHL sub-account (non-blocking)
-  // Only if GHL is configured (check for agency token OR OAuth credentials)
+  // Trigger Pabbly automation for GHL sub-account creation (non-blocking)
+  try {
+    const { triggerPabblyAutomation } = await import('@/lib/integrations/pabbly');
+
+    triggerPabblyAutomation({
+      clerkId: id,
+      email: email,
+      firstName: first_name,
+      lastName: last_name,
+      phone: businessData.phone,
+      countryCode: businessData.countryCode,
+      businessName: businessData.businessName,
+      address: businessData.address,
+      city: businessData.city,
+      state: businessData.state,
+      postalCode: businessData.postalCode,
+      country: businessData.country,
+      timezone: businessData.timezone
+    }).then(result => {
+      if (result.success) {
+        console.log(`[Webhook] Pabbly automation triggered for: ${email}`);
+      } else {
+        console.log(`[Webhook] Pabbly automation skipped: ${result.error}`);
+      }
+    }).catch(err => {
+      console.error('[Webhook] Pabbly automation error:', err);
+    });
+
+  } catch (pabblyError) {
+    // Don't fail the webhook if Pabbly fails
+    console.error('[Webhook] Pabbly integration error:', pabblyError);
+  }
+
+  // Optionally create GHL sub-account via legacy method (kept for backwards compatibility)
+  // This can be removed once Pabbly automation is fully working
   if (process.env.GHL_AGENCY_TOKEN || (process.env.GHL_CLIENT_ID && process.env.GHL_AGENCY_ID)) {
     try {
       const { createGHLSubAccount } = await import('@/lib/ghl/createSubAccount');
@@ -166,7 +216,7 @@ async function handleUserCreated(data) {
       createGHLSubAccount(id, {
         email: email,
         fullName: fullName,
-        businessName: null // Will be updated when they complete wizard
+        businessName: businessData.businessName || null
       }).then(result => {
         if (result.success) {
           console.log(`[Webhook] GHL sub-account created: ${result.locationId}`);

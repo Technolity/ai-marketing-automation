@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Shield, LayoutDashboard } from "lucide-react";
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppNavbar() {
@@ -43,13 +43,6 @@ export default function AppNavbar() {
               <span>Dashboard</span>
             </Link>
 
-            <Link
-              href="/settings"
-              className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-white transition-all duration-300"
-            >
-              <span>Settings</span>
-            </Link>
-
             {/* Admin Link - Only visible if admin */}
             {isAdmin && (
               <Link
@@ -66,11 +59,11 @@ export default function AppNavbar() {
           </SignedIn>
 
           <SignedOut>
-            <SignInButton mode="modal" redirectUrl="/dashboard">
+            <Link href="/auth/signup">
               <button className="text-sm font-bold text-white hover:text-cyan transition-all duration-300 px-5 py-2 rounded-full border border-white/10 hover:border-cyan/50 bg-white/5">
-                Sign In
+                Get Started
               </button>
-            </SignInButton>
+            </Link>
           </SignedOut>
         </div>
       </div>

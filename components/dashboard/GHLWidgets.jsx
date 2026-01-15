@@ -4,12 +4,11 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     DollarSign, Users, LineChart as LineChartIcon,
-    ArrowUpRight, Link as LinkIcon,
+    ArrowUpRight,
     PieChart as PieIcon, Activity, BarChart3, Timer, TrendingUp,
     Calendar, Clock, Info, Hammer
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { useRouter } from "next/navigation";
 import {
     PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -144,13 +143,6 @@ export default function AnalyticsDashboard() {
                         Live Performance
                     </h2>
                 </div>
-                <button
-                    onClick={() => router.push('/settings')}
-                    className="px-4 py-2 bg-white/5 hover:bg-white/10 text-xs font-bold text-gray-400 hover:text-white rounded-lg transition-all flex items-center gap-2 border border-white/5 hover:border-white/10"
-                >
-                    <LinkIcon className="w-3 h-3" />
-                    Manage Connection
-                </button>
             </div>
 
             {/* Row 1: Quick Stats - 6 KPI Cards */}
