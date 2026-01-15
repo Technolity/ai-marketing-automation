@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Megaphone, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import { toast } from 'sonner';
 
-export default function FacebookAdsFields({ funnelId, onApprove, onRenderApproveButton }) {
+export default function FacebookAdsFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -16,30 +17,53 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
+    const [forceRenderKey, setForceRenderKey] = useState(0);
+    const previousApprovalRef = useRef(false);
 
     const sectionId = 'facebookAds';
     const predefinedFields = getFieldsForSection(sectionId);
 
-    const fetchFields = async () => {
-        setIsLoading(true);
+    const fetchFields = useCallback(async (silent = false) => {
+        if (!silent) setIsLoading(true);
         try {
             const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch');
             const data = await response.json();
             setFields(data.fields || []);
-            setSectionApproved(data.fields.length > 0 && data.fields.every(f => f.is_approved));
+            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            setSectionApproved(allApproved);
+            setForceRenderKey(prev => prev + 1);
+            console.log(`[FacebookAdsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
             console.error('[FacebookAdsFields] Fetch error:', error);
+            if (!silent) toast.error('Failed to load fields');
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
-    };
+    }, [funnelId]);
 
-    useEffect(() => { if (funnelId) fetchFields(); }, [funnelId]);
+    useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
+
+    useEffect(() => {
+        if (refreshTrigger && funnelId) {
+            console.log('[FacebookAdsFields] Refresh triggered by parent');
+            fetchFields(true);
+        }
+    }, [refreshTrigger, funnelId, fetchFields]);
+
+    useEffect(() => {
+        if (previousApprovalRef.current === true && sectionApproved === false && onUnapprove) {
+            console.log('[FacebookAdsFields] Section unapproved, notifying parent');
+            onUnapprove(sectionId);
+        }
+        previousApprovalRef.current = sectionApproved;
+    }, [sectionApproved, sectionId, onUnapprove]);
 
     const handleFieldSave = async (field_id, value, result) => {
-        setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version } : f));
+        console.log('[FacebookAdsFields] Field saved:', field_id, 'version:', result.version);
+        setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version, is_approved: false } : f));
         setSectionApproved(false);
+        setForceRenderKey(prev => prev + 1);
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -64,6 +88,9 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
                     body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, field_id: subSection, field_value: flatFields[subSection] })
                 });
                 if (!response.ok) throw new Error('Failed to save field');
+                const result = await response.json();
+                console.log('[FacebookAdsFields] AI feedback saved for field:', subSection);
+                setFields(prev => prev.map(f => f.field_id === subSection ? { ...f, field_value: flatFields[subSection], version: result.version, is_approved: false } : f));
             } else if (Object.keys(flatFields).length > 0) {
                 const response = await fetchWithAuth('/api/os/vault-section-save', {
                     method: 'POST',
@@ -71,14 +98,16 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
                     body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, fields: flatFields })
                 });
                 if (!response.ok) throw new Error('Failed to save fields');
+                await fetchFields();
             }
-            await fetchFields();
             setSectionApproved(false);
+            setForceRenderKey(prev => prev + 1);
             setFeedbackModalOpen(false);
             setSelectedField(null);
+            setSelectedFieldValue(null);
+            toast.success('Changes saved and applied!');
         } catch (error) {
             console.error('[FacebookAdsFields] Save error:', error);
-            const { toast } = await import('sonner');
             toast.error('Failed to save: ' + error.message);
         }
     };
@@ -155,7 +184,7 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
                     <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" /></div>
                 ) : (
                     <>
-                        {predefinedFields.map((fieldDef) => (<FieldEditor key={fieldDef.field_id} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} />))}
+                        {predefinedFields.map((fieldDef) => (<FieldEditor key={`${fieldDef.field_id}-${forceRenderKey}`} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} />))}
                     </>
                 )}
             </div>

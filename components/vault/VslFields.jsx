@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Video, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import { toast } from 'sonner';
 
-export default function VslFields({ funnelId, onApprove, onRenderApproveButton }) {
+export default function VslFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -16,30 +17,53 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton }
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
+    const [forceRenderKey, setForceRenderKey] = useState(0);
+    const previousApprovalRef = useRef(false);
 
     const sectionId = 'vsl';
     const predefinedFields = getFieldsForSection(sectionId);
 
-    const fetchFields = async () => {
-        setIsLoading(true);
+    const fetchFields = useCallback(async (silent = false) => {
+        if (!silent) setIsLoading(true);
         try {
-            const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}&t=${Date.now()}`);
+            const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch');
             const data = await response.json();
             setFields(data.fields || []);
-            setSectionApproved(data.fields.length > 0 && data.fields.every(f => f.is_approved));
+            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            setSectionApproved(allApproved);
+            setForceRenderKey(prev => prev + 1);
+            console.log(`[VslFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
             console.error('[VslFields] Fetch error:', error);
+            if (!silent) toast.error('Failed to load fields');
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
-    };
+    }, [funnelId]);
 
-    useEffect(() => { if (funnelId) fetchFields(); }, [funnelId]);
+    useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
+
+    useEffect(() => {
+        if (refreshTrigger && funnelId) {
+            console.log('[VslFields] Refresh triggered by parent');
+            fetchFields(true);
+        }
+    }, [refreshTrigger, funnelId, fetchFields]);
+
+    useEffect(() => {
+        if (previousApprovalRef.current === true && sectionApproved === false && onUnapprove) {
+            console.log('[VslFields] Section unapproved, notifying parent');
+            onUnapprove(sectionId);
+        }
+        previousApprovalRef.current = sectionApproved;
+    }, [sectionApproved, sectionId, onUnapprove]);
 
     const handleFieldSave = async (field_id, value, result) => {
-        setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version } : f));
+        console.log('[VslFields] Field saved:', field_id, 'version:', result.version);
+        setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version, is_approved: false } : f));
         setSectionApproved(false);
+        setForceRenderKey(prev => prev + 1);
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -58,12 +82,17 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton }
             });
             if (!response.ok) throw new Error('Failed to save');
             const result = await response.json();
-            setFields(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version } : f));
+            console.log('[VslFields] AI feedback saved for field:', selectedField.field_id);
+            setFields(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version, is_approved: false } : f));
             setSectionApproved(false);
+            setForceRenderKey(prev => prev + 1);
             setFeedbackModalOpen(false);
             setSelectedField(null);
+            setSelectedFieldValue(null);
+            toast.success('Changes saved and applied!');
         } catch (error) {
             console.error('[VslFields] Save error:', error);
+            toast.error('Failed to save changes');
         }
     };
 
@@ -139,7 +168,7 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton }
                     <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin" /></div>
                 ) : (
                     <>
-                        {predefinedFields.map((fieldDef) => (<FieldEditor key={fieldDef.field_id} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} />))}
+                        {predefinedFields.map((fieldDef) => (<FieldEditor key={`${fieldDef.field_id}-${forceRenderKey}`} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} />))}
                     </>
                 )}
             </div>

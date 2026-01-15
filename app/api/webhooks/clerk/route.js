@@ -121,122 +121,56 @@ export async function POST(req) {
 
 /**
  * Handle user.created event
- * Create user profile in database and trigger Pabbly automation
+ * Create basic user profile in database
+ * Note: Business details and Pabbly trigger happen later when user completes onboarding
  */
 async function handleUserCreated(data) {
-  const { id, email_addresses, first_name, last_name, image_url, public_metadata, unsafe_metadata } = data;
+  const { id, email_addresses, first_name, last_name, image_url, public_metadata } = data;
 
   const email = email_addresses?.[0]?.email_address;
   const fullName = `${first_name || ''} ${last_name || ''}`.trim();
   // Check public_metadata for admin status (set in Clerk dashboard)
   const isAdmin = public_metadata?.is_admin === true || public_metadata?.role === 'admin';
 
-  // Extract business data from unsafe_metadata (set during signup)
-  const businessData = unsafe_metadata || {};
-
   console.log(`[Webhook] Creating user: ${email}, admin: ${isAdmin}`);
-  console.log(`[Webhook] unsafe_metadata:`, JSON.stringify(unsafe_metadata, null, 2));
 
-  // 1. Idempotency Check: Check if we've already processed this user's GHL setup
-  const { data: existingLog } = await supabase
-    .from('ghl_subaccount_logs')
-    .select('id')
-    .eq('user_id', id)
-    .limit(1)
-    .single();
-
-  if (existingLog) {
-    console.log(`[Webhook] GHL sub-account log already exists for ${email}. Skipping Pabbly trigger to prevent duplicates.`);
-    return;
-  }
-
-  // 2. Check if user profile already exists (to prevent duplicate insert attempts)
+  // Check if user profile already exists (to prevent duplicate insert attempts)
   const { data: existingProfile } = await supabase
     .from('user_profiles')
-    .select('id, ghl_sync_status')
+    .select('id')
     .eq('id', id)
     .single();
 
   if (existingProfile) {
-    console.log(`[Webhook] User profile already exists for ${email}. Status: ${existingProfile.ghl_sync_status}`);
-
-    // If already synced or pending, don't re-trigger
-    if (existingProfile.ghl_sync_status === 'synced' || existingProfile.ghl_sync_status === 'pending') {
-      console.log(`[Webhook] Skipping Pabbly trigger (Status is ${existingProfile.ghl_sync_status}).`);
-      return;
-    }
-    // If failed or not_synced, we might want to retry, but for now let's be conservative to stop the loop
-    // matching the user's "6 duplicates" issue.
-    // To enable retries, we would proceed here. But let's verify logic first.
-  } else {
-    // 3. Insert User Profile (only if not found)
-    const { error } = await supabase
-      .from('user_profiles')
-      .insert({
-        id: id,  // Use 'id' to match schema (Clerk user ID)
-        email: email,
-        full_name: fullName || email?.split('@')[0],
-        first_name: first_name || null,
-        last_name: last_name || null,
-        avatar_url: image_url,
-        is_admin: isAdmin,
-        subscription_tier: 'starter',
-        max_funnels: 1,
-        // Business fields from unsafe_metadata
-        business_name: businessData.businessName || null,
-        phone: businessData.phone || null,
-        country_code: businessData.countryCode || null,
-        address: businessData.address || null,
-        city: businessData.city || null,
-        state: businessData.state || null,
-        postal_code: businessData.postalCode || null,
-        country: businessData.country || null,
-        timezone: businessData.timezone || null
-      });
-
-    if (error) {
-      if (error.code === '23505') {
-        console.log(`[Webhook] Concurrent insert detected for ${email}. Skipping.`);
-        return;
-      }
-      throw error;
-    }
-    console.log(`[Webhook] User profile created successfully: ${email}`);
+    console.log(`[Webhook] User profile already exists for ${email}. Skipping.`);
+    return;
   }
 
-  // 4. Trigger Pabbly automation (Only if we haven't returned yet)
-  try {
-    const { triggerPabblyAutomation } = await import('@/lib/integrations/pabbly');
-
-    // We do NOT await this promise to let the webhook respond quickly to Clerk
-    // preventing timeouts and retries.
-    triggerPabblyAutomation({
-      clerkId: id,
+  // Insert basic user profile (business details will be added during onboarding)
+  const { error } = await supabase
+    .from('user_profiles')
+    .insert({
+      id: id,  // Use 'id' to match schema (Clerk user ID)
       email: email,
-      firstName: first_name,
-      lastName: last_name,
-      phone: businessData.phone,
-      countryCode: businessData.countryCode,
-      businessName: businessData.businessName,
-      address: businessData.address,
-      city: businessData.city,
-      state: businessData.state,
-      postalCode: businessData.postalCode,
-      country: businessData.country,
-      timezone: businessData.timezone
-    }).then(result => {
-      console.log(result.success ?
-        `[Webhook] Pabbly automation triggered for: ${email}` :
-        `[Webhook] Pabbly automation skipped: ${result.error}`
-      );
-    }).catch(err => {
-      console.error('[Webhook] Pabbly automation error:', err);
+      full_name: fullName || email?.split('@')[0],
+      first_name: first_name || null,
+      last_name: last_name || null,
+      avatar_url: image_url,
+      is_admin: isAdmin,
+      subscription_tier: 'starter',
+      max_funnels: 1
     });
 
-  } catch (pabblyError) {
-    console.error('[Webhook] Pabbly integration error:', pabblyError);
+  if (error) {
+    if (error.code === '23505') {
+      console.log(`[Webhook] Concurrent insert detected for ${email}. Skipping.`);
+      return;
+    }
+    throw error;
   }
 
+  console.log(`[Webhook] User profile created successfully: ${email}`);
+  console.log(`[Webhook] User will complete profile details in onboarding flow`);
 }
 
 /**

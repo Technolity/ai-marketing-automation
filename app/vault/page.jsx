@@ -582,6 +582,9 @@ export default function VaultPage() {
     const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
     const [regeneratingSection, setRegeneratingSection] = useState(null);
 
+    // Refresh trigger for field components (increments to trigger re-fetch)
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
     // Check if we came from early redirect (still generating in background)
     const isGeneratingMode = searchParams.get('generating') === 'true';
 
@@ -624,6 +627,9 @@ export default function VaultPage() {
 
                     setSectionStatuses(newStatuses);
                     setVaultData(normalizedData);
+
+                    // Trigger refresh of field components to show new data
+                    setRefreshTrigger(prev => prev + 1);
 
                     // Stop polling when all sections complete
                     if (allComplete) {
@@ -773,6 +779,9 @@ export default function VaultPage() {
                         if (result.data && Object.keys(result.data).length > 0) {
                             const normalizedData = normalizeData(result.data);
                             setVaultData(normalizedData);
+
+                            // Trigger refresh of field components
+                            setRefreshTrigger(prev => prev + 1);
                         }
 
                         // Refresh approvals
@@ -1016,6 +1025,33 @@ export default function VaultPage() {
         }
 
         setExpandedSections(newExpanded);
+    };
+
+    // Handle unapprove when fields are edited
+    const handleUnapprove = async (sectionId) => {
+        console.log('[Vault] Section unapproved due to field edit:', sectionId);
+
+        // Determine which phase this section belongs to
+        const isPhase1Section = PHASE_1_SECTIONS.some(s => s.id === sectionId);
+        const isPhase2Section = PHASE_2_SECTIONS.some(s => s.id === sectionId);
+        const isPhase3Section = PHASE_3_SECTIONS.some(s => s.id === sectionId);
+
+        if (isPhase1Section) {
+            const newApprovals = approvedPhase1.filter(id => id !== sectionId);
+            setApprovedPhase1(newApprovals);
+            await saveApprovals(newApprovals, approvedPhase2, approvedPhase3);
+        } else if (isPhase2Section) {
+            const newApprovals = approvedPhase2.filter(id => id !== sectionId);
+            setApprovedPhase2(newApprovals);
+            await saveApprovals(approvedPhase1, newApprovals, approvedPhase3);
+        } else if (isPhase3Section) {
+            const newApprovals = approvedPhase3.filter(id => id !== sectionId);
+            setApprovedPhase3(newApprovals);
+            await saveApprovals(approvedPhase1, approvedPhase2, newApprovals);
+        }
+
+        // Trigger refresh of field components
+        setRefreshTrigger(prev => prev + 1);
     };
 
     // REMOVED: handleRegenerate function - replaced by AI Feedback Chat
@@ -2538,6 +2574,8 @@ export default function VaultPage() {
                                                 funnelId={funnelId}
                                                 isApproved={status === 'approved'}
                                                 onApprove={(sectionId) => handleApprove(sectionId, phase)}
+                                                onUnapprove={handleUnapprove}
+                                                refreshTrigger={refreshTrigger}
                                                 onRenderApproveButton={(btn) => (
                                                     <SafePortal targetId={`section-header-actions-${section.id}`}>
                                                         {btn}

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { CheckCircle, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
 import FieldEditor from './FieldEditor';
-// Optional, maybe remove if not needed
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import { toast } from 'sonner';
 
 /**
  * MediaFields - Granular field-level editing for Media section
@@ -14,64 +14,95 @@ import { fetchWithAuth } from '@/lib/fetchWithAuth';
  * Props:
  * - funnelId: Funnel ID
  * - onApprove: Callback when section is approved
+ * - onUnapprove: Callback when section becomes unapproved
+ * - refreshTrigger: Triggers refresh when value changes
  */
-export default function MediaFields({ funnelId, onApprove, onRenderApproveButton }) {
+export default function MediaFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, refreshTrigger }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
     const [sectionApproved, setSectionApproved] = useState(false);
+    const [forceRenderKey, setForceRenderKey] = useState(0);
 
-    // AI Feedback modal state - might be less relevant for media but keeping for consistency
+    // AI Feedback modal state
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
 
     const sectionId = 'media';
     const predefinedFields = getFieldsForSection(sectionId);
+    const previousApprovalRef = useRef(false);
 
     // Fetch fields from database
-    const fetchFields = async () => {
-        setIsLoading(true);
+    const fetchFields = useCallback(async (silent = false) => {
+        if (!silent) setIsLoading(true);
         try {
             const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch fields');
 
             const data = await response.json();
+
+            // Update fields state
             setFields(data.fields || []);
 
             // Check if all fields are approved
-            // For media, "approved" might just mean "uploaded" (field_value is present)
-            // But we use the explicit is_approved flag too.
             const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
             setSectionApproved(allApproved);
 
+            // Force re-render to update FieldEditor components
+            setForceRenderKey(prev => prev + 1);
+
+            console.log(`[MediaFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
             console.error('[MediaFields] Fetch error:', error);
+            if (!silent) toast.error('Failed to load media fields');
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
-    };
+    }, [funnelId]);
 
+    // Initial fetch
     useEffect(() => {
         if (funnelId) {
             fetchFields();
         }
-    }, [funnelId]);
+    }, [funnelId, fetchFields]);
+
+    // Refresh when parent triggers refresh (e.g., after background generation)
+    useEffect(() => {
+        if (refreshTrigger && funnelId) {
+            console.log('[MediaFields] Refresh triggered by parent');
+            fetchFields(true); // Silent refresh
+        }
+    }, [refreshTrigger, funnelId, fetchFields]);
+
+    // Notify parent when approval state changes
+    useEffect(() => {
+        if (previousApprovalRef.current === true && sectionApproved === false && onUnapprove) {
+            // Section was approved, now unapproved - notify parent
+            console.log('[MediaFields] Section unapproved, notifying parent');
+            onUnapprove(sectionId);
+        }
+        previousApprovalRef.current = sectionApproved;
+    }, [sectionApproved, sectionId, onUnapprove]);
 
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {
-        console.log('[MediaFields] Field saved:', { field_id, value });
+        console.log('[MediaFields] Field saved:', { field_id, value, version: result.version });
 
         // Update local state
         setFields(prev => prev.map(f =>
             f.field_id === field_id
-                ? { ...f, field_value: value, version: result.version }
+                ? { ...f, field_value: value, version: result.version, is_approved: false }
                 : f
         ));
 
-        // Reset section approval if any field changes
+        // Mark section as unapproved
         setSectionApproved(false);
+
+        // Force re-render to show updated content
+        setForceRenderKey(prev => prev + 1);
     };
 
     // Handle AI feedback request
@@ -85,17 +116,46 @@ export default function MediaFields({ funnelId, onApprove, onRenderApproveButton
     // Handle AI feedback save
     const handleFeedbackSave = async (refinedContent) => {
         if (!selectedField) return;
-        // Logic similar to IdealClientFields
-        // ... (omitted complexity for brevity, usually media feedback is text guidance, not direct replacement)
-        // But if AI generates an image URL, we could support it. 
-        // For now, let's just close modal.
-        setFeedbackModalOpen(false);
-    };
+        try {
+            const response = await fetch('/api/os/vault-field', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    funnel_id: funnelId,
+                    section_id: sectionId,
+                    field_id: selectedField.field_id,
+                    field_value: refinedContent
+                })
+            });
 
-    // Handle custom field added
-    const handleFieldAdded = (newField) => {
-        setFields(prev => [...prev, newField]);
-        setSectionApproved(false);
+            if (!response.ok) throw new Error('Failed to save');
+            const result = await response.json();
+
+            console.log('[MediaFields] AI feedback saved for field:', selectedField.field_id);
+
+            // Update local state with new content
+            setFields(prev => prev.map(f =>
+                f.field_id === selectedField.field_id
+                    ? { ...f, field_value: refinedContent, version: result.version, is_approved: false }
+                    : f
+            ));
+
+            // Mark section as unapproved
+            setSectionApproved(false);
+
+            // Force re-render to show updated content
+            setForceRenderKey(prev => prev + 1);
+
+            // Close modal
+            setFeedbackModalOpen(false);
+            setSelectedField(null);
+            setSelectedFieldValue(null);
+
+            toast.success('Changes saved and applied!');
+        } catch (error) {
+            console.error('[MediaFields] Save error:', error);
+            toast.error('Failed to save changes');
+        }
     };
 
     // Handle section approval
@@ -113,15 +173,19 @@ export default function MediaFields({ funnelId, onApprove, onRenderApproveButton
 
             if (!response.ok) throw new Error('Failed to approve section');
 
+            // Mark all fields as approved
             setFields(prev => prev.map(f => ({ ...f, is_approved: true })));
             setSectionApproved(true);
 
+            // Notify parent
             if (onApprove) {
                 onApprove(sectionId);
             }
 
+            toast.success('Media section approved!');
         } catch (error) {
             console.error('[MediaFields] Approve error:', error);
+            toast.error('Failed to approve section');
         } finally {
             setIsApproving(false);
         }
@@ -183,7 +247,7 @@ export default function MediaFields({ funnelId, onApprove, onRenderApproveButton
                                     const currentValue = getFieldValue(fieldDef.field_id);
                                     return (
                                         <FieldEditor
-                                            key={fieldDef.field_id}
+                                            key={`${fieldDef.field_id}-${forceRenderKey}`}
                                             fieldDef={fieldDef}
                                             initialValue={currentValue}
                                             sectionId={sectionId}
