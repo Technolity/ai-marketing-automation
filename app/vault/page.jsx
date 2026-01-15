@@ -1173,70 +1173,37 @@ export default function VaultPage() {
         console.log('[Vault] showDeployModal state set');
     };
 
-    // Handle GHL Deployment
+    // Handle GHL Deployment (Pabbly Workflow)
     const handleDeployToGHL = async () => {
-        console.log('[Vault] Deploy clicked. States:', { ghlConnected, ghlLocationId, ghlAccessToken: !!ghlAccessToken });
-
         const funnelId = dataSource?.id || searchParams.get('funnel_id');
-        console.log('[Vault] Funnel ID:', funnelId);
 
         if (!funnelId) {
             toast.error('No funnel ID found');
             return;
         }
 
-        // If not connected via saved credentials, require manual entry
-        if (!ghlConnected && (!ghlLocationId || !ghlAccessToken)) {
-            toast.error('Please enter both Location ID and Access Token');
-            return;
-        }
-
         setIsDeploying(true);
-        console.log('[Vault] Starting deployment...');
+        console.log('[Vault] Starting Pabbly deployment workflow...');
 
         try {
-            // Build request body - only send credentials if manually entered
-            const requestBody = { funnel_id: funnelId };
-            if (!ghlConnected) {
-                requestBody.location_id = ghlLocationId;
-                requestBody.access_token = ghlAccessToken;
-            }
-
-            console.log('[Vault] Request body:', { ...requestBody, access_token: requestBody.access_token ? '[REDACTED]' : undefined });
-
-            const res = await fetchWithAuth('/api/ghl/deploy-funnel', {
+            const res = await fetchWithAuth('/api/ghl/deploy-workflow', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
+                body: JSON.stringify({ funnelId })
             });
 
-            console.log('[Vault] Response status:', res.status);
             const result = await res.json();
-            console.log('[Vault] Response:', result);
 
             if (res.ok && result.success) {
-                const message = result.cached
-                    ? '✅ Content unchanged - deployment cached!'
-                    : `🎉 Deployed ${result.valuesDeployed} custom values to GHL!`;
-                toast.success(message);
                 setDeploymentComplete(true);
-
-                // Show deployment summary
-                if (result.summary) {
-                    console.log('[Vault] Deployment summary:', result.summary);
-                }
+                toast.success('Deployment started! Your funnel assets are being pushed to GoHighLevel.');
             } else {
-                if (result.code === 'NO_CREDENTIALS') {
-                    setGhlConnected(false);
-                    toast.error('Please connect your GHL account or enter credentials manually');
-                } else {
-                    toast.error(result.error || 'Deployment failed');
-                }
                 console.error('[Vault] Deployment error:', result);
+                toast.error(result.error || 'Failed to start deployment');
             }
         } catch (error) {
             console.error('[Vault] Deployment error:', error);
-            toast.error('Failed to deploy to GHL');
+            toast.error('Failed to trigger deployment');
         } finally {
             setIsDeploying(false);
         }
@@ -3101,98 +3068,27 @@ export default function VaultPage() {
                                         </button>
                                     </div>
                                 ) : (
-                                    <>
-                                        {/* Connection Status */}
-                                        {true ? (
-                                            <div className="flex flex-col items-center justify-center py-8 text-center">
-                                                <div className="w-16 h-16 bg-gradient-to-br from-cyan/20 to-blue-500/20 rounded-full flex items-center justify-center mb-4">
-                                                    <Rocket className="w-8 h-8 text-cyan" />
-                                                </div>
-                                                <h3 className="text-xl font-bold text-white mb-2">Coming Soon</h3>
-                                                <p className="text-gray-400 max-w-sm mb-6">
-                                                    Automated builder connection is currently under development.
-                                                    This feature will be available shortly to help you deploy your vault instantly.
-                                                </p>
-                                                <button
-                                                    onClick={() => setShowDeployModal(false)}
-                                                    className="px-6 py-2 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-lg transition-colors"
-                                                >
-                                                    Got it
-                                                </button>
-                                            </div>
-                                        ) : ghlConnected ? (
-                                            <div className="flex items-center gap-3 mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-lg">
-                                                <CheckCircle className="w-5 h-5 text-green-500" />
-                                                <div>
-                                                    <p className="text-green-400 font-medium">Builder Connected</p>
-                                                    <p className="text-sm text-gray-400">Location: {ghlLocationId}</p>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4 mb-6">
-                                                <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-4">
-                                                    <Info className="w-5 h-5 text-yellow-500" />
-                                                    <span className="text-sm text-yellow-300">No saved Builder connection. Enter credentials manually:</span>
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                                                        GHL Location ID
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={ghlLocationId}
-                                                        onChange={(e) => setGhlLocationId(e.target.value)}
-                                                        placeholder="Your GHL Location ID"
-                                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
-                                                        disabled={isDeploying}
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-sm font-medium text-gray-400 mb-2">
-                                                        GHL Access Token
-                                                    </label>
-                                                    <input
-                                                        type="password"
-                                                        value={ghlAccessToken}
-                                                        onChange={(e) => setGhlAccessToken(e.target.value)}
-                                                        placeholder="Your GHL Access Token"
-                                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan outline-none"
-                                                        disabled={isDeploying}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mb-6">
-                                            <div className="flex gap-3">
-                                                <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                                                <div className="text-sm text-blue-300">
-                                                    <p className="font-medium mb-1">What will be deployed:</p>
-                                                    <ul className="list-disc list-inside space-y-1 text-blue-200/80">
-                                                        <li>All vault content (custom values)</li>
-                                                        <li>Uploaded media assets (images & videos)</li>
-                                                        <li>Unchanged content will use cache</li>
-                                                    </ul>
-                                                </div>
-                                            </div>
+                                    <div className="text-center py-4">
+                                        <div className="w-16 h-16 bg-gradient-to-br from-cyan/20 to-blue-500/20 rounded-full flex items-center justify-center mb-6 mx-auto">
+                                            <Rocket className="w-8 h-8 text-cyan" />
                                         </div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Ready to Deploy?</h3>
+                                        <p className="text-gray-400 max-w-sm mx-auto mb-8">
+                                            This will push all your approved content to your connected GoHighLevel account.
+                                        </p>
 
                                         <div className="flex gap-3">
                                             <button
                                                 onClick={() => setShowDeployModal(false)}
                                                 disabled={isDeploying}
-                                                className="flex-1 px-4 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="flex-1 px-4 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors disabled:opacity-50"
                                             >
                                                 Cancel
                                             </button>
                                             <button
-                                                onClick={() => {
-                                                    window.alert('Deploy button clicked!');
-                                                    console.log('[Vault] BUTTON CLICKED!');
-                                                    handleDeployToGHL();
-                                                }}
-                                                disabled={isDeploying || checkingGhlConnection || (!ghlConnected && (!ghlLocationId || !ghlAccessToken))}
-                                                className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                                onClick={handleDeployToGHL}
+                                                disabled={isDeploying}
+                                                className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                             >
                                                 {isDeploying ? (
                                                     <>
@@ -3202,12 +3098,12 @@ export default function VaultPage() {
                                                 ) : (
                                                     <>
                                                         <ExternalLink className="w-4 h-4" />
-                                                        Deploy Now
+                                                        Start Deployment
                                                     </>
                                                 )}
                                             </button>
                                         </div>
-                                    </>
+                                    </div>
                                 )}
                             </motion.div>
                         </motion.div>

@@ -206,32 +206,9 @@ async function handleUserCreated(data) {
     console.error('[Webhook] Pabbly integration error:', pabblyError);
   }
 
-  // Optionally create GHL sub-account via legacy method (kept for backwards compatibility)
-  // This can be removed once Pabbly automation is fully working
-  if (process.env.GHL_AGENCY_TOKEN || (process.env.GHL_CLIENT_ID && process.env.GHL_AGENCY_ID)) {
-    try {
-      const { createGHLSubAccount } = await import('@/lib/ghl/createSubAccount');
-
-      // Run in background - don't block webhook response
-      createGHLSubAccount(id, {
-        email: email,
-        fullName: fullName,
-        businessName: businessData.businessName || null
-      }).then(result => {
-        if (result.success) {
-          console.log(`[Webhook] GHL sub-account created: ${result.locationId}`);
-        } else {
-          console.log(`[Webhook] GHL sub-account skipped: ${result.error}`);
-        }
-      }).catch(err => {
-        console.error('[Webhook] GHL sub-account error:', err);
-      });
-
-    } catch (ghlError) {
-      // Don't fail the webhook if GHL fails
-      console.error('[Webhook] GHL integration error:', ghlError);
-    }
-  }
+  // Legacy GHL sub-account creation removed.
+  // We now rely entirely on the Pabbly webhook (triggered above) to handle
+  // sub-account creation and logging to ghl_subaccount_logs.
 }
 
 /**

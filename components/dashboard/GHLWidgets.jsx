@@ -9,6 +9,7 @@ import {
     Calendar, Clock, Info, Hammer
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { useRouter } from 'next/navigation';
 import {
     PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend,
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
