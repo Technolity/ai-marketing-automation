@@ -34,7 +34,7 @@ const TIER_LIMITS = {
 
 export default function Dashboard() {
     const router = useRouter();
-    const { session, user, loading: authLoading } = useAuth();
+    const { session, user, loading: authLoading, isProfileComplete } = useAuth();
 
     const [isLoading, setIsLoading] = useState(true);
     const [businesses, setBusinesses] = useState([]);
@@ -53,8 +53,15 @@ export default function Dashboard() {
             return;
         }
 
+        // Redirect to onboarding if profile is incomplete
+        if (isProfileComplete === false) {
+            console.log('[Dashboard] Profile incomplete, redirecting to onboarding');
+            router.push("/onboarding");
+            return;
+        }
+
         loadUserData();
-    }, [session, authLoading, router]);
+    }, [session, authLoading, router, isProfileComplete]);
 
     const loadUserData = async () => {
         try {

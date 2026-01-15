@@ -8,9 +8,11 @@ const AuthContext = createContext({
     isAdmin: false,
     loading: false,
     licenseAccepted: true, // Default to true to avoid flash
+    isProfileComplete: true,
     switchUser: () => { },
     signOut: () => { },
     acceptLicense: () => { },
+    refreshProfile: () => { },
 });
 
 export function AuthProvider({ children }) {
@@ -23,6 +25,7 @@ function ClerkAuthProvider({ children }) {
     const [isAdmin, setIsAdmin] = useState(false);
     const [userSynced, setUserSynced] = useState(false);
     const [licenseAccepted, setLicenseAccepted] = useState(true); // Default true to avoid flash
+    const [isProfileComplete, setIsProfileComplete] = useState(true); // Default true to avoid flash
 
     // Map Clerk user to our AuthContext shape
     const user = clerkUser ? {
@@ -80,6 +83,12 @@ function ClerkAuthProvider({ children }) {
 
             console.log('[AuthContext] Admin status:', adminData.isAdmin);
 
+            // Set profile completeness from sync response
+            if (syncData.isProfileComplete !== undefined) {
+                setIsProfileComplete(syncData.isProfileComplete);
+                console.log('[AuthContext] Profile complete:', syncData.isProfileComplete);
+            }
+
             // Check license acceptance status
             try {
                 const licenseRes = await fetch('/api/users/accept-license');
@@ -102,6 +111,7 @@ function ClerkAuthProvider({ children }) {
     const signOut = async () => {
         await clerkSignOut();
         setIsAdmin(false);
+        setIsProfileComplete(false);
         setUserSynced(false);
         window.location.href = '/';
     };
@@ -127,6 +137,13 @@ function ClerkAuthProvider({ children }) {
         }
     };
 
+    // Refresh profile function (for manual re-sync)
+    const refreshProfile = async () => {
+        if (clerkUser) {
+            await syncUserAndCheckAdmin();
+        }
+    };
+
     const value = {
         user,
         session,
@@ -134,9 +151,11 @@ function ClerkAuthProvider({ children }) {
         loading: !isLoaded || (clerkUser && !userSynced),
         authLoading: !isLoaded || (clerkUser && !userSynced),
         licenseAccepted,
+        isProfileComplete,
         switchUser,
         signOut,
-        acceptLicense
+        acceptLicense,
+        refreshProfile
     };
 
     return (

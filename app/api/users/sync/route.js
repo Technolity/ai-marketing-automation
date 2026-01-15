@@ -57,11 +57,22 @@ export async function POST(req) {
         throw updateError;
       }
 
-      console.log('[User Sync API] User updated successfully');
+      const updatedUser = { ...existingUserById, email, full_name: fullName };
+
+      const isComplete = !!(
+        updatedUser.business_name &&
+        updatedUser.address &&
+        updatedUser.phone &&
+        updatedUser.city &&
+        updatedUser.country
+      );
+
+      console.log('[User Sync API] User updated. Profile complete:', isComplete);
       return NextResponse.json({
         success: true,
         message: 'User updated',
-        user: { ...existingUserById, email, full_name: fullName }
+        user: updatedUser,
+        isProfileComplete: isComplete
       });
     }
 
@@ -193,11 +204,23 @@ export async function POST(req) {
       throw insertError;
     }
 
-    console.log('[User Sync API] User created successfully:', newUser.id);
+    // Helper to check completeness
+    const checkCompleteness = (u) => !!(
+      u.business_name &&
+      u.address &&
+      u.phone &&
+      u.city &&
+      u.country
+    );
+
+    const isComplete = checkCompleteness(newUser || existingUserById || {});
+
+    console.log('[User Sync API] User created/updated. Profile complete:', isComplete);
     return NextResponse.json({
       success: true,
-      message: 'User created',
-      user: newUser
+      message: 'User synced',
+      user: newUser || existingUserById,
+      isProfileComplete: isComplete
     });
 
   } catch (error) {

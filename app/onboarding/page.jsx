@@ -48,7 +48,7 @@ const COUNTRY_CODES = [
 
 export default function Onboarding() {
   const router = useRouter();
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, refreshProfile } = useAuth();
   const { user } = useUser();
 
   const [licenseAccepted, setLicenseAccepted] = useState(false);
@@ -156,6 +156,7 @@ export default function Onboarding() {
         throw new Error(result.error || "Failed to save profile");
       }
 
+      await refreshProfile();
       toast.success("Profile saved successfully!");
       router.push("/dashboard");
 
