@@ -384,6 +384,7 @@ export default function FeedbackChatModal({
     const [partialError, setPartialError] = useState(null);
     const [latestContent, setLatestContent] = useState(currentContent); // Track latest revision for continuous refinement
     const [showContentPreview, setShowContentPreview] = useState(false); // Toggle for context preview
+    const [originalContent, setOriginalContent] = useState(null); // Store original content for before/after comparison
     const abortControllerRef = useRef(null);
 
     const MAX_REGENERATIONS = 5;
@@ -434,6 +435,8 @@ export default function FeedbackChatModal({
         setSelectedSubSection(option.id);
         // Reset latest content to current for the new selection
         setLatestContent(currentContent);
+        // Store original content for before/after comparison
+        setOriginalContent(option.id === 'all' ? currentContent : currentContent[option.id]);
         setMessages(prev => [
             ...prev,
             { role: 'user', content: option.label },
@@ -925,7 +928,7 @@ Be as specific as possible - for example:
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-2xl max-h-[70vh] flex flex-col overflow-hidden"
+                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden"
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
@@ -1041,13 +1044,36 @@ Be as specific as possible - for example:
                                         }
 
                                         return shouldShowPreview ? (
-                                            <div className="mt-3 p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-64 overflow-y-auto">
-                                                <div className="flex justify-between items-center mb-2 sticky top-0 bg-[#0e0e0f]/90 backdrop-blur pb-2 border-b border-[#2a2a2d]">
-                                                    <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Preview</span>
+                                            <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d]">
+                                                {/* BEFORE Panel */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2 pb-2 border-b border-[#2a2a2d]">
+                                                        <div className="px-2 py-1 bg-red-500/20 border border-red-500/50 rounded text-xs font-bold text-red-400">
+                                                            BEFORE
+                                                        </div>
+                                                        <span className="text-xs text-gray-500">Original Content</span>
+                                                    </div>
+                                                    <div className="max-h-80 overflow-y-auto">
+                                                        <pre className="text-xs text-gray-400 whitespace-pre-wrap font-sans">
+                                                            {formatPreviewContent(originalContent || currentContent)}
+                                                        </pre>
+                                                    </div>
                                                 </div>
-                                                <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                                    {formatPreviewContent(contentToFormat)}
-                                                </pre>
+
+                                                {/* AFTER Panel */}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2 pb-2 border-b border-[#2a2a2d]">
+                                                        <div className="px-2 py-1 bg-cyan/20 border border-cyan/50 rounded text-xs font-bold text-cyan">
+                                                            AFTER
+                                                        </div>
+                                                        <span className="text-xs text-gray-500">AI-Refined Content</span>
+                                                    </div>
+                                                    <div className="max-h-80 overflow-y-auto">
+                                                        <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans">
+                                                            {formatPreviewContent(contentToFormat)}
+                                                        </pre>
+                                                    </div>
+                                                </div>
                                             </div>
                                         ) : null;
                                     })()}
@@ -1227,24 +1253,20 @@ Be as specific as possible - for example:
 
 
                         return shouldShowActions ? (
-                            <div className="p-4 border-t border-[#2a2a2d] flex flex-col gap-3">
-                                {/* Primary Actions */}
+                            <div className="p-4 border-t border-[#2a2a2d]">
+                                {/* Action Buttons - Side by Side */}
                                 <div className="flex gap-3">
                                     <button
                                         onClick={handleSaveChanges}
-                                        className="flex-1 py-3 btn-approve rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-cyan/10"
+                                        className="flex-1 py-2 px-4 btn-approve rounded-xl flex items-center justify-center gap-2 text-sm shadow-lg shadow-cyan/10"
                                     >
                                         <Save className="w-4 h-4" />
-                                        Save These Changes
+                                        Save Changes
                                     </button>
-                                </div>
-
-                                {/* Secondary Actions */}
-                                <div className="flex gap-3">
                                     <button
                                         onClick={handleTryAgain}
                                         disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
-                                        className="flex-1 py-2.5 bg-[#2a2a2d] text-gray-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                        className="flex-1 py-2 px-4 bg-[#2a2a2d] text-gray-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
                                         Try Again
