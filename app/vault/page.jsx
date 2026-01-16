@@ -548,6 +548,12 @@ export default function VaultPage() {
     const [regeneratingSection, setRegeneratingSection] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+    // Computed states
+    const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
+    const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
+    const isPhase3Complete = approvedPhase3.length >= PHASE_3_SECTIONS.length;
+    const isVaultComplete = isPhase1Complete && isPhase2Complete && isPhase3Complete;
+
     // Load vault data from database - ONLY on initial mount
     useEffect(() => {
         if (authLoading) return;
