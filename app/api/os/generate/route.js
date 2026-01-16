@@ -601,7 +601,7 @@ export async function POST(req) {
       const FILL_MISSING_CONCURRENCY = 3;
       const SECTION_TIMEOUTS = {
         4: 120000,  // Offer
-        5: 90000,   // Sales Script (Closer) - optimized prompt
+        5: 120000,   // Sales Script (Closer) - optimized prompt
         17: 120000, // Setter Script
         8: 120000,  // Emails
         9: 120000,  // Facebook Ads
