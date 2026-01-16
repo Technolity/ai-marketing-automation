@@ -69,7 +69,7 @@ export default function Onboarding() {
     city: "",
     state: "",
     postalCode: "",
-    country: "United States",
+    country: "US",
     timezone: "America/New_York"
   });
 

@@ -13,13 +13,15 @@ export default authMiddleware({
     "/api/rag(.*)",
     "/api/admin/setup-pgvector",
     "/api/integrations/oauth/callback",
-    "/api/integrations/oauth/debug"
+    "/api/integrations/oauth/debug",
+    "/api/oauth/callback",  // GHL OAuth callback
   ],
   ignoredRoutes: [
     "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",
     "/api/webhooks/clerk",
     "/api/integrations/oauth/callback",
     "/api/integrations/oauth/debug",
+    "/api/oauth/callback",  // GHL OAuth callback
     "/api/cron(.*)",
     "/",
     "/auth/login",

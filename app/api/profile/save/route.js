@@ -1,22 +1,15 @@
 /**
  * Profile Save API
- * Saves user profile data and triggers Pabbly automation
+ * Saves user profile data and creates GHL sub-account via OAuth
  *
  * POST /api/profile/save
  * Body: { firstName, lastName, businessName, phone, countryCode, address, city, state, postalCode, country, timezone }
- *
- * Returns:
- * {
- *   success: boolean,
- *   message: string,
- *   error?: string
- * }
  */
 
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createClient } from '@supabase/supabase-js';
-import { triggerPabblyAutomation } from '@/lib/integrations/pabbly';
+import { createGHLSubAccount } from '@/lib/integrations/ghl';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,28 +103,26 @@ export async function POST(req) {
 
     console.log(`[Profile Save] Profile updated successfully for user: ${email}`);
 
-    // 6. Trigger Pabbly automation (Only if not already triggered)
+    // 6. Create GHL sub-account via OAuth (Only if not already created)
     if (!existingProfile.ghl_setup_triggered_at) {
-      console.log(`[Profile Save] Triggering Pabbly automation for the first time...`);
+      console.log(`[Profile Save] Creating GHL sub-account for user...`);
 
-      // CRITICAL: Set flag BEFORE calling Pabbly to prevent race condition
-      // This ensures rapid form submissions don't trigger multiple webhooks
+      // Set flag BEFORE calling GHL to prevent race condition
       const triggeredAt = new Date().toISOString();
       await supabase
         .from('user_profiles')
         .update({ ghl_setup_triggered_at: triggeredAt })
         .eq('id', userId);
 
-      console.log(`[Profile Save] Flag set at ${triggeredAt}, now calling Pabbly...`);
+      console.log(`[Profile Save] Flag set at ${triggeredAt}, now creating sub-account...`);
 
       try {
-        const pabblyResult = await triggerPabblyAutomation({
-          clerkId: userId,
+        const ghlResult = await createGHLSubAccount({
+          userId: userId,
           email: email,
           firstName: firstName,
           lastName: lastName,
           phone: phone,
-          countryCode: countryCode,
           businessName: businessName || `${firstName}'s Business`,
           address: address,
           city: city,
@@ -141,10 +132,10 @@ export async function POST(req) {
           timezone: timezone
         });
 
-        if (pabblyResult.success) {
-          console.log(`[Profile Save] Pabbly automation triggered successfully for: ${email}`);
+        if (ghlResult.success) {
+          console.log(`[Profile Save] GHL sub-account created: ${ghlResult.locationId}`);
         } else {
-          console.error(`[Profile Save] Pabbly automation failed:`, pabblyResult.error);
+          console.error(`[Profile Save] GHL sub-account creation failed:`, ghlResult.error);
           // Clear the flag to allow retry on next profile save
           await supabase
             .from('user_profiles')
@@ -152,17 +143,16 @@ export async function POST(req) {
             .eq('id', userId);
           console.log(`[Profile Save] Flag cleared to allow retry`);
         }
-      } catch (pabblyError) {
-        console.error('[Profile Save] Pabbly automation error:', pabblyError);
-        // Clear the flag to allow retry on next profile save
+      } catch (ghlError) {
+        console.error('[Profile Save] GHL error:', ghlError);
+        // Clear the flag to allow retry
         await supabase
           .from('user_profiles')
           .update({ ghl_setup_triggered_at: null })
           .eq('id', userId);
-        console.log(`[Profile Save] Flag cleared due to error, will retry on next save`);
       }
     } else {
-      console.log(`[Profile Save] Pabbly automation skipped - already triggered at ${existingProfile.ghl_setup_triggered_at}`);
+      console.log(`[Profile Save] GHL sub-account already exists - skipped`);
     }
 
     // 7. Return success

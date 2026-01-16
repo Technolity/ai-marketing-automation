@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs';
 import { mapSessionToCustomValues } from '@/lib/ghl/customValueMapper';
+import { updateCustomValues } from '@/lib/integrations/ghl';
 
 // Initialize Supabase admin client
 const supabaseAdmin = createClient(
@@ -12,7 +13,7 @@ const supabaseAdmin = createClient(
 
 /**
  * POST /api/ghl/deploy-workflow
- * Trigger Pabbly workflow to deploy content to GHL
+ * Deploy content to GHL via OAuth (no more Pabbly)
  */
 export async function POST(req) {
     try {
@@ -26,75 +27,77 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Missing funnelId' }, { status: 400 });
         }
 
-        // 1. Get User's GHL Location ID
-        // Per user request, prioritize fetching from ghl_subaccount_logs to ensure we use the specific sub-account 
-        // created by the recent Pabbly workflow.
-
+        // 1. Get User's GHL Location ID from ghl_subaccounts (OAuth created)
         let locationId = null;
 
-        // A. Try ghl_subaccount_logs first (most recent entry with a location_id)
-        const { data: logEntry, error: logError } = await supabaseAdmin
-            .from('ghl_subaccount_logs')
-            .select('location_id')
+        // Try ghl_subaccounts first (OAuth created)
+        const { data: subaccount, error: subError } = await supabaseAdmin
+            .from('ghl_subaccounts')
+            .select('location_id, location_name')
             .eq('user_id', userId)
-            .not('location_id', 'is', null)
-            .order('created_at', { ascending: false })
-            .limit(1)
+            .eq('is_active', true)
             .single();
 
-        if (logEntry && logEntry.location_id) {
-            locationId = logEntry.location_id;
-            console.log('Found Location ID in ghl_subaccount_logs:', locationId);
+        if (subaccount && subaccount.location_id) {
+            locationId = subaccount.location_id;
+            console.log('[Deploy] Found Location ID in ghl_subaccounts:', locationId);
         } else {
-            console.warn('No Location ID found in logs, falling back to user_profiles.');
-
-            // B. Fallback to user_profiles
-            const { data: profile, error: profileError } = await supabaseAdmin
-                .from('user_profiles')
-                .select('ghl_location_id')
-                .eq('id', userId)
+            // Fallback to legacy ghl_subaccount_logs
+            const { data: logEntry } = await supabaseAdmin
+                .from('ghl_subaccount_logs')
+                .select('location_id')
+                .eq('user_id', userId)
+                .not('location_id', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(1)
                 .single();
 
-            if (profile && profile.ghl_location_id) {
-                locationId = profile.ghl_location_id;
+            if (logEntry && logEntry.location_id) {
+                locationId = logEntry.location_id;
+                console.log('[Deploy] Found Location ID in legacy logs:', locationId);
+            } else {
+                // Final fallback to user_profiles
+                const { data: profile } = await supabaseAdmin
+                    .from('user_profiles')
+                    .select('ghl_location_id')
+                    .eq('id', userId)
+                    .single();
+
+                if (profile && profile.ghl_location_id) {
+                    locationId = profile.ghl_location_id;
+                }
             }
         }
 
         if (!locationId) {
-            return NextResponse.json({ error: 'No GHL Location ID found. Please ensure your account setup is complete.' }, { status: 400 });
+            return NextResponse.json({
+                error: 'No GHL Location ID found. Please ensure your account setup is complete.'
+            }, { status: 400 });
         }
 
         // 2. Fetch Data for Mapping
-        // We need three things to reconstruct the "Session Data" for the mapper:
-        // A. Vault Content (The approved AI text)
-        // B. Session Answers (The user's inputs/company info)
-        // C. Generated Images (The approved images)
-
         const [contentResult, sessionResult, imagesResult] = await Promise.all([
-            // A. Fetch Vault Content (Only current/approved version)
             supabaseAdmin
                 .from('vault_content')
                 .select('section_id, content')
                 .eq('funnel_id', funnelId)
                 .eq('is_current_version', true),
 
-            // B. Fetch Session Answers (Assuming funnelId is the sessionId)
             supabaseAdmin
                 .from('saved_sessions')
                 .select('answers, business_name')
-                .eq('id', funnelId) // Verify if funnelId corresponds to saved_sessions.id
+                .eq('id', funnelId)
                 .single(),
 
-            // C. Fetch Generated Images
             supabaseAdmin
                 .from('generated_images')
                 .select('*')
-                .eq('session_id', funnelId) // Using funnelId as sessionId
+                .eq('session_id', funnelId)
                 .eq('status', 'completed')
         ]);
 
         if (contentResult.error) {
-            console.error('Content fetch error:', contentResult.error);
+            console.error('[Deploy] Content fetch error:', contentResult.error);
             return NextResponse.json({ error: 'Failed to fetch vault content' }, { status: 500 });
         }
 
@@ -103,23 +106,12 @@ export async function POST(req) {
         const session = sessionResult.data || {};
         const images = imagesResult.data || [];
 
-        // Transform vault_content array into results_data object keyed by section_id
-        // vault_content: [{ section_id: '1', content: {...} }, ...]
-        // target: { '1': { data: {...} }, '2': { data: {...} } }
         const resultsData = {};
-
         vaultContent.forEach(item => {
-            // Content is stored as JSONB, so it's already an object
-            // Ensure section_id is a string key
             const sectionKey = String(item.section_id);
-
-            // The mapper expects structure: results[key].data
-            resultsData[sectionKey] = {
-                data: item.content
-            };
+            resultsData[sectionKey] = { data: item.content };
         });
 
-        // Construct the sessionData object expected by mapSessionToCustomValues
         const sessionData = {
             results_data: resultsData,
             answers: session.answers || {},
@@ -129,55 +121,44 @@ export async function POST(req) {
         // 4. Map to GHL Custom Values
         console.log(`[Deploy] Mapping content for Funnel ${funnelId} to Location ${locationId}`);
         const mappedValues = mapSessionToCustomValues(sessionData, images);
+        console.log(`[Deploy] Mapped ${Object.keys(mappedValues).length} custom values`);
 
-        // 5. Transform for Pabbly (Array of objects)
-        // Pabbly Iterator expects an array to loop through
-        const customValuesPayload = Object.entries(mappedValues).map(([key, value]) => ({
-            key: key,       // The Custom Value Name (e.g. "vsl_hero_headline")
-            value: value    // The Content
-        }));
+        // 5. Update Custom Values via GHL OAuth API
+        console.log(`[Deploy] Pushing custom values to GHL via OAuth...`);
 
-        console.log(`[Deploy] Prepared ${customValuesPayload.length} custom values for Pabbly.`);
+        const result = await updateCustomValues(userId, mappedValues);
 
-        // 6. Trigger Pabbly Webhook
-        const webhookUrl = process.env.PABBLY_DEPLOY_WEBHOOK_URL;
-        if (!webhookUrl) {
-            console.error('PABBLY_DEPLOY_WEBHOOK_URL not configured');
-            return NextResponse.json({ error: 'Deployment configuration missing (Webhook)' }, { status: 500 });
+        if (!result.success) {
+            console.error('[Deploy] GHL update failed:', result.error);
+            return NextResponse.json({
+                error: result.error || 'Failed to update custom values'
+            }, { status: 500 });
         }
 
-        const payload = {
-            userId: userId,
-            funnelId: funnelId,
-            locationId: locationId,
-            customValues: customValuesPayload, // This is the iterator source
-            timestamp: new Date().toISOString(),
-            meta: {
-                source: 'tedos_vault_deploy',
-                itemCount: customValuesPayload.length
+        console.log(`[Deploy] Successfully updated ${result.updated} custom values`);
+
+        // 6. Log the deployment
+        await supabaseAdmin.from('ghl_oauth_logs').insert({
+            user_id: userId,
+            operation: 'update_custom_values',
+            status: 'success',
+            response_data: {
+                funnel_id: funnelId,
+                location_id: locationId,
+                values_updated: result.updated,
+                values_failed: result.failed
             }
-        };
-
-        const pabblyResponse = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
         });
-
-        if (!pabblyResponse.ok) {
-            const errText = await pabblyResponse.text();
-            console.error('Pabbly Webhook Error:', errText);
-            return NextResponse.json({ error: 'Failed to trigger deployment automation' }, { status: 502 });
-        }
 
         return NextResponse.json({
             success: true,
-            message: 'Deployment started',
-            count: customValuesPayload.length
+            message: 'Deployment completed',
+            updated: result.updated,
+            failed: result.failed || 0
         });
 
     } catch (error) {
-        console.error('Deploy API Error:', error);
+        console.error('[Deploy] API Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
