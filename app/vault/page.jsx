@@ -1045,7 +1045,7 @@ export default function VaultPage() {
             }
 
             await handleRegenerateSection(feedbackSection.id, numericKey, feedback);
-            setFeedbackModalOpen(false);
+            setFeedbackChatOpen(false);
             setFeedbackSection(null);
         } catch (error) {
             console.error("Feedback submission error:", error);
@@ -2547,7 +2547,7 @@ export default function VaultPage() {
                                                 <button
                                                     onClick={() => {
                                                         setFeedbackSection(section);
-                                                        setFeedbackModalOpen(true);
+                                                        setFeedbackChatOpen(true);
                                                     }}
                                                     className="flex-1 sm:flex-none px-6 py-3 btn-feedback rounded-xl flex items-center justify-center gap-2"
                                                 >
