@@ -289,28 +289,30 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
                             </div>
                         )}
                         <div className="space-y-4">
-                            {groupedFields[groupName].map((subfield) => {
-                                // Create a synthetic fieldDef for the subfield
-                                const subfieldDef = {
-                                    ...subfield,
-                                    field_id: `${pageFieldDef.field_id}.${subfield.field_id}`, // e.g., "optinPage.headline_text"
-                                    parent_field_id: pageFieldDef.field_id
-                                };
+                            {groupedFields[groupName]
+                                .filter(subfield => !subfield.isHidden) // Hide fields marked as hidden
+                                .map((subfield) => {
+                                    // Create a synthetic fieldDef for the subfield
+                                    const subfieldDef = {
+                                        ...subfield,
+                                        field_id: `${pageFieldDef.field_id}.${subfield.field_id}`, // e.g., "optinPage.headline_text"
+                                        parent_field_id: pageFieldDef.field_id
+                                    };
 
-                                const subfieldValue = pageValue[subfield.field_id] || null;
+                                    const subfieldValue = pageValue[subfield.field_id] || null;
 
-                                return (
-                                    <FieldEditor
-                                        key={`${subfieldDef.field_id}-${forceRenderKey}`}
-                                        fieldDef={subfieldDef}
-                                        initialValue={subfieldValue}
-                                        sectionId={sectionId}
-                                        funnelId={funnelId}
-                                        onSave={handleFieldSave}
-                                        onAIFeedback={handleAIFeedback}
-                                    />
-                                );
-                            })}
+                                    return (
+                                        <FieldEditor
+                                            key={`${subfieldDef.field_id}-${forceRenderKey}`}
+                                            fieldDef={subfieldDef}
+                                            initialValue={subfieldValue}
+                                            sectionId={sectionId}
+                                            funnelId={funnelId}
+                                            onSave={handleFieldSave}
+                                            onAIFeedback={handleAIFeedback}
+                                        />
+                                    );
+                                })}
                         </div>
                     </div>
                 ))}
