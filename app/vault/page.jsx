@@ -514,7 +514,39 @@ export default function VaultPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [vaultData, setVaultData] = useState({});
-    // ... (rest of state initialization) ...
+    const [dataSource, setDataSource] = useState(null);
+    const [approvedPhase1, setApprovedPhase1] = useState([]);
+    const [hasFunnelChoice, setHasFunnelChoice] = useState(false);
+    const [approvedPhase2, setApprovedPhase2] = useState([]);
+    const [approvedPhase3, setApprovedPhase3] = useState([]);
+    const [expandedSections, setExpandedSections] = useState(() => new Set());
+    const [editingSection, setEditingSection] = useState(null);
+    const [editedContent, setEditedContent] = useState({});
+    const [isRegenerating, setIsRegenerating] = useState(false);
+    const [unsavedChanges, setUnsavedChanges] = useState(false);
+    const [showSaveModal, setShowSaveModal] = useState(false);
+    const [sessionName, setSessionName] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [showMediaLibrary, setShowMediaLibrary] = useState(false);
+    const [uploadedImages, setUploadedImages] = useState({});
+    const [videoUrls, setVideoUrls] = useState({});
+    const [isUpdatingAssets, setIsUpdatingAssets] = useState(false);
+    const [uploadingFiles, setUploadingFiles] = useState({});
+    const [feedbackChatOpen, setFeedbackChatOpen] = useState(false);
+    const [feedbackSection, setFeedbackSection] = useState(null);
+    const [isFeedbackSubmitting, setIsFeedbackSubmitting] = useState(false);
+    const [showDeployModal, setShowDeployModal] = useState(false);
+    const [ghlLocationId, setGhlLocationId] = useState('');
+    const [ghlAccessToken, setGhlAccessToken] = useState('');
+    const [isDeploying, setIsDeploying] = useState(false);
+    const [deploymentComplete, setDeploymentComplete] = useState(false);
+    const [ghlConnected, setGhlConnected] = useState(false);
+    const [checkingGhlConnection, setCheckingGhlConnection] = useState(false);
+    const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+    const [sectionStatuses, setSectionStatuses] = useState({});
+    const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
+    const [regeneratingSection, setRegeneratingSection] = useState(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     // Load vault data from database - ONLY on initial mount
     useEffect(() => {
