@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle, RefreshCw, FileText } from 'lucide-react';
+import { CheckCircle, FileText } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
@@ -12,7 +12,6 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
-    const [isRegenerating, setIsRegenerating] = useState(false);
     const [sectionApproved, setSectionApproved] = useState(false);
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
@@ -93,18 +92,50 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     const handleFieldSave = async (field_id, value, result) => {
         console.log('[FunnelCopyFields] Field saved:', field_id, 'version:', result.version);
 
-        // Update local state
-        setFields(prev => prev.map(f =>
-            f.field_id === field_id
-                ? { ...f, field_value: value, version: result.version, is_approved: false }
-                : f
-        ));
+        // Handle nested fields (e.g., "optinPage.headline_text")
+        if (field_id.includes('.')) {
+            const [parentId, childId] = field_id.split('.');
+
+            // Update the parent object in local state
+            setFields(prev => prev.map(f => {
+                if (f.field_id === parentId) {
+                    // Parse existing object value
+                    let parentValue = {};
+                    if (typeof f.field_value === 'string') {
+                        try {
+                            parentValue = JSON.parse(f.field_value);
+                        } catch (e) {
+                            console.error('[FunnelCopyFields] Failed to parse parent value:', e);
+                        }
+                    } else if (typeof f.field_value === 'object' && f.field_value !== null) {
+                        parentValue = { ...f.field_value };
+                    }
+
+                    // Update the nested field
+                    parentValue[childId] = value;
+
+                    return {
+                        ...f,
+                        field_value: parentValue,
+                        version: result.version,
+                        is_approved: false
+                    };
+                }
+                return f;
+            }));
+        } else {
+            // Regular field (not nested)
+            setFields(prev => prev.map(f =>
+                f.field_id === field_id
+                    ? { ...f, field_value: value, version: result.version, is_approved: false }
+                    : f
+            ));
+        }
 
         // Mark section as unapproved
         setSectionApproved(false);
 
-        // Force re-render to show updated content
-        setForceRenderKey(prev => prev + 1);
+        // DON'T increment forceRenderKey here - FieldEditor updates via initialValue prop
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -126,18 +157,50 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
 
             console.log('[FunnelCopyFields] AI feedback saved for field:', selectedField.field_id);
 
-            // Update local state with new content
-            setFields(prev => prev.map(f =>
-                f.field_id === selectedField.field_id
-                    ? { ...f, field_value: refinedContent, version: result.version, is_approved: false }
-                    : f
-            ));
+            // Handle nested fields (e.g., "optinPage.headline_text")
+            if (selectedField.field_id.includes('.')) {
+                const [parentId, childId] = selectedField.field_id.split('.');
+
+                // Update the parent object in local state
+                setFields(prev => prev.map(f => {
+                    if (f.field_id === parentId) {
+                        // Parse existing object value
+                        let parentValue = {};
+                        if (typeof f.field_value === 'string') {
+                            try {
+                                parentValue = JSON.parse(f.field_value);
+                            } catch (e) {
+                                console.error('[FunnelCopyFields] Failed to parse parent value:', e);
+                            }
+                        } else if (typeof f.field_value === 'object' && f.field_value !== null) {
+                            parentValue = { ...f.field_value };
+                        }
+
+                        // Update the nested field
+                        parentValue[childId] = refinedContent;
+
+                        return {
+                            ...f,
+                            field_value: parentValue,
+                            version: result.version,
+                            is_approved: false
+                        };
+                    }
+                    return f;
+                }));
+            } else {
+                // Regular field (not nested)
+                setFields(prev => prev.map(f =>
+                    f.field_id === selectedField.field_id
+                        ? { ...f, field_value: refinedContent, version: result.version, is_approved: false }
+                        : f
+                ));
+            }
 
             // Mark section as unapproved
             setSectionApproved(false);
 
-            // Force re-render to show updated content
-            setForceRenderKey(prev => prev + 1);
+            // DON'T increment forceRenderKey here - FieldEditor updates via initialValue prop
 
             // Close modal
             setFeedbackModalOpen(false);
@@ -169,62 +232,6 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
             toast.error('Failed to approve section');
         } finally {
             setIsApproving(false);
-        }
-    };
-
-    const handleRegenerateSection = async () => {
-        setIsRegenerating(true);
-        toast.info('Regenerating Funnel Copy in background...');
-
-        try {
-            const response = await fetch('/api/os/generate-funnel-copy', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to regenerate');
-            }
-
-            const { jobId } = await response.json();
-
-            // Poll for completion
-            const pollStatus = setInterval(async () => {
-                try {
-                    const statusRes = await fetch(`/api/os/generation-status?jobId=${jobId}`);
-                    const job = await statusRes.json();
-
-                    if (job.status === 'completed') {
-                        clearInterval(pollStatus);
-                        setIsRegenerating(false);
-                        await fetchFields();
-                        setSectionApproved(false);
-                        toast.success('Funnel Copy regenerated successfully!');
-                    } else if (job.status === 'failed') {
-                        clearInterval(pollStatus);
-                        setIsRegenerating(false);
-                        toast.error('Regeneration failed: ' + job.errorMessage);
-                    }
-                } catch (err) {
-                    console.error('[FunnelCopyFields] Polling error:', err);
-                }
-            }, 3000);
-
-            // Stop polling after 5 minutes
-            setTimeout(() => {
-                clearInterval(pollStatus);
-                if (isRegenerating) {
-                    setIsRegenerating(false);
-                    toast.error('Regeneration timeout - please refresh and try again');
-                }
-            }, 300000);
-
-        } catch (error) {
-            console.error('[FunnelCopyFields] Regenerate error:', error);
-            toast.error(error.message || 'Failed to regenerate');
-            setIsRegenerating(false);
         }
     };
 
@@ -321,19 +328,6 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     return (
         <>
             <div className="space-y-6">
-                {/* Regenerate Button */}
-                <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-white">Funnel Page Copy</h3>
-                    <button
-                        onClick={handleRegenerateSection}
-                        disabled={isRegenerating}
-                        className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border border-white/20"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${isRegenerating ? 'animate-spin' : ''}`} />
-                        {isRegenerating ? 'Regenerating...' : 'Regenerate'}
-                    </button>
-                </div>
-
                 {/* Tab Navigation */}
                 <div className="flex gap-2 border-b border-white/10 overflow-x-auto">
                     {tabs.map((tab) => (

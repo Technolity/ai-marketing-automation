@@ -101,8 +101,8 @@ export default function MediaFields({ funnelId, onApprove, onRenderApproveButton
         // Mark section as unapproved
         setSectionApproved(false);
 
-        // Force re-render to show updated content
-        setForceRenderKey(prev => prev + 1);
+        // DON'T increment forceRenderKey here - it causes all FieldEditors to remount and lose state
+        // The FieldEditor will update via initialValue prop change through useEffect
     };
 
     // Handle AI feedback request
@@ -142,9 +142,6 @@ export default function MediaFields({ funnelId, onApprove, onRenderApproveButton
 
             // Mark section as unapproved
             setSectionApproved(false);
-
-            // Force re-render to show updated content
-            setForceRenderKey(prev => prev + 1);
 
             // Close modal
             setFeedbackModalOpen(false);

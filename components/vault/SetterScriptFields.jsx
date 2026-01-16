@@ -101,8 +101,7 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
         // Mark section as unapproved
         setSectionApproved(false);
 
-        // Force re-render to show updated content
-        setForceRenderKey(prev => prev + 1);
+        // DON'T increment forceRenderKey here - FieldEditor updates via initialValue prop
     };
 
     // Handle AI feedback request
@@ -145,8 +144,7 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
             // Mark section as unapproved
             setSectionApproved(false);
 
-            // Force re-render to show updated content
-            setForceRenderKey(prev => prev + 1);
+            // DON'T increment forceRenderKey here - FieldEditor updates via initialValue prop
 
             // Close modal
             setFeedbackModalOpen(false);

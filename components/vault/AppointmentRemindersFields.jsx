@@ -83,8 +83,7 @@ export default function AppointmentRemindersFields({ funnelId, onApprove, onRend
         // Mark section as unapproved
         setSectionApproved(false);
 
-        // Force re-render to show updated content
-        setForceRenderKey(prev => prev + 1);
+        // DON'T increment forceRenderKey here - FieldEditor updates via initialValue prop
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -116,8 +115,7 @@ export default function AppointmentRemindersFields({ funnelId, onApprove, onRend
             // Mark section as unapproved
             setSectionApproved(false);
 
-            // Force re-render to show updated content
-            setForceRenderKey(prev => prev + 1);
+            // DON'T increment forceRenderKey here - FieldEditor updates via initialValue prop
 
             // Close modal
             setFeedbackModalOpen(false);
