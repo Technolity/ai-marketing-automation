@@ -9,7 +9,7 @@
  * Reset only when business is reset.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -552,6 +552,9 @@ export default function VaultPage() {
     const [regeneratingSection, setRegeneratingSection] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+    // Ref to track completed job IDs we've already processed (prevents duplicate refreshes)
+    const previouslyCompletedJobsRef = useRef(new Set());
+
     // Tab state - determine initial tab from URL param
     const initialTab = searchParams.get('phase') === '2' ? 'assets' : 'dna';
     const [activeTab, setActiveTab] = useState(initialTab);
@@ -694,31 +697,55 @@ export default function VaultPage() {
                     return;
                 }
 
-                const { activeJobs } = await res.json();
+                // Destructure all job arrays from API response
+                const { activeJobs, completedJobs, failedJobs } = await res.json();
 
-                // If there are active jobs, start more frequent polling
+                // Log active jobs for debugging
                 if (activeJobs && activeJobs.length > 0) {
-                    console.log('[Vault] Active generation jobs found:', activeJobs.length);
+                    console.log('[Vault] Active generation jobs:', activeJobs.length);
+                }
 
-                    // Check if any jobs just completed
-                    const completedJobs = activeJobs.filter(j => j.status === 'completed');
-                    if (completedJobs.length > 0) {
-                        console.log('[Vault] Completed jobs detected, refreshing vault data...');
+                // Check for newly completed jobs (not seen before)
+                // The API returns completedJobs separately - they are NOT in activeJobs!
+                const newlyCompletedJobs = (completedJobs || []).filter(
+                    j => !previouslyCompletedJobsRef.current.has(j.id)
+                );
 
-                        // Refresh vault data
-                        const dataRes = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
-                        const result = await dataRes.json();
+                if (newlyCompletedJobs.length > 0) {
+                    console.log('[Vault] Newly completed jobs detected:', newlyCompletedJobs.length);
 
-                        if (result.data && Object.keys(result.data).length > 0) {
-                            const normalizedData = normalizeData(result.data);
-                            setVaultData(normalizedData);
+                    // Mark these jobs as processed to avoid duplicate refreshes
+                    newlyCompletedJobs.forEach(j => previouslyCompletedJobsRef.current.add(j.id));
 
-                            // Trigger refresh of field components
-                            setRefreshTrigger(prev => prev + 1);
+                    console.log('[Vault] Refreshing vault data for completed jobs...');
+
+                    // Refresh vault data
+                    const dataRes = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
+                    const result = await dataRes.json();
+
+                    if (result.data && Object.keys(result.data).length > 0) {
+                        const normalizedData = normalizeData(result.data);
+                        setVaultData(normalizedData);
+                        console.log('[Vault] Vault data refreshed, sections:', Object.keys(normalizedData));
+
+                        // Trigger refresh of field components
+                        setRefreshTrigger(prev => prev + 1);
+                    }
+
+                    // Refresh approvals
+                    await loadApprovals(funnelId);
+                }
+
+                // Handle failed jobs - update sectionStatuses
+                if (failedJobs && failedJobs.length > 0) {
+                    const failedSectionIds = {};
+                    failedJobs.forEach(j => {
+                        if (j.current_section) {
+                            failedSectionIds[j.current_section] = 'failed';
                         }
-
-                        // Refresh approvals
-                        await loadApprovals(funnelId);
+                    });
+                    if (Object.keys(failedSectionIds).length > 0) {
+                        setSectionStatuses(prev => ({ ...prev, ...failedSectionIds }));
                     }
                 }
             } catch (error) {
