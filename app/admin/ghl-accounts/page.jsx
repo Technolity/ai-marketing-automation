@@ -23,7 +23,8 @@ import {
     Building2,
     ExternalLink,
     RotateCcw,
-    Loader2
+    Loader2,
+    Layers
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ export default function AdminGHLAccounts() {
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
     const [stats, setStats] = useState({ synced: 0, pending: 0, failed: 0, permanently_failed: 0, total: 0 });
     const [isRetrying, setIsRetrying] = useState(null); // userId being retried
+    const [isImportingSnapshot, setIsImportingSnapshot] = useState(null); // userId for snapshot import
 
     useEffect(() => {
         if (!authLoading && session) {
@@ -116,6 +118,38 @@ export default function AdminGHLAccounts() {
             toast.error(err.message || "Failed to retry creation");
         } finally {
             setIsRetrying(null);
+        }
+    };
+
+    const handleImportSnapshot = async (userId) => {
+        if (isImportingSnapshot) return;
+        setIsImportingSnapshot(userId);
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-accounts/import-snapshot', {
+                method: 'POST',
+                body: JSON.stringify({ userId })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Snapshot import failed');
+            }
+
+            const result = await response.json();
+            if (result.alreadyImported) {
+                toast.info("Snapshot already imported for this user");
+            } else {
+                toast.success("Snapshot imported successfully!");
+            }
+
+            // Refresh list
+            fetchAccounts();
+        } catch (err) {
+            console.error('Snapshot import error:', err);
+            toast.error(err.message || "Failed to import snapshot");
+        } finally {
+            setIsImportingSnapshot(null);
         }
     };
 
@@ -192,28 +226,98 @@ export default function AdminGHLAccounts() {
                 }
             },
             {
+                accessorKey: "snapshot_status",
+                header: "Snapshot",
+                cell: ({ row }) => {
+                    const { has_subaccount, snapshot_imported, snapshot_status } = row.original;
+
+                    // No sub-account yet
+                    if (!has_subaccount) {
+                        return <span className="text-gray-600 text-xs">No account</span>;
+                    }
+
+                    // Snapshot imported
+                    if (snapshot_imported) {
+                        return (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border bg-green-500/20 text-green-400 border-green-500/30">
+                                <CheckCircle className="w-3 h-3" />
+                                Imported
+                            </div>
+                        );
+                    }
+
+                    // Snapshot failed
+                    if (snapshot_status === 'failed') {
+                        return (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border bg-red-500/20 text-red-400 border-red-500/30">
+                                <XCircle className="w-3 h-3" />
+                                Failed
+                            </div>
+                        );
+                    }
+
+                    // Snapshot pending
+                    return (
+                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+                            <Clock className="w-3 h-3" />
+                            Pending
+                        </div>
+                    );
+                }
+            },
+            {
                 id: "actions",
-                header: "",
+                header: "Actions",
                 cell: ({ row }) => {
                     const status = row.original.ghl_sync_status;
-                    const canRetry = ['failed', 'permanently_failed', 'pending'].includes(status);
+                    const hasSubaccount = row.original.has_subaccount;
+                    const snapshotImported = row.original.snapshot_imported;
 
-                    if (!canRetry) return null;
+                    const canRetry = ['failed', 'permanently_failed', 'pending', 'not_synced'].includes(status) && !hasSubaccount;
+                    const canImportSnapshot = hasSubaccount && !snapshotImported;
 
                     return (
-                        <button
-                            onClick={() => handleRetry(row.original.id)}
-                            disabled={isRetrying === row.original.id}
-                            className="p-2 hover:bg-cyan/10 text-cyan rounded-lg transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Retry Creation"
-                        >
-                            <RotateCcw className={`w-4 h-4 ${isRetrying === row.original.id ? 'animate-spin' : ''}`} />
-                        </button>
+                        <div className="flex items-center gap-1">
+                            {/* Retry button */}
+                            {canRetry && (
+                                <button
+                                    onClick={() => handleRetry(row.original.id)}
+                                    disabled={isRetrying === row.original.id}
+                                    className="p-2 hover:bg-cyan/10 text-cyan rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Create Sub-Account"
+                                >
+                                    <RotateCcw className={`w-4 h-4 ${isRetrying === row.original.id ? 'animate-spin' : ''}`} />
+                                </button>
+                            )}
+
+                            {/* Import Snapshot button */}
+                            {canImportSnapshot && (
+                                <button
+                                    onClick={() => handleImportSnapshot(row.original.id)}
+                                    disabled={isImportingSnapshot === row.original.id}
+                                    className="p-2 hover:bg-purple-500/10 text-purple-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Import Snapshot"
+                                >
+                                    {isImportingSnapshot === row.original.id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Layers className="w-4 h-4" />
+                                    )}
+                                </button>
+                            )}
+
+                            {/* Show checkmark if everything is done */}
+                            {hasSubaccount && snapshotImported && (
+                                <span className="text-green-400 p-2">
+                                    <CheckCircle className="w-4 h-4" />
+                                </span>
+                            )}
+                        </div>
                     );
                 },
             },
         ],
-        [isRetrying]
+        [isRetrying, isImportingSnapshot]
     );
 
     const table = useReactTable({

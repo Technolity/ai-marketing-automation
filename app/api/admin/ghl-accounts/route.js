@@ -1,6 +1,6 @@
 /**
  * Admin GHL Accounts API
- * List all users with their GHL sync status, search, filter, and pagination
+ * List all users with their GHL sync status, snapshot status, search, filter, and pagination
  *
  * GET /api/admin/ghl-accounts
  * Query params:
@@ -8,13 +8,6 @@
  * - limit: number (default 20)
  * - search: string (filters by email/name)
  * - status: string (filters by ghl_sync_status)
- *
- * Returns:
- * {
- *   accounts: [{ id, email, full_name, ghl_sync_status, ghl_location_id, ... }],
- *   stats: { synced: 45, pending: 2, failed: 8, ... },
- *   pagination: { page, limit, total, totalPages }
- * }
  */
 
 import { NextResponse } from 'next/server';
@@ -69,6 +62,7 @@ export async function GET(req) {
         id,
         email,
         full_name,
+        business_name,
         ghl_sync_status,
         ghl_location_id,
         ghl_location_name,
@@ -77,11 +71,12 @@ export async function GET(req) {
         ghl_next_retry_at,
         ghl_permanently_failed,
         ghl_location_created_at,
+        ghl_setup_triggered_at,
         created_at
       `, { count: 'exact' })
-      .is('deleted_at', null); // Exclude soft-deleted users
+      .is('deleted_at', null);
 
-    // Search filter (case-insensitive)
+    // Search filter
     if (search) {
       query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
     }
@@ -97,7 +92,6 @@ export async function GET(req) {
       .range(offset, offset + limit - 1)
       .order('created_at', { ascending: false });
 
-    // Execute query
     const { data: accounts, error: queryError, count } = await query;
 
     if (queryError) {
@@ -105,23 +99,81 @@ export async function GET(req) {
       throw queryError;
     }
 
-    // 4. Get statistics for all users (cached for 2 minutes)
-    const { data: statsData, error: statsError } = await supabase
+    // 4. Get OAuth sub-account info (from ghl_subaccounts table)
+    const userIds = accounts?.map(a => a.id) || [];
+
+    let subaccountsMap = {};
+    if (userIds.length > 0) {
+      const { data: subaccounts } = await supabase
+        .from('ghl_subaccounts')
+        .select('*')
+        .in('user_id', userIds)
+        .eq('is_active', true);
+
+      if (subaccounts) {
+        subaccounts.forEach(sa => {
+          subaccountsMap[sa.user_id] = sa;
+        });
+      }
+    }
+
+    // 5. Enrich accounts with subaccount info
+    const enrichedAccounts = accounts?.map(account => {
+      const subaccount = subaccountsMap[account.id];
+
+      // Determine effective location ID (OAuth or legacy)
+      const locationId = subaccount?.location_id || account.ghl_location_id;
+      const hasSubaccount = !!locationId;
+
+      // Determine snapshot status
+      let snapshotStatus = 'not_imported';
+      if (subaccount?.snapshot_imported) {
+        snapshotStatus = 'imported';
+      } else if (subaccount?.snapshot_import_status === 'failed') {
+        snapshotStatus = 'failed';
+      } else if (subaccount?.snapshot_import_status === 'in_progress') {
+        snapshotStatus = 'in_progress';
+      }
+
+      return {
+        ...account,
+        // Override with OAuth subaccount data if available
+        ghl_location_id: locationId,
+        ghl_location_name: subaccount?.location_name || account.ghl_location_name,
+        // Add new fields
+        has_subaccount: hasSubaccount,
+        snapshot_imported: subaccount?.snapshot_imported || false,
+        snapshot_status: snapshotStatus,
+        snapshot_import_error: subaccount?.snapshot_import_error || null,
+        snapshot_imported_at: subaccount?.snapshot_imported_at || null,
+        // OAuth-specific fields
+        oauth_subaccount_id: subaccount?.id || null,
+        agency_id: subaccount?.agency_id || null
+      };
+    }) || [];
+
+    // 6. Get statistics
+    const { data: statsData } = await supabase
       .from('user_profiles')
       .select('ghl_sync_status')
       .is('deleted_at', null);
 
-    if (statsError) {
-      console.error('[Admin GHL Accounts] Stats error:', statsError);
-    }
+    // Get snapshot stats from ghl_subaccounts
+    const { data: snapshotStats } = await supabase
+      .from('ghl_subaccounts')
+      .select('snapshot_imported')
+      .eq('is_active', true);
 
-    // Calculate stats
     const stats = {
       synced: 0,
       pending: 0,
       failed: 0,
       permanently_failed: 0,
-      not_synced: 0
+      not_synced: 0,
+      total: statsData?.length || 0,
+      // Snapshot stats
+      snapshots_imported: snapshotStats?.filter(s => s.snapshot_imported).length || 0,
+      snapshots_pending: snapshotStats?.filter(s => !s.snapshot_imported).length || 0
     };
 
     if (statsData) {
@@ -131,9 +183,9 @@ export async function GET(req) {
       });
     }
 
-    // 5. Return response
+    // 7. Return response
     return NextResponse.json({
-      accounts: accounts || [],
+      accounts: enrichedAccounts,
       stats,
       pagination: {
         page,
