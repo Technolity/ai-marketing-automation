@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { getFieldsForSection } from "@/lib/vault/fieldStructures";
 
 // Friendly AI chat openers
 const CHAT_OPENERS = [
@@ -227,6 +228,57 @@ const SECTION_OPTIONS = {
 };
 
 /**
+ * Helper Functions for Hierarchical Field Selection
+ */
+
+// Get field structure from fieldStructures.js
+function getFieldStructure(sectionId, fieldId) {
+    try {
+        const sectionFields = getFieldsForSection(sectionId);
+        return sectionFields?.fields?.find(f => f.field_id === fieldId);
+    } catch (error) {
+        console.error('[FeedbackChat] Error getting field structure:', error);
+        return null;
+    }
+}
+
+// Check if field has nested structure
+function isNestedField(sectionId, fieldId) {
+    const fieldStructure = getFieldStructure(sectionId, fieldId);
+    return (
+        fieldStructure?.field_type === 'object' &&
+        Array.isArray(fieldStructure?.field_metadata?.subfields) &&
+        fieldStructure.field_metadata.subfields.length > 0
+    );
+}
+
+// Generate child field options grouped by category
+function getChildFieldOptions(sectionId, parentFieldId) {
+    const fieldStructure = getFieldStructure(sectionId, parentFieldId);
+    const subfields = fieldStructure?.field_metadata?.subfields || [];
+
+    // Group by 'group' property
+    const grouped = {};
+    subfields.forEach(subfield => {
+        const group = subfield.group || 'General';
+        if (!grouped[group]) grouped[group] = [];
+        grouped[group].push({
+            id: subfield.field_id,
+            label: subfield.field_label || subfield.field_id,
+            group: group
+        });
+    });
+
+    return grouped;
+}
+
+// Get human-readable label for field
+function getFieldLabel(sectionId, fieldId) {
+    const fieldStructure = getFieldStructure(sectionId, fieldId);
+    return fieldStructure?.field_label || fieldId;
+}
+
+/**
  * Format AI-generated content for human-readable display
  * Converts JSON objects/strings into clean, formatted text
  */
@@ -385,6 +437,12 @@ export default function FeedbackChatModal({
     const [latestContent, setLatestContent] = useState(currentContent); // Track latest revision for continuous refinement
     const [showContentPreview, setShowContentPreview] = useState(false); // Toggle for context preview
     const [originalContent, setOriginalContent] = useState(null); // Store original content for before/after comparison
+
+    // NEW state for hierarchical field selection
+    const [selectedParentField, setSelectedParentField] = useState(null);
+    const [selectedChildField, setSelectedChildField] = useState(null);
+    const [isHierarchicalSection, setIsHierarchicalSection] = useState(false);
+
     const abortControllerRef = useRef(null);
 
     const MAX_REGENERATIONS = 5;
@@ -432,25 +490,78 @@ export default function FeedbackChatModal({
 
     // Handle sub-section selection
     const handleSubSectionSelect = (option) => {
-        setSelectedSubSection(option.id);
-        // Reset latest content to current for the new selection
-        setLatestContent(currentContent);
-        // Store original content for before/after comparison
-        setOriginalContent(option.id === 'all' ? currentContent : currentContent[option.id]);
-        setMessages(prev => [
-            ...prev,
-            { role: 'user', content: option.label },
-            {
-                role: 'assistant',
-                content: `Great choice! What specifically would you like to change about the "${option.label}"? 
+        // Check if this is a nested field (hierarchical structure)
+        if (option.id !== 'all' && isNestedField(sectionId, option.id)) {
+            // Hierarchical flow - show child field selection
+            setSelectedParentField(option.id);
+            setIsHierarchicalSection(true);
+            setLatestContent(currentContent);
+
+            setMessages(prev => [
+                ...prev,
+                { role: 'user', content: option.label },
+                {
+                    role: 'assistant',
+                    content: `Great! Now which specific field in **${option.label}** would you like to refine?`,
+                    showChildFieldOptions: true,
+                    parentField: option.id
+                }
+            ]);
+            setChatStep(1.5); // Intermediate step for field selection
+        } else {
+            // Simple field - proceed normally
+            setSelectedSubSection(option.id);
+            setIsHierarchicalSection(false);
+            setLatestContent(currentContent);
+            // Store original content for before/after comparison
+            setOriginalContent(option.id === 'all' ? currentContent : currentContent[option.id]);
+
+            setMessages(prev => [
+                ...prev,
+                { role: 'user', content: option.label },
+                {
+                    role: 'assistant',
+                    content: `Great choice! What specifically would you like to change about the "${option.label}"?
 
 Be as specific as possible - for example:
 • "Make the language more conversational"
 • "Focus more on the pain point of time scarcity"
 • "Add urgency without being pushy"`
+                }
+            ]);
+            setChatStep(2);
+        }
+    };
+
+    // Handle child field selection (hierarchical flow)
+    const handleChildFieldSelect = (childFieldId) => {
+        const parentFieldId = selectedParentField;
+        const combinedPath = `${parentFieldId}.${childFieldId}`;
+
+        setSelectedChildField(childFieldId);
+        setSelectedSubSection(combinedPath);
+
+        // Store original content for comparison
+        const parentContent = currentContent[parentFieldId];
+        const childContent = parentContent?.[childFieldId];
+        setOriginalContent(childContent);
+
+        setChatStep(2);
+
+        // Add messages showing field selection and asking for feedback
+        setMessages(prev => [
+            ...prev,
+            { role: 'user', content: getFieldLabel(sectionId, childFieldId) },
+            {
+                role: 'assistant',
+                content: `Perfect! What specifically would you like to change about the **${getFieldLabel(sectionId, childFieldId)}**?
+
+Be as specific as possible - for example:
+• "Make it more compelling"
+• "Add more urgency"
+• "Use simpler language"`
             }
         ]);
-        setChatStep(2);
     };
 
     // Handle sending feedback with streaming support
@@ -493,11 +604,20 @@ Be as specific as possible - for example:
                 const token = await getToken();
 
                 // COMPREHENSIVE LOGGING: Message sent
+                // Parse nested field path (dot notation support)
+                let parentSection = null;
+                let childField = null;
+
+                if (selectedSubSection?.includes('.')) {
+                    [parentSection, childField] = selectedSubSection.split('.');
+                }
+
                 const requestPayload = {
                     sectionId,
                     subSection: selectedSubSection,
+                    ...(parentSection && { parentSection }), // Add parent context for hierarchical fields
                     messageHistory: [...messages, userMessage],
-                    currentContent: latestContent, // Use the LATEST revision as baseline
+                    currentContent: originalContent || latestContent, // Use original for before/after comparison
                     sessionId
                 };
                 console.log('[FeedbackChat] ========== MESSAGE SENT ==========');
@@ -1021,6 +1141,29 @@ Be as specific as possible - for example:
                                                 >
                                                     {option.label}
                                                 </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Child field options (hierarchical selection) */}
+                                    {msg.showChildFieldOptions && msg.parentField && (
+                                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {Object.entries(getChildFieldOptions(sectionId, msg.parentField)).map(([group, fields]) => (
+                                                <div key={group} className="space-y-2">
+                                                    <div className="text-xs font-bold text-cyan uppercase tracking-wide px-2">
+                                                        {group}
+                                                    </div>
+                                                    {fields.map(field => (
+                                                        <button
+                                                            key={field.id}
+                                                            onClick={() => handleChildFieldSelect(field.id)}
+                                                            className="w-full text-left px-3 py-2 bg-[#1b1b1d] hover:bg-[#0e0e0f] text-gray-300 rounded-lg text-sm transition-all flex items-center gap-2"
+                                                        >
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-cyan flex-shrink-0" />
+                                                            <span>{field.label}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
                                             ))}
                                         </div>
                                     )}

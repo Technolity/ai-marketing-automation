@@ -77,6 +77,7 @@ export async function POST(req) {
     const {
         sectionId,
         subSection,
+        parentSection, // NEW: Parent field ID for hierarchical selections (e.g., "optinPage" when subSection is "optinPage.headline_text")
         messageHistory = [], // NEW: Full conversation context
         currentContent,
         sessionId
@@ -88,6 +89,8 @@ export async function POST(req) {
         userId,
         sectionId,
         subSection: subSection || 'all',
+        parentSection: parentSection || 'none',
+        isHierarchical: !!parentSection,
         messageCount: messageHistory.length,
         contentSize: JSON.stringify(currentContent).length,
         sessionId: sessionId || 'none',
@@ -178,6 +181,7 @@ export async function POST(req) {
             const { systemPrompt, userPrompt } = buildConversationalPrompt({
                 sectionId,
                 subSection,
+                parentSection, // Pass parent field context for hierarchical selections
                 messageHistory: messageHistory.slice(-10), // Last 10 messages for context
                 currentContent,
                 intakeData
@@ -682,7 +686,7 @@ async function parseAndValidate(fullText, sectionId, subSection) {
  * Build conversational prompt from message history with FULL PROJECT CONTEXT
  * Uses the full context prompts system to give AI complete knowledge of original generation
  */
-function buildConversationalPrompt({ sectionId, subSection, messageHistory, currentContent, intakeData }) {
+function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
@@ -828,12 +832,28 @@ CONVERSATION STYLE:
     }
 
     const isSubSection = subSection && subSection !== 'all';
+    const isHierarchical = parentSection && subSection?.includes('.');
+
+    // Parse hierarchical field path if present (e.g., "optinPage.headline_text")
+    let childFieldId = subSection;
+    let hierarchicalContext = '';
+
+    if (isHierarchical) {
+        const parts = subSection.split('.');
+        childFieldId = parts[parts.length - 1]; // Get the actual field being edited
+        hierarchicalContext = `\n\n🎯 HIERARCHICAL FIELD CONTEXT:
+You are refining the "${childFieldId}" field within the "${parentSection}" parent structure.
+Parent Field: ${parentSection}
+Child Field: ${childFieldId}
+Full Path: ${subSection}`;
+    }
 
     // Build enhanced user prompt
     const userPrompt = `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
 ${currentContentStr}
 ${businessContext}
 ${conversationContext}
+${hierarchicalContext}
 
 LATEST USER REQUEST:
 ${latestUserMessage}
@@ -847,7 +867,9 @@ INSTRUCTIONS:
 5. Return ONLY valid JSON matching the schema structure shown above
 6. DO NOT wrap in markdown code blocks
 7. ${isSubSection
-            ? `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
+            ? isHierarchical
+                ? `Update ONLY the "${childFieldId}" field within "${parentSection}". Return the child field value directly as: {"${childFieldId}": <updated_content>}`
+                : `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
             : `Update the entire section. Return the complete section matching the exact schema structure.`}
 
 CRITICAL SCHEMA RULES:
