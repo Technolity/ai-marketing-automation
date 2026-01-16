@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { applyFreeGiftReplacement } from "@/lib/vault/freeGiftReplacer";
 
 
 // Helper component for safe hydration-friendly portaling
@@ -98,8 +99,8 @@ const PHASE_2_SECTIONS = [
     { id: 'emails', numericKey: 8, title: 'Email Campaigns', subtitle: '15-day nurture series', icon: Mail, hint: "Load these into your email autoresponder to nurture new leads over 15 days." },
     { id: 'sms', numericKey: 19, title: 'Text Messages', subtitle: 'Text message nurture', icon: MessageSquare, hint: "Send these automated texts to increase engagement and show-up rates." },
     { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell, hint: "Add these to your calendar booking system (Calendly, GHL) to increase show-up rates." },
-    { id: 'media', numericKey: 18, title: 'Upload images & videos for your funnel', subtitle: 'Logo, images, and videos', icon: ImageIcon, hint: "Upload your professional assets here to be used across your funnel pages." },
-    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout, hint: "Copy and paste this into your landing page builder (ClickFunnels, GHL, etc.) for high conversion." }
+    { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout, hint: "Copy and paste this into your landing page builder (ClickFunnels, GHL, etc.) for high conversion." },
+    { id: 'media', numericKey: 18, title: 'Upload images & videos for your funnel', subtitle: 'Logo, images, and videos', icon: ImageIcon, hint: "Upload your professional assets here to be used across your funnel pages." }
 ];
 
 // Phase 3: Sales Scripts - Setter and Closer scripts (locked until Phase 2 approved)
@@ -612,7 +613,8 @@ export default function VaultPage() {
 
                 if (result.data && Object.keys(result.data).length > 0) {
                     const normalizedData = normalizeData(result.data);
-                    setVaultData(normalizedData);
+                    const withFreeGift = applyFreeGiftReplacement(normalizedData);
+                    setVaultData(withFreeGift);
                     setDataSource(result.source);
                     setHasFunnelChoice(result.source?.has_funnel_choice || false);
                     setInitialLoadComplete(true);
@@ -660,7 +662,8 @@ export default function VaultPage() {
 
                     if (result.data && Object.keys(result.data).length > 0) {
                         const normalizedData = normalizeData(result.data);
-                        setVaultData(normalizedData);
+                        const withFreeGift = applyFreeGiftReplacement(normalizedData);
+                        setVaultData(withFreeGift);
                         console.log('[Vault] Data refreshed after funnelCopy generation');
                     }
 
