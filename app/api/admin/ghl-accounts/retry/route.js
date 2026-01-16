@@ -1,23 +1,15 @@
 /**
  * Admin Manual Retry API
- * Manually retry GHL sub-account creation for a specific user
+ * Manually retry GHL sub-account creation for a specific user using OAuth
  *
  * POST /api/admin/ghl-accounts/retry
  * Body: { userId: string }
- *
- * Returns:
- * {
- *   success: boolean,
- *   message: string,
- *   locationId?: string,
- *   error?: string
- * }
  */
 
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createClient } from '@supabase/supabase-js';
-import { createGHLSubAccount } from '@/lib/ghl/createSubAccount';
+import { createGHLSubAccount, importSnapshotToSubAccount } from '@/lib/integrations/ghl';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,18 +69,35 @@ export async function POST(req) {
       }, { status: 404 });
     }
 
-    // 4. Check if user already has a GHL location
+    // 4. Check if user already has a GHL sub-account (OAuth table)
+    const { data: existingSubaccount } = await supabase
+      .from('ghl_subaccounts')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .eq('is_active', true)
+      .single();
+
+    if (existingSubaccount) {
+      return NextResponse.json({
+        success: true,
+        message: 'User already has a GHL sub-account',
+        locationId: existingSubaccount.location_id,
+        alreadyExists: true
+      });
+    }
+
+    // Also check legacy location_id in user_profiles
     if (user.ghl_location_id && user.ghl_sync_status === 'synced') {
       return NextResponse.json({
         success: true,
-        message: 'User already has a synced GHL sub-account',
+        message: 'User already has a synced GHL sub-account (legacy)',
         locationId: user.ghl_location_id,
         alreadyExists: true
       });
     }
 
     // 5. Reset retry metadata before attempting
-    const { error: resetError } = await supabase
+    await supabase
       .from('user_profiles')
       .update({
         ghl_sync_status: 'pending',
@@ -99,22 +108,59 @@ export async function POST(req) {
       })
       .eq('id', targetUserId);
 
-    if (resetError) {
-      console.error('[Admin Retry] Failed to reset user metadata:', resetError);
-    }
+    // 6. Attempt sub-account creation via OAuth
+    console.log(`[Admin Retry] Creating sub-account for: ${user.email} (triggered by admin: ${userId})`);
 
-    // 6. Attempt sub-account creation
-    console.log(`[Admin Retry] Manually retrying user: ${user.email} (triggered by admin: ${userId})`);
-
-    const result = await createGHLSubAccount(targetUserId, {
+    const result = await createGHLSubAccount({
+      userId: targetUserId,
       email: user.email,
-      fullName: user.full_name,
-      businessName: user.business_name,
-      phone: user.phone,
-      timezone: user.timezone
+      firstName: user.first_name || user.full_name?.split(' ')[0] || 'User',
+      lastName: user.last_name || user.full_name?.split(' ').slice(1).join(' ') || '',
+      businessName: user.business_name || `${user.first_name || 'User'}'s Business`,
+      phone: user.phone || '',
+      address: user.address || '',
+      city: user.city || '',
+      state: user.state || '',
+      postalCode: user.postal_code || '',
+      country: user.country || 'US',
+      timezone: user.timezone || 'America/New_York'
     });
 
-    // 7. Log the manual retry attempt
+    // 7. If successful, import snapshot
+    let snapshotImported = false;
+    if (result.success) {
+      const snapshotId = process.env.GHL_SNAPSHOT_ID;
+      if (snapshotId) {
+        try {
+          const snapResult = await importSnapshotToSubAccount(targetUserId, snapshotId);
+          snapshotImported = snapResult.success;
+          console.log(`[Admin Retry] Snapshot import: ${snapshotImported ? 'success' : 'failed'}`);
+        } catch (snapErr) {
+          console.error('[Admin Retry] Snapshot import error:', snapErr);
+        }
+      }
+
+      // Update user profile status
+      await supabase
+        .from('user_profiles')
+        .update({
+          ghl_sync_status: 'synced',
+          ghl_location_id: result.locationId,
+          ghl_setup_triggered_at: new Date().toISOString()
+        })
+        .eq('id', targetUserId);
+    } else {
+      // Update as failed
+      await supabase
+        .from('user_profiles')
+        .update({
+          ghl_sync_status: 'failed',
+          ghl_retry_count: (user.ghl_retry_count || 0) + 1
+        })
+        .eq('id', targetUserId);
+    }
+
+    // 8. Log the attempt (also to legacy table for compatibility)
     await supabase
       .from('ghl_subaccount_logs')
       .insert({
@@ -127,17 +173,18 @@ export async function POST(req) {
         ghl_location_id: result.locationId || null,
         status: result.success ? 'success' : 'failed',
         error_message: result.error || null,
-        retry_attempt: 0, // Manual retry resets count
+        retry_attempt: (user.ghl_retry_count || 0) + 1,
         is_retry: true,
-        triggered_by: 'manual'
+        triggered_by: 'manual_admin'
       });
 
-    // 8. Return result
+    // 9. Return result
     if (result.success) {
       return NextResponse.json({
         success: true,
         message: 'GHL sub-account created successfully',
-        locationId: result.locationId
+        locationId: result.locationId,
+        snapshotImported: snapshotImported
       });
     } else {
       return NextResponse.json({
