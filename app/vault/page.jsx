@@ -728,7 +728,8 @@ export default function VaultPage() {
 
                     if (result.data && Object.keys(result.data).length > 0) {
                         const normalizedData = normalizeData(result.data);
-                        setVaultData(normalizedData);
+                        const withFreeGift = applyFreeGiftReplacement(normalizedData);
+                        setVaultData(withFreeGift);
                         console.log('[Vault] Vault data refreshed, sections:', Object.keys(normalizedData));
 
                         // Trigger refresh of field components
