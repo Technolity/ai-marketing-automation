@@ -113,6 +113,17 @@ export async function POST(req) {
     // 6. Trigger Pabbly automation (Only if not already triggered)
     if (!existingProfile.ghl_setup_triggered_at) {
       console.log(`[Profile Save] Triggering Pabbly automation for the first time...`);
+
+      // CRITICAL: Set flag BEFORE calling Pabbly to prevent race condition
+      // This ensures rapid form submissions don't trigger multiple webhooks
+      const triggeredAt = new Date().toISOString();
+      await supabase
+        .from('user_profiles')
+        .update({ ghl_setup_triggered_at: triggeredAt })
+        .eq('id', userId);
+
+      console.log(`[Profile Save] Flag set at ${triggeredAt}, now calling Pabbly...`);
+
       try {
         const pabblyResult = await triggerPabblyAutomation({
           clerkId: userId,
@@ -132,20 +143,23 @@ export async function POST(req) {
 
         if (pabblyResult.success) {
           console.log(`[Profile Save] Pabbly automation triggered successfully for: ${email}`);
-
-          // Mark as triggered to prevent duplicates
-          await supabase
-            .from('user_profiles')
-            .update({ ghl_setup_triggered_at: new Date().toISOString() })
-            .eq('id', userId);
-
         } else {
           console.error(`[Profile Save] Pabbly automation failed:`, pabblyResult.error);
-          // We don't mark as triggered so it can try again next time? 
-          // Or maybe we should allow retries. For now, let's allow retry if it failed.
+          // Clear the flag to allow retry on next profile save
+          await supabase
+            .from('user_profiles')
+            .update({ ghl_setup_triggered_at: null })
+            .eq('id', userId);
+          console.log(`[Profile Save] Flag cleared to allow retry`);
         }
       } catch (pabblyError) {
         console.error('[Profile Save] Pabbly automation error:', pabblyError);
+        // Clear the flag to allow retry on next profile save
+        await supabase
+          .from('user_profiles')
+          .update({ ghl_setup_triggered_at: null })
+          .eq('id', userId);
+        console.log(`[Profile Save] Flag cleared due to error, will retry on next save`);
       }
     } else {
       console.log(`[Profile Save] Pabbly automation skipped - already triggered at ${existingProfile.ghl_setup_triggered_at}`);
