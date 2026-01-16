@@ -509,6 +509,7 @@ function findAndReplaceInObject(obj, searchKey, newValue) {
 
 export default function VaultPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { session, loading: authLoading, isProfileComplete } = useAuth();
 
     const [isLoading, setIsLoading] = useState(true);
