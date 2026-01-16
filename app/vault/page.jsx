@@ -528,8 +528,12 @@ export default function VaultPage() {
     const [sessionName, setSessionName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     const [showMediaLibrary, setShowMediaLibrary] = useState(false);
-    const [uploadedImages, setUploadedImages] = useState({});
-    const [videoUrls, setVideoUrls] = useState({});
+    const [uploadedImages, setUploadedImages] = useState({
+        logo: '', bio_author: '', product_mockup: '', results_image: ''
+    });
+    const [videoUrls, setVideoUrls] = useState({
+        main_vsl: '', testimonial_video: '', thankyou_video: ''
+    });
     const [isUpdatingAssets, setIsUpdatingAssets] = useState(false);
     const [uploadingFiles, setUploadingFiles] = useState({});
     const [feedbackChatOpen, setFeedbackChatOpen] = useState(false);
@@ -552,11 +556,19 @@ export default function VaultPage() {
     const initialTab = searchParams.get('phase') === '2' ? 'assets' : 'dna';
     const [activeTab, setActiveTab] = useState(initialTab);
 
+    // Phase completion tracking
+    const phase1FullyApproved = approvedPhase1.length >= PHASE_1_SECTIONS.length;
+    const phase2FullyApproved = approvedPhase2.length >= PHASE_2_SECTIONS.length;
+    const phase3FullyApproved = approvedPhase3.length >= PHASE_3_SECTIONS.length;
+
     // Computed states
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
     const isPhase3Complete = approvedPhase3.length >= PHASE_3_SECTIONS.length;
     const isVaultComplete = isPhase1Complete && isPhase2Complete && isPhase3Complete;
+
+    // Check if we came from early redirect (still generating in background)
+    const isGeneratingMode = searchParams.get('generating') === 'true';
 
     // Load vault data from database - ONLY on initial mount
     useEffect(() => {
