@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs';
 import { mapSessionToCustomValues } from '@/lib/ghl/customValueMapper';
-import { updateCustomValues } from '@/lib/integrations/ghl';
+import { updateCustomValues, createGHLSubAccount, importSnapshotToSubAccount } from '@/lib/integrations/ghl';
 
 // Initialize Supabase admin client
 const supabaseAdmin = createClient(
@@ -14,6 +14,7 @@ const supabaseAdmin = createClient(
 /**
  * POST /api/ghl/deploy-workflow
  * Deploy content to GHL via OAuth (no more Pabbly)
+ * Auto-creates sub-account for existing users who don't have one
  */
 export async function POST(req) {
     try {
@@ -27,11 +28,11 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Missing funnelId' }, { status: 400 });
         }
 
-        // 1. Get User's GHL Location ID from ghl_subaccounts (OAuth created)
+        // 1. Get or Create User's GHL Location ID
         let locationId = null;
 
         // Try ghl_subaccounts first (OAuth created)
-        const { data: subaccount, error: subError } = await supabaseAdmin
+        let { data: subaccount } = await supabaseAdmin
             .from('ghl_subaccounts')
             .select('location_id, location_name')
             .eq('user_id', userId)
@@ -42,36 +43,92 @@ export async function POST(req) {
             locationId = subaccount.location_id;
             console.log('[Deploy] Found Location ID in ghl_subaccounts:', locationId);
         } else {
-            // Fallback to legacy ghl_subaccount_logs
-            const { data: logEntry } = await supabaseAdmin
-                .from('ghl_subaccount_logs')
-                .select('location_id')
-                .eq('user_id', userId)
-                .not('location_id', 'is', null)
-                .order('created_at', { ascending: false })
-                .limit(1)
+            // No sub-account exists - try to create one for this existing user
+            console.log('[Deploy] No sub-account found, attempting to create for existing user...');
+
+            // Get user profile
+            const { data: profile } = await supabaseAdmin
+                .from('user_profiles')
+                .select('*')
+                .eq('id', userId)
                 .single();
 
-            if (logEntry && logEntry.location_id) {
-                locationId = logEntry.location_id;
-                console.log('[Deploy] Found Location ID in legacy logs:', locationId);
-            } else {
-                // Final fallback to user_profiles
-                const { data: profile } = await supabaseAdmin
-                    .from('user_profiles')
-                    .select('ghl_location_id')
-                    .eq('id', userId)
+            if (profile && profile.first_name && profile.email) {
+                const result = await createGHLSubAccount({
+                    userId: userId,
+                    email: profile.email,
+                    firstName: profile.first_name,
+                    lastName: profile.last_name || '',
+                    phone: profile.phone || '',
+                    businessName: profile.business_name || `${profile.first_name}'s Business`,
+                    address: profile.address || '',
+                    city: profile.city || '',
+                    state: profile.state || '',
+                    postalCode: profile.postal_code || '',
+                    country: profile.country || 'US',
+                    timezone: profile.timezone || 'America/New_York'
+                });
+
+                if (result.success) {
+                    locationId = result.locationId;
+                    console.log('[Deploy] Sub-account created for existing user:', locationId);
+
+                    // Also import snapshot if configured
+                    const snapshotId = process.env.GHL_SNAPSHOT_ID;
+                    if (snapshotId) {
+                        try {
+                            await importSnapshotToSubAccount(userId, snapshotId);
+                            console.log('[Deploy] Snapshot imported for new sub-account');
+                        } catch (snapErr) {
+                            console.error('[Deploy] Snapshot import error:', snapErr);
+                        }
+                    }
+
+                    // Update profile flag
+                    await supabaseAdmin
+                        .from('user_profiles')
+                        .update({ ghl_setup_triggered_at: new Date().toISOString() })
+                        .eq('id', userId);
+                } else {
+                    console.error('[Deploy] Failed to create sub-account:', result.error);
+                }
+            }
+
+            // Fallback to legacy sources if still no locationId
+            if (!locationId) {
+                // Try legacy ghl_subaccount_logs
+                const { data: logEntry } = await supabaseAdmin
+                    .from('ghl_subaccount_logs')
+                    .select('location_id')
+                    .eq('user_id', userId)
+                    .not('location_id', 'is', null)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
                     .single();
 
-                if (profile && profile.ghl_location_id) {
-                    locationId = profile.ghl_location_id;
+                if (logEntry && logEntry.location_id) {
+                    locationId = logEntry.location_id;
+                    console.log('[Deploy] Found Location ID in legacy logs:', locationId);
+                } else {
+                    // Try user_profiles.ghl_location_id
+                    const { data: profile2 } = await supabaseAdmin
+                        .from('user_profiles')
+                        .select('ghl_location_id')
+                        .eq('id', userId)
+                        .single();
+
+                    if (profile2 && profile2.ghl_location_id) {
+                        locationId = profile2.ghl_location_id;
+                        console.log('[Deploy] Found Location ID in user_profiles:', locationId);
+                    }
                 }
             }
         }
 
         if (!locationId) {
             return NextResponse.json({
-                error: 'No GHL Location ID found. Please ensure your account setup is complete.'
+                error: 'Unable to create GHL sub-account. Please complete your profile first.',
+                needsSetup: true
             }, { status: 400 });
         }
 

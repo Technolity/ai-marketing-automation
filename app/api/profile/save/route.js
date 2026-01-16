@@ -134,6 +134,23 @@ export async function POST(req) {
 
         if (ghlResult.success) {
           console.log(`[Profile Save] GHL sub-account created: ${ghlResult.locationId}`);
+
+          // Auto-import snapshot if configured
+          const snapshotId = process.env.GHL_SNAPSHOT_ID;
+          if (snapshotId) {
+            console.log(`[Profile Save] Importing snapshot ${snapshotId}...`);
+            try {
+              const { importSnapshotToSubAccount } = await import('@/lib/integrations/ghl');
+              const snapshotResult = await importSnapshotToSubAccount(userId, snapshotId);
+              if (snapshotResult.success) {
+                console.log(`[Profile Save] Snapshot imported successfully`);
+              } else {
+                console.error(`[Profile Save] Snapshot import failed:`, snapshotResult.error);
+              }
+            } catch (snapErr) {
+              console.error(`[Profile Save] Snapshot import error:`, snapErr);
+            }
+          }
         } else {
           console.error(`[Profile Save] GHL sub-account creation failed:`, ghlResult.error);
           // Clear the flag to allow retry on next profile save
