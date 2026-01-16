@@ -548,6 +548,10 @@ export default function VaultPage() {
     const [regeneratingSection, setRegeneratingSection] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+    // Tab state - determine initial tab from URL param
+    const initialTab = searchParams.get('phase') === '2' ? 'assets' : 'dna';
+    const [activeTab, setActiveTab] = useState(initialTab);
+
     // Computed states
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
