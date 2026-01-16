@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { CheckCircle, RefreshCw, FileText } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
@@ -8,7 +8,7 @@ import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
 
-export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveButton }) {
+export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -18,9 +18,11 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
     const [activeTab, setActiveTab] = useState('optin'); // optin, sales, booking, thankyou
+    const [forceRenderKey, setForceRenderKey] = useState(0);
 
     const sectionId = 'funnelCopy';
     const predefinedFields = getFieldsForSection(sectionId);
+    const previousApprovalRef = useRef(false);
 
     // Get subfields for each page
     const optinPage = predefinedFields.find(f => f.field_id === 'optinPage');
@@ -28,39 +30,81 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     const bookingPage = predefinedFields.find(f => f.field_id === 'bookingPage');
     const thankYouPage = predefinedFields.find(f => f.field_id === 'thankYouPage');
 
-    const fetchFields = async () => {
-        setIsLoading(true);
+    const fetchFields = useCallback(async (silent = false) => {
+        if (!silent) setIsLoading(true);
         try {
             const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch');
             const data = await response.json();
+
+            // Update fields state
             setFields(data.fields || []);
-            setSectionApproved(data.fields.length > 0 && data.fields.every(f => f.is_approved));
+
+            // Calculate approval state
+            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            setSectionApproved(allApproved);
+
+            // Force re-render to update FieldEditor components with fresh data
+            setForceRenderKey(prev => prev + 1);
+
+            console.log(`[FunnelCopyFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
             console.error('[FunnelCopyFields] Fetch error:', error);
+            if (!silent) toast.error('Failed to load funnel copy fields');
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
-    };
+    }, [funnelId]);
 
-    useEffect(() => { if (funnelId) fetchFields(); }, [funnelId]);
+    // Initial fetch
+    useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
+
+    // Refresh when parent triggers refresh (e.g., after background generation)
+    useEffect(() => {
+        if (refreshTrigger && funnelId) {
+            console.log('[FunnelCopyFields] Refresh triggered by parent');
+            fetchFields(true); // Silent refresh
+        }
+    }, [refreshTrigger, funnelId, fetchFields]);
+
+    // Notify parent when approval state changes
+    useEffect(() => {
+        if (previousApprovalRef.current === true && sectionApproved === false && onUnapprove) {
+            // Section was approved, now unapproved - notify parent
+            console.log('[FunnelCopyFields] Section unapproved, notifying parent');
+            onUnapprove(sectionId);
+        }
+        previousApprovalRef.current = sectionApproved;
+    }, [sectionApproved, sectionId, onUnapprove]);
 
     // Listen for real-time generation complete event
     useEffect(() => {
         const handleGenerationComplete = (e) => {
             if (e.detail.funnelId === funnelId) {
                 console.log('[FunnelCopyFields] Generation complete, refetching...');
-                fetchFields();
+                fetchFields(true); // Silent refresh
             }
         };
 
         window.addEventListener('funnelCopyGenerated', handleGenerationComplete);
         return () => window.removeEventListener('funnelCopyGenerated', handleGenerationComplete);
-    }, [funnelId]);
+    }, [funnelId, fetchFields]);
 
     const handleFieldSave = async (field_id, value, result) => {
-        setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version } : f));
+        console.log('[FunnelCopyFields] Field saved:', field_id, 'version:', result.version);
+
+        // Update local state
+        setFields(prev => prev.map(f =>
+            f.field_id === field_id
+                ? { ...f, field_value: value, version: result.version, is_approved: false }
+                : f
+        ));
+
+        // Mark section as unapproved
         setSectionApproved(false);
+
+        // Force re-render to show updated content
+        setForceRenderKey(prev => prev + 1);
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -79,12 +123,31 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
             });
             if (!response.ok) throw new Error('Failed to save');
             const result = await response.json();
-            setFields(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version } : f));
+
+            console.log('[FunnelCopyFields] AI feedback saved for field:', selectedField.field_id);
+
+            // Update local state with new content
+            setFields(prev => prev.map(f =>
+                f.field_id === selectedField.field_id
+                    ? { ...f, field_value: refinedContent, version: result.version, is_approved: false }
+                    : f
+            ));
+
+            // Mark section as unapproved
             setSectionApproved(false);
+
+            // Force re-render to show updated content
+            setForceRenderKey(prev => prev + 1);
+
+            // Close modal
             setFeedbackModalOpen(false);
             setSelectedField(null);
+            setSelectedFieldValue(null);
+
+            toast.success('Changes saved and applied!');
         } catch (error) {
             console.error('[FunnelCopyFields] Save error:', error);
+            toast.error('Failed to save changes');
         }
     };
 
@@ -231,7 +294,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
 
                                 return (
                                     <FieldEditor
-                                        key={subfieldDef.field_id}
+                                        key={`${subfieldDef.field_id}-${forceRenderKey}`}
                                         fieldDef={subfieldDef}
                                         initialValue={subfieldValue}
                                         sectionId={sectionId}

@@ -58,8 +58,8 @@ export async function GET(req) {
 
         // Define phases by section ID (source of truth)
         const PHASE_1_SECTION_IDS = ['idealClient', 'message', 'story', 'offer'];
-        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'funnelCopy', 'facebookAds', 'emails', 'appointmentReminders', 'bio', 'media'];
-        const PHASE_3_SECTION_IDS = ['salesScripts', 'setterScript'];
+        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'emails', 'sms', 'appointmentReminders', 'media', 'funnelCopy'];
+        const PHASE_3_SECTION_IDS = ['setterScript', 'salesScripts'];
 
         // Filter by section ID, not stored phase value (which may be incorrect)
         const businessCoreApprovals = [...new Set(

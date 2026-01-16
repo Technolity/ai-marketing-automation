@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw, FileDown, FileText } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { exportToPDF, exportToDOCX } from '@/lib/exportUtils';
+import { toast } from 'sonner';
 
 /**
  * SalesScriptsFields - Granular field-level editing for Closer Script section
@@ -14,13 +15,16 @@ import { exportToPDF, exportToDOCX } from '@/lib/exportUtils';
  * Props:
  * - funnelId: Funnel ID
  * - onApprove: Callback when section is approved
+ * - onUnapprove: Callback when section becomes unapproved
+ * - refreshTrigger: Triggers refresh when value changes
  */
-export default function SalesScriptsFields({ funnelId, onApprove, onRenderApproveButton }) {
+export default function SalesScriptsFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [sectionApproved, setSectionApproved] = useState(false);
+    const [forceRenderKey, setForceRenderKey] = useState(0);
 
     // AI Feedback modal state
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
@@ -29,47 +33,77 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
 
     const sectionId = 'salesScripts';
     const predefinedFields = getFieldsForSection(sectionId);
+    const previousApprovalRef = useRef(false);
 
     // Fetch fields from database
-    const fetchFields = async () => {
-        setIsLoading(true);
+    const fetchFields = useCallback(async (silent = false) => {
+        if (!silent) setIsLoading(true);
         try {
             const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch fields');
 
             const data = await response.json();
+
+            // Update fields state
             setFields(data.fields || []);
 
-            // Check if all fields are approved
+            // Calculate approval state
             const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
             setSectionApproved(allApproved);
 
+            // Force re-render to update FieldEditor components with fresh data
+            setForceRenderKey(prev => prev + 1);
+
+            console.log(`[SalesScriptsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
             console.error('[SalesScriptsFields] Fetch error:', error);
+            if (!silent) toast.error('Failed to load sales script fields');
         } finally {
-            setIsLoading(false);
+            if (!silent) setIsLoading(false);
         }
-    };
+    }, [funnelId]);
 
+    // Initial fetch
     useEffect(() => {
         if (funnelId) {
             fetchFields();
         }
-    }, [funnelId]);
+    }, [funnelId, fetchFields]);
+
+    // Refresh when parent triggers refresh (e.g., after background generation)
+    useEffect(() => {
+        if (refreshTrigger && funnelId) {
+            console.log('[SalesScriptsFields] Refresh triggered by parent');
+            fetchFields(true); // Silent refresh
+        }
+    }, [refreshTrigger, funnelId, fetchFields]);
+
+    // Notify parent when approval state changes
+    useEffect(() => {
+        if (previousApprovalRef.current === true && sectionApproved === false && onUnapprove) {
+            // Section was approved, now unapproved - notify parent
+            console.log('[SalesScriptsFields] Section unapproved, notifying parent');
+            onUnapprove(sectionId);
+        }
+        previousApprovalRef.current = sectionApproved;
+    }, [sectionApproved, sectionId, onUnapprove]);
 
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {
-        console.log('[SalesScriptsFields] Field saved:', { field_id, value });
+        console.log('[SalesScriptsFields] Field saved:', field_id, 'version:', result.version);
 
         // Update local state
         setFields(prev => prev.map(f =>
             f.field_id === field_id
-                ? { ...f, field_value: value, version: result.version }
+                ? { ...f, field_value: value, version: result.version, is_approved: false }
                 : f
         ));
 
-        // Reset section approval if any field changes
+        // Mark section as unapproved
         setSectionApproved(false);
+
+        // Force re-render to show updated content
+        setForceRenderKey(prev => prev + 1);
     };
 
     // Handle AI feedback request
@@ -82,12 +116,8 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
 
     // Handle AI feedback save
     const handleFeedbackSave = async (refinedContent) => {
-        console.log('[SalesScriptsFields] AI feedback save:', { selectedField, refinedContent });
-
         if (!selectedField) return;
 
-        // The refinedContent should be the new field value
-        // Auto-save it via the FieldEditor's save mechanism
         try {
             const response = await fetchWithAuth('/api/os/vault-field', {
                 method: 'PATCH',
@@ -104,23 +134,30 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
 
             const result = await response.json();
 
-            // Update local state
+            console.log('[SalesScriptsFields] AI feedback saved for field:', selectedField.field_id);
+
+            // Update local state with new content
             setFields(prev => prev.map(f =>
                 f.field_id === selectedField.field_id
-                    ? { ...f, field_value: refinedContent, version: result.version }
+                    ? { ...f, field_value: refinedContent, version: result.version, is_approved: false }
                     : f
             ));
 
-            // Reset section approval
+            // Mark section as unapproved
             setSectionApproved(false);
+
+            // Force re-render to show updated content
+            setForceRenderKey(prev => prev + 1);
 
             // Close modal
             setFeedbackModalOpen(false);
             setSelectedField(null);
             setSelectedFieldValue(null);
 
+            toast.success('Changes saved and applied!');
         } catch (error) {
             console.error('[SalesScriptsFields] AI feedback save error:', error);
+            toast.error('Failed to save changes');
         }
     };
 
@@ -224,7 +261,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
                             const currentValue = getFieldValue(fieldDef.field_id);
                             return (
                                 <FieldEditor
-                                    key={fieldDef.field_id}
+                                    key={`${fieldDef.field_id}-${forceRenderKey}`}
                                     fieldDef={fieldDef}
                                     initialValue={currentValue}
                                     sectionId={sectionId}
@@ -240,7 +277,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
                             .filter(f => f.is_custom)
                             .map((customField) => (
                                 <FieldEditor
-                                    key={customField.field_id}
+                                    key={`${customField.field_id}-${forceRenderKey}`}
                                     fieldDef={{
                                         field_id: customField.field_id,
                                         field_label: customField.field_label,
