@@ -37,7 +37,7 @@ export default function Home() {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-          <Link href="/auth/signup">
+          <Link href="/auth/login">
             <motion.button
               whileHover={{ scale: 1.05, boxShadow: "0 0 50px rgba(0, 229, 255, 0.8)" }}
               whileTap={{ scale: 0.98 }}
@@ -46,16 +46,6 @@ export default function Home() {
               <Rocket className="w-6 h-6" />
               <span className="relative z-10 font-black">Launch TED OS →</span>
               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-            </motion.button>
-          </Link>
-
-          <Link href="/auth/login">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="px-8 py-4 text-lg font-medium text-gray-300 hover:text-white transition-colors"
-            >
-              Already have an account? Login
             </motion.button>
           </Link>
         </div>

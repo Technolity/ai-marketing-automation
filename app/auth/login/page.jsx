@@ -294,13 +294,6 @@ export default function Login() {
             )}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-gray-400">
-          Don't have an account?{" "}
-          <a href="/auth/signup" className="text-cyan hover:underline">
-            Sign up
-          </a>
-        </p>
       </div>
     </div>
   );
