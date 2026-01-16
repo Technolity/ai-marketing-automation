@@ -237,11 +237,14 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, refreshT
 
             if (!response.ok) throw new Error('Failed to approve section');
 
-            // Mark all fields as approved
+            // Wait for API response before updating state
+            await response.json();
+
+            // Update local state FIRST
             setFields(prev => prev.map(f => ({ ...f, is_approved: true })));
             setSectionApproved(true);
 
-            // Notify parent
+            // THEN notify parent (prevents race condition)
             if (onApprove) {
                 onApprove(sectionId);
             }

@@ -223,9 +223,17 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
                 body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId })
             });
             if (!response.ok) throw new Error('Failed to approve');
+
+            // Wait for API response before updating local state
+            await response.json();
+
+            // Update local state FIRST
             setFields(prev => prev.map(f => ({ ...f, is_approved: true })));
             setSectionApproved(true);
+
+            // THEN notify parent (prevents race condition with data refresh)
             if (onApprove) onApprove(sectionId);
+
             toast.success('Funnel Copy approved!');
         } catch (error) {
             console.error('[FunnelCopyFields] Approve error:', error);
