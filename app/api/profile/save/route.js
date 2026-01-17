@@ -116,6 +116,12 @@ export async function POST(req) {
 
       console.log(`[Profile Save] Flag set at ${triggeredAt}, now creating sub-account...`);
 
+      // Get snapshot ID from environment
+      const snapshotId = process.env.GHL_SNAPSHOT_ID;
+      if (snapshotId) {
+        console.log(`[Profile Save] Will include snapshot ${snapshotId} in sub-account creation`);
+      }
+
       try {
         const ghlResult = await createGHLSubAccount({
           userId: userId,
@@ -129,27 +135,14 @@ export async function POST(req) {
           state: state,
           postalCode: postalCode,
           country: country,
-          timezone: timezone
+          timezone: timezone,
+          snapshotId: snapshotId  // Include snapshot during creation
         });
 
         if (ghlResult.success) {
           console.log(`[Profile Save] GHL sub-account created: ${ghlResult.locationId}`);
-
-          // Auto-import snapshot if configured
-          const snapshotId = process.env.GHL_SNAPSHOT_ID;
           if (snapshotId) {
-            console.log(`[Profile Save] Importing snapshot ${snapshotId}...`);
-            try {
-              const { importSnapshotToSubAccount } = await import('@/lib/integrations/ghl');
-              const snapshotResult = await importSnapshotToSubAccount(userId, snapshotId);
-              if (snapshotResult.success) {
-                console.log(`[Profile Save] Snapshot imported successfully`);
-              } else {
-                console.error(`[Profile Save] Snapshot import failed:`, snapshotResult.error);
-              }
-            } catch (snapErr) {
-              console.error(`[Profile Save] Snapshot import error:`, snapErr);
-            }
+            console.log(`[Profile Save] Snapshot was included during sub-account creation`);
           }
         } else {
           console.error(`[Profile Save] GHL sub-account creation failed:`, ghlResult.error);

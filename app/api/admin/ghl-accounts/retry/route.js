@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createClient } from '@supabase/supabase-js';
-import { createGHLSubAccount, importSnapshotToSubAccount } from '@/lib/integrations/ghl';
+import { createGHLSubAccount } from '@/lib/integrations/ghl';
 
 export const dynamic = 'force-dynamic';
 
@@ -108,8 +108,12 @@ export async function POST(req) {
       })
       .eq('id', targetUserId);
 
-    // 6. Attempt sub-account creation via OAuth
+    // 6. Attempt sub-account creation via OAuth with snapshot
+    const snapshotId = process.env.GHL_SNAPSHOT_ID;
     console.log(`[Admin Retry] Creating sub-account for: ${user.email} (triggered by admin: ${userId})`);
+    if (snapshotId) {
+      console.log(`[Admin Retry] Including snapshot ${snapshotId} in sub-account creation`);
+    }
 
     const result = await createGHLSubAccount({
       userId: targetUserId,
@@ -123,24 +127,18 @@ export async function POST(req) {
       state: user.state || '',
       postalCode: user.postal_code || '',
       country: user.country || 'US',
-      timezone: user.timezone || 'America/New_York'
+      timezone: user.timezone || 'America/New_York',
+      snapshotId: snapshotId  // Include snapshot during creation
     });
 
-    // 7. If successful, import snapshot
-    let snapshotImported = false;
+    // 7. Update user profile status
+    const snapshotImported = result.success && !!snapshotId;
     if (result.success) {
-      const snapshotId = process.env.GHL_SNAPSHOT_ID;
+      console.log(`[Admin Retry] Sub-account created: ${result.locationId}`);
       if (snapshotId) {
-        try {
-          const snapResult = await importSnapshotToSubAccount(targetUserId, snapshotId);
-          snapshotImported = snapResult.success;
-          console.log(`[Admin Retry] Snapshot import: ${snapshotImported ? 'success' : 'failed'}`);
-        } catch (snapErr) {
-          console.error('[Admin Retry] Snapshot import error:', snapErr);
-        }
+        console.log(`[Admin Retry] Snapshot was included during creation`);
       }
 
-      // Update user profile status
       await supabase
         .from('user_profiles')
         .update({
@@ -160,7 +158,7 @@ export async function POST(req) {
         .eq('id', targetUserId);
     }
 
-    // 8. Log the attempt (also to legacy table for compatibility)
+    // 8. Log the attempt
     await supabase
       .from('ghl_subaccount_logs')
       .insert({
