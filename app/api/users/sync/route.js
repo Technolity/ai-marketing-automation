@@ -88,64 +88,55 @@ export async function POST(req) {
         console.error('[User Sync API] Error fetching user by email:', fetchByEmailError);
       }
 
-      // If email exists with different ID (Clerk dashboard user case)
+      // If email exists with different ID (Clerk dashboard user case or local dev)
       if (existingUserByEmail) {
         console.log('[User Sync API] Email exists with different Clerk ID');
         console.log('[User Sync API] Old ID:', existingUserByEmail.id, 'New ID:', userId);
 
-        // Clean up old foreign key references first
-        const oldUserId = existingUserByEmail.id;
+        // Instead of deleting, UPDATE the Clerk ID on the existing profile
+        // This preserves all user data when Clerk ID changes (e.g., local dev, re-auth)
+        console.log('[User Sync API] Updating Clerk ID on existing profile (preserving data)...');
 
-        // Delete related records that block the update
-        console.log('[User Sync API] Cleaning up old foreign key references...');
-
-        // Delete from ghl_subaccount_logs
-        await supabaseAdmin
-          .from('ghl_subaccount_logs')
-          .delete()
-          .eq('user_id', oldUserId);
-
-        // Delete from slide_results
-        await supabaseAdmin
-          .from('slide_results')
-          .delete()
-          .eq('user_id', oldUserId);
-
-        // Delete from intake_answers
-        await supabaseAdmin
-          .from('intake_answers')
-          .delete()
-          .eq('user_id', oldUserId);
-
-        // Delete from funnel_tracking
-        await supabaseAdmin
-          .from('funnel_tracking')
-          .delete()
-          .eq('user_id', oldUserId);
-
-        // Delete from vault_content
-        await supabaseAdmin
-          .from('vault_content')
-          .delete()
-          .eq('user_id', oldUserId);
-
-        // Delete from funnels
-        await supabaseAdmin
-          .from('funnels')
-          .delete()
-          .eq('user_id', oldUserId);
-
-        // Now delete the old user profile
-        const { error: deleteError } = await supabaseAdmin
+        const { error: updateIdError } = await supabaseAdmin
           .from('user_profiles')
-          .delete()
-          .eq('id', oldUserId);
+          .update({
+            id: userId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingUserByEmail.id);
 
-        if (deleteError) {
-          console.error('[User Sync API] Error deleting old profile:', deleteError);
-          // Continue anyway - try to create new profile
+        if (updateIdError) {
+          console.error('[User Sync API] Error updating Clerk ID:', updateIdError);
+          // If update fails (e.g., id conflict), continue to create new profile
         } else {
-          console.log('[User Sync API] Old profile and related data deleted');
+          console.log('[User Sync API] Clerk ID updated successfully, preserving all user data');
+
+          // Also update foreign keys in related tables
+          const tablesToUpdate = [
+            'ghl_subaccount_logs', 'slide_results', 'intake_answers',
+            'funnel_tracking', 'vault_content', 'funnels', 'saved_sessions',
+            'ghl_subaccounts', 'ghl_oauth_logs'
+          ];
+
+          for (const table of tablesToUpdate) {
+            await supabaseAdmin.from(table).update({ user_id: userId }).eq('user_id', existingUserByEmail.id);
+          }
+
+          const isComplete = !!(
+            existingUserByEmail.business_name &&
+            existingUserByEmail.address &&
+            existingUserByEmail.phone &&
+            existingUserByEmail.city &&
+            existingUserByEmail.country
+          );
+
+          console.log('[User Sync API] Profile migrated. Complete:', isComplete);
+          return NextResponse.json({
+            success: true,
+            message: 'User migrated with new Clerk ID',
+            user: { ...existingUserByEmail, id: userId },
+            isProfileComplete: isComplete
+          });
         }
       }
     }
