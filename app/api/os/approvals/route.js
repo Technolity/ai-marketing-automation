@@ -17,7 +17,8 @@ export async function GET(req) {
         }
 
         const { searchParams } = new URL(req.url);
-        const funnelId = searchParams.get('session_id'); // In new schema, session_id maps to funnel_id
+        // Support both funnel_id (new) and session_id (backwards compatibility)
+        const funnelId = searchParams.get('funnel_id') || searchParams.get('session_id');
 
         // Validate UUID format to prevent database errors
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useAuth } from '@clerk/nextjs';
+import { useAuth } from '@/contexts/AuthContext';
 import {
     Palette, Image as ImageIcon, Video, ArrowLeft, RefreshCw,
     CheckCircle, ExternalLink, Loader2, Save
@@ -15,7 +15,7 @@ import PushToGHLButton from '@/components/vault/PushToGHLButton';
 export default function DeployedAssetsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { isLoaded, userId } = useAuth();
+    const { session, loading: authLoading } = useAuth();
 
     const funnelId = searchParams.get('funnel_id');
 
@@ -26,10 +26,10 @@ export default function DeployedAssetsPage() {
     const [activeTab, setActiveTab] = useState('colors');
 
     useEffect(() => {
-        if (isLoaded && userId && funnelId) {
+        if (!authLoading && session && funnelId) {
             loadDeployedAssets();
         }
-    }, [isLoaded, userId, funnelId]);
+    }, [authLoading, session, funnelId]);
 
     const loadDeployedAssets = async () => {
         setIsLoading(true);
