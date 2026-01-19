@@ -156,6 +156,16 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
             throw new Error(`Failed to fetch wizard answers: ${funnelError.message}`);
         }
 
+        // Fetch user profile for business_name
+        const { data: userProfile } = await supabaseAdmin
+            .from('user_profiles')
+            .select('business_name')
+            .eq('user_id', userId)
+            .single();
+
+        const profileBusinessName = userProfile?.business_name || null;
+        console.log('[FunnelCopy] Fetched profile business name:', profileBusinessName);
+
         // Build context object
         const context = {};
         vaultContent.forEach(section => {
@@ -182,6 +192,18 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
         // But typically wizard_answers are { idealClient: "...", businessName: "..." }
         // Let's just expose the raw answers as intakeForm too.
         context.intakeForm = answers;
+
+        // CRITICAL: Inject user profile business_name for footer_company_name field
+        if (profileBusinessName) {
+            // Add to intakeForm for prompts that check intakeForm.businessName
+            context.intakeForm.businessName = profileBusinessName;
+            // Also ensure message object has businessName for funnelCopyChunks.js line 17
+            if (!context.message) context.message = {};
+            if (typeof context.message === 'object' && !context.message.businessName) {
+                context.message.businessName = profileBusinessName;
+            }
+            console.log('[FunnelCopy] Injected profile business_name into context:', profileBusinessName);
+        }
 
         await updateJobStatus(jobId, 'processing', 30);
 
