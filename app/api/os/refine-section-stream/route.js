@@ -503,8 +503,58 @@ async function parseAndValidate(fullText, sectionId, subSection) {
             cleanedText = jsonMatch[0];
         }
 
-        // 3. Parse JSON
-        refinedContent = JSON.parse(cleanedText);
+        // 3. Parse JSON with repair attempt
+        try {
+            refinedContent = JSON.parse(cleanedText);
+        } catch (initialError) {
+            console.log('[RefineStream] Initial JSON parse failed, attempting repair...');
+
+            // Try to repair common JSON issues
+            let repairedText = cleanedText;
+
+            // Fix 1: Remove trailing commas before } or ]
+            repairedText = repairedText.replace(/,(\s*[}\]])/g, '$1');
+
+            // Fix 2: Add missing closing brackets/braces
+            let openBraces = (repairedText.match(/{/g) || []).length;
+            let closeBraces = (repairedText.match(/}/g) || []).length;
+            let openBrackets = (repairedText.match(/\[/g) || []).length;
+            let closeBrackets = (repairedText.match(/]/g) || []).length;
+
+            // Add missing closing brackets
+            while (openBrackets > closeBrackets) {
+                repairedText = repairedText.replace(/,?\s*$/, '') + ']';
+                closeBrackets++;
+            }
+
+            // Add missing closing braces
+            while (openBraces > closeBraces) {
+                repairedText = repairedText.replace(/,?\s*$/, '') + '}';
+                closeBraces++;
+            }
+
+            // Fix 3: Handle truncated strings - find last unclosed quote and close it
+            const quoteCount = (repairedText.match(/(?<!\\)"/g) || []).length;
+            if (quoteCount % 2 !== 0) {
+                // Odd number of quotes - find last unclosed string and close it
+                repairedText = repairedText.replace(/("[^"]*),?\s*$/, '$1"');
+            }
+
+            // Fix 4: Remove any text after the main JSON object
+            const lastBrace = repairedText.lastIndexOf('}');
+            if (lastBrace !== -1 && lastBrace < repairedText.length - 1) {
+                repairedText = repairedText.substring(0, lastBrace + 1);
+            }
+
+            try {
+                refinedContent = JSON.parse(repairedText);
+                console.log('[RefineStream] JSON repair successful');
+            } catch (repairError) {
+                // If repair still fails, throw original error
+                console.error('[RefineStream] JSON repair also failed:', repairError.message);
+                throw initialError;
+            }
+        }
 
         // 4. CRITICAL: Validate and AUTO-CORRECT top-level key for confusable sections
         const topLevelKeys = Object.keys(refinedContent);
