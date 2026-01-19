@@ -220,7 +220,7 @@ export async function POST(req) {
             funnelId,
             locationId,
             accessToken,
-            updateOnly: false,  // Allow creating new values if they don't exist
+            updateOnly: true,   // UPDATE-ONLY: Only update existing 170 mapped custom values, don't create new ones
             skipAI: true,       // FAST DEPLOY: Skip AI generation, use direct mappings only
             onProgress: (progress) => {
                 console.log(`[Deploy] Progress: ${progress.step} - ${progress.message}`);
