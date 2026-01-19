@@ -55,7 +55,7 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
         if (funnelId) {
             fetchFields();
         }
-    }, [funnelId]);
+    }, [funnelId, refreshTrigger]);
 
     // Sync with parent approval state
     useEffect(() => {

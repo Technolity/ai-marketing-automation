@@ -40,7 +40,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
 
     useEffect(() => {
         if (funnelId) fetchFields();
-    }, [funnelId]);
+    }, [funnelId, refreshTrigger]);
 
     // Sync with parent approval state
     useEffect(() => {
