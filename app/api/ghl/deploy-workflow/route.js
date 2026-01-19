@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { auth } from '@clerk/nextjs';
-import { mapSessionToCustomValues } from '@/lib/ghl/customValueMapper';
-import { updateCustomValues, createGHLSubAccount, importSnapshotToSubAccount } from '@/lib/integrations/ghl';
+import { pushVaultToGHL } from '@/lib/ghl/pushSystem';
+import { createGHLSubAccount, importSnapshotToSubAccount } from '@/lib/integrations/ghl';
 
 // Initialize Supabase admin client
 const supabaseAdmin = createClient(
@@ -12,9 +12,74 @@ const supabaseAdmin = createClient(
 );
 
 /**
+ * Get location access token for GHL API calls
+ */
+async function getLocationToken(userId, locationId) {
+    // Get user's sub-account
+    const { data: subaccount, error: subError } = await supabaseAdmin
+        .from('ghl_subaccounts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+    if (subError || !subaccount) {
+        return { success: false, error: 'No sub-account found for user' };
+    }
+
+    // Get agency token
+    const { data: tokenData, error: tokenError } = await supabaseAdmin
+        .from('ghl_tokens')
+        .select('*')
+        .eq('user_type', 'Company')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (tokenError || !tokenData) {
+        return { success: false, error: 'No agency token found' };
+    }
+
+    const companyId = tokenData.company_id;
+    if (!companyId) {
+        return { success: false, error: 'companyId not found in agency token' };
+    }
+
+    // Generate location token
+    const locationTokenResponse = await fetch(
+        'https://services.leadconnectorhq.com/oauth/locationToken',
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json',
+                'Version': '2021-07-28',
+            },
+            body: JSON.stringify({
+                companyId: companyId,
+                locationId: locationId || subaccount.location_id,
+            }),
+        }
+    );
+
+    if (!locationTokenResponse.ok) {
+        const errorData = await locationTokenResponse.json().catch(() => ({}));
+        return { success: false, error: errorData.message || 'Failed to generate location token' };
+    }
+
+    const locationTokenData = await locationTokenResponse.json();
+
+    if (!locationTokenData.access_token) {
+        return { success: false, error: 'Location token response missing access_token' };
+    }
+
+    return { success: true, access_token: locationTokenData.access_token };
+}
+
+/**
  * POST /api/ghl/deploy-workflow
  * Deploy content to GHL via OAuth (no more Pabbly)
- * Auto-creates sub-account for existing users who don't have one
+ * Uses pushVaultToGHL which generates correct newSchema keys
  */
 export async function POST(req) {
     try {
@@ -132,86 +197,60 @@ export async function POST(req) {
             }, { status: 400 });
         }
 
-        // 2. Fetch Data for Mapping
-        const [contentResult, sessionResult, imagesResult] = await Promise.all([
-            supabaseAdmin
-                .from('vault_content')
-                .select('section_id, content')
-                .eq('funnel_id', funnelId)
-                .eq('is_current_version', true),
+        // 2. Get Access Token for the location
+        console.log('[Deploy] Getting access token for location:', locationId);
+        const tokenResult = await getLocationToken(userId, locationId);
 
-            supabaseAdmin
-                .from('saved_sessions')
-                .select('answers, business_name')
-                .eq('id', funnelId)
-                .single(),
-
-            supabaseAdmin
-                .from('generated_images')
-                .select('*')
-                .eq('session_id', funnelId)
-                .eq('status', 'completed')
-        ]);
-
-        if (contentResult.error) {
-            console.error('[Deploy] Content fetch error:', contentResult.error);
-            return NextResponse.json({ error: 'Failed to fetch vault content' }, { status: 500 });
+        if (!tokenResult.success) {
+            console.error('[Deploy] Failed to get location token:', tokenResult.error);
+            return NextResponse.json({
+                error: tokenResult.error || 'Failed to authenticate with GHL. Please reconnect your account.',
+                needsReauth: true
+            }, { status: 401 });
         }
 
-        // 3. Reconstruct Session Data for Mapper
-        const vaultContent = contentResult.data || [];
-        const session = sessionResult.data || {};
-        const images = imagesResult.data || [];
+        const accessToken = tokenResult.access_token;
 
-        const resultsData = {};
-        vaultContent.forEach(item => {
-            const sectionKey = String(item.section_id);
-            resultsData[sectionKey] = { data: item.content };
+        // 3. Use pushVaultToGHL which generates CORRECT newSchema keys
+        // This uses promptEngine + inferenceEngine + newSchema.js for proper key mapping
+        console.log(`[Deploy] Starting vault push for Funnel ${funnelId} to Location ${locationId}`);
+
+        const pushResult = await pushVaultToGHL({
+            userId,
+            funnelId,
+            locationId,
+            accessToken,
+            updateOnly: false,  // Allow creating new values if they don't exist
+            onProgress: (progress) => {
+                console.log(`[Deploy] Progress: ${progress.step} - ${progress.message}`);
+            }
         });
 
-        const sessionData = {
-            results_data: resultsData,
-            answers: session.answers || {},
-            business_name: session.business_name
-        };
-
-        // 4. Map to GHL Custom Values
-        console.log(`[Deploy] Mapping content for Funnel ${funnelId} to Location ${locationId}`);
-        const mappedValues = mapSessionToCustomValues(sessionData, images);
-        console.log(`[Deploy] Mapped ${Object.keys(mappedValues).length} custom values`);
-
-        // 5. Update Custom Values via GHL OAuth API
-        console.log(`[Deploy] Pushing custom values to GHL via OAuth...`);
-
-        const result = await updateCustomValues(userId, mappedValues);
-
-        if (!result.success) {
-            console.error('[Deploy] GHL update failed:', result.error);
+        if (!pushResult.success) {
+            console.error('[Deploy] pushVaultToGHL failed:', pushResult.error);
             return NextResponse.json({
-                error: result.error || 'Failed to update custom values'
+                error: pushResult.error || 'Failed to push vault content to GHL'
             }, { status: 500 });
         }
 
-        console.log(`[Deploy] Successfully updated ${result.updated} custom values`);
+        console.log(`[Deploy] Successfully pushed vault content:`, pushResult.summary);
 
-        // 6. Log the deployment
+        // 4. Log the deployment
         await supabaseAdmin.from('ghl_oauth_logs').insert({
             user_id: userId,
-            operation: 'update_custom_values',
+            operation: 'push_vault_to_ghl',
             status: 'success',
             response_data: {
                 funnel_id: funnelId,
                 location_id: locationId,
-                values_updated: result.updated,
-                values_failed: result.failed
+                ...pushResult.summary
             }
         });
 
         return NextResponse.json({
             success: true,
             message: 'Deployment completed',
-            updated: result.updated,
-            failed: result.failed || 0
+            ...pushResult.summary
         });
 
     } catch (error) {
