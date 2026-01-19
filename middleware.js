@@ -5,6 +5,7 @@ export default authMiddleware({
     "/",
     "/auth/login",
     "/auth/signup",
+    "/auth/forgot-password",
     "/admin/login",
     "/sign-in",
     "/sign-up",
@@ -26,6 +27,7 @@ export default authMiddleware({
     "/",
     "/auth/login",
     "/auth/signup",
+    "/auth/forgot-password",
     "/auth/verify"
   ]
 });
