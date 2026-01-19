@@ -1,6 +1,8 @@
 /**
- * Push SMS to GHL Custom Values  
- * Pushes only SMS content with AI polishing for character limits
+ * Push SMS to GHL Custom Values
+ * Uses OAuth via ghl_subaccounts (same as deploy-workflow)
+ * Uses customValuesMap.js for correct GHL key mapping
+ * Uses contentPolisher.js for AI polishing
  */
 
 import { auth } from '@clerk/nextjs';
@@ -9,6 +11,92 @@ import { SMS_MAP } from '@/lib/ghl/customValuesMap';
 import { polishSMSContent } from '@/lib/ghl/contentPolisher';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Get location access token for GHL API calls (OAuth)
+ */
+async function getLocationToken(userId, locationId) {
+    const { data: subaccount } = await supabaseAdmin
+        .from('ghl_subaccounts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+    if (!subaccount) {
+        return { success: false, error: 'No sub-account found for user' };
+    }
+
+    const { data: tokenData } = await supabaseAdmin
+        .from('ghl_tokens')
+        .select('*')
+        .eq('user_type', 'Company')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (!tokenData?.company_id) {
+        return { success: false, error: 'No agency token found' };
+    }
+
+    const response = await fetch(
+        'https://services.leadconnectorhq.com/oauth/locationToken',
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json',
+                'Version': '2021-07-28',
+            },
+            body: JSON.stringify({
+                companyId: tokenData.company_id,
+                locationId: locationId || subaccount.location_id,
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        return { success: false, error: 'Failed to generate location token' };
+    }
+
+    const data = await response.json();
+    return {
+        success: true,
+        access_token: data.access_token,
+        location_id: locationId || subaccount.location_id
+    };
+}
+
+/**
+ * Fetch existing GHL custom values to get IDs
+ */
+async function fetchExistingCustomValues(locationId, accessToken) {
+    const allValues = [];
+    let skip = 0;
+
+    while (allValues.length < 500) {
+        const response = await fetch(
+            `https://services.leadconnectorhq.com/locations/${locationId}/customValues?skip=${skip}&limit=100`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Version': '2021-07-28',
+                }
+            }
+        );
+
+        if (!response.ok) break;
+
+        const data = await response.json();
+        const values = data.customValues || [];
+        allValues.push(...values);
+
+        if (values.length < 100) break;
+        skip += 100;
+    }
+
+    return allValues;
+}
 
 export async function POST(req) {
     const { userId } = auth();
@@ -25,115 +113,134 @@ export async function POST(req) {
 
         console.log('[PushSMS] Starting push for funnel:', funnelId);
 
-        // Get GHL credentials
-        const { data: credentials, error: credError } = await supabaseAdmin
-            .from('ghl_credentials')
-            .select('location_id, access_token')
+        // Get user's location ID
+        const { data: subaccount } = await supabaseAdmin
+            .from('ghl_subaccounts')
+            .select('location_id')
             .eq('user_id', userId)
+            .eq('is_active', true)
             .single();
 
-        if (credError || !credentials) {
-            return Response.json({ error: 'GHL not connected' }, { status: 400 });
+        if (!subaccount?.location_id) {
+            return Response.json({ error: 'GHL sub-account not found' }, { status: 400 });
         }
 
+        // Get OAuth token
+        const tokenResult = await getLocationToken(userId, subaccount.location_id);
+        if (!tokenResult.success) {
+            return Response.json({ error: tokenResult.error }, { status: 401 });
+        }
+
+        const { access_token: accessToken, location_id: locationId } = tokenResult;
+
+        // Fetch existing custom values
+        const existingValues = await fetchExistingCustomValues(locationId, accessToken);
+        const existingMap = new Map();
+        existingValues.forEach(v => {
+            existingMap.set(v.name, v.id);
+            existingMap.set(v.name.toLowerCase(), v.id);
+            existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
+        });
+
         // Get SMS content from vault
-        const { data: vaultContent, error: vaultError } = await supabaseAdmin
+        const { data: vaultContent } = await supabaseAdmin
             .from('vault_content')
             .select('content')
             .eq('funnel_id', funnelId)
             .eq('section_id', 'sms')
             .single();
 
-        if (vaultError || !vaultContent) {
+        if (!vaultContent) {
             return Response.json({ error: 'SMS content not found' }, { status: 404 });
         }
 
-        // Build custom values payload
+        // Build custom values using SMS_MAP
         const customValues = [];
         const content = vaultContent.content;
 
-        // Process SMS sequences
-        for (const [sequence, smsMap] of Object.entries(SMS_MAP)) {
-            const sequenceContent = content[sequence] || content;
+        for (const [sequence, messages] of Object.entries(SMS_MAP)) {
+            const sequenceContent = content[sequence] || {};
 
-            for (const [smsKey, ghlKey] of Object.entries(smsMap)) {
-                const smsContent = sequenceContent[smsKey] || content[smsKey];
+            for (const [msgKey, ghlKey] of Object.entries(messages)) {
+                const rawValue = sequenceContent[msgKey] || content[msgKey];
+                if (rawValue) {
+                    // Polish SMS content
+                    const polished = await polishSMSContent(rawValue);
 
-                if (smsContent) {
-                    // Polish SMS with AI (ensures 160 char limit)
-                    const polished = await polishSMSContent(smsContent);
-                    customValues.push({ key: ghlKey, value: polished });
+                    customValues.push({
+                        key: ghlKey,
+                        value: polished.message || polished,
+                        existingId: existingMap.get(ghlKey) || existingMap.get(ghlKey.toLowerCase())
+                    });
                 }
             }
         }
 
-        console.log('[PushSMS] Pushing', customValues.length, 'SMS values to GHL');
+        console.log('[PushSMS] Pushing', customValues.length, 'values');
 
         // Push to GHL
-        const pushResults = await pushToGHL(
-            credentials.location_id,
-            credentials.access_token,
-            customValues
-        );
+        const results = { success: true, pushed: 0, updated: 0, created: 0, failed: 0, errors: [] };
 
-        // Log push operation
-        await supabaseAdmin
-            .from('ghl_push_logs')
-            .insert({
-                user_id: userId,
-                funnel_id: funnelId,
-                section: 'sms',
-                values_pushed: customValues.length,
-                success: pushResults.success,
-                error: pushResults.error || null,
-            });
+        for (const { key, value, existingId } of customValues) {
+            try {
+                let response;
 
-        return Response.json({
-            success: true,
-            pushed: customValues.length,
-            details: pushResults,
+                if (existingId) {
+                    response = await fetch(
+                        `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`,
+                                'Content-Type': 'application/json',
+                                'Version': '2021-07-28',
+                            },
+                            body: JSON.stringify({ value }),
+                        }
+                    );
+                    if (response.ok) { results.updated++; results.pushed++; }
+                } else {
+                    response = await fetch(
+                        `https://services.leadconnectorhq.com/locations/${locationId}/customValues`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`,
+                                'Content-Type': 'application/json',
+                                'Version': '2021-07-28',
+                            },
+                            body: JSON.stringify({ name: key, value }),
+                        }
+                    );
+                    if (response.ok) { results.created++; results.pushed++; }
+                }
+
+                if (!response.ok) {
+                    results.failed++;
+                    const err = await response.json().catch(() => ({}));
+                    results.errors.push({ key, error: err });
+                }
+            } catch (err) {
+                results.failed++;
+                results.errors.push({ key, error: err.message });
+            }
+        }
+
+        results.success = results.failed === 0;
+
+        // Log push
+        await supabaseAdmin.from('ghl_push_logs').insert({
+            user_id: userId,
+            funnel_id: funnelId,
+            section: 'sms',
+            values_pushed: results.pushed,
+            success: results.success,
         });
+
+        return Response.json({ success: true, ...results });
 
     } catch (error) {
         console.error('[PushSMS] Error:', error);
         return Response.json({ error: error.message }, { status: 500 });
     }
-}
-
-/**
- * Push values to GHL Custom Values API
- */
-async function pushToGHL(locationId, accessToken, customValues) {
-    const results = { success: true, pushed: 0, failed: 0, errors: [] };
-
-    for (const { key, value } of customValues) {
-        try {
-            const response = await fetch(
-                `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${key}`,
-                {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                        'Version': '2021-07-28',
-                    },
-                    body: JSON.stringify({ value }),
-                }
-            );
-
-            if (response.ok) {
-                results.pushed++;
-            } else {
-                results.failed++;
-                const err = await response.json();
-                results.errors.push({ key, error: err });
-            }
-        } catch (err) {
-            results.failed++;
-            results.errors.push({ key, error: err.message });
-        }
-    }
-
-    results.success = results.failed === 0;
-    return results;
 }

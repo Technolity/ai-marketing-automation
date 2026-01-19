@@ -1,261 +1,179 @@
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+/**
+ * GHL Deploy Workflow
+ * Orchestrates deployment of all vault content to GHL custom values
+ * Calls individual push APIs sequentially for each section
+ * 
+ * Flow:
+ * 1. Verify user has GHL sub-account
+ * 2. Call push APIs for each section (funnel-copy, emails, sms, colors, media)
+ * 3. Log deployment and return results
+ */
+
 import { auth } from '@clerk/nextjs';
-import { pushVaultToGHL } from '@/lib/ghl/pushSystem';
-import { createGHLSubAccount, importSnapshotToSubAccount } from '@/lib/integrations/ghl';
+import { NextResponse } from 'next/server';
+import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
-// Initialize Supabase admin client
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-);
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // 60 second timeout
 
-/**
- * Get location access token for GHL API calls
- */
-async function getLocationToken(userId, locationId) {
-    // Get user's sub-account
-    const { data: subaccount, error: subError } = await supabaseAdmin
-        .from('ghl_subaccounts')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .single();
-
-    if (subError || !subaccount) {
-        return { success: false, error: 'No sub-account found for user' };
-    }
-
-    // Get agency token
-    const { data: tokenData, error: tokenError } = await supabaseAdmin
-        .from('ghl_tokens')
-        .select('*')
-        .eq('user_type', 'Company')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-    if (tokenError || !tokenData) {
-        return { success: false, error: 'No agency token found' };
-    }
-
-    const companyId = tokenData.company_id;
-    if (!companyId) {
-        return { success: false, error: 'companyId not found in agency token' };
-    }
-
-    // Generate location token
-    const locationTokenResponse = await fetch(
-        'https://services.leadconnectorhq.com/oauth/locationToken',
-        {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${tokenData.access_token}`,
-                'Content-Type': 'application/json',
-                'Version': '2021-07-28',
-            },
-            body: JSON.stringify({
-                companyId: companyId,
-                locationId: locationId || subaccount.location_id,
-            }),
-        }
-    );
-
-    if (!locationTokenResponse.ok) {
-        const errorData = await locationTokenResponse.json().catch(() => ({}));
-        return { success: false, error: errorData.message || 'Failed to generate location token' };
-    }
-
-    const locationTokenData = await locationTokenResponse.json();
-
-    if (!locationTokenData.access_token) {
-        return { success: false, error: 'Location token response missing access_token' };
-    }
-
-    return { success: true, access_token: locationTokenData.access_token };
-}
-
-/**
- * POST /api/ghl/deploy-workflow
- * Deploy content to GHL via OAuth (no more Pabbly)
- * Uses pushVaultToGHL which generates correct newSchema keys
- */
 export async function POST(req) {
+    const startTime = Date.now();
+
     try {
         const { userId } = auth();
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { funnelId } = await req.json();
+        const body = await req.json();
+        const funnelId = body.funnelId || body.funnel_id || body.sessionId || body.session_id;
+
         if (!funnelId) {
-            return NextResponse.json({ error: 'Missing funnelId' }, { status: 400 });
+            return NextResponse.json({ error: 'funnelId is required' }, { status: 400 });
         }
 
-        // 1. Get or Create User's GHL Location ID
-        let locationId = null;
+        console.log(`[Deploy] Starting deployment for funnel ${funnelId}, user ${userId}`);
 
-        // Try ghl_subaccounts first (OAuth created)
-        let { data: subaccount } = await supabaseAdmin
+        // 1. Verify user has GHL sub-account
+        const { data: subaccount, error: subError } = await supabaseAdmin
             .from('ghl_subaccounts')
-            .select('location_id, location_name')
+            .select('location_id')
             .eq('user_id', userId)
             .eq('is_active', true)
             .single();
 
-        if (subaccount && subaccount.location_id) {
-            locationId = subaccount.location_id;
-            console.log('[Deploy] Found Location ID in ghl_subaccounts:', locationId);
-        } else {
-            // No sub-account exists - try to create one for this existing user
-            console.log('[Deploy] No sub-account found, attempting to create for existing user...');
-
-            // Get user profile
-            const { data: profile } = await supabaseAdmin
-                .from('user_profiles')
-                .select('*')
-                .eq('id', userId)
-                .single();
-
-            if (profile && profile.first_name && profile.email) {
-                const result = await createGHLSubAccount({
-                    userId: userId,
-                    email: profile.email,
-                    firstName: profile.first_name,
-                    lastName: profile.last_name || '',
-                    phone: profile.phone || '',
-                    businessName: profile.business_name || `${profile.first_name}'s Business`,
-                    address: profile.address || '',
-                    city: profile.city || '',
-                    state: profile.state || '',
-                    postalCode: profile.postal_code || '',
-                    country: profile.country || 'US',
-                    timezone: profile.timezone || 'America/New_York'
-                });
-
-                if (result.success) {
-                    locationId = result.locationId;
-                    console.log('[Deploy] Sub-account created for existing user:', locationId);
-
-                    // Also import snapshot if configured
-                    const snapshotId = process.env.GHL_SNAPSHOT_ID;
-                    if (snapshotId) {
-                        try {
-                            await importSnapshotToSubAccount(userId, snapshotId);
-                            console.log('[Deploy] Snapshot imported for new sub-account');
-                        } catch (snapErr) {
-                            console.error('[Deploy] Snapshot import error:', snapErr);
-                        }
-                    }
-
-                    // Update profile flag
-                    await supabaseAdmin
-                        .from('user_profiles')
-                        .update({ ghl_setup_triggered_at: new Date().toISOString() })
-                        .eq('id', userId);
-                } else {
-                    console.error('[Deploy] Failed to create sub-account:', result.error);
-                }
-            }
-
-            // Fallback to legacy sources if still no locationId
-            if (!locationId) {
-                // Try legacy ghl_subaccount_logs
-                const { data: logEntry } = await supabaseAdmin
-                    .from('ghl_subaccount_logs')
-                    .select('location_id')
-                    .eq('user_id', userId)
-                    .not('location_id', 'is', null)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .single();
-
-                if (logEntry && logEntry.location_id) {
-                    locationId = logEntry.location_id;
-                    console.log('[Deploy] Found Location ID in legacy logs:', locationId);
-                } else {
-                    // Try user_profiles.ghl_location_id
-                    const { data: profile2 } = await supabaseAdmin
-                        .from('user_profiles')
-                        .select('ghl_location_id')
-                        .eq('id', userId)
-                        .single();
-
-                    if (profile2 && profile2.ghl_location_id) {
-                        locationId = profile2.ghl_location_id;
-                        console.log('[Deploy] Found Location ID in user_profiles:', locationId);
-                    }
-                }
-            }
-        }
-
-        if (!locationId) {
+        if (subError || !subaccount?.location_id) {
+            console.error('[Deploy] No sub-account found:', subError);
             return NextResponse.json({
-                error: 'Unable to create GHL sub-account. Please complete your profile first.',
+                error: 'GHL sub-account not found. Please complete onboarding first.',
                 needsSetup: true
             }, { status: 400 });
         }
 
-        // 2. Get Access Token for the location
-        console.log('[Deploy] Getting access token for location:', locationId);
-        const tokenResult = await getLocationToken(userId, locationId);
+        const locationId = subaccount.location_id;
+        console.log(`[Deploy] Using location: ${locationId}`);
 
-        if (!tokenResult.success) {
-            console.error('[Deploy] Failed to get location token:', tokenResult.error);
-            return NextResponse.json({
-                error: tokenResult.error || 'Failed to authenticate with GHL. Please reconnect your account.',
-                needsReauth: true
-            }, { status: 401 });
-        }
+        // 2. Call each push API sequentially
+        const sections = ['funnel-copy', 'emails', 'sms', 'colors', 'media'];
+        const results = {
+            success: true,
+            sections: {},
+            totalPushed: 0,
+            totalUpdated: 0,
+            totalCreated: 0,
+            totalFailed: 0,
+            errors: []
+        };
 
-        const accessToken = tokenResult.access_token;
+        // Get the base URL for internal API calls
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
+            'http://localhost:3000';
 
-        // 3. Use pushVaultToGHL which generates CORRECT newSchema keys
-        // This uses promptEngine + inferenceEngine + newSchema.js for proper key mapping
-        console.log(`[Deploy] Starting vault push for Funnel ${funnelId} to Location ${locationId}`);
+        // Get auth headers to forward
+        const authHeader = req.headers.get('authorization');
+        const cookieHeader = req.headers.get('cookie');
 
-        const pushResult = await pushVaultToGHL({
-            userId,
-            funnelId,
-            locationId,
-            accessToken,
-            updateOnly: true,   // UPDATE-ONLY: Only update existing 170 mapped custom values, don't create new ones
-            skipAI: true,       // FAST DEPLOY: Skip AI generation, use direct mappings only
-            onProgress: (progress) => {
-                console.log(`[Deploy] Progress: ${progress.step} - ${progress.message}`);
+        for (const section of sections) {
+            console.log(`[Deploy] Pushing section: ${section}`);
+
+            try {
+                const response = await fetch(`${baseUrl}/api/ghl/push-${section}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authHeader && { 'Authorization': authHeader }),
+                        ...(cookieHeader && { 'Cookie': cookieHeader }),
+                    },
+                    body: JSON.stringify({ funnelId }),
+                });
+
+                const result = await response.json();
+
+                results.sections[section] = {
+                    success: result.success ?? false,
+                    pushed: result.pushed ?? 0,
+                    updated: result.updated ?? 0,
+                    created: result.created ?? 0,
+                    failed: result.failed ?? 0,
+                    error: result.error || null
+                };
+
+                if (result.success) {
+                    results.totalPushed += result.pushed || 0;
+                    results.totalUpdated += result.updated || 0;
+                    results.totalCreated += result.created || 0;
+                } else {
+                    results.success = false;
+                    results.totalFailed += result.failed || 1;
+                    results.errors.push({ section, error: result.error });
+                }
+
+                console.log(`[Deploy] ${section}: ${result.success ? 'SUCCESS' : 'FAILED'} - ${result.pushed || 0} pushed`);
+
+            } catch (sectionError) {
+                console.error(`[Deploy] Error pushing ${section}:`, sectionError);
+                results.sections[section] = {
+                    success: false,
+                    pushed: 0,
+                    error: sectionError.message
+                };
+                results.errors.push({ section, error: sectionError.message });
+                // Continue with other sections even if one fails
             }
-        });
-
-        if (!pushResult.success) {
-            console.error('[Deploy] pushVaultToGHL failed:', pushResult.error);
-            return NextResponse.json({
-                error: pushResult.error || 'Failed to push vault content to GHL'
-            }, { status: 500 });
         }
 
-        console.log(`[Deploy] Successfully pushed vault content:`, pushResult.summary);
+        const duration = Math.round((Date.now() - startTime) / 1000);
+        console.log(`[Deploy] Completed in ${duration}s - Total: ${results.totalPushed} pushed, ${results.totalFailed} failed`);
 
-        // 4. Log the deployment
+        // 3. Log deployment
         await supabaseAdmin.from('ghl_oauth_logs').insert({
             user_id: userId,
-            operation: 'push_vault_to_ghl',
-            status: 'success',
-            response_data: {
+            event_type: 'deploy_completed',
+            location_id: locationId,
+            metadata: {
                 funnel_id: funnelId,
-                location_id: locationId,
-                ...pushResult.summary
+                total_pushed: results.totalPushed,
+                total_updated: results.totalUpdated,
+                total_created: results.totalCreated,
+                total_failed: results.totalFailed,
+                sections: Object.keys(results.sections),
+                duration_seconds: duration,
+                success: results.success
             }
         });
 
+        // 4. Update funnel deployment status
+        await supabaseAdmin
+            .from('user_funnels')
+            .update({
+                deployed_at: new Date().toISOString(),
+                deployment_status: results.success ? 'deployed' : 'partial'
+            })
+            .eq('id', funnelId);
+
         return NextResponse.json({
-            success: true,
-            message: 'Deployment completed',
-            ...pushResult.summary
+            success: results.success,
+            message: results.success
+                ? `Successfully deployed ${results.totalPushed} values to GHL!`
+                : `Deployment completed with ${results.totalFailed} errors`,
+            summary: {
+                total: results.totalPushed,
+                updated: results.totalUpdated,
+                created: results.totalCreated,
+                failed: results.totalFailed,
+                duration: `${duration}s`
+            },
+            sections: results.sections,
+            errors: results.errors.length > 0 ? results.errors : undefined,
+            locationId
         });
 
     } catch (error) {
-        console.error('[Deploy] API Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        console.error('[Deploy] Fatal error:', error);
+        return NextResponse.json({
+            error: error.message || 'Deployment failed',
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }, { status: 500 });
     }
 }

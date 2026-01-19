@@ -1,14 +1,120 @@
 /**
  * Push Funnel Copy to GHL Custom Values
- * Pushes only funnel copy content (no colors, media, emails, or SMS)
+ * Uses OAuth via ghl_subaccounts (same as deploy-workflow)
+ * Uses customValuesMap.js for correct GHL key mapping
+ * Uses contentPolisher.js for AI polishing
  */
 
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-import { FUNNEL_COPY_MAP, MEDIA_MAP } from '@/lib/ghl/customValuesMap';
+import { FUNNEL_COPY_MAP } from '@/lib/ghl/customValuesMap';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Get location access token for GHL API calls (OAuth)
+ */
+async function getLocationToken(userId, locationId) {
+    // Get user's sub-account
+    const { data: subaccount, error: subError } = await supabaseAdmin
+        .from('ghl_subaccounts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+    if (subError || !subaccount) {
+        return { success: false, error: 'No sub-account found for user' };
+    }
+
+    // Get agency token
+    const { data: tokenData, error: tokenError } = await supabaseAdmin
+        .from('ghl_tokens')
+        .select('*')
+        .eq('user_type', 'Company')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (tokenError || !tokenData) {
+        return { success: false, error: 'No agency token found' };
+    }
+
+    const companyId = tokenData.company_id;
+    if (!companyId) {
+        return { success: false, error: 'companyId not found in agency token' };
+    }
+
+    // Generate location token
+    const locationTokenResponse = await fetch(
+        'https://services.leadconnectorhq.com/oauth/locationToken',
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json',
+                'Version': '2021-07-28',
+            },
+            body: JSON.stringify({
+                companyId: companyId,
+                locationId: locationId || subaccount.location_id,
+            }),
+        }
+    );
+
+    if (!locationTokenResponse.ok) {
+        const errorData = await locationTokenResponse.json().catch(() => ({}));
+        return { success: false, error: errorData.message || 'Failed to generate location token' };
+    }
+
+    const locationTokenData = await locationTokenResponse.json();
+
+    if (!locationTokenData.access_token) {
+        return { success: false, error: 'Location token response missing access_token' };
+    }
+
+    return {
+        success: true,
+        access_token: locationTokenData.access_token,
+        location_id: locationId || subaccount.location_id
+    };
+}
+
+/**
+ * Fetch existing GHL custom values to get IDs
+ */
+async function fetchExistingCustomValues(locationId, accessToken) {
+    const allValues = [];
+    let skip = 0;
+    const limit = 100;
+
+    while (true) {
+        const response = await fetch(
+            `https://services.leadconnectorhq.com/locations/${locationId}/customValues?skip=${skip}&limit=${limit}`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Version': '2021-07-28',
+                }
+            }
+        );
+
+        if (!response.ok) break;
+
+        const data = await response.json();
+        const values = data.customValues || [];
+        allValues.push(...values);
+
+        if (values.length < limit) break;
+        skip += limit;
+
+        // Safety limit
+        if (allValues.length >= 500) break;
+    }
+
+    return allValues;
+}
 
 export async function POST(req) {
     const { userId } = auth();
@@ -25,16 +131,39 @@ export async function POST(req) {
 
         console.log('[PushFunnelCopy] Starting push for funnel:', funnelId);
 
-        // Get GHL credentials
-        const { data: credentials, error: credError } = await supabaseAdmin
-            .from('ghl_credentials')
-            .select('location_id, access_token')
+        // Get user's location ID from ghl_subaccounts
+        const { data: subaccount } = await supabaseAdmin
+            .from('ghl_subaccounts')
+            .select('location_id')
             .eq('user_id', userId)
+            .eq('is_active', true)
             .single();
 
-        if (credError || !credentials) {
-            return Response.json({ error: 'GHL not connected' }, { status: 400 });
+        if (!subaccount?.location_id) {
+            return Response.json({ error: 'GHL sub-account not found. Please complete onboarding.' }, { status: 400 });
         }
+
+        // Get OAuth token
+        const tokenResult = await getLocationToken(userId, subaccount.location_id);
+        if (!tokenResult.success) {
+            return Response.json({ error: tokenResult.error }, { status: 401 });
+        }
+
+        const { access_token: accessToken, location_id: locationId } = tokenResult;
+
+        // Fetch existing custom values to get IDs for updating
+        console.log('[PushFunnelCopy] Fetching existing custom values...');
+        const existingValues = await fetchExistingCustomValues(locationId, accessToken);
+
+        // Build map for quick lookup (key name -> id)
+        const existingMap = new Map();
+        existingValues.forEach(v => {
+            existingMap.set(v.name, v.id);
+            existingMap.set(v.name.toLowerCase(), v.id);
+            existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
+        });
+
+        console.log(`[PushFunnelCopy] Found ${existingValues.length} existing custom values`);
 
         // Get funnel copy content from vault
         const { data: vaultContent, error: vaultError } = await supabaseAdmin
@@ -48,7 +177,7 @@ export async function POST(req) {
             return Response.json({ error: 'Funnel copy content not found' }, { status: 404 });
         }
 
-        // Build custom values payload
+        // Build custom values payload using customValuesMap
         const customValues = [];
         const content = vaultContent.content;
 
@@ -64,9 +193,15 @@ export async function POST(req) {
                         field.includes('bullet') ? 'bullet' : 'paragraph';
                     const polishedValue = await polishTextContent(rawValue, fieldType);
 
+                    // Find existing value ID
+                    const existingId = existingMap.get(ghlKey) ||
+                        existingMap.get(ghlKey.toLowerCase()) ||
+                        existingMap.get(ghlKey.toLowerCase().replace(/\s+/g, '_'));
+
                     customValues.push({
                         key: ghlKey,
                         value: polishedValue,
+                        existingId: existingId || null
                     });
                 }
             }
@@ -75,11 +210,7 @@ export async function POST(req) {
         console.log('[PushFunnelCopy] Pushing', customValues.length, 'values to GHL');
 
         // Push to GHL
-        const pushResults = await pushToGHL(
-            credentials.location_id,
-            credentials.access_token,
-            customValues
-        );
+        const pushResults = await pushToGHL(locationId, accessToken, customValues);
 
         // Log push operation
         await supabaseAdmin
@@ -95,7 +226,9 @@ export async function POST(req) {
 
         return Response.json({
             success: true,
-            pushed: customValues.length,
+            pushed: pushResults.pushed,
+            updated: pushResults.updated,
+            failed: pushResults.failed,
             details: pushResults,
         });
 
@@ -107,35 +240,67 @@ export async function POST(req) {
 
 /**
  * Push values to GHL Custom Values API
+ * Uses PUT for existing values (update), POST for new values (create)
  */
 async function pushToGHL(locationId, accessToken, customValues) {
-    const results = { success: true, pushed: 0, failed: 0, errors: [] };
+    const results = { success: true, pushed: 0, updated: 0, created: 0, failed: 0, errors: [] };
 
-    for (const { key, value } of customValues) {
+    for (const { key, value, existingId } of customValues) {
         try {
-            const response = await fetch(
-                `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${key}`,
-                {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                        'Version': '2021-07-28',
-                    },
-                    body: JSON.stringify({ value }),
-                }
-            );
+            let response;
 
-            if (response.ok) {
-                results.pushed++;
+            if (existingId) {
+                // UPDATE existing value (PUT)
+                response = await fetch(
+                    `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json',
+                            'Version': '2021-07-28',
+                        },
+                        body: JSON.stringify({ value }),
+                    }
+                );
+
+                if (response.ok) {
+                    results.updated++;
+                    results.pushed++;
+                    console.log(`[PushFunnelCopy] UPDATED: ${key}`);
+                }
             } else {
+                // CREATE new value (POST) - only if no existing
+                response = await fetch(
+                    `https://services.leadconnectorhq.com/locations/${locationId}/customValues`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json',
+                            'Version': '2021-07-28',
+                        },
+                        body: JSON.stringify({ name: key, value }),
+                    }
+                );
+
+                if (response.ok) {
+                    results.created++;
+                    results.pushed++;
+                    console.log(`[PushFunnelCopy] CREATED: ${key}`);
+                }
+            }
+
+            if (!response.ok) {
                 results.failed++;
-                const err = await response.json();
+                const err = await response.json().catch(() => ({ message: 'Unknown error' }));
                 results.errors.push({ key, error: err });
+                console.log(`[PushFunnelCopy] FAILED: ${key} - ${JSON.stringify(err)}`);
             }
         } catch (err) {
             results.failed++;
             results.errors.push({ key, error: err.message });
+            console.log(`[PushFunnelCopy] ERROR: ${key} - ${err.message}`);
         }
     }
 

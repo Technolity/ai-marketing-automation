@@ -1,6 +1,8 @@
 /**
  * Push Media to GHL Custom Values
- * Pushes images and video URLs
+ * Uses OAuth via ghl_subaccounts (same as deploy-workflow)
+ * Uses customValuesMap.js for correct GHL key mapping
+ * Pushes images, videos, and other media URLs
  */
 
 import { auth } from '@clerk/nextjs';
@@ -8,6 +10,92 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { MEDIA_MAP } from '@/lib/ghl/customValuesMap';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Get location access token for GHL API calls (OAuth)
+ */
+async function getLocationToken(userId, locationId) {
+    const { data: subaccount } = await supabaseAdmin
+        .from('ghl_subaccounts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+    if (!subaccount) {
+        return { success: false, error: 'No sub-account found for user' };
+    }
+
+    const { data: tokenData } = await supabaseAdmin
+        .from('ghl_tokens')
+        .select('*')
+        .eq('user_type', 'Company')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (!tokenData?.company_id) {
+        return { success: false, error: 'No agency token found' };
+    }
+
+    const response = await fetch(
+        'https://services.leadconnectorhq.com/oauth/locationToken',
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json',
+                'Version': '2021-07-28',
+            },
+            body: JSON.stringify({
+                companyId: tokenData.company_id,
+                locationId: locationId || subaccount.location_id,
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        return { success: false, error: 'Failed to generate location token' };
+    }
+
+    const data = await response.json();
+    return {
+        success: true,
+        access_token: data.access_token,
+        location_id: locationId || subaccount.location_id
+    };
+}
+
+/**
+ * Fetch existing GHL custom values to get IDs
+ */
+async function fetchExistingCustomValues(locationId, accessToken) {
+    const allValues = [];
+    let skip = 0;
+
+    while (allValues.length < 500) {
+        const response = await fetch(
+            `https://services.leadconnectorhq.com/locations/${locationId}/customValues?skip=${skip}&limit=100`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Version': '2021-07-28',
+                }
+            }
+        );
+
+        if (!response.ok) break;
+
+        const data = await response.json();
+        const values = data.customValues || [];
+        allValues.push(...values);
+
+        if (values.length < 100) break;
+        skip += 100;
+    }
+
+    return allValues;
+}
 
 export async function POST(req) {
     const { userId } = auth();
@@ -24,144 +112,160 @@ export async function POST(req) {
 
         console.log('[PushMedia] Starting push for funnel:', funnelId);
 
-        // Get GHL credentials
-        const { data: credentials, error: credError } = await supabaseAdmin
-            .from('ghl_credentials')
-            .select('location_id, access_token')
+        // Get user's location ID
+        const { data: subaccount } = await supabaseAdmin
+            .from('ghl_subaccounts')
+            .select('location_id')
             .eq('user_id', userId)
+            .eq('is_active', true)
             .single();
 
-        if (credError || !credentials) {
-            return Response.json({ error: 'GHL not connected' }, { status: 400 });
+        if (!subaccount?.location_id) {
+            return Response.json({ error: 'GHL sub-account not found' }, { status: 400 });
         }
 
-        // Get media content from vault_content_fields
-        const { data: mediaFields, error: mediaError } = await supabaseAdmin
-            .from('vault_content_fields')
-            .select('field_id, field_value')
-            .eq('funnel_id', funnelId)
-            .eq('section_id', 'media');
-
-        if (mediaError) {
-            console.error('[PushMedia] Error fetching media:', mediaError);
-            return Response.json({ error: 'Failed to fetch media' }, { status: 500 });
+        // Get OAuth token
+        const tokenResult = await getLocationToken(userId, subaccount.location_id);
+        if (!tokenResult.success) {
+            return Response.json({ error: tokenResult.error }, { status: 401 });
         }
 
-        // Build custom values payload
-        const customValues = [];
-        const mediaContent = {};
+        const { access_token: accessToken, location_id: locationId } = tokenResult;
 
-        // Convert array to object
-        mediaFields?.forEach(field => {
-            mediaContent[field.field_id] = field.field_value;
+        // Fetch existing custom values
+        const existingValues = await fetchExistingCustomValues(locationId, accessToken);
+        const existingMap = new Map();
+        existingValues.forEach(v => {
+            existingMap.set(v.name, v.id);
+            existingMap.set(v.name.toLowerCase(), v.id);
+            existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
         });
 
-        // Map media to GHL keys
-        for (const [page, fields] of Object.entries(MEDIA_MAP)) {
+        // Get media library content from vault_content_fields
+        const { data: mediaFields } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_id, content')
+            .eq('funnel_id', funnelId)
+            .eq('section_id', 'mediaLibrary')
+            .eq('is_current_version', true);
+
+        // Also try vault_content for legacy storage
+        const { data: vaultContent } = await supabaseAdmin
+            .from('vault_content')
+            .select('content')
+            .eq('funnel_id', funnelId)
+            .eq('section_id', 'mediaLibrary')
+            .single();
+
+        // Build media content map from fields
+        const mediaContent = {};
+        if (mediaFields) {
+            mediaFields.forEach(field => {
+                mediaContent[field.field_id] = field.content;
+            });
+        }
+
+        // Merge with vault_content if exists
+        if (vaultContent?.content) {
+            Object.assign(mediaContent, vaultContent.content);
+        }
+
+        // Build custom values using MEDIA_MAP
+        const customValues = [];
+
+        for (const [section, fields] of Object.entries(MEDIA_MAP)) {
             for (const [field, ghlKey] of Object.entries(fields)) {
-                // Try different field naming conventions
-                const value = mediaContent[field] ||
-                    mediaContent[`${page}_${field}`] ||
-                    mediaContent[ghlKey];
+                // Try multiple key variations to find media
+                const possibleKeys = [
+                    field,
+                    `${section}_${field}`,
+                    `${section}.${field}`,
+                    field.toLowerCase(),
+                ];
 
-                if (value && typeof value === 'string' && value.startsWith('http')) {
-                    customValues.push({ key: ghlKey, value });
+                let mediaUrl = null;
+                for (const key of possibleKeys) {
+                    if (mediaContent[key]) {
+                        mediaUrl = mediaContent[key];
+                        break;
+                    }
+                }
+
+                if (mediaUrl) {
+                    customValues.push({
+                        key: ghlKey,
+                        value: mediaUrl,
+                        existingId: existingMap.get(ghlKey) || existingMap.get(ghlKey.toLowerCase())
+                    });
                 }
             }
         }
 
-        // Also check for direct cloudinary URLs
-        const cloudinaryFields = ['logo', 'profile_photo', 'banner_image', 'vsl_video'];
-        for (const field of cloudinaryFields) {
-            const value = mediaContent[field];
-            if (value && typeof value === 'string' && value.startsWith('http')) {
-                const ghlKey = mapMediaFieldToGHL(field);
-                if (ghlKey && !customValues.find(cv => cv.key === ghlKey)) {
-                    customValues.push({ key: ghlKey, value });
-                }
-            }
-        }
-
-        console.log('[PushMedia] Pushing', customValues.length, 'media values to GHL');
+        console.log('[PushMedia] Pushing', customValues.length, 'values');
 
         // Push to GHL
-        const pushResults = await pushToGHL(
-            credentials.location_id,
-            credentials.access_token,
-            customValues
-        );
+        const results = { success: true, pushed: 0, updated: 0, created: 0, failed: 0, errors: [] };
 
-        // Log push operation
-        await supabaseAdmin
-            .from('ghl_push_logs')
-            .insert({
-                user_id: userId,
-                funnel_id: funnelId,
-                section: 'media',
-                values_pushed: customValues.length,
-                success: pushResults.success,
-                error: pushResults.error || null,
-            });
+        for (const { key, value, existingId } of customValues) {
+            try {
+                let response;
 
-        return Response.json({
-            success: true,
-            pushed: customValues.length,
-            details: pushResults,
+                if (existingId) {
+                    response = await fetch(
+                        `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`,
+                                'Content-Type': 'application/json',
+                                'Version': '2021-07-28',
+                            },
+                            body: JSON.stringify({ value }),
+                        }
+                    );
+                    if (response.ok) { results.updated++; results.pushed++; }
+                } else {
+                    response = await fetch(
+                        `https://services.leadconnectorhq.com/locations/${locationId}/customValues`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${accessToken}`,
+                                'Content-Type': 'application/json',
+                                'Version': '2021-07-28',
+                            },
+                            body: JSON.stringify({ name: key, value }),
+                        }
+                    );
+                    if (response.ok) { results.created++; results.pushed++; }
+                }
+
+                if (!response.ok) {
+                    results.failed++;
+                    const err = await response.json().catch(() => ({}));
+                    results.errors.push({ key, error: err });
+                }
+            } catch (err) {
+                results.failed++;
+                results.errors.push({ key, error: err.message });
+            }
+        }
+
+        results.success = results.failed === 0;
+
+        // Log push
+        await supabaseAdmin.from('ghl_push_logs').insert({
+            user_id: userId,
+            funnel_id: funnelId,
+            section: 'media',
+            values_pushed: results.pushed,
+            success: results.success,
         });
+
+        return Response.json({ success: true, ...results });
 
     } catch (error) {
         console.error('[PushMedia] Error:', error);
         return Response.json({ error: error.message }, { status: 500 });
     }
-}
-
-/**
- * Map media field to GHL key
- */
-function mapMediaFieldToGHL(field) {
-    const mapping = {
-        logo: '02_optin_logo_image',
-        profile_photo: '02_vsl_bio_photo_text',
-        banner_image: '02_optin_mockup_image',
-        vsl_video: '02_vsl_video',
-    };
-    return mapping[field];
-}
-
-/**
- * Push values to GHL Custom Values API
- */
-async function pushToGHL(locationId, accessToken, customValues) {
-    const results = { success: true, pushed: 0, failed: 0, errors: [] };
-
-    for (const { key, value } of customValues) {
-        try {
-            const response = await fetch(
-                `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${key}`,
-                {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                        'Version': '2021-07-28',
-                    },
-                    body: JSON.stringify({ value }),
-                }
-            );
-
-            if (response.ok) {
-                results.pushed++;
-            } else {
-                results.failed++;
-                const err = await response.json();
-                results.errors.push({ key, error: err });
-            }
-        } catch (err) {
-            results.failed++;
-            results.errors.push({ key, error: err.message });
-        }
-    }
-
-    results.success = results.failed === 0;
-    return results;
 }
