@@ -62,6 +62,7 @@ import BioFields from "@/components/vault/BioFields";
 import AppointmentRemindersFields from "@/components/vault/AppointmentRemindersFields";
 import MediaFields from "@/components/vault/MediaFields";
 import ApprovalWatcher from "@/components/vault/ApprovalWatcher";
+import PushToGHLButton from "@/components/vault/PushToGHLButton";
 
 // Map section IDs to granular field components (all 13 sections)
 const GRANULAR_FIELD_COMPONENTS = {
@@ -2505,6 +2506,16 @@ export default function VaultPage() {
                                             >
                                                 <Edit3 className="w-4 h-4" /> Edit
                                             </button>
+                                            {/* Push to GHL button for applicable sections */}
+                                            {['funnelCopy', 'emails', 'sms', 'media'].includes(section.id) && (
+                                                <PushToGHLButton
+                                                    section={section.id}
+                                                    funnelId={searchParams.get('funnel_id') || dataSource?.id}
+                                                    isApproved={true}
+                                                    isVaultComplete={isVaultComplete}
+                                                    label="🚀"
+                                                />
+                                            )}
                                             <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2">
                                                 <CheckCircle className="w-4 h-4" /> Approved
                                             </div>
