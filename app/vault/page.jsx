@@ -1098,53 +1098,6 @@ export default function VaultPage() {
         }
     };
 
-    // Handle save from AI Feedback Chat Modal - saves refined content and triggers refresh
-    const handleFeedbackSave = async ({ refinedContent, subSection }) => {
-        if (!feedbackSection || !refinedContent) return;
-
-        const sectionId = feedbackSection.id;
-        const funnelId = dataSource?.id || searchParams.get('funnel_id');
-
-        console.log('[Vault] handleFeedbackSave:', { sectionId, subSection, funnelId, keys: Object.keys(refinedContent) });
-
-        try {
-            // Save each field in the refined content to the vault-field API
-            const fieldKeys = Object.keys(refinedContent);
-
-            for (const fieldId of fieldKeys) {
-                const fieldValue = refinedContent[fieldId];
-
-                await fetchWithAuth('/api/os/vault-field', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        funnel_id: funnelId,
-                        section_id: sectionId,
-                        field_id: fieldId,
-                        field_value: fieldValue
-                    })
-                });
-            }
-
-            // Update local vault data for immediate display
-            setVaultData(prev => ({
-                ...prev,
-                [sectionId]: { ...prev[sectionId], ...refinedContent }
-            }));
-
-            // Reset approval status since content changed
-            handleUnapprove(sectionId);
-
-            // CRITICAL: Increment refreshTrigger to force field components to refetch
-            setRefreshTrigger(prev => prev + 1);
-
-            console.log('[Vault] AI feedback saved and refreshTrigger incremented');
-        } catch (error) {
-            console.error('[Vault] handleFeedbackSave error:', error);
-            toast.error('Failed to save AI feedback changes');
-        }
-    };
-
     // Explicit save handler for regenerated content
     const handleSaveChanges = async () => {
         const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
@@ -1544,6 +1497,13 @@ export default function VaultPage() {
             }
 
             toast.success('Changes saved!');
+
+            // CRITICAL: Increment refreshTrigger for real-time UI updates
+            setRefreshTrigger(prev => prev + 1);
+
+            // Reset approval since content changed
+            handleUnapprove(feedbackSection.id);
+
             setFeedbackChatOpen(false);
         } catch (error) {
             console.error('Save error:', error);
