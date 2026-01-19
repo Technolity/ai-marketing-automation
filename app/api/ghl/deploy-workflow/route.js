@@ -221,6 +221,7 @@ export async function POST(req) {
             locationId,
             accessToken,
             updateOnly: false,  // Allow creating new values if they don't exist
+            skipAI: true,       // FAST DEPLOY: Skip AI generation, use direct mappings only
             onProgress: (progress) => {
                 console.log(`[Deploy] Progress: ${progress.step} - ${progress.message}`);
             }
