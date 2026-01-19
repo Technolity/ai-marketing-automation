@@ -15,7 +15,7 @@ import { fetchWithAuth } from '@/lib/fetchWithAuth';
  * - funnelId: Funnel ID
  * - onApprove: Callback when section is approved
  */
-export default function OfferFields({ funnelId, onApprove, onRenderApproveButton, isApproved }) {
+export default function OfferFields({ funnelId, onApprove, onRenderApproveButton, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);

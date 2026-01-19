@@ -8,7 +8,7 @@ import AIFeedbackModal from './AIFeedbackModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
-export default function MessageFields({ funnelId, onApprove, onRenderApproveButton, isApproved }) {
+export default function MessageFields({ funnelId, onApprove, onRenderApproveButton, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -48,7 +48,7 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
         if (funnelId) {
             fetchFields();
         }
-    }, [funnelId]);
+    }, [funnelId, refreshTrigger]);
 
     // Sync with parent approval state
     useEffect(() => {

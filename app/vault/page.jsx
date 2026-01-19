@@ -1098,6 +1098,53 @@ export default function VaultPage() {
         }
     };
 
+    // Handle save from AI Feedback Chat Modal - saves refined content and triggers refresh
+    const handleFeedbackSave = async ({ refinedContent, subSection }) => {
+        if (!feedbackSection || !refinedContent) return;
+
+        const sectionId = feedbackSection.id;
+        const funnelId = dataSource?.id || searchParams.get('funnel_id');
+
+        console.log('[Vault] handleFeedbackSave:', { sectionId, subSection, funnelId, keys: Object.keys(refinedContent) });
+
+        try {
+            // Save each field in the refined content to the vault-field API
+            const fieldKeys = Object.keys(refinedContent);
+
+            for (const fieldId of fieldKeys) {
+                const fieldValue = refinedContent[fieldId];
+
+                await fetchWithAuth('/api/os/vault-field', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        funnel_id: funnelId,
+                        section_id: sectionId,
+                        field_id: fieldId,
+                        field_value: fieldValue
+                    })
+                });
+            }
+
+            // Update local vault data for immediate display
+            setVaultData(prev => ({
+                ...prev,
+                [sectionId]: { ...prev[sectionId], ...refinedContent }
+            }));
+
+            // Reset approval status since content changed
+            handleUnapprove(sectionId);
+
+            // CRITICAL: Increment refreshTrigger to force field components to refetch
+            setRefreshTrigger(prev => prev + 1);
+
+            console.log('[Vault] AI feedback saved and refreshTrigger incremented');
+        } catch (error) {
+            console.error('[Vault] handleFeedbackSave error:', error);
+            toast.error('Failed to save AI feedback changes');
+        }
+    };
+
     // Explicit save handler for regenerated content
     const handleSaveChanges = async () => {
         const sessionId = dataSource?.id || localStorage.getItem('ted_current_session_id');
@@ -2486,8 +2533,21 @@ export default function VaultPage() {
                                         <MessageSquare className="w-4 h-4" /> AI Feedback
                                     </button>
                                     {status === 'approved' ? (
-                                        <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2">
-                                            <CheckCircle className="w-4 h-4" /> Approved
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    // Enable editing by unapproving first
+                                                    handleUnapprove(section.id, phase);
+                                                    toast.info('Section unlocked for editing');
+                                                }}
+                                                className="px-3 py-2 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600 rounded-lg text-gray-300 hover:text-white text-sm font-medium flex items-center gap-2 transition-all"
+                                                title="Edit this section"
+                                            >
+                                                <Edit3 className="w-4 h-4" /> Edit
+                                            </button>
+                                            <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2">
+                                                <CheckCircle className="w-4 h-4" /> Approved
+                                            </div>
                                         </div>
                                     ) : (
                                         <button

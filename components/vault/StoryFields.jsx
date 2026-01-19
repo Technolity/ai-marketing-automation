@@ -8,7 +8,7 @@ import AIFeedbackModal from './AIFeedbackModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
-export default function StoryFields({ funnelId, onApprove, onRenderApproveButton, isApproved }) {
+export default function StoryFields({ funnelId, onApprove, onRenderApproveButton, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
