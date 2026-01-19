@@ -2348,10 +2348,14 @@ export default function VaultPage() {
                                         <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
                                         <p className="text-gray-400 mb-4">Your content is now live in Builder.</p>
                                         <button
-                                            onClick={() => setShowDeployModal(false)}
-                                            className="px-6 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors"
+                                            onClick={() => {
+                                                setShowDeployModal(false);
+                                                const funnelId = dataSource?.id || searchParams.get('funnel_id');
+                                                router.push(`/vault/deployed-assets${funnelId ? `?funnel_id=${funnelId}` : ''}`);
+                                            }}
+                                            className="px-6 py-2 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-medium transition-colors"
                                         >
-                                            Close
+                                            View Deployed Assets
                                         </button>
                                     </div>
                                 ) : (

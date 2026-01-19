@@ -125,13 +125,21 @@ export default function DeployedAssetsPage() {
                                 <p className="text-sm text-gray-400">View and manage your GHL custom values</p>
                             </div>
                         </div>
-                        <button
-                            onClick={loadDeployedAssets}
-                            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                            title="Refresh"
-                        >
-                            <RefreshCw className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={loadDeployedAssets}
+                                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                                title="Refresh"
+                            >
+                                <RefreshCw className="w-5 h-5" />
+                            </button>
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-medium text-white transition-all"
+                            >
+                                Return to Dashboard
+                            </button>
+                        </div>
                     </div>
 
                     {/* Tabs */}
