@@ -177,6 +177,23 @@ export async function POST(req) {
                 }
             }
 
+            // Fetch Lead Magnet Title from vault_content_fields (for ad copy, emails, SMS dependencies)
+            let leadMagnetTitle = null;
+            if (sessionId) {
+                const { data: mainTitleField } = await supabaseAdmin
+                    .from('vault_content_fields')
+                    .select('field_value')
+                    .eq('funnel_id', sessionId)
+                    .eq('section_id', 'leadMagnet')
+                    .eq('field_key', 'mainTitle')
+                    .single();
+
+                if (mainTitleField?.field_value) {
+                    leadMagnetTitle = mainTitleField.field_value;
+                    console.log('[RefineStream] Found Lead Magnet Title:', leadMagnetTitle);
+                }
+            }
+
             // Build conversational prompt with FULL PROJECT CONTEXT
             const { systemPrompt, userPrompt } = buildConversationalPrompt({
                 sectionId,
@@ -184,7 +201,8 @@ export async function POST(req) {
                 parentSection, // Pass parent field context for hierarchical selections
                 messageHistory: messageHistory.slice(-10), // Last 10 messages for context
                 currentContent,
-                intakeData
+                intakeData,
+                leadMagnetTitle // Pass the Lead Magnet title for dependencies
             });
 
             // COMPREHENSIVE LOGGING: Prompt generation
@@ -736,7 +754,7 @@ async function parseAndValidate(fullText, sectionId, subSection) {
  * Build conversational prompt from message history with FULL PROJECT CONTEXT
  * Uses the full context prompts system to give AI complete knowledge of original generation
  */
-function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData }) {
+function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
@@ -844,6 +862,12 @@ CONVERSATION STYLE:
     if (intakeData.message) contextParts.push(`Core Message: ${intakeData.message}`);
     if (intakeData.businessName) contextParts.push(`Business: ${intakeData.businessName}`);
     if (intakeData.niche) contextParts.push(`Niche: ${intakeData.niche}`);
+
+    // CRITICAL: Add Lead Magnet Title for dependent sections (Ad Copy, Emails, SMS, etc.)
+    if (leadMagnetTitle) {
+        contextParts.push(`Lead Magnet Title (Free Gift): ${leadMagnetTitle}`);
+        console.log('[BuildContext] Added Lead Magnet Title to context:', leadMagnetTitle);
+    }
 
     const businessContext = contextParts.length > 0
         ? `\n\nBUSINESS CONTEXT:\n${contextParts.join('\n')}`
