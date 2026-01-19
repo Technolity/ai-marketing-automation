@@ -35,7 +35,7 @@ export default function DeployedAssetsPage() {
         setIsLoading(true);
         try {
             // Load colors from user profile
-            const profileRes = await fetchWithAuth('/api/os/user-profile');
+            const profileRes = await fetchWithAuth('/api/user/profile');
             const profileData = await profileRes.json();
 
             if (profileData.brandColors) {
@@ -75,7 +75,7 @@ export default function DeployedAssetsPage() {
 
     const handleSaveColors = async () => {
         try {
-            const response = await fetchWithAuth('/api/os/user-profile', {
+            const response = await fetchWithAuth('/api/user/profile', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ brandColors: colors }),
