@@ -135,12 +135,51 @@
   margin: 0;
 }
 
-html,
+html {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 body {
+  min-height: 100%;
   max-width: 100vw;
   overflow-x: hidden;
+  overflow-y: visible;
+  /* Changed from auto - Edge needs this */
   background-color: #0a0a0b;
-  overscroll-behavior: none;
+  overscroll-behavior-y: contain;
+  /* Changed from none - Edge compatibility */
+  -ms-overflow-style: auto;
+  /* Edge compatibility */
+  -ms-scroll-chaining: none;
+  /* Edge-specific */
+  touch-action: pan-y pinch-zoom;
+  /* Allow vertical scroll and zoom */
+  scroll-behavior: smooth;
+}
+
+/* Ensure main content is scrollable in Edge */
+main {
+  position: relative;
+  overflow-y: visible;
+  -ms-scroll-chaining: chained;
+}
+
+/* Fix Edge scroll blocking on form elements */
+form,
+input,
+textarea,
+select,
+button {
+  -ms-scroll-chaining: chained;
+  touch-action: auto;
+  overscroll-behavior: auto;
+}
+
+/* Fix Edge scroll blocking on common containers */
+div {
+  -ms-scroll-chaining: chained;
 }
 
 /* Custom scrollbar */
