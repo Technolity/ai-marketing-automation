@@ -443,6 +443,9 @@ const SUBSECTION_PATHS = {
     },
     // idealClient uses FLAT structure from idealClient.js generation
     idealClient: {
+        // Full bestIdealClient object with all 6 subfields
+        bestIdealClient: ['idealClientSnapshot', 'bestIdealClient'],
+        // Individual subfields for granular refinement
         location: ['bestIdealClient', 'location'],
         ageLifeStage: ['bestIdealClient', 'ageLifeStage'],
         roleIdentity: ['bestIdealClient', 'roleIdentity'],

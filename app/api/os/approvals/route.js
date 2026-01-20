@@ -28,21 +28,47 @@ export async function GET(req) {
         }
 
         // Fetch approved sections from vault_content
-        const { data: approvedSections, error: vaultError } = await supabaseAdmin
-            .from('vault_content')
-            .select('section_id, phase')
-            .eq('funnel_id', funnelId)
-            .eq('user_id', userId)
-            .eq('status', 'approved')
-            .eq('is_current_version', true);
+        let approvedSections = [];
+        try {
+            const { data, error: vaultError } = await supabaseAdmin
+                .from('vault_content')
+                .select('section_id, phase')
+                .eq('funnel_id', funnelId)
+                .eq('user_id', userId)
+                .eq('status', 'approved')
+                .eq('is_current_version', true);
 
-        if (vaultError) {
-            console.error('[Approvals API] Error fetching vault_content:', vaultError);
-            // Handle table not found or other errors
-            if (vaultError.code === 'PGRST205') {
-                return NextResponse.json({ businessCoreApprovals: [], funnelAssetsApprovals: [], funnelApproved: false });
+            if (vaultError) {
+                console.error('[Approvals API] Error fetching vault_content:', vaultError);
+                // Handle table/column not found errors
+                if (vaultError.code === 'PGRST205' ||
+                    vaultError.code === '42703' ||
+                    vaultError.code === '42P01' ||
+                    vaultError.message?.includes('does not exist') ||
+                    vaultError.message?.includes('column')) {
+                    // Try without is_current_version filter
+                    const { data: fallbackData, error: fallbackError } = await supabaseAdmin
+                        .from('vault_content')
+                        .select('section_id, phase')
+                        .eq('funnel_id', funnelId)
+                        .eq('user_id', userId)
+                        .eq('status', 'approved');
+
+                    if (!fallbackError) {
+                        approvedSections = fallbackData || [];
+                    } else {
+                        console.error('[Approvals API] Fallback also failed:', fallbackError);
+                        return NextResponse.json({ businessCoreApprovals: [], funnelAssetsApprovals: [], funnelApproved: false });
+                    }
+                } else {
+                    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+                }
+            } else {
+                approvedSections = data || [];
             }
-            return NextResponse.json({ error: 'Database error' }, { status: 500 });
+        } catch (queryError) {
+            console.error('[Approvals API] Query exception:', queryError);
+            return NextResponse.json({ businessCoreApprovals: [], funnelAssetsApprovals: [], funnelApproved: false });
         }
 
         // Fetch funnel status from user_funnels

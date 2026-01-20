@@ -26,20 +26,45 @@ export async function GET(req) {
         // Fetch recent jobs for this funnel (last 10 minutes)
         const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
 
-        const { data: jobs, error } = await supabaseAdmin
-            .from('generation_jobs')
-            .select('id, job_type, status, progress_percentage, current_section, sections_to_generate, started_at, completed_at, error_message')
-            .eq('funnel_id', funnelId)
-            .eq('user_id', userId)
-            .gte('created_at', tenMinutesAgo)
-            .order('created_at', { ascending: false })
-            .limit(10);
+        let jobs = [];
+        let error = null;
+
+        try {
+            const result = await supabaseAdmin
+                .from('generation_jobs')
+                .select('id, job_type, status, progress_percentage, current_section, sections_to_generate, started_at, completed_at, error_message')
+                .eq('funnel_id', funnelId)
+                .eq('user_id', userId)
+                .gte('created_at', tenMinutesAgo)
+                .order('created_at', { ascending: false })
+                .limit(10);
+
+            jobs = result.data;
+            error = result.error;
+        } catch (queryError) {
+            // Table likely doesn't exist - return empty gracefully
+            console.log('[GenerationJobs] Query failed (table may not exist):', queryError.message);
+            return Response.json({
+                activeJobs: [],
+                completedJobs: [],
+                failedJobs: [],
+                hasActiveJobs: false
+            });
+        }
 
         if (error) {
             console.error('[GenerationJobs] Database error:', error);
-            // If table doesn't exist, return empty
-            if (error.code === 'PGRST205' || error.message?.includes('does not exist')) {
-                return Response.json({ activeJobs: [], recentJobs: [] });
+            // If table doesn't exist or relation error, return empty
+            if (error.code === 'PGRST205' ||
+                error.code === '42P01' ||
+                error.message?.includes('does not exist') ||
+                error.message?.includes('relation')) {
+                return Response.json({
+                    activeJobs: [],
+                    completedJobs: [],
+                    failedJobs: [],
+                    hasActiveJobs: false
+                });
             }
             return Response.json({ error: 'Failed to fetch jobs' }, { status: 500 });
         }

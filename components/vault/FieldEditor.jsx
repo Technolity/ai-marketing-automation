@@ -406,6 +406,7 @@ export default function FieldEditor({
         if (field_type === 'object') {
             const subfields = field_metadata.subfields || [];
             let objectValue = {};
+            let isPlainString = false; // Track if we received a plain string instead of object
 
             // Helper to safely parse JSON with control characters
             const safeParseJSON = (str) => {
@@ -437,8 +438,7 @@ export default function FieldEditor({
 
                         return JSON.parse(sanitized);
                     } catch (e2) {
-                        // Last resort: try to extract fields manually
-                        console.warn('[FieldEditor] Could not parse JSON even after sanitization');
+                        // Not valid JSON - return null to trigger fallback
                         return null;
                     }
                 }
@@ -449,20 +449,50 @@ export default function FieldEditor({
                 // Handle empty/null values gracefully
                 if (!value || value === '' || value === 'null' || value === 'undefined') {
                     objectValue = {};
-                } else if (typeof value === 'object') {
+                } else if (typeof value === 'object' && !Array.isArray(value)) {
                     // Already an object
                     objectValue = value;
-                } else {
-                    objectValue = safeParseJSON(value) || {};
+                } else if (typeof value === 'string') {
+                    const parsed = safeParseJSON(value);
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                        objectValue = parsed;
+                    } else {
+                        // Value is a plain string, not a JSON object - use fallback mode
+                        isPlainString = true;
+                    }
                 }
             } catch (e) {
-                // Only log if the value wasn't empty - empty values failing to parse is expected
-                if (value && value.length > 0) {
-                    console.error('[FieldEditor] Failed to parse object value:', e);
+                // Parsing failed - check if it's just a plain string
+                if (value && typeof value === 'string' && value.length > 0) {
+                    isPlainString = true;
                 }
                 objectValue = {};
             }
 
+            // FALLBACK: If we received a plain string instead of structured object,
+            // display it as a single textarea for the user to see/edit
+            if (isPlainString && typeof value === 'string' && value.length > 0) {
+                return (
+                    <div className="w-full space-y-3">
+                        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 mb-3">
+                            <p className="text-yellow-400 text-xs font-medium">
+                                ⚠️ AI returned unstructured text. You can edit it here or use AI Refine to restructure it.
+                            </p>
+                        </div>
+                        <textarea
+                            ref={(el) => el && autoResizeTextarea(el)}
+                            value={value || ''}
+                            onChange={(e) => {
+                                setValue(e.target.value);
+                            }}
+                            onBlur={handleBlur}
+                            placeholder={field_label}
+                            style={{ minHeight: '6rem' }}
+                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
+                        />
+                    </div>
+                );
+            }
 
             return (
                 <div className="w-full space-y-3">
@@ -642,56 +672,8 @@ export default function FieldEditor({
             );
         }
 
-        if (field_type === 'object') {
-            const subfields = field_metadata.subfields || [];
-            const objectValue = value && typeof value === 'object' ? value : {};
-
-            return (
-                <div className="w-full space-y-4">
-                    <div className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-4">
-                        {subfields.map((subfield, idx) => {
-                            const subfieldValue = objectValue[subfield.field_id] || '';
-                            const isTextarea = subfield.field_type === 'textarea';
-
-                            return (
-                                <div key={idx} className="space-y-2">
-                                    <label className="text-xs font-medium text-gray-400">
-                                        {subfield.field_label}
-                                    </label>
-                                    {isTextarea ? (
-                                        <textarea
-                                            value={subfieldValue}
-                                            onChange={(e) => {
-                                                const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
-                                                setValue(newObj);
-                                            }}
-                                            onBlur={handleBlur}
-                                            placeholder={subfield.placeholder || subfield.field_label}
-                                            maxLength={subfield.maxLength}
-                                            rows={subfield.rows || 3}
-                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
-                                        />
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={subfieldValue}
-                                            onChange={(e) => {
-                                                const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
-                                                setValue(newObj);
-                                            }}
-                                            onBlur={handleBlur}
-                                            placeholder={subfield.placeholder || subfield.field_label}
-                                            maxLength={subfield.maxLength}
-                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
-                                        />
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            );
-        }
+        // NOTE: Object type is already handled above (line ~405) with proper string fallback
+        // This block was a duplicate that didn't handle plain strings properly
 
         return <p className="text-gray-500">Unsupported field type: {field_type}</p>;
     };
