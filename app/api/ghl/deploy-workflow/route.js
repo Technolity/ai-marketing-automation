@@ -348,11 +348,26 @@ export async function POST(req) {
         // Build lookup map with multiple key formats
         const existingMap = new Map();
         existingValues.forEach(v => {
+            // Store by name in various formats
             existingMap.set(v.name, { id: v.id, name: v.name });
             existingMap.set(v.name.toLowerCase(), { id: v.id, name: v.name });
             existingMap.set(v.name.replace(/\s+/g, '_'), { id: v.id, name: v.name });
             existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), { id: v.id, name: v.name });
+            // Remove dashes and spaces
+            existingMap.set(v.name.replace(/[-\s]+/g, '_').toLowerCase(), { id: v.id, name: v.name });
+            // Handle "Sub -Headline" -> "sub_headline"
+            existingMap.set(v.name.replace(/\s*-\s*/g, '_').replace(/\s+/g, '_').toLowerCase(), { id: v.id, name: v.name });
         });
+
+        // Add manual fixes for GHL typos
+        const typoFixes = {
+            '02_optin_subhealine_text': existingMap.get('02_optin_sub_headline_text') || existingMap.get('02_optin_sub-headline_text'),
+            '02_vsl_process_sub_headline_text': existingMap.get('02_vsl_process_sub_headline_text') || existingMap.get('02_vsl_process_sub-headline_text'),
+            '02_thankyou_page_subheadline_text': existingMap.get('02_thankyou_page_sub_headline_text') || existingMap.get('02_thankyou_page_sub-headline_text'),
+        };
+        for (const [key, val] of Object.entries(typoFixes)) {
+            if (val) existingMap.set(key, val);
+        }
 
         log(`[Deploy] Existing values in lookup: ${existingMap.size} entries`);
 
