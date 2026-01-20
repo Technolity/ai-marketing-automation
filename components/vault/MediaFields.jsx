@@ -177,7 +177,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, refreshT
         if (!customValueKey || !value) return;
 
         try {
-            const response = await fetch('/api/os/custom-values', {
+            const response = await fetch('/api/ghl/custom-values/push', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

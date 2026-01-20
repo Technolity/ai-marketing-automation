@@ -63,12 +63,37 @@ async function getLocationToken(userId, locationId) {
         }
     );
 
-    if (!locationTokenResponse.ok) {
-        const errorData = await locationTokenResponse.json().catch(() => ({}));
-        return { success: false, error: errorData.message || 'Failed to generate location token' };
+    // Check for HTML response (GHL error page)
+    const contentType = locationTokenResponse.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+        const htmlBody = await locationTokenResponse.text();
+        console.error('[PushFunnelCopy] getLocationToken: GHL returned HTML:', htmlBody.substring(0, 200));
+        return { success: false, error: 'GHL OAuth returned HTML - token may be invalid or expired' };
     }
 
-    const locationTokenData = await locationTokenResponse.json();
+    if (!locationTokenResponse.ok) {
+        const responseText = await locationTokenResponse.text();
+        // Check if it's HTML
+        if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
+            console.error('[PushFunnelCopy] getLocationToken: HTML error:', responseText.substring(0, 200));
+            return { success: false, error: 'GHL OAuth returned HTML error page' };
+        }
+        try {
+            const errorData = JSON.parse(responseText);
+            return { success: false, error: errorData.message || 'Failed to generate location token' };
+        } catch {
+            return { success: false, error: `Failed to generate location token: ${responseText.substring(0, 100)}` };
+        }
+    }
+
+    const responseText = await locationTokenResponse.text();
+    // Check if response looks like HTML even with 200 status
+    if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
+        console.error('[PushFunnelCopy] getLocationToken: Unexpected HTML response:', responseText.substring(0, 200));
+        return { success: false, error: 'GHL returned HTML - re-authorization may be required' };
+    }
+
+    const locationTokenData = JSON.parse(responseText);
 
     if (!locationTokenData.access_token) {
         return { success: false, error: 'Location token response missing access_token' };
@@ -100,9 +125,28 @@ async function fetchExistingCustomValues(locationId, accessToken) {
             }
         );
 
-        if (!response.ok) break;
+        // Check for HTML response (GHL error page)
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('text/html')) {
+            const htmlBody = await response.text();
+            console.error('[PushFunnelCopy] GHL returned HTML instead of JSON:', htmlBody.substring(0, 200));
+            throw new Error('GHL API returned HTML error page - check OAuth token validity');
+        }
 
-        const data = await response.json();
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[PushFunnelCopy] GHL API error:', response.status, errorText.substring(0, 200));
+            throw new Error(`GHL API error: ${response.status} - ${errorText.substring(0, 100)}`);
+        }
+
+        const responseText = await response.text();
+        // Check if response looks like HTML
+        if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
+            console.error('[PushFunnelCopy] GHL returned HTML:', responseText.substring(0, 200));
+            throw new Error('GHL API returned HTML - OAuth token may be expired');
+        }
+
+        const data = JSON.parse(responseText);
         const values = data.customValues || [];
         allValues.push(...values);
 
