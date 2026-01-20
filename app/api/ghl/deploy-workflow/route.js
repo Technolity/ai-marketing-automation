@@ -1,6 +1,7 @@
 /**
- * GHL Deploy Workflow - Direct Vault to GHL Mapping
- * Maps vault content directly to GHL custom values using exact key matching
+ * GHL Deploy Workflow - Optimized with Batch Pushing
+ * Maps vault content directly to GHL custom values
+ * Uses parallel batch pushing to avoid timeout
  */
 
 import { auth } from '@clerk/nextjs';
@@ -8,11 +9,10 @@ import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 120; // Increased for batch processing
 
 /**
  * Direct mapping from vault content keys to GHL custom value keys
- * Structure: vault_section.vault_page.vault_field -> ghl_key
  */
 const VAULT_TO_GHL_MAP = {
     // === FUNNEL COPY ===
@@ -40,6 +40,7 @@ const VAULT_TO_GHL_MAP = {
             'audience_callout_bullet_3_text': '02_vsl_audience_callout_bullet_3_text',
             'audience_callout_cta_text': '02_vsl_audience_callout_cta_text',
             'testimonials_headline_text': '02_vsl_testimonials_headline_text',
+            'testimonials_subheadline_text': '02_vsl_testimonials_subheadline_text',
             'call_details_headline_text': '02_vsl_call_details_headline_text',
             'call_details_is_heading': '02_vsl_call_details_is_heading',
             'call_details_is_not_heading': '02_vsl_call_details_is_not_heading',
@@ -60,6 +61,14 @@ const VAULT_TO_GHL_MAP = {
             'faq_answer_3_text': '02_vsl_faq_answer_3_text',
             'faq_question_4_text': '02_vsl_faq_question_4_text',
             'faq_answer_4_text': '02_vsl_faq_answer_4_text',
+            'testimonial_review_1_headline': '02_vsl_testimonial_review_1_headline',
+            'testimonial_review_1_paragraph_with_name': '02_vsl_testimonial_review_1_paragraph_with_name',
+            'testimonial_review_2_headline': '02_vsl_testimonial_review_2_headline',
+            'testimonial_review_2_paragraph_with_name': '02_vsl_testimonial_review_2_paragraph_with_name',
+            'testimonial_review_3_headline': '02_vsl_testimonial_review_3_headline',
+            'testimonial_review_3_paragraph_with_name': '02_vsl_testimonial_review_3_paragraph_with_name',
+            'testimonial_review_4_headline': '02_vsl_testimonial_review_4_headline',
+            'testimonial_review_4_paragraph_with_name': '02_vsl_testimonial_review_4_paragraph_with_name',
         },
         bookingPage: {
             'booking_pill_text': '02_booking_pill_text',
@@ -67,16 +76,11 @@ const VAULT_TO_GHL_MAP = {
         thankYouPage: {
             'headline_text': '02_thankyou_page_headline_text',
             'subheadline_text': '02_thankyou_page_subheadline_text',
-            'testimonials_headline_text': '02_thankyou_testimonials_headline_text',
-            'testimonials_subheadline_text': '02_thankyou_testimonials_subheadline_text',
         },
     },
     // === EMAILS ===
     emails: {
-        freeGift: {
-            'subject': 'free_gift_email_subject',
-            'body': 'free_gift_email_body',
-        },
+        freeGift: { 'subject': 'free_gift_email_subject', 'body': 'free_gift_email_body' },
         day1: { 'subject': 'optin_email_subject_1', 'preheader': 'optin_email_preheader_1', 'body': 'optin_email_body_1' },
         day2: { 'subject': 'optin_email_subject_2', 'preheader': 'optin_email_preheader_2', 'body': 'optin_email_body_2' },
         day3: { 'subject': 'optin_email_subject_3', 'preheader': 'optin_email_preheader_3', 'body': 'optin_email_body_3' },
@@ -89,12 +93,60 @@ const VAULT_TO_GHL_MAP = {
     },
     // === SMS ===
     sms: {
-        'sms1': 'sms_1_message',
-        'sms2': 'sms_2_message',
-        'sms3': 'sms_3_message',
-        'sms4': 'sms_4_message',
-        'sms5': 'sms_5_message',
+        'sms1': 'optin_sms_1',
+        'sms2': 'optin_sms_2',
+        'sms3': 'optin_sms_3',
+        'sms4': 'optin_sms_4',
+        'sms5': 'optin_sms_5',
+        'sms6': 'optin_sms_6',
+        'sms7': 'optin_sms_7',
     },
+};
+
+/**
+ * Default colors with proper contrast for text readability
+ */
+const DEFAULT_COLORS = {
+    // Background colors (dark)
+    '02_header_background_color': '#0f172a',
+    '02_optin_cta_background_colour': '#0891b2',
+    '02_vsl_cta_background_colour': '#0891b2',
+    '02_vsl_acknowledge_pill_bg_colour': '#1e293b',
+    '02_vsl_bio_text_card_background': '#1e293b',
+    '02_vsl_call_details_card_background_colour': '#1e293b',
+    '02_vsl_testimonial_card_background_colour': '#1e293b',
+    '02_vsl_video_background_colour': '#0f172a',
+    '02_booking_pill_background_colour': '#0891b2',
+    // Text colors (light for dark backgrounds)
+    '02_optin_healine_text_colour': '#ffffff',
+    '02_optin_subhealine_text_colour': '#cbd5e1',
+    '02_vsl_hero_headline_text_colour': '#ffffff',
+    '02_vsl_acknowledge_pill_text_colour': '#ffffff',
+    '02_vsl_cta_text_colour': '#ffffff',
+    '02_vsl_process_headline_text_colour': '#ffffff',
+    '02_vsl_process_sub_headline_text_colour': '#cbd5e1',
+    '02_vsl_process_bullet_text_colour': '#e2e8f0',
+    '02_vsl_process_bullet_border_colour': '#0891b2',
+    '02_vsl_audience_callout_headline_text_colour': '#ffffff',
+    '02_vsl_audience_callout_bullets_text_colour': '#e2e8f0',
+    '02_vsl_audience_callout_bullets_border_colour': '#0891b2',
+    '02_vsl_audience_callout_cta_text_colour': '#ffffff',
+    '02_vsl_bio_headline_text_colour': '#ffffff',
+    '02_vsl_bio_paragraph_text_colour': '#cbd5e1',
+    '02_vsl_call_details_headline_text_colour': '#ffffff',
+    '02_vsl_call_details_heading_colour': '#0891b2',
+    '02_vsl_call_details_bullet_text_colour': '#e2e8f0',
+    '02_vsl_testimonials_headline_text_colour': '#ffffff',
+    '02_vsl_testimonials_subheadline_text_colour': '#cbd5e1',
+    '02_vsl_testimonial_review_1_headline_colour': '#0891b2',
+    '02_vsl_testimonial_review_3_paragraph_with_name_colour': '#a1a1aa',
+    '02_vsl_faq_headline_text_colour': '#ffffff',
+    '02_vsl_faq_question_text_colour': '#ffffff',
+    '02_vsl_faq_answer_text_colour': '#cbd5e1',
+    '02_vsl_faq_border_colour': '#334155',
+    '02_thankyou_page_headline_text_colour': '#ffffff',
+    '02_thankyou_page_subheadline_text_colour': '#cbd5e1',
+    '02_booking_pill_text_colour': '#ffffff',
 };
 
 /**
@@ -165,7 +217,7 @@ async function fetchExistingValues(locationId, accessToken) {
 }
 
 /**
- * Push a value to GHL
+ * Push a single value to GHL
  */
 async function pushValue(locationId, accessToken, ghlKey, value, existingId) {
     const url = existingId
@@ -183,10 +235,46 @@ async function pushValue(locationId, accessToken, ghlKey, value, existingId) {
             body: JSON.stringify({ name: ghlKey, value: String(value) }),
         });
 
-        return { success: resp.ok, updated: !!existingId };
+        return { success: resp.ok, key: ghlKey, updated: !!existingId };
     } catch (e) {
-        return { success: false, error: e.message };
+        return { success: false, key: ghlKey, error: e.message };
     }
+}
+
+/**
+ * Push values in parallel batches
+ */
+async function pushBatch(values, locationId, accessToken, existingMap, batchSize = 5) {
+    const results = { pushed: 0, updated: 0, failed: 0 };
+
+    for (let i = 0; i < values.length; i += batchSize) {
+        const batch = values.slice(i, i + batchSize);
+        const promises = batch.map(({ ghlKey, value }) => {
+            const existingId = existingMap.get(ghlKey) ||
+                existingMap.get(ghlKey.toLowerCase()) ||
+                existingMap.get(ghlKey.replace(/\s+/g, '_'));
+
+            if (!existingId) {
+                return Promise.resolve({ success: false, key: ghlKey, skipped: true });
+            }
+
+            return pushValue(locationId, accessToken, ghlKey, value, existingId);
+        });
+
+        const batchResults = await Promise.all(promises);
+
+        for (const r of batchResults) {
+            if (r.skipped) continue;
+            if (r.success) {
+                results.pushed++;
+                if (r.updated) results.updated++;
+            } else {
+                results.failed++;
+            }
+        }
+    }
+
+    return results;
 }
 
 export async function POST(req) {
@@ -207,7 +295,7 @@ export async function POST(req) {
 
         console.log(`[Deploy] Starting for funnel ${funnelId}`);
 
-        // 1. Get sub-account with snapshot verification
+        // 1. Get sub-account
         const { data: subaccount } = await supabaseAdmin
             .from('ghl_subaccounts')
             .select('location_id, snapshot_id')
@@ -220,7 +308,7 @@ export async function POST(req) {
         }
 
         const locationId = subaccount.location_id;
-        console.log(`[Deploy] Location: ${locationId}, Snapshot: ${subaccount.snapshot_id || 'none'}`);
+        console.log(`[Deploy] Location: ${locationId}`);
 
         // 2. Get OAuth token
         const tokenResult = await getLocationToken(userId, locationId);
@@ -230,21 +318,17 @@ export async function POST(req) {
 
         console.log('[Deploy] Got OAuth token');
 
-        // 3. Fetch existing values for ID lookup
+        // 3. Fetch existing values
         const existingValues = await fetchExistingValues(locationId, tokenResult.access_token);
         console.log(`[Deploy] Found ${existingValues.length} existing values`);
 
-        // Build lookup map (normalize names for matching)
+        // Build lookup map
         const existingMap = new Map();
         existingValues.forEach(v => {
             existingMap.set(v.name, v.id);
             existingMap.set(v.name.toLowerCase(), v.id);
             existingMap.set(v.name.replace(/\s+/g, '_'), v.id);
             existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
-            // Also without 02_ prefix
-            if (v.name.startsWith('02_')) {
-                existingMap.set(v.name.substring(3), v.id);
-            }
         });
 
         // 4. Fetch vault content
@@ -261,116 +345,72 @@ export async function POST(req) {
 
         console.log(`[Deploy] Vault sections: ${Object.keys(vaultContent).join(', ')}`);
 
-        // 5. Push values based on direct mapping
-        const results = { pushed: 0, updated: 0, failed: 0, skipped: 0, errors: [] };
-
-        const findId = (key) => {
-            return existingMap.get(key) ||
-                existingMap.get(key.toLowerCase()) ||
-                existingMap.get(key.replace(/\s+/g, '_'));
-        };
+        // 5. Collect all values to push
+        const valuesToPush = [];
 
         // === FUNNEL COPY ===
         const funnelCopy = vaultContent.funnelCopy || {};
-        console.log(`[Deploy] FunnelCopy pages: ${Object.keys(funnelCopy).join(', ')}`);
 
-        // Detailed debug: log exact content structure
-        for (const page of Object.keys(funnelCopy)) {
-            const pageKeys = Object.keys(funnelCopy[page] || {});
-            console.log(`[Deploy] ${page} has ${pageKeys.length} keys: ${pageKeys.slice(0, 5).join(', ')}${pageKeys.length > 5 ? '...' : ''}`);
-        }
+        // Handle double-nested structure
+        const fcContent = funnelCopy.funnelCopy || funnelCopy;
 
-        // Also check if content is nested differently
-        if (funnelCopy.funnelCopy) {
-            console.log(`[Deploy] WARNING: funnelCopy is double-nested! Using inner funnelCopy`);
-            Object.assign(funnelCopy, funnelCopy.funnelCopy);
-        }
+        console.log(`[Deploy] FunnelCopy pages: ${Object.keys(fcContent).join(', ')}`);
 
         const funnelCopyMap = VAULT_TO_GHL_MAP.funnelCopy;
         for (const [page, fields] of Object.entries(funnelCopyMap)) {
-            const pageContent = funnelCopy[page] || {};
-
+            const pageContent = fcContent[page] || {};
             for (const [vaultKey, ghlKey] of Object.entries(fields)) {
                 const value = pageContent[vaultKey];
                 if (value && typeof value === 'string' && value.trim()) {
-                    const existingId = findId(ghlKey);
-                    if (!existingId) {
-                        console.log(`[Deploy] Skip ${ghlKey} - no existing value found`);
-                        results.skipped++;
-                        continue;
-                    }
-
-                    const result = await pushValue(locationId, tokenResult.access_token, ghlKey, value, existingId);
-                    if (result.success) {
-                        results.pushed++;
-                        if (result.updated) results.updated++;
-                        console.log(`[Deploy] ✓ Updated ${ghlKey}`);
-                    } else {
-                        results.failed++;
-                        results.errors.push({ key: ghlKey, error: result.error || 'unknown' });
-                    }
+                    valuesToPush.push({ ghlKey, value: value.trim() });
                 }
             }
         }
 
-        console.log(`[Deploy] Funnel copy: ${results.pushed} pushed, ${results.skipped} skipped`);
+        console.log(`[Deploy] Funnel copy values: ${valuesToPush.length}`);
 
         // === EMAILS ===
         const emails = vaultContent.emails || {};
-        console.log(`[Deploy] Email keys: ${Object.keys(emails).join(', ')}`);
-
         const emailMap = VAULT_TO_GHL_MAP.emails;
         for (const [emailKey, fields] of Object.entries(emailMap)) {
             const emailContent = emails[emailKey] || {};
-
             for (const [vaultKey, ghlKey] of Object.entries(fields)) {
                 const value = emailContent[vaultKey];
                 if (value && typeof value === 'string' && value.trim()) {
-                    const existingId = findId(ghlKey);
-                    if (!existingId) {
-                        results.skipped++;
-                        continue;
-                    }
-
-                    const result = await pushValue(locationId, tokenResult.access_token, ghlKey, value, existingId);
-                    if (result.success) {
-                        results.pushed++;
-                        if (result.updated) results.updated++;
-                    } else {
-                        results.failed++;
-                    }
+                    valuesToPush.push({ ghlKey, value: value.trim() });
                 }
             }
         }
 
-        console.log(`[Deploy] Emails done, total: ${results.pushed} pushed`);
+        console.log(`[Deploy] After emails: ${valuesToPush.length} values`);
 
         // === SMS ===
         const sms = vaultContent.sms || {};
-        console.log(`[Deploy] SMS keys: ${Object.keys(sms).join(', ')}`);
-
         const smsMap = VAULT_TO_GHL_MAP.sms;
         for (const [vaultKey, ghlKey] of Object.entries(smsMap)) {
             const value = sms[vaultKey];
             if (value && typeof value === 'string' && value.trim()) {
-                const existingId = findId(ghlKey);
-                if (!existingId) {
-                    results.skipped++;
-                    continue;
-                }
-
-                const result = await pushValue(locationId, tokenResult.access_token, ghlKey, value, existingId);
-                if (result.success) {
-                    results.pushed++;
-                    if (result.updated) results.updated++;
-                } else {
-                    results.failed++;
-                }
+                valuesToPush.push({ ghlKey, value: value.trim() });
             }
         }
 
+        console.log(`[Deploy] After SMS: ${valuesToPush.length} values`);
+
+        // === DEFAULT COLORS (apply contrast-safe defaults) ===
+        for (const [ghlKey, defaultValue] of Object.entries(DEFAULT_COLORS)) {
+            // Check if we already have a color from vault
+            const vaultColor = vaultContent.colors?.[ghlKey];
+            const value = vaultColor || defaultValue;
+            valuesToPush.push({ ghlKey, value });
+        }
+
+        console.log(`[Deploy] After colors: ${valuesToPush.length} values total`);
+
+        // 6. Push all values in parallel batches
+        const results = await pushBatch(valuesToPush, locationId, tokenResult.access_token, existingMap, 5);
+
         const duration = Math.round((Date.now() - startTime) / 1000);
-        console.log(`[Deploy] Complete in ${duration}s: ${results.pushed} pushed, ${results.updated} updated, ${results.failed} failed, ${results.skipped} skipped`);
+        console.log(`[Deploy] Complete in ${duration}s: ${results.pushed} pushed, ${results.updated} updated, ${results.failed} failed`);
 
         // Log deployment
         await supabaseAdmin.from('ghl_oauth_logs').insert({
@@ -385,16 +425,15 @@ export async function POST(req) {
             .from('user_funnels')
             .update({
                 deployed_at: new Date().toISOString(),
-                deployment_status: results.failed === 0 ? 'deployed' : 'partial'
+                deployment_status: results.pushed > 0 ? 'deployed' : 'partial'
             })
             .eq('id', funnelId);
 
         return NextResponse.json({
             success: results.pushed > 0,
-            message: `Deployed ${results.pushed} values (${results.updated} updated, ${results.skipped} skipped, ${results.failed} failed)`,
+            message: `Deployed ${results.pushed} values (${results.updated} updated, ${results.failed} failed)`,
             summary: results,
-            duration: `${duration}s`,
-            errors: results.errors.length > 0 ? results.errors.slice(0, 10) : undefined
+            duration: `${duration}s`
         });
 
     } catch (error) {
