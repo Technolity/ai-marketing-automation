@@ -273,8 +273,18 @@ export async function POST(req) {
         // === FUNNEL COPY ===
         const funnelCopy = vaultContent.funnelCopy || {};
         console.log(`[Deploy] FunnelCopy pages: ${Object.keys(funnelCopy).join(', ')}`);
-        console.log(`[Deploy] FunnelCopy optinPage keys: ${Object.keys(funnelCopy.optinPage || {}).join(', ')}`);
-        console.log(`[Deploy] FunnelCopy salesPage keys: ${Object.keys(funnelCopy.salesPage || {}).join(', ')}`);
+
+        // Detailed debug: log exact content structure
+        for (const page of Object.keys(funnelCopy)) {
+            const pageKeys = Object.keys(funnelCopy[page] || {});
+            console.log(`[Deploy] ${page} has ${pageKeys.length} keys: ${pageKeys.slice(0, 5).join(', ')}${pageKeys.length > 5 ? '...' : ''}`);
+        }
+
+        // Also check if content is nested differently
+        if (funnelCopy.funnelCopy) {
+            console.log(`[Deploy] WARNING: funnelCopy is double-nested! Using inner funnelCopy`);
+            Object.assign(funnelCopy, funnelCopy.funnelCopy);
+        }
 
         const funnelCopyMap = VAULT_TO_GHL_MAP.funnelCopy;
         for (const [page, fields] of Object.entries(funnelCopyMap)) {
