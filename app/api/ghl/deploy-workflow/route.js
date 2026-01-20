@@ -287,18 +287,26 @@ const DEFAULT_COLORS = {
 };
 
 // === MEDIA KEY MAPPINGS (vault field -> GHL key) ===
+// These are the field_id values from vault_content_fields table
 const MEDIA_KEY_MAP = {
-    // Optin Page
+    // Optin Page - Logo
     'logo': '02_optin_logo_image',
     'logo_image': '02_optin_logo_image',
-    'mockup_image': '02_optin_mockup_image',
-    'banner_image': '02_optin_mockup_image', // Alternative name
 
-    // VSL Page
+    // Optin Page - Mockup
+    'mockup_image': '02_optin_mockup_image',
+    'banner_image': '02_optin_mockup_image',
+    'product_mockup': '02_optin_mockup_image', // Actual vault field name
+
+    // VSL Page - Video
+    'vsl_video': '02_vsl_video',
+    'main_vsl': '02_vsl_video', // Actual vault field name
+
+    // VSL Page - Bio Photo
     'profile_photo': '02_vsl_bio_photo_text',
     'bio_photo': '02_vsl_bio_photo_text',
     'bioPhoto': '02_vsl_bio_photo_text',
-    'vsl_video': '02_vsl_video',
+    'bio_author': '02_vsl_bio_photo_text', // Actual vault field name
 
     // Testimonial Profile Pics
     'testimonial_photo_1': '02_vsl_testimonials_profile_pic_1',
@@ -759,6 +767,9 @@ export async function POST(req) {
             // Time variants
             'sms8a': 'optin_sms_8_morning', 'sms8b': 'optin_sms_8_afternoon', 'sms8c': 'optin_sms_8_evening',
             'sms15a': 'optin_sms_15_morning', 'sms15b': 'optin_sms_15_afternoon', 'sms15c': 'optin_sms_15_evening',
+            // No-show SMS (mapped to appointment reminders if available)
+            'smsNoShow1': 'sms_10_min_before_call_time',
+            'smsNoShow2': 'sms_at_call_time',
         };
 
         for (const [vaultKey, ghlKey] of Object.entries(smsVaultToGHL)) {
