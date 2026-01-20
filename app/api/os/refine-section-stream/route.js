@@ -416,20 +416,22 @@ async function streamAIResponse({ systemPrompt, userPrompt, sectionId, sendEvent
  */
 const SUBSECTION_PATHS = {
     setterScript: {
-        callGoal: ['setterCallScript', 'quickOutline', 'callGoal'],
-        step1_openerPermission: ['setterCallScript', 'quickOutline', 'callFlow', 'step1_openerPermission'],
-        step2_referenceOptIn: ['setterCallScript', 'quickOutline', 'callFlow', 'step2_referenceOptIn'],
-        step3_lowPressureFrame: ['setterCallScript', 'quickOutline', 'callFlow', 'step3_lowPressureFrame'],
-        step4_currentSituation: ['setterCallScript', 'quickOutline', 'callFlow', 'step4_currentSituation'],
-        step5_goalMotivation: ['setterCallScript', 'quickOutline', 'callFlow', 'step5_goalMotivation'],
-        step6_challengeStakes: ['setterCallScript', 'quickOutline', 'callFlow', 'step6_challengeStakes'],
-        step7_authorityDrop: ['setterCallScript', 'quickOutline', 'callFlow', 'step7_authorityDrop'],
-        step8_qualifyFit: ['setterCallScript', 'quickOutline', 'callFlow', 'step8_qualifyFit'],
-        step9_bookConsultation: ['setterCallScript', 'quickOutline', 'callFlow', 'step9_bookConsultation'],
-        step10_confirmShowUp: ['setterCallScript', 'quickOutline', 'callFlow', 'step10_confirmShowUp'],
-        setterMindset: ['setterCallScript', 'quickOutline', 'setterMindset']
+        // Setter script uses flat structure with dialogue section objects
+        callGoal: ['callGoal'],
+        setterMindset: ['setterMindset'],
+        openingOptIn: ['openingOptIn'],
+        permissionPurpose: ['permissionPurpose'],
+        currentSituation: ['currentSituation'],
+        primaryGoal: ['primaryGoal'],
+        primaryObstacle: ['primaryObstacle'],
+        authorityDrop: ['authorityDrop'],
+        fitReadiness: ['fitReadiness'],
+        bookCall: ['bookCall'],
+        confirmShowUp: ['confirmShowUp'],
+        objectionHandling: ['objectionHandling']
     },
     salesScripts: {
+        // Closer script - nested under closerCallScript.quickOutline
         callGoal: ['closerCallScript', 'quickOutline', 'callGoal'],
         part1_openingPermission: ['closerCallScript', 'quickOutline', 'callFlow', 'part1_openingPermission'],
         part2_discovery: ['closerCallScript', 'quickOutline', 'callFlow', 'part2_discovery'],
@@ -439,18 +441,74 @@ const SUBSECTION_PATHS = {
         part6_closeNextSteps: ['closerCallScript', 'quickOutline', 'callFlow', 'part6_closeNextSteps'],
         closerMindset: ['closerCallScript', 'quickOutline', 'closerMindset']
     },
+    // idealClient uses FLAT structure from idealClient.js generation
     idealClient: {
-        bestIdealClient: ['idealClientSnapshot', 'bestIdealClient'],
-        topChallenges: ['idealClientSnapshot', 'topChallenges'],
-        whatTheyWant: ['idealClientSnapshot', 'whatTheyWant'],
-        whatMakesThemPay: ['idealClientSnapshot', 'whatMakesThemPay'],
-        howToTalkToThem: ['idealClientSnapshot', 'howToTalkToThem']
+        location: ['bestIdealClient', 'location'],
+        ageLifeStage: ['bestIdealClient', 'ageLifeStage'],
+        roleIdentity: ['bestIdealClient', 'roleIdentity'],
+        incomeRevenueRange: ['bestIdealClient', 'incomeRevenueRange'],
+        familySituation: ['bestIdealClient', 'familySituation'],
+        decisionStyle: ['bestIdealClient', 'decisionStyle'],
+        top3Challenges: ['top3Challenges'],
+        top3Desires: ['top3Desires'],
+        topObjections: ['topObjections'],
+        topTriggers: ['topTriggers'],
+        wordsTheyUse: ['wordsTheyUse']
     },
+    // message uses FLAT structure from message.js generation
     message: {
-        oneLiner: ['signatureMessage', 'oneLiner'],
-        spokenVersion: ['signatureMessage', 'spokenVersion']
+        oneLineMessage: ['oneLineMessage'],
+        spokenIntroduction: ['spokenIntroduction'],
+        powerPositioningLines: ['powerPositioningLines']
+    },
+    // story uses FLAT structure from story.js generation
+    story: {
+        bigIdea: ['bigIdea'],
+        networkingStory: ['networkingStory'],
+        stageStory: ['stageStory'],
+        socialPostVersion: ['socialPostVersion']
+    },
+    // offer uses FLAT structure from offer.js generation
+    offer: {
+        offerMode: ['offerMode'],
+        offerName: ['offerName'],
+        sevenStepBlueprint: ['sevenStepBlueprint'],
+        tier1WhoItsFor: ['tier1WhoItsFor'],
+        tier1Promise: ['tier1Promise'],
+        tier1Timeframe: ['tier1Timeframe'],
+        tier1Deliverables: ['tier1Deliverables'],
+        tier1RecommendedPrice: ['tier1RecommendedPrice'],
+        tier2WhoItsFor: ['tier2WhoItsFor'],
+        tier2Promise: ['tier2Promise'],
+        tier2Timeframe: ['tier2Timeframe'],
+        tier2Deliverables: ['tier2Deliverables'],
+        tier2RecommendedPrice: ['tier2RecommendedPrice'],
+        offerPromise: ['offerPromise']
+    },
+    // leadMagnet uses nested structure from leadMagnet.js generation
+    leadMagnet: {
+        concept: ['leadMagnet', 'concept'],
+        alternativeTitles: ['leadMagnet', 'alternativeTitles'],
+        coreDeliverables: ['leadMagnet', 'coreDeliverables'],
+        landingPageCopy: ['leadMagnet', 'landingPageCopy'],
+        bridgeToOffer: ['leadMagnet', 'bridgeToOffer']
+    },
+    // vsl uses FLAT structure from vsl.js generation (step1_*, step2_*, etc.)
+    vsl: {
+        step1_patternInterrupt: ['step1_patternInterrupt'],
+        step1_characterIntro: ['step1_characterIntro'],
+        step1_problemStatement: ['step1_problemStatement'],
+        step1_emotionalConnection: ['step1_emotionalConnection'],
+        step2_benefitLead: ['step2_benefitLead'],
+        step2_uniqueSolution: ['step2_uniqueSolution'],
+        step2_benefitsHighlight: ['step2_benefitsHighlight'],
+        step2_problemAgitation: ['step2_problemAgitation'],
+        step5_tips: ['step5_tips'],
+        step6_stepsToSuccess: ['step6_stepsToSuccess']
+        // Other step fields follow same pattern
     }
 };
+
 
 /**
  * Wrap sub-section content in full schema structure for validation
