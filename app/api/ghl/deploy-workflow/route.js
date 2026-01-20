@@ -163,6 +163,74 @@ const BOOKING_PAGE_KEY_MAP = {
 const THANKYOU_PAGE_KEY_MAP = {
     'headline_text': '02_thankyou_page_headline_text',
     'subheadline_text': '02_thankyou_page_subheadline_text',
+    'testimonials_headline_text': '02_vsl_testimonials_headline_text',
+    'testimonials_subheadline_text': '02_vsl_testimonials_subheadline_text',
+    'testimonial_review_1_headline': '02_vsl_testimonial_review_1_headline',
+    'testimonial_review_1_paragraph_with_name': '02_vsl_testimonial_review_1_paragraph_with_name',
+    'testimonial_review_2_headline': '02_vsl_testimonial_review_2_headline',
+    'testimonial_review_2_paragraph_with_name': '02_vsl_testimonial_review_2_paragraph_with_name',
+    'testimonial_review_3_headline': '02_vsl_testimonial_review_3_headline',
+    'testimonial_review_3_paragraph_with_name': '02_vsl_testimonial_review_3_paragraph_with_name',
+    'testimonial_review_4_headline': '02_vsl_testimonial_review_4_headline',
+    'testimonial_review_4_paragraph_with_name': '02_vsl_testimonial_review_4_paragraph_with_name',
+};
+
+// === EMAIL KEY MAPPINGS ===
+const EMAIL_KEY_MAP = {
+    // Free Gift Email
+    freeGift: { 'subject': 'free_gift_email_subject', 'body': 'free_gift_email_body' },
+    // Optin Emails Day 1-15
+    day1: { 'subject': 'optin_email_subject_1', 'preheader': 'optin_email_preheader_1', 'body': 'optin_email_body_1' },
+    day2: { 'subject': 'optin_email_subject_2', 'preheader': 'optin_email_preheader_2', 'body': 'optin_email_body_2' },
+    day3: { 'subject': 'optin_email_subject_3', 'preheader': 'optin_email_preheader_3', 'body': 'optin_email_body_3' },
+    day4: { 'subject': 'optin_email_subject_4', 'preheader': 'optin_email_preheader_4', 'body': 'optin_email_body_4' },
+    day5: { 'subject': 'optin_email_subject_5', 'preheader': 'optin_email_preheader_5', 'body': 'optin_email_body_5' },
+    day6: { 'subject': 'optin_email_subject_6', 'preheader': 'optin_email_preheader_6', 'body': 'optin_email_body_6' },
+    day7: { 'subject': 'optin_email_subject_7', 'preheader': 'optin_email_preheader_7', 'body': 'optin_email_body_7' },
+    day8: { 'subject': 'optin_email_subject_8', 'preheader': 'optin_email_preheader_8', 'body': 'optin_email_body_8' },
+    day9: { 'subject': 'optin_email_subject_9', 'preheader': 'optin_email_preheader_9', 'body': 'optin_email_body_9' },
+    day10: { 'subject': 'optin_email_subject_10', 'preheader': 'optin_email_preheader_10', 'body': 'optin_email_body_10' },
+    day11: { 'subject': 'optin_email_subject_11', 'preheader': 'optin_email_preheader_11', 'body': 'optin_email_body_11' },
+    day12: { 'subject': 'optin_email_subject_12', 'preheader': 'optin_email_preheader_12', 'body': 'optin_email_body_12' },
+    day13: { 'subject': 'optin_email_subject_13', 'preheader': 'optin_email_preheader_13', 'body': 'optin_email_body_13' },
+    day14: { 'subject': 'optin_email_subject_14', 'preheader': 'optin_email_preheader_14', 'body': 'optin_email_body_14' },
+};
+
+// === SMS KEY MAPPINGS ===
+const SMS_KEY_MAP = {
+    'sms1': 'optin_sms_1',
+    'sms2': 'optin_sms_2',
+    'sms3': 'optin_sms_3',
+    'sms4': 'optin_sms_4',
+    'sms5': 'optin_sms_5',
+    'sms6': 'optin_sms_6',
+    'sms7': 'optin_sms_7',
+    'sms9': 'optin_sms_9',
+    'sms10': 'optin_sms_10',
+    'sms11': 'optin_sms_11',
+    'sms12': 'optin_sms_12',
+    'sms13': 'optin_sms_13',
+    'sms14': 'optin_sms_14',
+};
+
+// === APPOINTMENT REMINDER EMAIL KEY MAPPINGS ===
+const APPOINTMENT_EMAIL_KEY_MAP = {
+    'whenCallBooked': { 'subject': 'email_subject_when_call_booked', 'preheader': 'email_preheader_when_call_booked', 'body': 'email_body_when_call_booked' },
+    '48HourBefore': { 'subject': 'email_subject_48_hour_before_call_time', 'preheader': 'email_preheader_48_hour_before_call_time', 'body': 'email_body_48_hour_before_call_time' },
+    '24HourBefore': { 'subject': 'email_subject_24_hour_before_call_time', 'preheader': 'email_preheader_24_hour_before_call_time', 'body': 'email_body_24_hour_before_call_time' },
+    '1HourBefore': { 'subject': 'email_subject_1_hour_before_call_time', 'preheader': 'email_preheader_1_hour_before_call_time', 'body': 'email_body_1_hour_before_call_time' },
+    '10MinBefore': { 'subject': 'email_subject_10_min_before_call_time', 'preheader': 'email_preheader_10_min_before_call_time', 'body': 'email_body_10_min_before_call_time' },
+    'atCallTime': { 'subject': 'email_subject_at_call_time', 'preheader': 'email_preheader_at_call_time', 'body': 'email_body_at_call_time' },
+};
+
+// === APPOINTMENT REMINDER SMS KEY MAPPINGS ===
+const APPOINTMENT_SMS_KEY_MAP = {
+    'whenCallBooked': 'sms_when_call_booked',
+    '48HourBefore': 'sms_48_hour_before_call_time',
+    '24HourBefore': 'sms_24_hour_before_call_time',
+    '1HourBefore': 'sms_1_hour_before_call_time',
+    '10MinBefore': 'sms_10_min_before_call_time',
+    'atCallTime': 'sms_at_call_time',
 };
 
 /**
@@ -497,6 +565,111 @@ export async function POST(req) {
                 notFoundKeys.push(ghlKey);
             }
         }
+
+        // === PROCESS EMAILS ===
+        log('[Deploy] Processing emails...');
+        const emails = vaultContent.emails || {};
+        log(`[Deploy] Email keys in vault: ${Object.keys(emails).join(', ')}`);
+
+        for (const [emailKey, fieldMap] of Object.entries(EMAIL_KEY_MAP)) {
+            const emailContent = emails[emailKey] || {};
+            for (const [vaultField, ghlKey] of Object.entries(fieldMap)) {
+                const value = emailContent[vaultField];
+                if (!value) continue;
+
+                const existing = findExisting(ghlKey);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(ghlKey);
+                    } else {
+                        results.failed++;
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(ghlKey);
+                }
+            }
+        }
+
+        log(`[Deploy] Emails done, running total: ${results.updated}`);
+
+        // === PROCESS SMS ===
+        log('[Deploy] Processing SMS...');
+        const sms = vaultContent.sms || {};
+        log(`[Deploy] SMS keys in vault: ${Object.keys(sms).join(', ')}`);
+
+        for (const [vaultKey, ghlKey] of Object.entries(SMS_KEY_MAP)) {
+            const value = sms[vaultKey];
+            if (!value) continue;
+
+            const existing = findExisting(ghlKey);
+            if (existing) {
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                if (result.success) {
+                    results.updated++;
+                    updatedKeys.push(ghlKey);
+                } else {
+                    results.failed++;
+                }
+            } else {
+                results.notFound++;
+                notFoundKeys.push(ghlKey);
+            }
+        }
+
+        log(`[Deploy] SMS done, running total: ${results.updated}`);
+
+        // === PROCESS APPOINTMENT REMINDERS ===
+        log('[Deploy] Processing appointment reminders...');
+        const appointmentReminders = vaultContent.appointmentReminders || {};
+        log(`[Deploy] Appointment reminder keys in vault: ${Object.keys(appointmentReminders).join(', ')}`);
+
+        // Appointment Reminder Emails
+        for (const [reminderKey, fieldMap] of Object.entries(APPOINTMENT_EMAIL_KEY_MAP)) {
+            const reminderContent = appointmentReminders[reminderKey] || appointmentReminders.emails?.[reminderKey] || {};
+            for (const [vaultField, ghlKey] of Object.entries(fieldMap)) {
+                const value = reminderContent[vaultField];
+                if (!value) continue;
+
+                const existing = findExisting(ghlKey);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(ghlKey);
+                    } else {
+                        results.failed++;
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(ghlKey);
+                }
+            }
+        }
+
+        // Appointment Reminder SMS
+        for (const [vaultKey, ghlKey] of Object.entries(APPOINTMENT_SMS_KEY_MAP)) {
+            const value = appointmentReminders[vaultKey] || appointmentReminders.sms?.[vaultKey];
+            if (!value) continue;
+
+            const existing = findExisting(ghlKey);
+            if (existing) {
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                if (result.success) {
+                    results.updated++;
+                    updatedKeys.push(ghlKey);
+                } else {
+                    results.failed++;
+                }
+            } else {
+                results.notFound++;
+                notFoundKeys.push(ghlKey);
+            }
+        }
+
+        log(`[Deploy] Appointment reminders done, running total: ${results.updated}`);
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         log(`[Deploy] ========== DEPLOY COMPLETE ==========`);
