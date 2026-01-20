@@ -166,7 +166,7 @@ export async function POST(req) {
             locationId,
             accessToken: tokenResult.access_token,
             updateOnly: true, // Only update existing values, don't create new ones
-            skipAI: false, // Use AI polishing for values
+            skipAI: true, // Skip AI generation to avoid timeout - uses direct mappings only
             onProgress: (progress) => {
                 console.log(`[Deploy] Progress: ${progress.step} - ${progress.message}`);
             }
