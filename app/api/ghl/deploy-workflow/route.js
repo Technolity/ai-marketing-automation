@@ -742,22 +742,30 @@ export async function POST(req) {
         }
 
         log(`[Deploy] Emails done, running total: ${results.updated}`);
-
         // === PROCESS SMS ===
         log('[Deploy] Processing SMS...');
         const smsData = vaultContent.sms || {};
         const smsSequence = smsData.smsSequence || smsData; // Access nested smsSequence
         log(`[Deploy] SMS sequence keys: ${Object.keys(smsSequence).join(', ')}`);
 
-        // Map sms1 -> optin_sms_1, sms2 -> optin_sms_2, etc.
-        for (let i = 1; i <= 14; i++) {
-            const smsKey = `sms${i}`;
-            const smsContent = smsSequence[smsKey];
-            const value = typeof smsContent === 'string' ? smsContent : smsContent?.message;
+        // SMS mapping with time variants
+        const smsVaultToGHL = {
+            'sms1': 'optin_sms_1', 'sms2': 'optin_sms_2', 'sms3': 'optin_sms_3',
+            'sms4': 'optin_sms_4', 'sms5': 'optin_sms_5', 'sms6': 'optin_sms_6',
+            'sms7': 'optin_sms_7', 'sms7a': 'optin_sms_7', 'sms7b': 'optin_sms_7',
+            'sms8': 'optin_sms_8', 'sms9': 'optin_sms_9', 'sms10': 'optin_sms_10',
+            'sms11': 'optin_sms_11', 'sms12': 'optin_sms_12', 'sms13': 'optin_sms_13',
+            'sms14': 'optin_sms_14', 'sms15': 'optin_sms_15',
+            // Time variants
+            'sms8a': 'optin_sms_8_morning', 'sms8b': 'optin_sms_8_afternoon', 'sms8c': 'optin_sms_8_evening',
+            'sms15a': 'optin_sms_15_morning', 'sms15b': 'optin_sms_15_afternoon', 'sms15c': 'optin_sms_15_evening',
+        };
 
+        for (const [vaultKey, ghlKey] of Object.entries(smsVaultToGHL)) {
+            const smsContent = smsSequence[vaultKey];
+            const value = typeof smsContent === 'string' ? smsContent : smsContent?.message;
             if (!value) continue;
 
-            const ghlKey = `optin_sms_${i}`;
             const existing = findExisting(ghlKey);
             if (existing) {
                 const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
@@ -777,35 +785,70 @@ export async function POST(req) {
 
         // === PROCESS APPOINTMENT REMINDERS ===
         log('[Deploy] Processing appointment reminders...');
-        const appointmentReminders = vaultContent.appointmentReminders || {};
-        log(`[Deploy] Appointment reminder keys in vault: ${Object.keys(appointmentReminders).join(', ')}`);
+        const appointmentReminders = vaultContent.appointmentReminders?.appointmentReminders || vaultContent.appointmentReminders || {};
+        log(`[Deploy] Appointment reminder keys: ${Object.keys(appointmentReminders).join(', ')}`);
 
-        // Appointment Reminder Emails
-        for (const [reminderKey, fieldMap] of Object.entries(APPOINTMENT_EMAIL_KEY_MAP)) {
-            const reminderContent = appointmentReminders[reminderKey] || appointmentReminders.emails?.[reminderKey] || {};
-            for (const [vaultField, ghlKey] of Object.entries(fieldMap)) {
-                const value = reminderContent[vaultField];
-                if (!value) continue;
+        // Appointment reminder emails are stored as array: emails[0]=Confirmation, [1]=24hr, [2]=1hr, [3]=Now, [4]=No-Show
+        const reminderEmails = appointmentReminders.emails || [];
+        const emailArrayToGHL = [
+            { index: 0, subject: 'email_subject_when_call_booked', preheader: 'email_preheader_when_call_booked', body: 'email_body_when_call_booked' },
+            { index: 1, subject: 'email_subject_24_hour_before_call_time', preheader: 'email_preheader_24_hour_before_call_time', body: 'email_body_24_hour_before_call_time' },
+            { index: 2, subject: 'email_subject_1_hour_before_call_time', preheader: 'email_preheader_1_hour_before_call_time', body: 'email_body_1_hour_before_call_time' },
+            { index: 3, subject: 'email_subject_at_call_time', preheader: 'email_preheader_at_call_time', body: 'email_body_at_call_time' },
+            { index: 4, subject: 'email_subject_10_min_before_call_time', preheader: 'email_preheader_10_min_before_call_time', body: 'email_body_10_min_before_call_time' },
+        ];
 
-                const existing = findExisting(ghlKey);
+        // 48 hour before is a special case - check for a 5th email or map to existing
+        if (reminderEmails.length > 5) {
+            emailArrayToGHL.push({ index: 5, subject: 'email_subject_48_hour_before_call_time', preheader: 'email_preheader_48_hour_before_call_time', body: 'email_body_48_hour_before_call_time' });
+        }
+
+        for (const mapping of emailArrayToGHL) {
+            const email = reminderEmails[mapping.index];
+            if (!email) continue;
+
+            // Push subject
+            if (email.subject) {
+                const existing = findExisting(mapping.subject);
                 if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
-                    if (result.success) {
-                        results.updated++;
-                        updatedKeys.push(ghlKey);
-                    } else {
-                        results.failed++;
-                    }
-                } else {
-                    results.notFound++;
-                    notFoundKeys.push(ghlKey);
-                }
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.subject, email.subject);
+                    if (result.success) { results.updated++; updatedKeys.push(mapping.subject); } else { results.failed++; }
+                } else { results.notFound++; notFoundKeys.push(mapping.subject); }
+            }
+
+            // Push preheader (might be called 'preview' in vault)
+            const preheaderValue = email.preheader || email.preview;
+            if (preheaderValue && mapping.preheader) {
+                const existing = findExisting(mapping.preheader);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.preheader, preheaderValue);
+                    if (result.success) { results.updated++; updatedKeys.push(mapping.preheader); } else { results.failed++; }
+                } else { results.notFound++; notFoundKeys.push(mapping.preheader); }
+            }
+
+            // Push body
+            if (email.body) {
+                const existing = findExisting(mapping.body);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.body, email.body);
+                    if (result.success) { results.updated++; updatedKeys.push(mapping.body); } else { results.failed++; }
+                } else { results.notFound++; notFoundKeys.push(mapping.body); }
             }
         }
 
-        // Appointment Reminder SMS
-        for (const [vaultKey, ghlKey] of Object.entries(APPOINTMENT_SMS_KEY_MAP)) {
-            const value = appointmentReminders[vaultKey] || appointmentReminders.sms?.[vaultKey];
+        // Appointment reminder SMS: smsReminders object with reminder1Day, reminder1Hour, reminderNow
+        const smsReminders = appointmentReminders.smsReminders || {};
+        const smsReminderToGHL = {
+            'reminder1Day': 'sms_24_hour_before_call_time',
+            'reminder1Hour': 'sms_1_hour_before_call_time',
+            'reminderNow': 'sms_at_call_time',
+            'reminderBooked': 'sms_when_call_booked',
+            'reminder48Hour': 'sms_48_hour_before_call_time',
+            'reminder10Min': 'sms_10_min_before_call_time',
+        };
+
+        for (const [vaultKey, ghlKey] of Object.entries(smsReminderToGHL)) {
+            const value = smsReminders[vaultKey];
             if (!value) continue;
 
             const existing = findExisting(ghlKey);
