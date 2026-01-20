@@ -569,11 +569,23 @@ export async function POST(req) {
         // === PROCESS EMAILS ===
         log('[Deploy] Processing emails...');
         const emails = vaultContent.emails || {};
-        log(`[Deploy] Email keys in vault: ${Object.keys(emails).join(', ')}`);
+        const emailSequence = emails.emailSequence || emails; // Access nested emailSequence
+        log(`[Deploy] Email sequence keys: ${Object.keys(emailSequence).join(', ')}`);
 
-        for (const [emailKey, fieldMap] of Object.entries(EMAIL_KEY_MAP)) {
-            const emailContent = emails[emailKey] || {};
-            for (const [vaultField, ghlKey] of Object.entries(fieldMap)) {
+        // Map email1 -> optin_email_subject_1, email2 -> optin_email_subject_2, etc.
+        const emailFieldToGHL = {
+            'subject': (n) => n === 1 ? 'free_gift_email_subject' : `optin_email_subject_${n - 1}`,
+            'preview': (n) => n === 1 ? null : `optin_email_preheader_${n - 1}`, // preview = preheader
+            'body': (n) => n === 1 ? 'free_gift_email_body' : `optin_email_body_${n - 1}`,
+        };
+
+        for (let i = 1; i <= 15; i++) {
+            const emailContent = emailSequence[`email${i}`] || {};
+
+            for (const [vaultField, ghlKeyFn] of Object.entries(emailFieldToGHL)) {
+                const ghlKey = ghlKeyFn(i);
+                if (!ghlKey) continue;
+
                 const value = emailContent[vaultField];
                 if (!value) continue;
 
@@ -597,13 +609,19 @@ export async function POST(req) {
 
         // === PROCESS SMS ===
         log('[Deploy] Processing SMS...');
-        const sms = vaultContent.sms || {};
-        log(`[Deploy] SMS keys in vault: ${Object.keys(sms).join(', ')}`);
+        const smsData = vaultContent.sms || {};
+        const smsSequence = smsData.smsSequence || smsData; // Access nested smsSequence
+        log(`[Deploy] SMS sequence keys: ${Object.keys(smsSequence).join(', ')}`);
 
-        for (const [vaultKey, ghlKey] of Object.entries(SMS_KEY_MAP)) {
-            const value = sms[vaultKey];
+        // Map sms1 -> optin_sms_1, sms2 -> optin_sms_2, etc.
+        for (let i = 1; i <= 14; i++) {
+            const smsKey = `sms${i}`;
+            const smsContent = smsSequence[smsKey];
+            const value = typeof smsContent === 'string' ? smsContent : smsContent?.message;
+
             if (!value) continue;
 
+            const ghlKey = `optin_sms_${i}`;
             const existing = findExisting(ghlKey);
             if (existing) {
                 const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
