@@ -233,6 +233,59 @@ const APPOINTMENT_SMS_KEY_MAP = {
     'atCallTime': 'sms_at_call_time',
 };
 
+// === DEFAULT COLORS (Contrast-safe for WHITE background pages) ===
+// CTA buttons: Bright color with WHITE text
+// Headlines/text: DARK colors for contrast on white background
+const DEFAULT_COLORS = {
+    // Header
+    '02_header_background_color': '#0f172a', // Dark slate
+
+    // Optin Page Colors (white background)
+    '02_optin_cta_background_colour': '#0891b2', // Cyan CTA button
+    '02_optin_healine_text_colour': '#0f172a', // Dark text on white bg
+    '02_optin_subhealine_text_colour': '#475569', // Medium gray text
+
+    // VSL Page Colors (white background)
+    '02_vsl_hero_headline_text_colour': '#0f172a', // Dark headline
+    '02_vsl_video_background_colour': '#0f172a', // Dark video bg
+    '02_vsl_cta_background_colour': '#0891b2', // Cyan button
+    '02_vsl_cta_text_colour': '#ffffff', // WHITE text on button
+    '02_vsl_acknowledge_pill_text_colour': '#ffffff', // White on pill
+    '02_vsl_acknowledge_pill_bg_colour': '#0891b2', // Cyan pill bg
+    '02_vsl_process_headline_text_colour': '#0f172a', // Dark
+    '02_vsl_process_sub_headline_text_colour': '#475569', // Medium
+    '02_vsl_process_bullet_text_colour': '#1e293b', // Dark
+    '02_vsl_process_bullet_border_colour': '#0891b2', // Cyan accent
+    '02_vsl_audience_callout_headline_text_colour': '#0f172a', // Dark
+    '02_vsl_audience_callout_bullets_text_colour': '#1e293b', // Dark
+    '02_vsl_audience_callout_bullets_border_colour': '#0891b2', // Cyan
+    '02_vsl_audience_callout_cta_text_colour': '#ffffff', // White on btn
+    '02_vsl_bio_headline_text_colour': '#0f172a', // Dark
+    '02_vsl_bio_paragraph_text_colour': '#475569', // Medium
+    '02_vsl_bio_text_card_background': '#f8fafc', // Light gray card
+    '02_vsl_call_details_headline_text_colour': '#0f172a', // Dark
+    '02_vsl_call_details_heading_colour': '#0891b2', // Cyan accent
+    '02_vsl_call_details_bullet_text_colour': '#1e293b', // Dark
+    '02_vsl_call_details_card_background_colour': '#f8fafc', // Light gray
+    '02_vsl_testimonials_headline_text_colour': '#0f172a', // Dark
+    '02_vsl_testimonials_subheadline_text_colour': '#475569', // Medium
+    '02_vsl_testimonial_card_background_colour': '#f8fafc', // Light gray
+    '02_vsl_testimonial_review_1_headline_colour': '#0891b2', // Cyan
+    '02_vsl_testimonial_review_3_paragraph_with_name_colour': '#64748b', // Gray
+    '02_vsl_faq_headline_text_colour': '#0f172a', // Dark
+    '02_vsl_faq_question_text_colour': '#0f172a', // Dark
+    '02_vsl_faq_answer_text_colour': '#475569', // Medium
+    '02_vsl_faq_border_colour': '#e2e8f0', // Light border
+
+    // Booking Page Colors (white background)
+    '02_booking_pill_background_colour': '#0891b2', // Cyan
+    '02_booking_pill_text_colour': '#ffffff', // White on pill
+
+    // Thank You Page Colors (white background)
+    '02_thankyou_page_headline_text_colour': '#0f172a', // Dark
+    '02_thankyou_page_subheadline_text_colour': '#475569', // Medium
+};
+
 /**
  * Get OAuth location token with timeout
  */
@@ -688,6 +741,29 @@ export async function POST(req) {
         }
 
         log(`[Deploy] Appointment reminders done, running total: ${results.updated}`);
+
+        // === PROCESS COLORS ===
+        log('[Deploy] Processing colors...');
+        let colorsUpdated = 0;
+
+        for (const [ghlKey, colorValue] of Object.entries(DEFAULT_COLORS)) {
+            const existing = findExisting(ghlKey);
+            if (existing) {
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, colorValue);
+                if (result.success) {
+                    results.updated++;
+                    colorsUpdated++;
+                    updatedKeys.push(ghlKey);
+                } else {
+                    results.failed++;
+                }
+            } else {
+                results.notFound++;
+                notFoundKeys.push(ghlKey);
+            }
+        }
+
+        log(`[Deploy] Colors done: ${colorsUpdated} colors updated, running total: ${results.updated}`);
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         log(`[Deploy] ========== DEPLOY COMPLETE ==========`);
