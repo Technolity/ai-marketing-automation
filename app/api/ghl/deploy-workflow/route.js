@@ -308,16 +308,6 @@ const MEDIA_KEY_MAP = {
     'bioPhoto': '02_vsl_bio_photo_text',
     'bio_author': '02_vsl_bio_photo_text', // Actual vault field name
 
-    // Testimonial Profile Pics
-    'testimonial_photo_1': '02_vsl_testimonials_profile_pic_1',
-    'testimonial_photo_2': '02_vsl_testimonials_profile_pic_2',
-    'testimonial_photo_3': '02_vsl_testimonials_profile_pic_3',
-    'testimonial_photo_4': '02_vsl_testimonials_profile_pic_4',
-    'testimonials_profile_pic_1': '02_vsl_testimonials_profile_pic_1',
-    'testimonials_profile_pic_2': '02_vsl_testimonials_profile_pic_2',
-    'testimonials_profile_pic_3': '02_vsl_testimonials_profile_pic_3',
-    'testimonials_profile_pic_4': '02_vsl_testimonials_profile_pic_4',
-
     // Thank You Page
     'thankyou_video': '02_thankyou_page_video',
 };
@@ -769,18 +759,17 @@ export async function POST(req) {
         const smsSequence = smsData.smsSequence || smsData; // Access nested smsSequence
         log(`[Deploy] SMS sequence keys: ${Object.keys(smsSequence).join(', ')}`);
 
-        // SMS mapping with time variants
+        // SMS mapping - only 10 messages in vault: sms1-6, sms7a, sms7b, smsNoShow1, smsNoShow2
         const smsVaultToGHL = {
-            'sms1': 'optin_sms_1', 'sms2': 'optin_sms_2', 'sms3': 'optin_sms_3',
-            'sms4': 'optin_sms_4', 'sms5': 'optin_sms_5', 'sms6': 'optin_sms_6',
-            'sms7': 'optin_sms_7', 'sms7a': 'optin_sms_7', 'sms7b': 'optin_sms_7',
-            'sms8': 'optin_sms_8', 'sms9': 'optin_sms_9', 'sms10': 'optin_sms_10',
-            'sms11': 'optin_sms_11', 'sms12': 'optin_sms_12', 'sms13': 'optin_sms_13',
-            'sms14': 'optin_sms_14', 'sms15': 'optin_sms_15',
-            // Time variants
-            'sms8a': 'optin_sms_8_morning', 'sms8b': 'optin_sms_8_afternoon', 'sms8c': 'optin_sms_8_evening',
-            'sms15a': 'optin_sms_15_morning', 'sms15b': 'optin_sms_15_afternoon', 'sms15c': 'optin_sms_15_evening',
-            // No-show SMS (mapped to appointment reminders if available)
+            'sms1': 'optin_sms_1',
+            'sms2': 'optin_sms_2',
+            'sms3': 'optin_sms_3',
+            'sms4': 'optin_sms_4',
+            'sms5': 'optin_sms_5',
+            'sms6': 'optin_sms_6',
+            'sms7a': 'optin_sms_7', // Day 7 Morning
+            'sms7b': 'optin_sms_7', // Day 7 Evening (same key, will use last)
+            // No-show SMS mapped to appointment reminder SMS
             'smsNoShow1': 'sms_10_min_before_call_time',
             'smsNoShow2': 'sms_at_call_time',
         };

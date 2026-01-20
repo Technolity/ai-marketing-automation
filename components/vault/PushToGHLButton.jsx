@@ -87,7 +87,7 @@ export default function PushToGHLButton({
                 }
         disabled:opacity-50 disabled:cursor-not-allowed
       `}
-            title={`Push ${getSectionLabel(section)} to GoHighLevel`}
+            title={`Push ${getSectionLabel(section)} to Builder`}
         >
             {isPushing ? (
                 <>
@@ -120,6 +120,7 @@ function getSectionLabel(section) {
         emails: 'Emails',
         sms: 'SMS',
         media: 'Media',
+        appointmentReminders: 'Appointment Reminders',
     };
     return labels[section] || section;
 }
