@@ -1,20 +1,114 @@
 /**
- * GHL Deploy Workflow
- * Orchestrates deployment of all vault content to GHL custom values
- * Calls individual push APIs sequentially for each section
+ * GHL Deploy Workflow - Refactored
+ * Now uses pushVaultToGHL directly instead of internal fetch calls
+ * This eliminates the HTML 404 errors from internal API calls
  * 
  * Flow:
  * 1. Verify user has GHL sub-account
- * 2. Call push APIs for each section (funnel-copy, emails, sms, colors, media)
- * 3. Log deployment and return results
+ * 2. Get OAuth access token
+ * 3. Call pushVaultToGHL directly with all vault content
+ * 4. Log deployment and return results
  */
 
 import { auth } from '@clerk/nextjs';
 import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { pushVaultToGHL } from '@/lib/ghl/pushSystem';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // 60 second timeout
+export const maxDuration = 120; // Increase timeout to 120 seconds for full push
+
+/**
+ * Get location access token for GHL API calls (OAuth)
+ */
+async function getLocationToken(userId, locationId) {
+    // Get user's sub-account
+    const { data: subaccount, error: subError } = await supabaseAdmin
+        .from('ghl_subaccounts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+    if (subError || !subaccount) {
+        return { success: false, error: 'No sub-account found for user' };
+    }
+
+    // Get agency token
+    const { data: tokenData, error: tokenError } = await supabaseAdmin
+        .from('ghl_tokens')
+        .select('*')
+        .eq('user_type', 'Company')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+    if (tokenError || !tokenData) {
+        return { success: false, error: 'No agency token found' };
+    }
+
+    const companyId = tokenData.company_id;
+    if (!companyId) {
+        return { success: false, error: 'companyId not found in agency token' };
+    }
+
+    // Generate location token
+    const locationTokenResponse = await fetch(
+        'https://services.leadconnectorhq.com/oauth/locationToken',
+        {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${tokenData.access_token}`,
+                'Content-Type': 'application/json',
+                'Version': '2021-07-28',
+            },
+            body: JSON.stringify({
+                companyId: companyId,
+                locationId: locationId || subaccount.location_id,
+            }),
+        }
+    );
+
+    // Check for HTML response (GHL error page)
+    const contentType = locationTokenResponse.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+        const htmlBody = await locationTokenResponse.text();
+        console.error('[Deploy] getLocationToken: GHL returned HTML:', htmlBody.substring(0, 200));
+        return { success: false, error: 'GHL OAuth returned HTML - token may be invalid or expired' };
+    }
+
+    if (!locationTokenResponse.ok) {
+        const responseText = await locationTokenResponse.text();
+        if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
+            console.error('[Deploy] getLocationToken: HTML error:', responseText.substring(0, 200));
+            return { success: false, error: 'GHL OAuth returned HTML error page' };
+        }
+        try {
+            const errorData = JSON.parse(responseText);
+            return { success: false, error: errorData.message || 'Failed to generate location token' };
+        } catch {
+            return { success: false, error: `Failed to generate location token: ${responseText.substring(0, 100)}` };
+        }
+    }
+
+    const responseText = await locationTokenResponse.text();
+    if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
+        console.error('[Deploy] getLocationToken: Unexpected HTML response:', responseText.substring(0, 200));
+        return { success: false, error: 'GHL returned HTML - re-authorization may be required' };
+    }
+
+    const locationTokenData = JSON.parse(responseText);
+
+    if (!locationTokenData.access_token) {
+        return { success: false, error: 'Location token response missing access_token' };
+    }
+
+    return {
+        success: true,
+        access_token: locationTokenData.access_token,
+        location_id: locationId || subaccount.location_id
+    };
+}
 
 export async function POST(req) {
     const startTime = Date.now();
@@ -53,119 +147,82 @@ export async function POST(req) {
         const locationId = subaccount.location_id;
         console.log(`[Deploy] Using location: ${locationId}`);
 
-        // 2. Call each push API sequentially
-        const sections = ['funnel-copy', 'emails', 'sms', 'colors', 'media'];
-        const results = {
-            success: true,
-            sections: {},
-            totalPushed: 0,
-            totalUpdated: 0,
-            totalCreated: 0,
-            totalFailed: 0,
-            errors: []
-        };
-
-        // Get the base URL for internal API calls
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL ||
-            process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` :
-            'http://localhost:3000';
-
-        // Get auth headers to forward
-        const authHeader = req.headers.get('authorization');
-        const cookieHeader = req.headers.get('cookie');
-
-        for (const section of sections) {
-            console.log(`[Deploy] Pushing section: ${section}`);
-
-            try {
-                const response = await fetch(`${baseUrl}/api/ghl/push-${section}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...(authHeader && { 'Authorization': authHeader }),
-                        ...(cookieHeader && { 'Cookie': cookieHeader }),
-                    },
-                    body: JSON.stringify({ funnelId }),
-                });
-
-                const result = await response.json();
-
-                results.sections[section] = {
-                    success: result.success ?? false,
-                    pushed: result.pushed ?? 0,
-                    updated: result.updated ?? 0,
-                    created: result.created ?? 0,
-                    failed: result.failed ?? 0,
-                    error: result.error || null
-                };
-
-                if (result.success) {
-                    results.totalPushed += result.pushed || 0;
-                    results.totalUpdated += result.updated || 0;
-                    results.totalCreated += result.created || 0;
-                } else {
-                    results.success = false;
-                    results.totalFailed += result.failed || 1;
-                    results.errors.push({ section, error: result.error });
-                }
-
-                console.log(`[Deploy] ${section}: ${result.success ? 'SUCCESS' : 'FAILED'} - ${result.pushed || 0} pushed`);
-
-            } catch (sectionError) {
-                console.error(`[Deploy] Error pushing ${section}:`, sectionError);
-                results.sections[section] = {
-                    success: false,
-                    pushed: 0,
-                    error: sectionError.message
-                };
-                results.errors.push({ section, error: sectionError.message });
-                // Continue with other sections even if one fails
-            }
+        // 2. Get OAuth access token
+        const tokenResult = await getLocationToken(userId, locationId);
+        if (!tokenResult.success) {
+            console.error('[Deploy] Token error:', tokenResult.error);
+            return NextResponse.json({
+                error: tokenResult.error,
+                needsReauth: true
+            }, { status: 401 });
         }
 
-        const duration = Math.round((Date.now() - startTime) / 1000);
-        console.log(`[Deploy] Completed in ${duration}s - Total: ${results.totalPushed} pushed, ${results.totalFailed} failed`);
+        console.log('[Deploy] Got OAuth token, calling pushVaultToGHL directly...');
 
-        // 3. Log deployment
+        // 3. Call pushVaultToGHL directly (no more internal fetch calls!)
+        const pushResult = await pushVaultToGHL({
+            userId,
+            funnelId,
+            locationId,
+            accessToken: tokenResult.access_token,
+            updateOnly: true, // Only update existing values, don't create new ones
+            skipAI: false, // Use AI polishing for values
+            onProgress: (progress) => {
+                console.log(`[Deploy] Progress: ${progress.step} - ${progress.message}`);
+            }
+        });
+
+        const duration = Math.round((Date.now() - startTime) / 1000);
+
+        const totalUpdated = pushResult.updated?.length || 0;
+        const totalCreated = pushResult.created?.length || 0;
+        const totalFailed = pushResult.failed?.length || 0;
+        const totalPushed = totalUpdated + totalCreated;
+
+        console.log(`[Deploy] Completed in ${duration}s - Updated: ${totalUpdated}, Created: ${totalCreated}, Failed: ${totalFailed}`);
+
+        // 4. Log deployment
         await supabaseAdmin.from('ghl_oauth_logs').insert({
             user_id: userId,
             event_type: 'deploy_completed',
             location_id: locationId,
             metadata: {
                 funnel_id: funnelId,
-                total_pushed: results.totalPushed,
-                total_updated: results.totalUpdated,
-                total_created: results.totalCreated,
-                total_failed: results.totalFailed,
-                sections: Object.keys(results.sections),
+                total_pushed: totalPushed,
+                total_updated: totalUpdated,
+                total_created: totalCreated,
+                total_failed: totalFailed,
                 duration_seconds: duration,
-                success: results.success
+                success: totalFailed === 0,
+                operation_id: pushResult.operationId
             }
         });
 
-        // 4. Update funnel deployment status
+        // 5. Update funnel deployment status
         await supabaseAdmin
             .from('user_funnels')
             .update({
                 deployed_at: new Date().toISOString(),
-                deployment_status: results.success ? 'deployed' : 'partial'
+                deployment_status: totalFailed === 0 ? 'deployed' : 'partial'
             })
             .eq('id', funnelId);
 
         return NextResponse.json({
-            success: results.success,
-            message: results.success
-                ? `Successfully deployed ${results.totalPushed} values to GHL!`
-                : `Deployment completed with ${results.totalFailed} errors`,
+            success: totalFailed === 0,
+            message: totalFailed === 0
+                ? `Successfully deployed ${totalPushed} values to GHL!`
+                : `Deployment completed with ${totalFailed} errors`,
             summary: {
-                total: results.totalPushed,
-                updated: results.totalUpdated,
-                created: results.totalCreated,
-                failed: results.totalFailed,
+                total: totalPushed,
+                updated: totalUpdated,
+                created: totalCreated,
+                failed: totalFailed,
+                skipped: pushResult.skipped || 0,
                 duration: `${duration}s`
             },
-            sections: results.sections,
-            errors: results.errors.length > 0 ? results.errors : undefined,
+            operationId: pushResult.operationId,
+            updatedValues: pushResult.updated?.slice(0, 10), // First 10 for debugging
+            failedValues: pushResult.failed,
             locationId
         });
 
