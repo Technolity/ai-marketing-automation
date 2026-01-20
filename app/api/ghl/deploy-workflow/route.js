@@ -286,6 +286,34 @@ const DEFAULT_COLORS = {
     '02_thankyou_page_subheadline_text_colour': '#475569', // Medium
 };
 
+// === MEDIA KEY MAPPINGS (vault field -> GHL key) ===
+const MEDIA_KEY_MAP = {
+    // Optin Page
+    'logo': '02_optin_logo_image',
+    'logo_image': '02_optin_logo_image',
+    'mockup_image': '02_optin_mockup_image',
+    'banner_image': '02_optin_mockup_image', // Alternative name
+
+    // VSL Page
+    'profile_photo': '02_vsl_bio_photo_text',
+    'bio_photo': '02_vsl_bio_photo_text',
+    'bioPhoto': '02_vsl_bio_photo_text',
+    'vsl_video': '02_vsl_video',
+
+    // Testimonial Profile Pics
+    'testimonial_photo_1': '02_vsl_testimonials_profile_pic_1',
+    'testimonial_photo_2': '02_vsl_testimonials_profile_pic_2',
+    'testimonial_photo_3': '02_vsl_testimonials_profile_pic_3',
+    'testimonial_photo_4': '02_vsl_testimonials_profile_pic_4',
+    'testimonials_profile_pic_1': '02_vsl_testimonials_profile_pic_1',
+    'testimonials_profile_pic_2': '02_vsl_testimonials_profile_pic_2',
+    'testimonials_profile_pic_3': '02_vsl_testimonials_profile_pic_3',
+    'testimonials_profile_pic_4': '02_vsl_testimonials_profile_pic_4',
+
+    // Thank You Page
+    'thankyou_video': '02_thankyou_page_video',
+};
+
 /**
  * Get OAuth location token with timeout
  */
@@ -801,6 +829,34 @@ export async function POST(req) {
         }
 
         log(`[Deploy] Colors done: ${colorsUpdated} colors updated, running total: ${results.updated}`);
+
+        // === PROCESS MEDIA ===
+        log('[Deploy] Processing media...');
+        const media = vaultContent.media || {};
+        log(`[Deploy] Media keys in vault: ${Object.keys(media).join(', ')}`);
+        let mediaUpdated = 0;
+
+        for (const [vaultKey, ghlKey] of Object.entries(MEDIA_KEY_MAP)) {
+            const value = media[vaultKey];
+            if (!value || typeof value !== 'string' || !value.trim()) continue;
+
+            const existing = findExisting(ghlKey);
+            if (existing) {
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value.trim());
+                if (result.success) {
+                    results.updated++;
+                    mediaUpdated++;
+                    updatedKeys.push(ghlKey);
+                } else {
+                    results.failed++;
+                }
+            } else {
+                results.notFound++;
+                notFoundKeys.push(ghlKey);
+            }
+        }
+
+        log(`[Deploy] Media done: ${mediaUpdated} media updated, running total: ${results.updated}`);
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         log(`[Deploy] ========== DEPLOY COMPLETE ==========`);
