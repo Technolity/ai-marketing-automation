@@ -571,6 +571,24 @@ export async function POST(req) {
 
         log(`[Deploy] Vault sections loaded: ${Object.keys(vaultContent).join(', ')}`);
 
+        // 4b. Fetch media fields from vault_content_fields (separate table for uploaded media)
+        const { data: mediaFields } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_id, field_value')
+            .eq('funnel_id', funnelId)
+            .eq('section_id', 'media')
+            .eq('is_current_version', true);
+
+        // Build media object from uploaded fields
+        const mediaFromFields = {};
+        (mediaFields || []).forEach(f => {
+            if (f.field_value) {
+                mediaFromFields[f.field_id] = f.field_value;
+            }
+        });
+
+        log(`[Deploy] Media fields from uploads: ${Object.keys(mediaFromFields).join(', ')} (${Object.keys(mediaFromFields).length} fields)`);
+
         // 5. Collect values to update (ONLY if existing key found)
         const results = { updated: 0, skipped: 0, notFound: 0, failed: 0 };
         const updatedKeys = [];
@@ -832,8 +850,9 @@ export async function POST(req) {
 
         // === PROCESS MEDIA ===
         log('[Deploy] Processing media...');
-        const media = vaultContent.media || {};
-        log(`[Deploy] Media keys in vault: ${Object.keys(media).join(', ')}`);
+        // Use mediaFromFields (from vault_content_fields table) - this is where user uploads go
+        const media = { ...vaultContent.media, ...mediaFromFields }; // Merge both sources, fields take priority
+        log(`[Deploy] Media keys combined: ${Object.keys(media).join(', ')} (${Object.keys(media).length} total)`);
         let mediaUpdated = 0;
 
         for (const [vaultKey, ghlKey] of Object.entries(MEDIA_KEY_MAP)) {
