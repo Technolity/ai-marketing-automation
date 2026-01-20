@@ -641,6 +641,19 @@ export async function POST(req) {
             }
         }
 
+        // SPECIAL: Push headline_text to BOTH keys (some GHL pages use different keys)
+        if (optinPage.headline_text) {
+            const healineKey = '02_optin_healine_text'; // Typo key used by some GHL pages
+            const existingHealine = findExisting(healineKey);
+            if (existingHealine) {
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existingHealine.id, healineKey, optinPage.headline_text);
+                if (result.success) {
+                    results.updated++;
+                    updatedKeys.push(healineKey);
+                }
+            }
+        }
+
         // Process salesPage
         const salesPage = fcContent.salesPage || {};
         log(`[Deploy] salesPage keys: ${Object.keys(salesPage).join(', ')}`);
