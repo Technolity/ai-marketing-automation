@@ -480,15 +480,52 @@ export async function POST(req) {
             existingMap.set(v.name.replace(/\s*-\s*/g, '_').replace(/\s+/g, '_').toLowerCase(), { id: v.id, name: v.name });
         });
 
-        // Add manual fixes for GHL typos
+        // Add manual fixes for GHL typos - search by name patterns that exist in GHL
+        // These keys have typos or special formats in GHL
         const typoFixes = {
+            // Text fields with typos
             '02_optin_subhealine_text': existingMap.get('02_optin_sub_headline_text') || existingMap.get('02_optin_sub-headline_text'),
             '02_vsl_process_sub_headline_text': existingMap.get('02_vsl_process_sub_headline_text') || existingMap.get('02_vsl_process_sub-headline_text'),
             '02_thankyou_page_subheadline_text': existingMap.get('02_thankyou_page_sub_headline_text') || existingMap.get('02_thankyou_page_sub-headline_text'),
+            '02_vsl_testimonials_subheadline_text': existingMap.get('02_vsl_testimonials_sub_headline_text') || existingMap.get('02_vsl_testimonials_sub-headline_text'),
+            // Color fields with typos - search by actual GHL names
+            '02_optin_healine_text_colour': existingMap.get('02_optin_headline_text_colour'),
+            '02_optin_subhealine_text_colour': existingMap.get('02_optin_sub_headline_text_colour') || existingMap.get('02_optin_sub-headline_text_colour'),
+            '02_vsl_testimonials_subheadline_text_colour': existingMap.get('02_vsl_testimonials_sub_headline_text_colour') || existingMap.get('02_vsl_testimonials_sub-headline_text_colour'),
+            '02_vsl_testimonial_review_1_headline_colour': existingMap.get('02_vsl_testimonial_reviews_headline_colour'),
+            '02_vsl_testimonial_review_3_paragraph_with_name_colour': existingMap.get('02_vsl_testimonial_reviews_paragraph_with_name_colour'),
+            '02_thankyou_page_subheadline_text_colour': existingMap.get('02_thankyou_page_sub_headline_text_colour') || existingMap.get('02_thankyou_page_sub-headline_text_colour'),
         };
         for (const [key, val] of Object.entries(typoFixes)) {
             if (val) existingMap.set(key, val);
         }
+
+        // Also store by the GHL key format (from the custom value name patterns)
+        existingValues.forEach(v => {
+            // Try to extract the key from common patterns
+            // "02 Optin Headline Text Colour" -> "02_optin_healine_text_colour" (GHL typo)
+            if (v.name.includes('Optin') && v.name.includes('Headline') && v.name.includes('Colour')) {
+                existingMap.set('02_optin_healine_text_colour', { id: v.id, name: v.name });
+            }
+            if (v.name.includes('Optin') && v.name.includes('Sub') && v.name.includes('Colour')) {
+                existingMap.set('02_optin_subhealine_text_colour', { id: v.id, name: v.name });
+            }
+            if (v.name.includes('Testimonials') && v.name.includes('Sub') && v.name.includes('Text Colour')) {
+                existingMap.set('02_vsl_testimonials_subheadline_text_colour', { id: v.id, name: v.name });
+            }
+            if (v.name.includes('Testimonials') && v.name.includes('Sub') && !v.name.includes('Colour')) {
+                existingMap.set('02_vsl_testimonials_subheadline_text', { id: v.id, name: v.name });
+            }
+            if (v.name === '02 VSL Testimonial Reviews Headline Colour') {
+                existingMap.set('02_vsl_testimonial_review_1_headline_colour', { id: v.id, name: v.name });
+            }
+            if (v.name === '02 VSL Testimonial Reviews Paragraph with Name Colour') {
+                existingMap.set('02_vsl_testimonial_review_3_paragraph_with_name_colour', { id: v.id, name: v.name });
+            }
+            if (v.name.includes('Thankyou') && v.name.includes('Sub') && v.name.includes('Colour')) {
+                existingMap.set('02_thankyou_page_subheadline_text_colour', { id: v.id, name: v.name });
+            }
+        });
 
         log(`[Deploy] Existing values in lookup: ${existingMap.size} entries`);
 
