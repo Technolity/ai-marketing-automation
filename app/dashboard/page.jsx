@@ -23,6 +23,7 @@ import { UserButton } from "@clerk/nextjs";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { toast } from "sonner";
 import GHLWidgets from "@/components/dashboard/GHLWidgets";
+import LaunchBuilderButton from "@/components/LaunchBuilderButton";
 
 // Tier limits
 const TIER_LIMITS = {
@@ -222,6 +223,19 @@ export default function Dashboard() {
 
                 {/* GHL Metrics Widgets */}
                 <GHLWidgets />
+
+                {/* Launch Builder Button - Admin Only */}
+                {user?.isAdmin && (
+                    <div className="mb-6 p-4 bg-purple-950/20 border border-purple-500/30 rounded-xl">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-white font-semibold mb-1">Admin Tools</h3>
+                                <p className="text-gray-400 text-sm">Access your GHL subaccount builder</p>
+                            </div>
+                            <LaunchBuilderButton />
+                        </div>
+                    </div>
+                )}
 
                 {/* Businesses Section */}
                 <div className="flex items-end justify-between mb-6">
