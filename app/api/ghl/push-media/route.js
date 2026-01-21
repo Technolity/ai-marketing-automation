@@ -144,9 +144,9 @@ export async function POST(req) {
         // Get media library content from vault_content_fields
         const { data: mediaFields } = await supabaseAdmin
             .from('vault_content_fields')
-            .select('field_id, content')
+            .select('field_id, field_value')
             .eq('funnel_id', funnelId)
-            .eq('section_id', 'mediaLibrary')
+            .eq('section_id', 'media')
             .eq('is_current_version', true);
 
         // Also try vault_content for legacy storage
@@ -154,14 +154,14 @@ export async function POST(req) {
             .from('vault_content')
             .select('content')
             .eq('funnel_id', funnelId)
-            .eq('section_id', 'mediaLibrary')
+            .eq('section_id', 'media')
             .single();
 
-        // Build media content map from fields
+        // Build media content map from fields (use field_value not content)
         const mediaContent = {};
         if (mediaFields) {
             mediaFields.forEach(field => {
-                mediaContent[field.field_id] = field.content;
+                mediaContent[field.field_id] = field.field_value;
             });
         }
 
