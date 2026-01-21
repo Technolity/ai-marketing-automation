@@ -7,7 +7,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Palette, Check, AlertCircle } from 'lucide-react';
+import { Palette, Check, AlertCircle, Sparkles } from 'lucide-react';
+import FeedbackChatModal from '@/components/FeedbackChatModal';
+import { toast } from 'sonner';
 
 // Color name to hex mapping for interpreting color names
 const COLOR_NAME_MAP = {
@@ -82,6 +84,52 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
     const [loading, setLoading] = useState(true);
     const [rawAnswer, setRawAnswer] = useState('');
     const [debugInfo, setDebugInfo] = useState(null); // For debugging invalid data
+
+    // Feedback modal state
+    const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+    const [currentContent, setCurrentContent] = useState('');
+
+    // AI Feedback handler
+    const handleAIFeedback = () => {
+        setCurrentContent(rawAnswer || brandColorsText || 'No color data available');
+        setFeedbackModalOpen(true);
+    };
+
+    const handleFeedbackSave = async (refinedContent) => {
+        try {
+            // Save refined color data to vault
+            const response = await fetch('/api/os/vault-field', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    funnel_id: funnelId,
+                    section_id: sectionId,
+                    field_id: 'colorPalette',
+                    field_value: refinedContent
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to save');
+
+            const result = await response.json();
+            console.log('[ColorsFields] AI feedback saved, version:', result.version);
+
+            // Re-fetch colors to display updated data
+            setBrandColorsText(refinedContent);
+            setRawAnswer(refinedContent);
+            const colors = parseColorsFromText(refinedContent);
+            setParsedColors(colors);
+
+            setFeedbackModalOpen(false);
+            toast.success('Brand colors updated successfully!');
+
+            // Notify parent of change if onSave exists
+            if (onSave) onSave();
+        } catch (error) {
+            console.error('[ColorsFields] Save error:', error);
+            toast.error('Failed to save changes');
+        }
+    };
 
     useEffect(() => {
         const fetchColors = async () => {
@@ -253,9 +301,18 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
     return (
         <div className="p-6 space-y-6">
-            <div className="flex items-center gap-3 mb-4">
-                <Palette className="w-5 h-5 text-cyan" />
-                <h4 className="text-lg font-semibold text-white">Your Brand Colors</h4>
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                    <Palette className="w-5 h-5 text-cyan" />
+                    <h4 className="text-lg font-semibold text-white">Your Brand Colors</h4>
+                </div>
+                <button
+                    onClick={handleAIFeedback}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                >
+                    <Sparkles className="w-4 h-4" />
+                    AI Feedback
+                </button>
             </div>
 
             {/* Debug info display (only if there's an error) */}
@@ -319,6 +376,21 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                     <Check className="w-4 h-4" />
                     <span>Colors approved and ready to push to Builder</span>
                 </div>
+            )}
+
+            {/* AI Feedback Modal */}
+            {feedbackModalOpen && (
+                <FeedbackChatModal
+                    isOpen={feedbackModalOpen}
+                    onClose={() => setFeedbackModalOpen(false)}
+                    sectionId={sectionId}
+                    sectionTitle="Brand Colors"
+                    subSection="colorPalette"
+                    subSectionTitle="Brand Color Palette"
+                    currentContent={currentContent}
+                    sessionId={funnelId}
+                    onSave={handleFeedbackSave}
+                />
             )}
         </div>
     );
