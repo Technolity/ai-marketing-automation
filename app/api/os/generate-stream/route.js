@@ -503,10 +503,10 @@ export async function POST(req) {
         });
     }
 
-    // Verify funnel ownership
+    // Verify funnel ownership AND fetch wizard_answers from database
     const { data: funnel, error: funnelError } = await supabaseAdmin
         .from('user_funnels')
-        .select('id, funnel_name')
+        .select('id, funnel_name, wizard_answers')
         .eq('id', funnelId)
         .eq('user_id', userId)
         .single();
@@ -514,6 +514,27 @@ export async function POST(req) {
     if (funnelError || !funnel) {
         return new Response(JSON.stringify({ error: 'Funnel not found' }), {
             status: 404,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    // IMPORTANT: Use wizard_answers from database as primary source
+    //  This ensures we always use the latest saved questionnaire data
+    // Fallback to request payload only if database answers don't exist yet
+    const answersFromDB = funnel.wizard_answers || {};
+    const answersFromRequest = data || {};
+
+    // Merge with database taking precedence
+    const questionnaireData = {
+        ...answersFromRequest,  // Fallback
+        ...answersFromDB        // Override with database
+    };
+
+    console.log(`[STREAM] Using answers: ${Object.keys(answersFromDB).length} from DB, ${Object.keys(answersFromRequest).length} from request`);
+
+    if (Object.keys(questionnaireData).length === 0) {
+        return new Response(JSON.stringify({ error: 'No questionnaire answers found. Please complete the questionnaire first.' }), {
+            status: 400,
             headers: { 'Content-Type': 'application/json' }
         });
     }
@@ -547,7 +568,7 @@ export async function POST(req) {
 
             const redirectResults = [];
             for (const key of REDIRECT_KEYS) {
-                const result = await generateSection(key, data, funnelId, userId, sendEvent);
+                const result = await generateSection(key, questionnaireData, funnelId, userId, sendEvent);
                 redirectResults.push(result);
             }
 
@@ -573,12 +594,12 @@ export async function POST(req) {
                 if (batch.parallel) {
                     // Run batch in parallel
                     await Promise.all(batch.keys.map(key =>
-                        generateSection(key, data, funnelId, userId, sendEvent)
+                        generateSection(key, questionnaireData, funnelId, userId, sendEvent)
                     ));
                 } else {
                     // Run sequentially
                     for (const key of batch.keys) {
-                        await generateSection(key, data, funnelId, userId, sendEvent);
+                        await generateSection(key, questionnaireData, funnelId, userId, sendEvent);
                     }
                 }
             }
