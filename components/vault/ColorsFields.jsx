@@ -86,26 +86,34 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
         const fetchColors = async () => {
             try {
                 // Fetch user profile to get intake_form answers
-                const response = await fetch('/api/profile');
+                // Use /api/user/profile which returns profile fields directly
+                const response = await fetch('/api/user/profile');
                 if (response.ok) {
-                    const data = await response.json();
-                    const profile = data.profile;
+                    const profile = await response.json();
+                    console.log('[ColorsFields] Profile response:', profile);
 
+                    // The API returns profile fields directly (not wrapped in data.profile)
                     // Try different paths to find brand colors answer
                     const colorAnswer =
                         profile?.intake_form?.brandColors ||
                         profile?.intake_form?.brand_colors ||
+                        profile?.intake_form?.['15'] || // Questionnaire Q15
                         profile?.answers?.brandColors ||
                         profile?.brandColors ||
                         '';
+
+                    console.log('[ColorsFields] Found brand colors:', colorAnswer);
 
                     setRawAnswer(colorAnswer);
                     setBrandColorsText(colorAnswer);
 
                     if (colorAnswer) {
                         const colors = parseColorsFromText(colorAnswer);
+                        console.log('[ColorsFields] Parsed colors:', colors);
                         setParsedColors(colors);
                     }
+                } else {
+                    console.error('[ColorsFields] Profile fetch failed:', response.status);
                 }
             } catch (error) {
                 console.error('[ColorsFields] Error fetching colors:', error);
