@@ -4,6 +4,26 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
 export const dynamic = 'force-dynamic';
 
+// Section title mapping for vault_content
+const SECTION_TITLES = {
+    idealClient: 'Ideal Client',
+    message: 'Message',
+    story: 'Story',
+    offer: 'Offer & Pricing',
+    salesScripts: 'Closer Script',
+    leadMagnet: 'Free Gift',
+    vsl: 'Video Script',
+    emails: 'Email Sequences',
+    facebookAds: 'Ad Copy',
+    funnelCopy: 'Funnel Page Copy',
+    bio: 'Professional Bio',
+    appointmentReminders: 'Appointment Reminders',
+    setterScript: 'Setter Script',
+    sms: 'SMS Sequences',
+    media: 'Upload Images and Videos',
+    colors: 'Brand Colors'
+};
+
 /**
  * POST /api/os/vault-section-approve
  * Approve all fields in a section
@@ -15,29 +35,20 @@ export const dynamic = 'force-dynamic';
 export async function POST(req) {
     const { userId } = auth();
     if (!userId) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     let body;
     try {
         body = await req.json();
     } catch (e) {
-        return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
     const { funnel_id, section_id } = body;
 
     if (!funnel_id || !section_id) {
-        return new Response(JSON.stringify({ error: 'Missing funnel_id or section_id' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        return Response.json({ error: 'funnel_id and section_id are required' }, { status: 400 });
     }
 
     console.log('[VaultSectionApprove] Approving section:', { userId, funnel_id, section_id });
@@ -52,10 +63,7 @@ export async function POST(req) {
             .single();
 
         if (funnelError || !funnel) {
-            return new Response(JSON.stringify({ error: 'Funnel not found or unauthorized' }), {
-                status: 404,
-                headers: { 'Content-Type': 'application/json' }
-            });
+            return Response.json({ error: 'Funnel not found' }, { status: 404 });
         }
 
         // Approve all current version fields in this section
@@ -85,12 +93,15 @@ export async function POST(req) {
 
         if (!existingContent) {
             // No vault_content row exists (e.g., for media section), create one
+            const sectionTitle = SECTION_TITLES[section_id] || section_id;
+
             const { error: insertError } = await supabaseAdmin
                 .from('vault_content')
                 .insert({
                     funnel_id,
                     user_id: userId,
                     section_id,
+                    section_title: sectionTitle,
                     content: {}, // Empty content for sections like media
                     status: 'approved',
                     is_current_version: true,

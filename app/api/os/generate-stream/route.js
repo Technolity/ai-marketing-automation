@@ -29,8 +29,8 @@ const CONTENT_NAMES = {
     15: 'bio',
     16: 'appointmentReminders',
     17: 'setterScript',
-    18: 'colors',
-    19: 'sms'
+    19: 'sms',
+    20: 'colors'
 };
 
 const DISPLAY_NAMES = {
@@ -47,8 +47,8 @@ const DISPLAY_NAMES = {
     15: 'Professional Bio',
     16: 'Appointment Reminders',
     17: 'Setter Script',
-    18: 'Brand Colors',
-    19: 'SMS Sequences'
+    19: 'SMS Sequences',
+    20: 'Brand Colors'
 };
 
 // Phase 1: Fast redirect sections (only wait for these ~30s)
@@ -62,7 +62,7 @@ const BACKGROUND_BATCHES = [
     { keys: [3, 4], parallel: true },     // Story + Offer
 
     // Batch 2: Lead Magnet + VSL + Bio + Colors (parallel) - VSL is chunked
-    { keys: [6, 7, 15, 18], parallel: true }, // Lead Magnet + VSL + Bio + Brand Colors
+    { keys: [6, 7, 15, 20], parallel: true }, // Lead Magnet + VSL + Bio + Brand Colors
 
     // Batch 3: Ads (single)
     { keys: [9], parallel: false },       // Facebook Ads
