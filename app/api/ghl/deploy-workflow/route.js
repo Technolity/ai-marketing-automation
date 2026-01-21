@@ -126,6 +126,7 @@ const SALES_PAGE_KEY_MAP = {
     'call_details_is_not_bullet_1_text': '02_vsl_call_details_is_not_bullet_1_text',
     'call_details_is_not_bullet_2_text': '02_vsl_call_details_is_not_bullet_2_text',
     'call_details_is_not_bullet_3_text': '02_vsl_call_details_is_not_bullet_3_text',
+    'bio_photo_text': '02_vsl_bio_photo_text',
     'bio_headline_text': '02_vsl_bio_headline_text',
     'bio_paragraph_text': '02_vsl_bio_paragraph_text',
     'faq_headline_text': '02_vsl_faq_headline_text',
@@ -158,6 +159,7 @@ const OPTIN_PAGE_KEY_MAP = {
 
 const BOOKING_PAGE_KEY_MAP = {
     'booking_pill_text': '02_booking_pill_text',
+    'calendar_embedded_code': '03_booking_calender_embedded_code', // Note: GHL typo "calender"
 };
 
 const THANKYOU_PAGE_KEY_MAP = {
@@ -956,6 +958,7 @@ export async function POST(req) {
         log('[Deploy] Processing appointment reminders...');
         const appointmentReminders = vaultContent.appointmentReminders?.appointmentReminders || vaultContent.appointmentReminders || {};
         log(`[Deploy] Appointment reminder keys: ${Object.keys(appointmentReminders).join(', ')}`);
+        log(`[Deploy] appointmentReminders full structure: ${JSON.stringify(appointmentReminders, null, 2).substring(0, 500)}`);
 
         // Appointment reminder emails are stored as NAMED FIELDS (not array)
         // Vault structure: confirmationEmail, reminder48Hours, reminder24Hours, reminder1Hour, reminder10Minutes, startingNow, noShowFollowUp
@@ -1007,11 +1010,11 @@ export async function POST(req) {
         for (const [vaultField, ghlMapping] of Object.entries(emailFieldsToGHL)) {
             const email = appointmentReminders[vaultField];
             if (!email || typeof email !== 'object') {
-                log(`[Deploy] ⚠ No data found for ${vaultField}`);
+                log(`[Deploy] ⚠ No data found for ${vaultField} (value: ${JSON.stringify(email)})`);
                 continue;
             }
 
-            log(`[Deploy] Processing ${vaultField}...`);
+            log(`[Deploy] Processing ${vaultField}... (has subject: ${!!email.subject}, has body: ${!!email.body}, has preheader: ${!!(email.preheader || email.previewText || email.preview)})`);
 
             // Push subject
             if (email.subject) {
@@ -1078,6 +1081,7 @@ export async function POST(req) {
         // Appointment reminder SMS: smsReminders object with reminder1Day, reminder1Hour, reminderNow, etc.
         const smsReminders = appointmentReminders.smsReminders || {};
         log(`[Deploy] SMS Reminders keys: ${Object.keys(smsReminders).join(', ')}`);
+        log(`[Deploy] SMS Reminders sample: ${JSON.stringify(smsReminders, null, 2).substring(0, 300)}`);
 
         const smsReminderToGHL = {
             'reminderBooked': 'sms_when_call_booked',
@@ -1091,9 +1095,11 @@ export async function POST(req) {
         for (const [vaultKey, ghlKey] of Object.entries(smsReminderToGHL)) {
             const value = smsReminders[vaultKey];
             if (!value) {
-                log(`[Deploy] No SMS data for ${vaultKey}`);
+                log(`[Deploy] ⚠ No SMS data for ${vaultKey} → ${ghlKey}`);
                 continue;
             }
+
+            log(`[Deploy] Found SMS: ${vaultKey} → ${ghlKey} (${value.length} chars)`);
 
             const existing = findExisting(ghlKey);
             if (existing) {
@@ -1101,12 +1107,15 @@ export async function POST(req) {
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
+                    log(`[Deploy] ✓ Updated SMS: ${vaultKey} → ${ghlKey}`);
                 } else {
                     results.failed++;
+                    log(`[Deploy] ✗ Failed to update SMS: ${vaultKey} → ${ghlKey}`);
                 }
             } else {
                 results.notFound++;
                 notFoundKeys.push(ghlKey);
+                log(`[Deploy] ⚠ GHL key not found: ${ghlKey} (for ${vaultKey})`);
             }
         }
 
