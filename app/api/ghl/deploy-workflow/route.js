@@ -341,6 +341,10 @@ async function getLocationToken(userId, locationId) {
     const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
     try {
+        console.log('[Deploy] Requesting OAuth token from GHL...');
+        console.log('[Deploy] Company ID:', tokenData.company_id?.substring(0, 10) + '...');
+        console.log('[Deploy] Location ID:', locationId?.substring(0, 10) + '...');
+
         const resp = await fetch('https://services.leadconnectorhq.com/oauth/locationToken', {
             method: 'POST',
             headers: {
@@ -355,9 +359,13 @@ async function getLocationToken(userId, locationId) {
         clearTimeout(timeout);
         const text = await resp.text();
 
+        console.log('[Deploy] OAuth response status:', resp.status);
+        console.log('[Deploy] OAuth response preview:', text.substring(0, 100));
+
         if (text.trim().startsWith('<') || !resp.ok) {
             console.log('[Deploy] ERROR: OAuth failed - HTML response or bad status');
-            return { success: false, error: 'OAuth failed' };
+            console.log('[Deploy] Full response:', text.substring(0, 500));
+            return { success: false, error: 'OAuth failed', status: resp.status, preview: text.substring(0, 200) };
         }
 
         const data = JSON.parse(text);
