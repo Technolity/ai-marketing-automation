@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Eye, EyeOff, Loader2, Mail } from "lucide-react";
 
-export default function Login() {
+export default function Login({ searchParams }) {
   const router = useRouter();
   const { isLoaded, signIn, setActive } = useSignIn();
   const { isSignedIn } = useAuth();
@@ -21,12 +21,17 @@ export default function Login() {
   const [verificationCode, setVerificationCode] = useState("");
   const [sendingCode, setSendingCode] = useState(false);
 
+  // Get redirect URL from query params (for OAuth SSO)
+  const redirectUrl = searchParams?.redirect_url || "/dashboard";
+
+  console.log('[Login] Redirect URL:', redirectUrl);
+
   // Redirect if already signed in
   useEffect(() => {
     if (isSignedIn) {
-      router.push("/dashboard");
+      router.push(redirectUrl);
     }
-  }, [isSignedIn, router]);
+  }, [isSignedIn, router, redirectUrl]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -45,7 +50,7 @@ export default function Login() {
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         toast.success("Logged in successfully!");
-        router.push("/dashboard");
+        router.push(redirectUrl);
       } else if (result.status === "needs_second_factor") {
         // Email verification required - send code automatically
         console.log("Sending email verification code...");
@@ -109,7 +114,7 @@ export default function Login() {
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         toast.success("Logged in successfully!");
-        router.push("/dashboard");
+        router.push(redirectUrl);
       } else {
         console.log("Verification status:", result.status);
         toast.error("Verification incomplete. Please try again.");
