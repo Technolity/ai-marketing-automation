@@ -94,7 +94,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
                     // If we have generated colors in vault, use those
                     if (vaultData.fields && vaultData.fields.length > 0) {
-                        const colorsField = vaultData.fields.find(f => f.field_id === 'palette' || f.field_value);
+                        const colorsField = vaultData.fields.find(f => f.field_value);
 
                         if (colorsField?.field_value) {
                             // AI-generated color palette
@@ -133,28 +133,56 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                     }
                 }
 
-                // FALLBACK: Fetch user's original input from profile questionnaire
+                // SECOND: Try questionnaire_responses for question_id 21 (brand colors question)
+                try {
+                    const questionnaireResponse = await fetch(`/api/intake-form/answers?funnel_id=${funnelId}`);
+                    if (questionnaireResponse.ok) {
+                        const questionnaireData = await questionnaireResponse.json();
+                        console.log('[ColorsFields] Questionnaire data:', questionnaireData);
+
+                        // Check for brandColors in the answers (question 21 or 15)
+                        const colorAnswer = questionnaireData.answers?.brandColors ||
+                            questionnaireData.answers?.['21'] ||
+                            questionnaireData.answers?.['15'] ||
+                            '';
+
+                        if (colorAnswer) {
+                            console.log('[ColorsFields] Found brand colors from questionnaire (Q21):', colorAnswer);
+                            setRawAnswer(colorAnswer);
+                            setBrandColorsText(colorAnswer);
+
+                            const colors = parseColorsFromText(colorAnswer);
+                            console.log('[ColorsFields] Parsed colors from text:', colors);
+                            setParsedColors(colors);
+                            setLoading(false);
+                            return;
+                        }
+                    }
+                } catch (qError) {
+                    console.log('[ColorsFields] Questionnaire fetch failed:', qError.message);
+                }
+
+                // THIRD FALLBACK: Fetch user's original input from profile
                 const response = await fetch('/api/user/profile');
                 if (response.ok) {
                     const profile = await response.json();
                     console.log('[ColorsFields] Profile response:', profile);
 
-                    // The API returns profile fields directly (not wrapped in data.profile)
                     // Try different paths to find brand colors answer
                     const colorAnswer =
                         profile?.intake_form?.brandColors ||
                         profile?.intake_form?.brand_colors ||
+                        profile?.intake_form?.['21'] ||
                         profile?.intake_form?.['15'] || // Questionnaire Q15
                         profile?.answers?.brandColors ||
                         profile?.brandColors ||
                         '';
 
-                    console.log('[ColorsFields] Found brand colors from questionnaire:', colorAnswer);
-
-                    setRawAnswer(colorAnswer);
-                    setBrandColorsText(colorAnswer);
+                    console.log('[ColorsFields] Found brand colors from profile:', colorAnswer);
 
                     if (colorAnswer) {
+                        setRawAnswer(colorAnswer);
+                        setBrandColorsText(colorAnswer);
                         const colors = parseColorsFromText(colorAnswer);
                         console.log('[ColorsFields] Parsed colors from text:', colors);
                         setParsedColors(colors);
