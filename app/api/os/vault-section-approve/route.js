@@ -73,18 +73,46 @@ export async function POST(req) {
         }
 
         // ALSO update vault_content.status to 'approved' for Dashboard progress tracking
+        // For media section (and others), create vault_content row if it doesn't exist
         // SECURITY FIX: Added user_id filter to prevent cross-user data access
-        const { error: vaultContentError } = await supabaseAdmin
+        const { data: existingContent, error: checkError } = await supabaseAdmin
             .from('vault_content')
-            .update({ status: 'approved' })
+            .select('id')
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
-            .eq('user_id', userId)
-            .eq('is_current_version', true);
+            .eq('is_current_version', true)
+            .maybeSingle();
 
-        if (vaultContentError) {
-            console.error('[VaultSectionApprove] vault_content update warning:', vaultContentError);
-            // Don't throw - this is secondary to fields approval
+        if (!existingContent) {
+            // No vault_content row exists (e.g., for media section), create one
+            const { error: insertError } = await supabaseAdmin
+                .from('vault_content')
+                .insert({
+                    funnel_id,
+                    user_id: userId,
+                    section_id,
+                    content: {}, // Empty content for sections like media
+                    status: 'approved',
+                    is_current_version: true,
+                    version: 1
+                });
+
+            if (insertError) {
+                console.error('[VaultSectionApprove] vault_content insert error:', insertError);
+            }
+        } else {
+            // Update existing row
+            const { error: vaultContentError } = await supabaseAdmin
+                .from('vault_content')
+                .update({ status: 'approved' })
+                .eq('funnel_id', funnel_id)
+                .eq('section_id', section_id)
+                .eq('user_id', userId)
+                .eq('is_current_version', true);
+
+            if (vaultContentError) {
+                console.error('[VaultSectionApprove] vault_content update warning:', vaultContentError);
+            }
         }
 
         console.log('[VaultSectionApprove] Section approved:', {
