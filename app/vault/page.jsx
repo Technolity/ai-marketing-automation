@@ -691,88 +691,66 @@ export default function VaultPage() {
 
         let pollInterval;
         let isPolling = false;
+        let lastSectionCount = Object.keys(vaultData).length;
 
-        const checkGenerationJobs = async () => {
+        const checkForNewSections = async () => {
             if (isPolling) return; // Prevent concurrent polls
             isPolling = true;
 
             try {
-                // Check for active generation jobs for this funnel
-                const res = await fetchWithAuth(`/api/os/generation-jobs?funnel_id=${funnelId}`);
+                console.log('[Vault] Polling for new sections...');
+
+                // Directly poll vault content to check for new sections
+                const res = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
                 if (!res.ok) {
                     isPolling = false;
                     return;
                 }
 
-                // Destructure all job arrays from API response
-                const { activeJobs, completedJobs, failedJobs } = await res.json();
+                const result = await res.json();
 
-                // Log active jobs for debugging
-                if (activeJobs && activeJobs.length > 0) {
-                    console.log('[Vault] Active generation jobs:', activeJobs.length);
-                }
+                if (result.data && Object.keys(result.data).length > 0) {
+                    const normalizedData = normalizeData(result.data);
+                    const newSectionCount = Object.keys(normalizedData).length;
 
-                // Check for newly completed jobs (not seen before)
-                // The API returns completedJobs separately - they are NOT in activeJobs!
-                const newlyCompletedJobs = (completedJobs || []).filter(
-                    j => !previouslyCompletedJobsRef.current.has(j.id)
-                );
+                    // Check if new sections have been generated
+                    if (newSectionCount > lastSectionCount) {
+                        console.log(`[Vault] 🎉 New sections detected! ${lastSectionCount} → ${newSectionCount}`);
+                        lastSectionCount = newSectionCount;
 
-                if (newlyCompletedJobs.length > 0) {
-                    console.log('[Vault] Newly completed jobs detected:', newlyCompletedJobs.length);
-
-                    // Mark these jobs as processed to avoid duplicate refreshes
-                    newlyCompletedJobs.forEach(j => previouslyCompletedJobsRef.current.add(j.id));
-
-                    console.log('[Vault] Refreshing vault data for completed jobs...');
-
-                    // Refresh vault data
-                    const dataRes = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
-                    const result = await dataRes.json();
-
-                    if (result.data && Object.keys(result.data).length > 0) {
-                        const normalizedData = normalizeData(result.data);
                         const withFreeGift = applyFreeGiftReplacement(normalizedData);
                         setVaultData(withFreeGift);
                         console.log('[Vault] Vault data refreshed, sections:', Object.keys(normalizedData));
 
                         // Trigger refresh of field components
                         setRefreshTrigger(prev => prev + 1);
-                    }
 
-                    // Refresh approvals
-                    await loadApprovals(funnelId);
-                }
+                        // Refresh approvals to update section status
+                        await loadApprovals(funnelId);
 
-                // Handle failed jobs - update sectionStatuses
-                if (failedJobs && failedJobs.length > 0) {
-                    const failedSectionIds = {};
-                    failedJobs.forEach(j => {
-                        if (j.current_section) {
-                            failedSectionIds[j.current_section] = 'failed';
-                        }
-                    });
-                    if (Object.keys(failedSectionIds).length > 0) {
-                        setSectionStatuses(prev => ({ ...prev, ...failedSectionIds }));
+                        // Show a toast notification
+                        toast.success('New sections generated!');
+                    } else {
+                        console.log(`[Vault] No new sections (current: ${newSectionCount})`);
                     }
                 }
             } catch (error) {
-                console.error('[Vault] Error checking generation jobs:', error);
+                console.error('[Vault] Error polling for new sections:', error);
             } finally {
                 isPolling = false;
             }
         };
 
-        // Poll every 5 seconds for generation job updates
-        pollInterval = setInterval(checkGenerationJobs, 5000);
+        // Poll every 3 seconds for faster updates during generation
+        pollInterval = setInterval(checkForNewSections, 3000);
 
         // Initial check
-        checkGenerationJobs();
+        checkForNewSections();
 
         return () => {
             if (pollInterval) clearInterval(pollInterval);
         };
-    }, [searchParams, session, initialLoadComplete]);
+    }, [searchParams, session, initialLoadComplete, vaultData]);
 
 
     const loadApprovals = async (sId = null) => {
