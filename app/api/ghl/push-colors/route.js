@@ -8,7 +8,6 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { COLORS_MAP } from '@/lib/ghl/customValuesMap';
-import { validateAndFormatColor } from '@/lib/ghl/contentPolisher';
 
 export const dynamic = 'force-dynamic';
 
@@ -218,28 +217,42 @@ export async function POST(req) {
 
         console.log('[PushColors] Brand colors to use:', brandColors);
 
+        // Expand brand colors into full palette with calculated variants
+        const palette = expandColorPalette(brandColors);
+
         // Build custom values using COLORS_MAP
         const customValues = [];
 
-        // Apply brand colors to all color fields
+        // Apply smart color mapping to all color fields
         for (const [section, fields] of Object.entries(COLORS_MAP)) {
-            for (const [field, ghlKey] of Object.entries(fields)) {
-                // Determine color role and apply appropriate color
-                const role = getColorRole(field);
-                let colorValue = getColorForRole(role, brandColors);
+            console.log(`[PushColors] Processing section: ${section}, fields: ${Object.keys(fields).length}`);
 
-                // Validate and format color
-                colorValue = validateAndFormatColor(colorValue, role);
+            for (const [field, ghlKey] of Object.entries(fields)) {
+                // Get detailed role for this custom value
+                const role = getColorRole(ghlKey);
+
+                // Assign color based on role with smart logic
+                let colorValue = getColorForRole(role, palette);
+
+                // Validate hex color
+                colorValue = ensureValidHex(colorValue, '#000000');
+
+                console.log(`[PushColors]   ${field} → ${ghlKey} = ${colorValue} (${role.context}/${role.element})`);
 
                 customValues.push({
                     key: ghlKey,
                     value: colorValue,
-                    existingId: existingMap.get(ghlKey) || existingMap.get(ghlKey.toLowerCase())
+                    existingId: existingMap.get(ghlKey) || existingMap.get(ghlKey.toLowerCase()),
+                    role: `${role.context}/${role.element}`
                 });
             }
         }
 
-        console.log('[PushColors] Pushing', customValues.length, 'values');
+        console.log('[PushColors] Total custom values to push:', customValues.length);
+        console.log('[PushColors] Sample mappings:');
+        customValues.slice(0, 5).forEach(cv => {
+            console.log(`[PushColors]   ${cv.key} = ${cv.value} (${cv.role})`);
+        });
 
         // Push to GHL
         const results = { success: true, pushed: 0, updated: 0, created: 0, failed: 0, errors: [] };
@@ -309,48 +322,218 @@ export async function POST(req) {
 }
 
 /**
+ * Calculate relative luminance of a color (0-1, where 0 is black, 1 is white)
+ * Used for WCAG contrast calculations
+ */
+function calculateLuminance(hexColor) {
+    // Remove # if present
+    const hex = hexColor.replace('#', '');
+
+    // Convert to RGB
+    const r = parseInt(hex.substr(0, 2), 16) / 255;
+    const g = parseInt(hex.substr(2, 2), 16) / 255;
+    const b = parseInt(hex.substr(4, 2), 16) / 255;
+
+    // Apply gamma correction
+    const rsRGB = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+    const gsRGB = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+    const bsRGB = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+
+    // Calculate luminance
+    return 0.2126 * rsRGB + 0.7152 * gsRGB + 0.0722 * bsRGB;
+}
+
+/**
+ * Get contrasting text color (dark or light) for a given background
+ */
+function getContrastingTextColor(bgColor) {
+    const luminance = calculateLuminance(bgColor);
+    // If background is bright (luminance > 0.5), use dark text
+    // If background is dark (luminance <= 0.5), use light text
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
+
+/**
+ * Validate and normalize hex color
+ */
+function ensureValidHex(color, fallback = '#000000') {
+    if (!color) return fallback;
+
+    // Remove # if present
+    const hex = color.replace('#', '');
+
+    // Validate hex format
+    if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
+        console.log(`[PushColors] ⚠ Invalid hex color: ${color}, using fallback: ${fallback}`);
+        return fallback;
+    }
+
+    return '#' + hex;
+}
+
+/**
  * Parse brand colors from string or object format
  */
 function parseBrandColors(input) {
-    if (typeof input === 'object') return input;
+    console.log('[PushColors] Parsing brand colors from input:', typeof input, input?.substring?.(0, 100));
+
+    if (typeof input === 'object' && input !== null) {
+        return {
+            primary: ensureValidHex(input.primary, '#00BFFF'),
+            secondary: ensureValidHex(input.secondary, '#1A1A1D'),
+            accent: ensureValidHex(input.accent, '#FF4500')
+        };
+    }
 
     const colors = { primary: '#00BFFF', secondary: '#1A1A1D', accent: '#FF4500' };
 
-    if (typeof input === 'string') {
+    if (typeof input === 'string' && input.trim()) {
         // Parse "Primary: #00BFFF, Secondary: #1A1A1D" format
-        const matches = input.matchAll(/(\w+):\s*(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|\w+)/g);
+        const matches = input.matchAll(/(primary|secondary|accent):\s*(#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|\w+)/gi);
         for (const match of matches) {
             const key = match[1].toLowerCase();
-            colors[key] = match[2];
+            colors[key] = ensureValidHex(match[2], colors[key]);
+        }
+
+        // Also try to extract any hex codes if no labels found
+        const hexMatches = input.match(/#[0-9A-Fa-f]{6}/g);
+        if (hexMatches && hexMatches.length >= 2) {
+            colors.primary = ensureValidHex(hexMatches[0], colors.primary);
+            colors.secondary = ensureValidHex(hexMatches[1], colors.secondary);
+            if (hexMatches[2]) {
+                colors.accent = ensureValidHex(hexMatches[2], colors.accent);
+            }
         }
     }
 
+    console.log('[PushColors] Parsed colors:', colors);
     return colors;
 }
 
 /**
- * Get color role from field name
+ * Expand brand colors into full palette with light/dark variants
  */
-function getColorRole(field) {
-    const lowerField = field.toLowerCase();
-    if (lowerField.includes('background') || lowerField.includes('bg')) return 'background';
-    if (lowerField.includes('cta') || lowerField.includes('button')) return 'cta';
-    if (lowerField.includes('border')) return 'border';
-    if (lowerField.includes('headline')) return 'headline';
-    return 'text';
+function expandColorPalette(brandColors) {
+    const { primary, secondary, accent } = brandColors;
+
+    const palette = {
+        // Brand colors
+        primary,
+        secondary,
+        accent,
+
+        // Calculated colors
+        textLight: '#FFFFFF',
+        textDark: '#000000',
+        textBody: '#333333',
+        bgLight: '#FFFFFF',
+        bgDark: secondary, // Use brand secondary as dark bg
+
+        // CTA with auto-contrast
+        ctaBg: accent,
+        ctaText: getContrastingTextColor(accent),
+
+        // Header (light bg, dark text)
+        headerBg: '#F5F5F5',
+        headerText: '#000000',
+
+        // Footer (dark bg, light text)
+        footerBg: secondary,
+        footerText: '#FFFFFF',
+
+        // Cards (slightly darker than white)
+        cardBg: '#F9F9F9',
+        cardText: '#333333',
+
+        // Borders
+        borderPrimary: primary,
+        borderLight: '#E0E0E0'
+    };
+
+    console.log('[PushColors] Expanded palette:', palette);
+    return palette;
 }
 
 /**
- * Get color for a specific role based on brand colors
+ * Get detailed color role from GHL custom value key
+ * Returns object with { type, context, element }
  */
-function getColorForRole(role, brandColors) {
-    const { primary = '#00BFFF', secondary = '#1A1A1D', accent = '#FF4500' } = brandColors;
+function getColorRole(ghlKey) {
+    const lower = ghlKey.toLowerCase();
 
-    switch (role) {
-        case 'cta': return accent;
-        case 'background': return secondary;
-        case 'headline': return primary;
-        case 'border': return primary;
-        default: return '#333333'; // Default text color
+    // Determine context (header, footer, body)
+    let context = 'body';
+    if (lower.includes('header')) context = 'header';
+    else if (lower.includes('footer')) context = 'footer';
+    else if (lower.includes('card') || lower.includes('testimonial')) context = 'card';
+
+    // Determine element type
+    let element = 'text';
+    if (lower.includes('background') || lower.includes('_bg_')) element = 'background';
+    else if (lower.includes('border')) element = 'border';
+    else if (lower.includes('cta')) element = 'cta';
+    else if (lower.includes('headline') || lower.includes('heading')) element = 'headline';
+    else if (lower.includes('subheadline') || lower.includes('subheading')) element = 'subheadline';
+    else if (lower.includes('bullet')) element = 'bullet';
+    else if (lower.includes('pill')) element = 'pill';
+
+    const role = { context, element, key: ghlKey };
+    console.log(`[PushColors] Role for "${ghlKey}": ${context}/${element}`);
+    return role;
+}
+
+/**
+ * Get color for a specific role based on expanded palette
+ * Uses smart logic to ensure proper contrast
+ */
+function getColorForRole(role, palette) {
+    const { context, element } = role;
+
+    // Background colors
+    if (element === 'background') {
+        if (context === 'header') return palette.headerBg;
+        if (context === 'footer') return palette.footerBg;
+        if (context === 'card') return palette.cardBg;
+        if (element === 'cta') return palette.ctaBg;
+        return palette.bgLight; // Default light background
     }
+
+    // CTA colors
+    if (element === 'cta') {
+        // CTA background uses accent, CTA text uses contrasting color
+        if (role.key.toLowerCase().includes('text') || role.key.toLowerCase().includes('colour')) {
+            return palette.ctaText;
+        }
+        return palette.ctaBg;
+    }
+
+    // Pill colors (similar to CTA)
+    if (element === 'pill') {
+        if (role.key.toLowerCase().includes('text')) {
+            return palette.ctaText;
+        }
+        return palette.ctaBg;
+    }
+
+    // Text colors
+    if (element === 'text' || element === 'headline' || element === 'subheadline' || element === 'bullet') {
+        if (context === 'header') return palette.headerText; // Dark text for header
+        if (context === 'footer') return palette.footerText; // Light text for footer
+        if (context === 'card') return palette.cardText;     // Dark text for cards
+
+        // Headlines are usually darker/bolder
+        if (element === 'headline') return palette.primary;
+
+        // Body text
+        return palette.textBody;
+    }
+
+    // Border colors
+    if (element === 'border') {
+        return palette.borderPrimary;
+    }
+
+    // Default fallback
+    console.log(`[PushColors] ⚠ Unhandled role: ${context}/${element}, using default`);
+    return palette.textBody;
 }
