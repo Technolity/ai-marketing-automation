@@ -2,45 +2,109 @@
 
 /**
  * ColorsFields Component
- * Displays brand colors from intake_form and allows pushing to GHL
+ * Displays brand colors from intake_form questionnaire Q15 (brandColors)
+ * Parses hex codes from user text input and displays color preview squares
  */
 
 import { useState, useEffect } from 'react';
-import { Palette, Check } from 'lucide-react';
+import { Palette, Check, AlertCircle } from 'lucide-react';
+
+// Color name to hex mapping for interpreting color names
+const COLOR_NAME_MAP = {
+    'red': '#dc2626', 'crimson': '#dc143c', 'scarlet': '#ff2400',
+    'blue': '#2563eb', 'navy': '#000080', 'ocean': '#006994', 'royal blue': '#4169e1',
+    'green': '#16a34a', 'emerald': '#50c878', 'forest': '#228b22', 'sage': '#9dc183',
+    'purple': '#9333ea', 'violet': '#8b00ff', 'lavender': '#e6e6fa',
+    'orange': '#ea580c', 'amber': '#ffbf00', 'coral': '#ff7f50',
+    'pink': '#ec4899', 'rose': '#ff007f', 'magenta': '#ff00ff', 'dusty rose': '#d4a5a5',
+    'gold': '#ffd700', 'yellow': '#eab308', 'sunshine': '#fffd37',
+    'teal': '#0891b2', 'turquoise': '#40e0d0', 'cyan': '#00d4ff', 'electric blue': '#7df9ff',
+    'black': '#000000', 'charcoal': '#36454f', 'slate': '#708090', 'grey': '#808080', 'gray': '#808080',
+    'white': '#ffffff', 'cream': '#fffdd0', 'ivory': '#fffff0',
+    'brown': '#8b4513', 'bronze': '#cd7f32', 'tan': '#d2b48c',
+    'silver': '#c0c0c0', 'platinum': '#e5e4e2',
+    'deep purple': '#5b21b6', 'deep black': '#111827', 'electric green': '#10b981',
+    'forest green': '#065f46', 'warm gold': '#d97706', 'cream white': '#fffbeb'
+};
+
+// Extract hex codes and named colors from text
+function parseColorsFromText(text) {
+    if (!text) return [];
+
+    const colors = [];
+
+    // Extract hex codes directly (e.g., #000080)
+    const hexPattern = /#[0-9A-Fa-f]{6}/gi;
+    const hexMatches = text.match(hexPattern) || [];
+
+    // Also look for hex codes in parentheses like "Navy Blue (#000080)"
+    const parenHexPattern = /\(#([0-9A-Fa-f]{6})\)/gi;
+    let match;
+    while ((match = parenHexPattern.exec(text)) !== null) {
+        const hex = '#' + match[1].toUpperCase();
+        if (!colors.find(c => c.hex === hex)) {
+            // Try to find the color name before the parenthesis
+            const beforeParen = text.substring(0, match.index).split(/,|and/).pop().trim();
+            colors.push({
+                name: beforeParen || 'Color',
+                hex: hex
+            });
+        }
+    }
+
+    // Add any standalone hex codes
+    hexMatches.forEach(hex => {
+        const upperHex = hex.toUpperCase();
+        if (!colors.find(c => c.hex === upperHex)) {
+            colors.push({ name: 'Color', hex: upperHex });
+        }
+    });
+
+    // If no hex codes found, try to match color names
+    if (colors.length === 0) {
+        const lowerText = text.toLowerCase();
+        for (const [name, hex] of Object.entries(COLOR_NAME_MAP)) {
+            if (lowerText.includes(name)) {
+                colors.push({
+                    name: name.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                    hex: hex.toUpperCase()
+                });
+            }
+        }
+    }
+
+    return colors;
+}
 
 export default function ColorsFields({ content, sectionId, funnelId, onSave, isApproved }) {
-    const [brandColors, setBrandColors] = useState(null);
+    const [brandColorsText, setBrandColorsText] = useState('');
+    const [parsedColors, setParsedColors] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [rawAnswer, setRawAnswer] = useState('');
 
     useEffect(() => {
-        // Try to get colors from content first (saved in vault_content)
-        if (content?.brandColors) {
-            setBrandColors(content.brandColors);
-            setLoading(false);
-            return;
-        }
-
-        // Fetch from user profile intake_form
         const fetchColors = async () => {
             try {
+                // Fetch user profile to get intake_form answers
                 const response = await fetch('/api/profile');
                 if (response.ok) {
                     const data = await response.json();
-                    const intakeColors = data.profile?.intake_form?.brandColors ||
-                        data.profile?.intake_form?.brand_colors ||
-                        data.profile?.brand_colors;
+                    const profile = data.profile;
 
-                    if (intakeColors) {
-                        setBrandColors(intakeColors);
-                    } else {
-                        // Default colors
-                        setBrandColors({
-                            primary: '#00D4FF',
-                            secondary: '#1E1E1E',
-                            accent: '#00FF88',
-                            text: '#FFFFFF',
-                            background: '#0A0A0A'
-                        });
+                    // Try different paths to find brand colors answer
+                    const colorAnswer =
+                        profile?.intake_form?.brandColors ||
+                        profile?.intake_form?.brand_colors ||
+                        profile?.answers?.brandColors ||
+                        profile?.brandColors ||
+                        '';
+
+                    setRawAnswer(colorAnswer);
+                    setBrandColorsText(colorAnswer);
+
+                    if (colorAnswer) {
+                        const colors = parseColorsFromText(colorAnswer);
+                        setParsedColors(colors);
                     }
                 }
             } catch (error) {
@@ -51,7 +115,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
         };
 
         fetchColors();
-    }, [content]);
+    }, []);
 
     if (loading) {
         return (
@@ -61,10 +125,6 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
         );
     }
 
-    const colorEntries = brandColors ? Object.entries(brandColors).filter(([key, value]) =>
-        typeof value === 'string' && value.startsWith('#')
-    ) : [];
-
     return (
         <div className="p-6 space-y-6">
             <div className="flex items-center gap-3 mb-4">
@@ -72,40 +132,51 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                 <h4 className="text-lg font-semibold text-white">Your Brand Colors</h4>
             </div>
 
-            <p className="text-sm text-gray-400 mb-6">
-                These colors from your intake form will be applied to your funnel pages. Push to Builder to update your GHL funnel with these colors.
-            </p>
+            {/* Raw answer display */}
+            {rawAnswer && (
+                <div className="p-4 bg-[#1a1a1d] rounded-xl border border-white/10">
+                    <p className="text-sm text-gray-400 mb-2">From your questionnaire:</p>
+                    <p className="text-white text-sm italic">"{rawAnswer}"</p>
+                </div>
+            )}
 
-            {colorEntries.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {colorEntries.map(([name, color]) => (
-                        <div key={name} className="flex flex-col items-center gap-2">
-                            <div
-                                className="w-16 h-16 rounded-xl border-2 border-white/10 shadow-lg"
-                                style={{ backgroundColor: color }}
-                            />
-                            <span className="text-xs font-medium text-gray-300 capitalize">
-                                {name.replace(/([A-Z])/g, ' $1').trim()}
-                            </span>
-                            <span className="text-xs text-gray-500 font-mono">
-                                {color}
-                            </span>
-                        </div>
-                    ))}
+            {/* Color swatches */}
+            {parsedColors.length > 0 ? (
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-400">
+                        Extracted colors - these will be applied to your funnel:
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {parsedColors.map((color, index) => (
+                            <div key={index} className="flex flex-col items-center gap-2 p-4 bg-[#1a1a1d] rounded-xl border border-white/5">
+                                <div
+                                    className="w-16 h-16 rounded-xl border-2 border-white/20 shadow-lg"
+                                    style={{ backgroundColor: color.hex }}
+                                />
+                                <span className="text-xs font-medium text-gray-300 text-center">
+                                    {color.name}
+                                </span>
+                                <span className="text-xs text-cyan font-mono bg-cyan/10 px-2 py-0.5 rounded">
+                                    {color.hex}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             ) : (
-                <div className="p-6 bg-[#1a1a1d] rounded-xl border border-white/5 text-center">
-                    <p className="text-gray-400">No brand colors found in your intake form.</p>
+                <div className="p-6 bg-[#1a1a1d] rounded-xl border border-yellow-500/20 text-center">
+                    <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-3" />
+                    <p className="text-gray-300">No brand colors found in your questionnaire.</p>
                     <p className="text-sm text-gray-500 mt-2">
-                        Default colors will be applied to your funnel.
+                        Default colors will be applied. You can update your brand colors in the questionnaire (Q15).
                     </p>
                 </div>
             )}
 
-            {isApproved && (
-                <div className="flex items-center gap-2 mt-4 text-emerald-400 text-sm">
+            {isApproved && parsedColors.length > 0 && (
+                <div className="flex items-center gap-2 mt-4 text-emerald-400 text-sm bg-emerald-500/10 p-3 rounded-lg">
                     <Check className="w-4 h-4" />
-                    <span>Colors approved and ready to push</span>
+                    <span>Colors approved and ready to push to Builder</span>
                 </div>
             )}
         </div>
