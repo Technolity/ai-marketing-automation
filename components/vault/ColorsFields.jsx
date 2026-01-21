@@ -81,6 +81,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
     const [parsedColors, setParsedColors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [rawAnswer, setRawAnswer] = useState('');
+    const [debugInfo, setDebugInfo] = useState(null); // For debugging invalid data
 
     useEffect(() => {
         const fetchColors = async () => {
@@ -101,12 +102,41 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                             // AI-generated color palette
                             let generatedColors;
                             try {
-                                generatedColors = typeof colorsField.field_value === 'string'
-                                    ? JSON.parse(colorsField.field_value)
-                                    : colorsField.field_value;
+                                // Check if it's already an object
+                                if (typeof colorsField.field_value === 'object' && colorsField.field_value !== null) {
+                                    generatedColors = colorsField.field_value;
+                                } else if (typeof colorsField.field_value === 'string') {
+                                    // Try to parse as JSON
+                                    const trimmed = colorsField.field_value.trim();
+
+                                    // Check if it's actually JSON
+                                    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                                        generatedColors = JSON.parse(trimmed);
+                                    } else {
+                                        // It's plain text, not JSON - treat as questionnaire answer
+                                        console.log('[ColorsFields] Field value is plain text, not JSON. Using as questionnaire answer.');
+                                        setRawAnswer(colorsField.field_value);
+                                        setBrandColorsText(colorsField.field_value);
+                                        const colors = parseColorsFromText(colorsField.field_value);
+                                        setParsedColors(colors);
+                                        setLoading(false);
+                                        return;
+                                    }
+                                } else {
+                                    throw new Error('Invalid field_value type: ' + typeof colorsField.field_value);
+                                }
                             } catch (parseError) {
-                                console.error('[ColorsFields] JSON parse error:', parseError);
-                                console.log('[ColorsFields] Invalid JSON value:', colorsField.field_value);
+                                console.error('[ColorsFields] Error processing vault colors:', parseError);
+                                console.log('[ColorsFields] Invalid value type:', typeof colorsField.field_value);
+                                console.log('[ColorsFields] Invalid value preview:', String(colorsField.field_value).substring(0, 200));
+
+                                // Store debug info
+                                setDebugInfo({
+                                    error: parseError.message,
+                                    valueType: typeof colorsField.field_value,
+                                    valuePreview: String(colorsField.field_value).substring(0, 200)
+                                });
+
                                 // Skip to fallback if JSON is invalid
                                 throw parseError;
                             }
@@ -227,6 +257,21 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                 <Palette className="w-5 h-5 text-cyan" />
                 <h4 className="text-lg font-semibold text-white">Your Brand Colors</h4>
             </div>
+
+            {/* Debug info display (only if there's an error) */}
+            {debugInfo && (
+                <div className="p-4 bg-red-900/20 rounded-xl border border-red-500/30">
+                    <p className="text-sm text-red-400 mb-2 font-semibold">⚠ Data Format Error:</p>
+                    <p className="text-xs text-gray-400 mb-2">Error: {debugInfo.error}</p>
+                    <p className="text-xs text-gray-400 mb-2">Type: {debugInfo.valueType}</p>
+                    <p className="text-xs text-gray-400 font-mono bg-black/30 p-2 rounded overflow-x-auto">
+                        Preview: {debugInfo.valuePreview}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-2">
+                        The AI-generated colors have an invalid format. Please regenerate this section.
+                    </p>
+                </div>
+            )}
 
             {/* Raw answer display */}
             {rawAnswer && (
