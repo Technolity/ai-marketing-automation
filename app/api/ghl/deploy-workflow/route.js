@@ -308,6 +308,12 @@ const MEDIA_KEY_MAP = {
     'bioPhoto': '02_vsl_bio_photo_text',
     'bio_author': '02_vsl_bio_photo_text', // Actual vault field name
 
+    // VSL Page - Testimonials Profile Pics (4 images)
+    'testimonials_profile_pic_1': '02_vsl_testimonials_profile_pic_1',
+    'testimonials_profile_pic_2': '02_vsl_testimonials_profile_pic_2',
+    'testimonials_profile_pic_3': '02_vsl_testimonials_profile_pic_3',
+    'testimonials_profile_pic_4': '02_vsl_testimonials_profile_pic_4',
+
     // Thank You Page
     'thankyou_video': '02_thankyou_page_video',
 };
@@ -569,6 +575,23 @@ export async function POST(req) {
 
         log(`[Deploy] Vault sections loaded: ${Object.keys(vaultContent).join(', ')}`);
 
+        // Debug: Show structure of key sections
+        if (vaultContent.appointmentReminders) {
+            const ar = vaultContent.appointmentReminders?.appointmentReminders || vaultContent.appointmentReminders;
+            log(`[Deploy] appointmentReminders structure: ${JSON.stringify(Object.keys(ar || {}))}`);
+            if (ar?.smsReminders) {
+                log(`[Deploy] appointmentReminders.smsReminders keys: ${Object.keys(ar.smsReminders).join(', ')}`);
+            }
+        }
+        if (vaultContent.emails) {
+            const emails = vaultContent.emails?.emailSequence || vaultContent.emails;
+            log(`[Deploy] emails structure: ${Object.keys(emails || {}).join(', ')}`);
+        }
+        if (vaultContent.sms) {
+            const sms = vaultContent.sms?.smsSequence || vaultContent.sms;
+            log(`[Deploy] sms structure: ${Object.keys(sms || {}).join(', ')}`);
+        }
+
         // 4b. Fetch media fields from vault_content_fields (separate table for uploaded media)
         const { data: mediaFields } = await supabaseAdmin
             .from('vault_content_fields')
@@ -720,34 +743,61 @@ export async function POST(req) {
         log(`[Deploy] Email sequence keys: ${Object.keys(emailSequence).join(', ')}`);
 
         // Map email1 -> optin_email_subject_1, email2 -> optin_email_subject_2, etc.
-        const emailFieldToGHL = {
-            'subject': (n) => n === 1 ? 'free_gift_email_subject' : `optin_email_subject_${n - 1}`,
-            'preview': (n) => n === 1 ? null : `optin_email_preheader_${n - 1}`, // preview = preheader
-            'body': (n) => n === 1 ? 'free_gift_email_body' : `optin_email_body_${n - 1}`,
-        };
-
         for (let i = 1; i <= 15; i++) {
             const emailContent = emailSequence[`email${i}`] || {};
 
-            for (const [vaultField, ghlKeyFn] of Object.entries(emailFieldToGHL)) {
-                const ghlKey = ghlKeyFn(i);
-                if (!ghlKey) continue;
-
-                const value = emailContent[vaultField];
-                if (!value) continue;
-
-                const existing = findExisting(ghlKey);
+            // Subject line
+            const subjectKey = i === 1 ? 'free_gift_email_subject' : `optin_email_subject_${i - 1}`;
+            if (emailContent.subject) {
+                const existing = findExisting(subjectKey);
                 if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, subjectKey, emailContent.subject);
                     if (result.success) {
                         results.updated++;
-                        updatedKeys.push(ghlKey);
+                        updatedKeys.push(subjectKey);
                     } else {
                         results.failed++;
                     }
                 } else {
                     results.notFound++;
-                    notFoundKeys.push(ghlKey);
+                    notFoundKeys.push(subjectKey);
+                }
+            }
+
+            // Preview/Preheader (handle both 'preview' and 'previewText' field names)
+            const preheaderKey = i === 1 ? null : `optin_email_preheader_${i - 1}`;
+            const previewValue = emailContent.preview || emailContent.previewText || emailContent.preheader;
+            if (preheaderKey && previewValue) {
+                const existing = findExisting(preheaderKey);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, preheaderKey, previewValue);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(preheaderKey);
+                    } else {
+                        results.failed++;
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(preheaderKey);
+                }
+            }
+
+            // Body
+            const bodyKey = i === 1 ? 'free_gift_email_body' : `optin_email_body_${i - 1}`;
+            if (emailContent.body) {
+                const existing = findExisting(bodyKey);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, bodyKey, emailContent.body);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(bodyKey);
+                    } else {
+                        results.failed++;
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(bodyKey);
                 }
             }
         }
@@ -759,25 +809,37 @@ export async function POST(req) {
         const smsSequence = smsData.smsSequence || smsData; // Access nested smsSequence
         log(`[Deploy] SMS sequence keys: ${Object.keys(smsSequence).join(', ')}`);
 
-        // SMS mapping - only 10 messages in vault: sms1-6, sms7a, sms7b, smsNoShow1, smsNoShow2
+        // SMS mapping - vault has: sms1-6, sms7a, sms7b, smsNoShow1, smsNoShow2
+        // GHL has: optin_sms_1-14
         const smsVaultToGHL = {
-            'sms1': 'optin_sms_1',
-            'sms2': 'optin_sms_2',
-            'sms3': 'optin_sms_3',
-            'sms4': 'optin_sms_4',
-            'sms5': 'optin_sms_5',
-            'sms6': 'optin_sms_6',
-            'sms7a': 'optin_sms_7', // Day 7 Morning
-            'sms7b': 'optin_sms_7', // Day 7 Evening (same key, will use last)
-            // No-show SMS mapped to appointment reminder SMS
-            'smsNoShow1': 'sms_10_min_before_call_time',
-            'smsNoShow2': 'sms_at_call_time',
+            'sms1': 'optin_sms_1',      // Day 1 - Welcome
+            'sms2': 'optin_sms_2',      // Day 2 - Value Nudge
+            'sms3': 'optin_sms_3',      // Day 3 - Quick Tip
+            'sms4': 'optin_sms_4',      // Day 4 - Social Proof
+            'sms5': 'optin_sms_5',      // Day 5 - Booking Reminder
+            'sms6': 'optin_sms_6',      // Day 6 - Final Value
+            'sms7a': 'optin_sms_7',     // Day 7 Morning - Last Chance A
+            'sms7b': 'optin_sms_9',     // Day 7 Evening - Last Chance B (use slot 9 to avoid overwrite)
+            // No-show SMS - these should NOT go to optin SMS, they go to appointment reminders
+            // But since we don't have separate appointment reminder SMS in vault, skip them here
+            // They will be handled in appointment reminders section
         };
 
         for (const [vaultKey, ghlKey] of Object.entries(smsVaultToGHL)) {
             const smsContent = smsSequence[vaultKey];
-            const value = typeof smsContent === 'string' ? smsContent : smsContent?.message;
-            if (!value) continue;
+
+            // Extract message text (handle both string and object formats)
+            let value = null;
+            if (typeof smsContent === 'string') {
+                value = smsContent;
+            } else if (smsContent && typeof smsContent === 'object') {
+                value = smsContent.message || smsContent.body || smsContent.text;
+            }
+
+            if (!value) {
+                log(`[Deploy] No SMS content for ${vaultKey}`);
+                continue;
+            }
 
             const existing = findExisting(ghlKey);
             if (existing) {
@@ -785,12 +847,15 @@ export async function POST(req) {
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
+                    log(`[Deploy] ✓ Updated ${vaultKey} → ${ghlKey}`);
                 } else {
                     results.failed++;
+                    log(`[Deploy] ✗ Failed to update ${vaultKey} → ${ghlKey}`);
                 }
             } else {
                 results.notFound++;
                 notFoundKeys.push(ghlKey);
+                log(`[Deploy] ⚠ GHL key not found: ${ghlKey} (for ${vaultKey})`);
             }
         }
 
@@ -801,68 +866,143 @@ export async function POST(req) {
         const appointmentReminders = vaultContent.appointmentReminders?.appointmentReminders || vaultContent.appointmentReminders || {};
         log(`[Deploy] Appointment reminder keys: ${Object.keys(appointmentReminders).join(', ')}`);
 
-        // Appointment reminder emails are stored as array: emails[0]=Confirmation, [1]=24hr, [2]=1hr, [3]=Now, [4]=No-Show
-        const reminderEmails = appointmentReminders.emails || [];
-        const emailArrayToGHL = [
-            { index: 0, subject: 'email_subject_when_call_booked', preheader: 'email_preheader_when_call_booked', body: 'email_body_when_call_booked' },
-            { index: 1, subject: 'email_subject_24_hour_before_call_time', preheader: 'email_preheader_24_hour_before_call_time', body: 'email_body_24_hour_before_call_time' },
-            { index: 2, subject: 'email_subject_1_hour_before_call_time', preheader: 'email_preheader_1_hour_before_call_time', body: 'email_body_1_hour_before_call_time' },
-            { index: 3, subject: 'email_subject_at_call_time', preheader: 'email_preheader_at_call_time', body: 'email_body_at_call_time' },
-            { index: 4, subject: 'email_subject_10_min_before_call_time', preheader: 'email_preheader_10_min_before_call_time', body: 'email_body_10_min_before_call_time' },
-        ];
+        // Appointment reminder emails are stored as NAMED FIELDS (not array)
+        // Vault structure: confirmationEmail, reminder48Hours, reminder24Hours, reminder1Hour, reminder10Minutes, startingNow, noShowFollowUp
+        const emailFieldsToGHL = {
+            // When Call Booked (Confirmation)
+            'confirmationEmail': {
+                subject: 'email_subject_when_call_booked',
+                preheader: 'email_preheader_when_call_booked',
+                body: 'email_body_when_call_booked'
+            },
+            // 48 Hours Before
+            'reminder48Hours': {
+                subject: 'email_subject_48_hour_before_call_time',
+                preheader: 'email_preheader_48_hour_before_call_time',
+                body: 'email_body_48_hour_before_call_time'
+            },
+            // 24 Hours Before
+            'reminder24Hours': {
+                subject: 'email_subject_24_hour_before_call_time',
+                preheader: 'email_preheader_24_hour_before_call_time',
+                body: 'email_body_24_hour_before_call_time'
+            },
+            // 1 Hour Before
+            'reminder1Hour': {
+                subject: 'email_subject_1_hour_before_call_time',
+                preheader: 'email_preheader_1_hour_before_call_time',
+                body: 'email_body_1_hour_before_call_time'
+            },
+            // 10 Minutes Before
+            'reminder10Minutes': {
+                subject: 'email_subject_10_min_before_call_time',
+                preheader: 'email_preheader_10_min_before_call_time',
+                body: 'email_body_10_min_before_call_time'
+            },
+            // At Call Time
+            'startingNow': {
+                subject: 'email_subject_at_call_time',
+                preheader: 'email_preheader_at_call_time',
+                body: 'email_body_at_call_time'
+            },
+            // No-Show Follow-up (map to 10 min before as fallback)
+            'noShowFollowUp': {
+                subject: 'email_subject_10_min_before_call_time',
+                preheader: 'email_preheader_10_min_before_call_time',
+                body: 'email_body_10_min_before_call_time'
+            }
+        };
 
-        // 48 hour before is a special case - check for a 5th email or map to existing
-        if (reminderEmails.length > 5) {
-            emailArrayToGHL.push({ index: 5, subject: 'email_subject_48_hour_before_call_time', preheader: 'email_preheader_48_hour_before_call_time', body: 'email_body_48_hour_before_call_time' });
-        }
+        for (const [vaultField, ghlMapping] of Object.entries(emailFieldsToGHL)) {
+            const email = appointmentReminders[vaultField];
+            if (!email || typeof email !== 'object') {
+                log(`[Deploy] ⚠ No data found for ${vaultField}`);
+                continue;
+            }
 
-        for (const mapping of emailArrayToGHL) {
-            const email = reminderEmails[mapping.index];
-            if (!email) continue;
+            log(`[Deploy] Processing ${vaultField}...`);
 
             // Push subject
             if (email.subject) {
-                const existing = findExisting(mapping.subject);
+                const existing = findExisting(ghlMapping.subject);
                 if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.subject, email.subject);
-                    if (result.success) { results.updated++; updatedKeys.push(mapping.subject); } else { results.failed++; }
-                } else { results.notFound++; notFoundKeys.push(mapping.subject); }
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.subject, email.subject);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(ghlMapping.subject);
+                        log(`[Deploy] ✓ Updated ${vaultField}.subject → ${ghlMapping.subject}`);
+                    } else {
+                        results.failed++;
+                        log(`[Deploy] ✗ Failed to update ${vaultField}.subject`);
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(ghlMapping.subject);
+                    log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.subject}`);
+                }
             }
 
-            // Push preheader (might be called 'preview' in vault)
-            const preheaderValue = email.preheader || email.preview;
-            if (preheaderValue && mapping.preheader) {
-                const existing = findExisting(mapping.preheader);
+            // Push preheader (handle both 'preheader', 'previewText', and 'preview' field names)
+            const preheaderValue = email.preheader || email.previewText || email.preview;
+            if (preheaderValue && ghlMapping.preheader) {
+                const existing = findExisting(ghlMapping.preheader);
                 if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.preheader, preheaderValue);
-                    if (result.success) { results.updated++; updatedKeys.push(mapping.preheader); } else { results.failed++; }
-                } else { results.notFound++; notFoundKeys.push(mapping.preheader); }
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.preheader, preheaderValue);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(ghlMapping.preheader);
+                        log(`[Deploy] ✓ Updated ${vaultField}.preheader → ${ghlMapping.preheader}`);
+                    } else {
+                        results.failed++;
+                        log(`[Deploy] ✗ Failed to update ${vaultField}.preheader`);
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(ghlMapping.preheader);
+                    log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.preheader}`);
+                }
             }
 
             // Push body
             if (email.body) {
-                const existing = findExisting(mapping.body);
+                const existing = findExisting(ghlMapping.body);
                 if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.body, email.body);
-                    if (result.success) { results.updated++; updatedKeys.push(mapping.body); } else { results.failed++; }
-                } else { results.notFound++; notFoundKeys.push(mapping.body); }
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.body, email.body);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(ghlMapping.body);
+                        log(`[Deploy] ✓ Updated ${vaultField}.body → ${ghlMapping.body}`);
+                    } else {
+                        results.failed++;
+                        log(`[Deploy] ✗ Failed to update ${vaultField}.body`);
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(ghlMapping.body);
+                    log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.body}`);
+                }
             }
         }
 
-        // Appointment reminder SMS: smsReminders object with reminder1Day, reminder1Hour, reminderNow
+        // Appointment reminder SMS: smsReminders object with reminder1Day, reminder1Hour, reminderNow, etc.
         const smsReminders = appointmentReminders.smsReminders || {};
+        log(`[Deploy] SMS Reminders keys: ${Object.keys(smsReminders).join(', ')}`);
+
         const smsReminderToGHL = {
-            'reminder1Day': 'sms_24_hour_before_call_time',
-            'reminder1Hour': 'sms_1_hour_before_call_time',
-            'reminderNow': 'sms_at_call_time',
             'reminderBooked': 'sms_when_call_booked',
             'reminder48Hour': 'sms_48_hour_before_call_time',
+            'reminder1Day': 'sms_24_hour_before_call_time',
+            'reminder1Hour': 'sms_1_hour_before_call_time',
             'reminder10Min': 'sms_10_min_before_call_time',
+            'reminderNow': 'sms_at_call_time',
         };
 
         for (const [vaultKey, ghlKey] of Object.entries(smsReminderToGHL)) {
             const value = smsReminders[vaultKey];
-            if (!value) continue;
+            if (!value) {
+                log(`[Deploy] No SMS data for ${vaultKey}`);
+                continue;
+            }
 
             const existing = findExisting(ghlKey);
             if (existing) {
