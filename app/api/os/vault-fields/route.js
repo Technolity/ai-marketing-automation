@@ -156,17 +156,24 @@ export async function GET(req) {
         });
 
         // Fetch section-level approval status from vault_content
-        const { data: vaultSection } = await supabaseAdmin
+        // Use maybeSingle() because some sections (like media) might not have vault_content row yet
+        const { data: vaultSection, error: vaultError } = await supabaseAdmin
             .from('vault_content')
             .select('status')
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
             .eq('is_current_version', true)
-            .single();
+            .maybeSingle();
 
+        // Default to 'pending' if no vault_content row exists
         const sectionStatus = vaultSection?.status || 'pending';
 
-        console.log('[VaultFields GET] Section status:', sectionStatus);
+        console.log('[VaultFields GET] Section status from vault_content:', {
+            section_id,
+            sectionStatus,
+            hasVaultContent: !!vaultSection,
+            vaultError: vaultError?.message || 'none'
+        });
 
         return new Response(JSON.stringify({
             success: true,
