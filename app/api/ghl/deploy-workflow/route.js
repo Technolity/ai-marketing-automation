@@ -608,6 +608,8 @@ export async function POST(req) {
         // Add manual fixes for GHL typos - search by name patterns that exist in GHL
         // These keys have typos or special formats in GHL
         const typoFixes = {
+            // Bio photo - GHL doesn't have "_text" suffix
+            '02_vsl_bio_photo_text': existingMap.get('02_vsl_bio_photo') || existingMap.get('02 vsl bio photo'),
             // Text fields with typos
             '02_optin_subhealine_text': existingMap.get('02_optin_sub_headline_text') || existingMap.get('02_optin_sub-headline_text'),
             '02_vsl_process_sub_headline_text': existingMap.get('02_vsl_process_sub_headline_text') || existingMap.get('02_vsl_process_sub-headline_text'),
