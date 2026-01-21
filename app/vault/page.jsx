@@ -2517,7 +2517,6 @@ export default function VaultPage() {
                                                     funnelId={searchParams.get('funnel_id') || dataSource?.id}
                                                     isApproved={true}
                                                     isVaultComplete={isVaultComplete}
-                                                    label="🚀"
                                                 />
                                             )}
                                             <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2">
