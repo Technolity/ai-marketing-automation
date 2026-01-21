@@ -13,7 +13,8 @@ import {
     Clock,
     CheckCircle,
     AlertCircle,
-    Loader2
+    Loader2,
+    ExternalLink
 } from "lucide-react";
 import {
     AreaChart,
@@ -28,6 +29,7 @@ import {
     Cell
 } from "recharts";
 import AdminLayout from "@/components/admin/AdminLayout";
+import LaunchBuilderButton from "@/components/LaunchBuilderButton";
 
 export default function AdminOverview() {
     const { session, loading: authLoading } = useAuth();
@@ -151,6 +153,20 @@ export default function AdminOverview() {
                 <div>
                     <h1 className="text-3xl font-bold mb-2">Dashboard Overview</h1>
                     <p className="text-gray-400">Welcome back! Here's what's happening with TedOS today.</p>
+                </div>
+
+                {/* Launch GHL Builder - Admin Tool */}
+                <div className="bg-purple-950/20 border border-purple-500/30 rounded-xl p-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                                <ExternalLink className="w-5 h-5 text-purple-400" />
+                                GHL Builder Access
+                            </h3>
+                            <p className="text-gray-400 text-sm">Open your GoHighLevel subaccount builder with a single click</p>
+                        </div>
+                        <LaunchBuilderButton />
+                    </div>
                 </div>
 
                 {/* Stats Grid */}
