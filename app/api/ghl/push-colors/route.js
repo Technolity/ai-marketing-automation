@@ -142,24 +142,81 @@ export async function POST(req) {
             existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
         });
 
-        // Get brand colors from user profile or funnel wizard answers
-        const { data: funnel } = await supabaseAdmin
-            .from('user_funnels')
-            .select('wizard_answers')
-            .eq('id', funnelId)
-            .single();
-
-        // Extract brand colors from wizard answers
+        // Get brand colors with priority: vault_content > questionnaire_responses > wizard_answers
         let brandColors = {};
-        if (funnel?.wizard_answers) {
-            const wa = funnel.wizard_answers;
-            // Look for brandColors in various locations
-            if (wa.brandColors) {
-                brandColors = parseBrandColors(wa.brandColors);
-            } else if (wa['15']) {
-                brandColors = parseBrandColors(wa['15']);
+
+        // FIRST: Try AI-generated colors from vault_content
+        const { data: vaultColors } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_value')
+            .eq('funnel_id', funnelId)
+            .eq('section_id', 'colors')
+            .eq('field_id', 'colorPalette')
+            .eq('is_current_version', true)
+            .maybeSingle();
+
+        if (vaultColors?.field_value) {
+            console.log('[PushColors] Using AI-generated colors from vault_content');
+            try {
+                const parsed = typeof vaultColors.field_value === 'string'
+                    ? JSON.parse(vaultColors.field_value)
+                    : vaultColors.field_value;
+
+                // Convert AI format to simple format
+                brandColors = {
+                    primary: parsed.primaryColor?.hex || parsed.primary,
+                    secondary: parsed.secondaryColor?.hex || parsed.secondary,
+                    accent: parsed.accentColor?.hex || parsed.accent
+                };
+            } catch (e) {
+                console.error('[PushColors] Error parsing vault colors:', e);
             }
         }
+
+        // SECOND: Try questionnaire_responses
+        if (!brandColors.primary) {
+            const { data: questionnaireData } = await supabaseAdmin
+                .from('questionnaire_responses')
+                .select('answer_text, answer_json')
+                .eq('funnel_id', funnelId)
+                .in('question_id', [15, 21]) // Brand colors question
+                .limit(1)
+                .maybeSingle();
+
+            if (questionnaireData) {
+                console.log('[PushColors] Using colors from questionnaire_responses');
+                const colorText = questionnaireData.answer_text || '';
+                brandColors = parseBrandColors(colorText);
+            }
+        }
+
+        // THIRD: Try wizard_answers fallback
+        if (!brandColors.primary) {
+            const { data: funnel } = await supabaseAdmin
+                .from('user_funnels')
+                .select('wizard_answers')
+                .eq('id', funnelId)
+                .single();
+
+            if (funnel?.wizard_answers) {
+                console.log('[PushColors] Using colors from wizard_answers');
+                const wa = funnel.wizard_answers;
+                const colorInput = wa.brandColors || wa['21'] || wa['15'] || '';
+                brandColors = parseBrandColors(colorInput);
+            }
+        }
+
+        // Final fallback to defaults if still empty
+        if (!brandColors.primary) {
+            console.log('[PushColors] No brand colors found, using defaults');
+            brandColors = {
+                primary: '#00BFFF',
+                secondary: '#1A1A1D',
+                accent: '#FF4500'
+            };
+        }
+
+        console.log('[PushColors] Brand colors to use:', brandColors);
 
         // Build custom values using COLORS_MAP
         const customValues = [];
