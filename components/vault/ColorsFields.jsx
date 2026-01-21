@@ -85,8 +85,55 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
     useEffect(() => {
         const fetchColors = async () => {
             try {
-                // Fetch user profile to get intake_form answers
-                // Use /api/user/profile which returns profile fields directly
+                // FIRST: Try to fetch AI-generated colors from vault_content
+                const vaultResponse = await fetch(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=colors`);
+
+                if (vaultResponse.ok) {
+                    const vaultData = await vaultResponse.json();
+                    console.log('[ColorsFields] Vault data:', vaultData);
+
+                    // If we have generated colors in vault, use those
+                    if (vaultData.fields && vaultData.fields.length > 0) {
+                        const colorsField = vaultData.fields.find(f => f.field_id === 'palette' || f.field_value);
+
+                        if (colorsField?.field_value) {
+                            // AI-generated color palette
+                            const generatedColors = typeof colorsField.field_value === 'string'
+                                ? JSON.parse(colorsField.field_value)
+                                : colorsField.field_value;
+
+                            console.log('[ColorsFields] Using AI-generated colors from vault:', generatedColors);
+
+                            // Convert to display format
+                            const displayColors = [];
+                            if (generatedColors.primaryColor) {
+                                displayColors.push({
+                                    name: generatedColors.primaryColor.name,
+                                    hex: generatedColors.primaryColor.hex
+                                });
+                            }
+                            if (generatedColors.secondaryColor) {
+                                displayColors.push({
+                                    name: generatedColors.secondaryColor.name,
+                                    hex: generatedColors.secondaryColor.hex
+                                });
+                            }
+                            if (generatedColors.accentColor) {
+                                displayColors.push({
+                                    name: generatedColors.accentColor.name,
+                                    hex: generatedColors.accentColor.hex
+                                });
+                            }
+
+                            setParsedColors(displayColors);
+                            setRawAnswer(generatedColors.reasoning || 'AI-generated professional color palette');
+                            setLoading(false);
+                            return;
+                        }
+                    }
+                }
+
+                // FALLBACK: Fetch user's original input from profile questionnaire
                 const response = await fetch('/api/user/profile');
                 if (response.ok) {
                     const profile = await response.json();
@@ -102,14 +149,14 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                         profile?.brandColors ||
                         '';
 
-                    console.log('[ColorsFields] Found brand colors:', colorAnswer);
+                    console.log('[ColorsFields] Found brand colors from questionnaire:', colorAnswer);
 
                     setRawAnswer(colorAnswer);
                     setBrandColorsText(colorAnswer);
 
                     if (colorAnswer) {
                         const colors = parseColorsFromText(colorAnswer);
-                        console.log('[ColorsFields] Parsed colors:', colors);
+                        console.log('[ColorsFields] Parsed colors from text:', colors);
                         setParsedColors(colors);
                     }
                 } else {
@@ -122,8 +169,12 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
             }
         };
 
-        fetchColors();
-    }, []);
+        if (funnelId) {
+            fetchColors();
+        } else {
+            setLoading(false);
+        }
+    }, [funnelId]);
 
     if (loading) {
         return (

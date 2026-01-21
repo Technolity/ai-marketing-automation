@@ -29,6 +29,7 @@ const CONTENT_NAMES = {
     15: 'bio',
     16: 'appointmentReminders',
     17: 'setterScript',
+    18: 'colors',
     19: 'sms'
 };
 
@@ -46,6 +47,7 @@ const DISPLAY_NAMES = {
     15: 'Professional Bio',
     16: 'Appointment Reminders',
     17: 'Setter Script',
+    18: 'Brand Colors',
     19: 'SMS Sequences'
 };
 
@@ -59,8 +61,8 @@ const BACKGROUND_BATCHES = [
     // Batch 1: Phase 1 remaining + Offer (parallel)
     { keys: [3, 4], parallel: true },     // Story + Offer
 
-    // Batch 2: Lead Magnet + VSL + Bio (parallel) - VSL is chunked
-    { keys: [6, 7, 15], parallel: true }, // Lead Magnet + VSL + Bio
+    // Batch 2: Lead Magnet + VSL + Bio + Colors (parallel) - VSL is chunked
+    { keys: [6, 7, 15, 18], parallel: true }, // Lead Magnet + VSL + Bio + Brand Colors
 
     // Batch 3: Ads (single)
     { keys: [9], parallel: false },       // Facebook Ads
