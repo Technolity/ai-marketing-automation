@@ -301,18 +301,9 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
     return (
         <div className="p-6 space-y-6">
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                    <Palette className="w-5 h-5 text-cyan" />
-                    <h4 className="text-lg font-semibold text-white">Your Brand Colors</h4>
-                </div>
-                <button
-                    onClick={handleAIFeedback}
-                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-                >
-                    <Sparkles className="w-4 h-4" />
-                    AI Feedback
-                </button>
+            <div className="flex items-center gap-3 mb-4">
+                <Palette className="w-5 h-5 text-cyan" />
+                <h4 className="text-lg font-semibold text-white">Your Brand Colors</h4>
             </div>
 
             {/* Debug info display (only if there's an error) */}
@@ -376,21 +367,6 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                     <Check className="w-4 h-4" />
                     <span>Colors approved and ready to push to Builder</span>
                 </div>
-            )}
-
-            {/* AI Feedback Modal */}
-            {feedbackModalOpen && (
-                <FeedbackChatModal
-                    isOpen={feedbackModalOpen}
-                    onClose={() => setFeedbackModalOpen(false)}
-                    sectionId={sectionId}
-                    sectionTitle="Brand Colors"
-                    subSection="colorPalette"
-                    subSectionTitle="Brand Color Palette"
-                    currentContent={currentContent}
-                    sessionId={funnelId}
-                    onSave={handleFeedbackSave}
-                />
             )}
         </div>
     );
