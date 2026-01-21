@@ -321,6 +321,52 @@ const MEDIA_KEY_MAP = {
 /**
  * Get OAuth location token with timeout
  */
+async function refreshGHLToken(tokenData) {
+    console.log('[Deploy] Attempting to refresh expired token...');
+
+    if (!tokenData?.refresh_token) {
+        console.log('[Deploy] ERROR: No refresh token available');
+        return null;
+    }
+
+    try {
+        const refreshResp = await fetch('https://services.leadconnectorhq.com/oauth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: process.env.GHL_CLIENT_ID,
+                client_secret: process.env.GHL_CLIENT_SECRET,
+                grant_type: 'refresh_token',
+                refresh_token: tokenData.refresh_token,
+            }),
+        });
+
+        if (!refreshResp.ok) {
+            console.log('[Deploy] ERROR: Token refresh failed:', refreshResp.status);
+            return null;
+        }
+
+        const newTokens = await refreshResp.json();
+
+        // Update tokens in database
+        await supabaseAdmin
+            .from('ghl_tokens')
+            .update({
+                access_token: newTokens.access_token,
+                refresh_token: newTokens.refresh_token || tokenData.refresh_token,
+                expires_at: new Date(Date.now() + (newTokens.expires_in * 1000)).toISOString(),
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', tokenData.id);
+
+        console.log('[Deploy] ✓ Token refreshed successfully');
+        return newTokens.access_token;
+    } catch (e) {
+        console.log('[Deploy] ERROR: Token refresh exception:', e.message);
+        return null;
+    }
+}
+
 async function getLocationToken(userId, locationId) {
     console.log('[Deploy] Getting OAuth token...');
 
@@ -337,45 +383,82 @@ async function getLocationToken(userId, locationId) {
         return { success: false, error: 'No agency token found' };
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    let accessToken = tokenData.access_token;
+    let attemptCount = 0;
+    const maxAttempts = 2; // Try original token, then refreshed token
 
-    try {
-        console.log('[Deploy] Requesting OAuth token from GHL...');
+    while (attemptCount < maxAttempts) {
+        attemptCount++;
+        console.log(`[Deploy] Attempt ${attemptCount}/${maxAttempts} - Requesting OAuth token from GHL...`);
         console.log('[Deploy] Company ID:', tokenData.company_id?.substring(0, 10) + '...');
         console.log('[Deploy] Location ID:', locationId?.substring(0, 10) + '...');
 
-        const resp = await fetch('https://services.leadconnectorhq.com/oauth/locationToken', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${tokenData.access_token}`,
-                'Content-Type': 'application/json',
-                'Version': '2021-07-28',
-            },
-            body: JSON.stringify({ companyId: tokenData.company_id, locationId }),
-            signal: controller.signal,
-        });
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
-        clearTimeout(timeout);
-        const text = await resp.text();
+        try {
+            const resp = await fetch('https://services.leadconnectorhq.com/oauth/locationToken', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                    'Version': '2021-07-28',
+                },
+                body: JSON.stringify({ companyId: tokenData.company_id, locationId }),
+                signal: controller.signal,
+            });
 
-        console.log('[Deploy] OAuth response status:', resp.status);
-        console.log('[Deploy] OAuth response preview:', text.substring(0, 100));
+            clearTimeout(timeout);
+            const text = await resp.text();
 
-        if (text.trim().startsWith('<') || !resp.ok) {
+            console.log('[Deploy] OAuth response status:', resp.status);
+            console.log('[Deploy] OAuth response preview:', text.substring(0, 100));
+
+            // Success case
+            if (resp.ok && !text.trim().startsWith('<')) {
+                const data = JSON.parse(text);
+                console.log('[Deploy] ✓ OAuth token obtained successfully');
+                return { success: true, access_token: data.access_token };
+            }
+
+            // If 401 Unauthorized and we haven't tried refreshing yet, refresh and retry
+            if (resp.status === 401 && attemptCount === 1) {
+                console.log('[Deploy] Token expired (401), attempting refresh...');
+                const newToken = await refreshGHLToken(tokenData);
+
+                if (newToken) {
+                    accessToken = newToken;
+                    continue; // Retry with new token
+                } else {
+                    console.log('[Deploy] ERROR: Token refresh failed - user needs to reconnect GHL');
+                    return {
+                        success: false,
+                        error: 'GHL token expired and refresh failed. Please reconnect your GHL account.',
+                        needsReconnect: true
+                    };
+                }
+            }
+
+            // Other errors
             console.log('[Deploy] ERROR: OAuth failed - HTML response or bad status');
             console.log('[Deploy] Full response:', text.substring(0, 500));
-            return { success: false, error: 'OAuth failed', status: resp.status, preview: text.substring(0, 200) };
-        }
+            return {
+                success: false,
+                error: 'OAuth failed',
+                status: resp.status,
+                preview: text.substring(0, 200)
+            };
 
-        const data = JSON.parse(text);
-        console.log('[Deploy] OAuth token obtained successfully');
-        return { success: true, access_token: data.access_token };
-    } catch (e) {
-        clearTimeout(timeout);
-        console.log('[Deploy] ERROR: OAuth timeout/error:', e.message);
-        return { success: false, error: e.message };
+        } catch (e) {
+            clearTimeout(timeout);
+            console.log('[Deploy] ERROR: OAuth timeout/error:', e.message);
+            if (attemptCount >= maxAttempts) {
+                return { success: false, error: e.message };
+            }
+        }
     }
+
+    return { success: false, error: 'Max OAuth attempts exceeded' };
 }
 
 /**
