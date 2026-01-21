@@ -155,11 +155,25 @@ export async function GET(req) {
             customCount: fields?.filter(f => f.is_custom).length || 0
         });
 
+        // Fetch section-level approval status from vault_content
+        const { data: vaultSection } = await supabaseAdmin
+            .from('vault_content')
+            .select('status')
+            .eq('funnel_id', funnel_id)
+            .eq('section_id', section_id)
+            .eq('is_current_version', true)
+            .single();
+
+        const sectionStatus = vaultSection?.status || 'pending';
+
+        console.log('[VaultFields GET] Section status:', sectionStatus);
+
         return new Response(JSON.stringify({
             success: true,
             fields: fields || [],
             section_id,
-            funnel_id
+            funnel_id,
+            sectionStatus  // Include section-level approval status
         }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }

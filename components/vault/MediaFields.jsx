@@ -47,14 +47,19 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, refreshT
             // Update fields state
             setFields(data.fields || []);
 
-            // Check if all fields are approved
-            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
-            setSectionApproved(allApproved);
+            // Check section approval from vault_content.status (set by vault-section-approve)
+            // Also check if all fields are approved as fallback
+            const allFieldsApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            const sectionStatusApproved = data.sectionStatus === 'approved';
+
+            // Section is approved if either vault_content.status='approved' OR all fields are approved
+            const isApproved = sectionStatusApproved || allFieldsApproved;
+            setSectionApproved(isApproved);
 
             // Force re-render to update components
             setForceRenderKey(prev => prev + 1);
 
-            console.log(`[MediaFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
+            console.log(`[MediaFields] Fetched ${data.fields.length} fields, sectionStatus:`, data.sectionStatus, 'allFieldsApproved:', allFieldsApproved);
         } catch (error) {
             console.error('[MediaFields] Fetch error:', error);
             if (!silent) toast.error('Failed to load media fields');
