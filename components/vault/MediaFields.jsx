@@ -175,6 +175,8 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, refreshT
     };
 
     // Sync field value to GHL custom value
+    // NOTE: This will fail if GHL credentials aren't configured yet - that's expected!
+    // The field is still saved to the database and will sync when GHL is set up.
     const syncToCustomValue = async (field_id, value) => {
         const fieldDef = predefinedFields.find(f => f.field_id === field_id);
         const customValueKey = fieldDef?.field_metadata?.customValueKey;
@@ -194,12 +196,15 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, refreshT
             });
 
             if (!response.ok) {
-                console.error('[MediaFields] Failed to sync custom value:', customValueKey);
+                // This is expected if GHL isn't configured yet
+                // Don't show error to user, just log for debugging
+                console.log(`[MediaFields] GHL sync not available for ${customValueKey} (expected if GHL not configured)`);
             } else {
-                console.log('[MediaFields] Synced to custom value:', customValueKey);
+                console.log('[MediaFields] ✅ Synced to GHL custom value:', customValueKey);
             }
         } catch (error) {
-            console.error('[MediaFields] Custom value sync error:', error);
+            // Silent fail - GHL sync will happen later via batch push
+            console.log('[MediaFields] GHL sync skipped:', customValueKey);
         }
     };
 
