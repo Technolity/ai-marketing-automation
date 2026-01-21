@@ -983,6 +983,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 return;
             }
 
+
             // Get token for authenticated SSE request
             console.log('[Generate] Requesting Clerk token...');
             const token = await getToken().catch(err => {
@@ -992,13 +993,45 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
             console.log('[Generate] 📡 Starting SSE streaming for funnel:', funnelId);
 
+            // IMPORTANT: Save questionnaire answers to database BEFORE generation
+            // This ensures we have persistent data for regenerations and ColorsFields
+            const allAnswers = {
+                ...stepData,
+                ...currentInput
+            };
+
+            console.log('[Generate] 💾 Saving questionnaire answers to database...');
+            try {
+                const saveResponse = await fetch('/api/intake-form/save', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        funnelId,
+                        answers: allAnswers
+                    })
+                });
+
+                if (!saveResponse.ok) {
+                    console.error('[Generate] Failed to save answers:', await saveResponse.text());
+                    // Don't throw - continue with generation even if save fails
+                    toast.warning('Answers may not be saved permanently');
+                } else {
+                    const saveData = await saveResponse.json();
+                    console.log('[Generate] ✅ Answers saved:', saveData.answersCount, 'keys');
+                }
+            } catch (saveError) {
+                console.error('[Generate] Save error:', saveError);
+                // Don't throw - continue with generation
+                toast.warning('Answers may not be saved permanently');
+            }
+
             // Prepare payload with all questionnaire data
             const payload = {
                 funnel_id: funnelId,
-                data: {
-                    ...stepData,
-                    ...currentInput
-                }
+                data: allAnswers
             };
 
             // Use fetch with streaming since EventSource doesn't support headers easily
