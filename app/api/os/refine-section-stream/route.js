@@ -509,6 +509,17 @@ const SUBSECTION_PATHS = {
         step5_tips: ['step5_tips'],
         step6_stepsToSuccess: ['step6_stepsToSuccess']
         // Other step fields follow same pattern
+    },
+    // colors uses FLAT structure from brandColors.js generation
+    colors: {
+        primaryColor: ['primaryColor'],
+        secondaryColor: ['secondaryColor'],
+        accentColor: ['accentColor'],
+        textColorDark: ['textColorDark'],
+        textColorLight: ['textColorLight'],
+        backgroundColor: ['backgroundColor'],
+        backgroundSecondary: ['backgroundSecondary'],
+        reasoning: ['reasoning']
     }
 };
 
