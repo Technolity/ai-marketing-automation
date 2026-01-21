@@ -23,7 +23,7 @@ import {
     Video, Mail, Megaphone, Layout, Bell, Lightbulb,
     Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
     ChevronDown, ChevronUp, Save, Image as ImageIcon, Video as VideoIcon, Plus, Trash2 as TrashIcon, ExternalLink,
-    Upload, X, Info, FileImage, Rocket, AlertOctagon, Play
+    Upload, X, Info, FileImage, Rocket, AlertOctagon, Play, Palette
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
@@ -61,6 +61,7 @@ import FunnelCopyFields from "@/components/vault/FunnelCopyFields";
 import BioFields from "@/components/vault/BioFields";
 import AppointmentRemindersFields from "@/components/vault/AppointmentRemindersFields";
 import MediaFields from "@/components/vault/MediaFields";
+import ColorsFields from "@/components/vault/ColorsFields";
 import ApprovalWatcher from "@/components/vault/ApprovalWatcher";
 import PushToGHLButton from "@/components/vault/PushToGHLButton";
 
@@ -80,7 +81,8 @@ const GRANULAR_FIELD_COMPONENTS = {
     funnelCopy: FunnelCopyFields,
     bio: BioFields,
     appointmentReminders: AppointmentRemindersFields,
-    media: MediaFields
+    media: MediaFields,
+    colors: ColorsFields
 };
 
 // Phase 1: Business Assets - Core business foundations (4 sections only)
@@ -101,7 +103,8 @@ const PHASE_2_SECTIONS = [
     { id: 'sms', numericKey: 19, title: 'Text Messages', subtitle: 'Text message nurture', icon: MessageSquare, hint: "Send these automated texts to increase engagement and show-up rates." },
     { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell, hint: "Add these to your calendar booking system (Calendly, GHL) to increase show-up rates." },
     { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout, hint: "Copy and paste this into your landing page builder (ClickFunnels, GHL, etc.) for high conversion." },
-    { id: 'media', numericKey: 18, title: 'Upload images & videos for your funnel', subtitle: 'Logo, images, and videos', icon: ImageIcon, hint: "Upload your professional assets here to be used across your funnel pages." }
+    { id: 'media', numericKey: 18, title: 'Upload images & videos for your funnel', subtitle: 'Logo, images, and videos', icon: ImageIcon, hint: "Upload your professional assets here to be used across your funnel pages." },
+    { id: 'colors', numericKey: 20, title: 'Brand Colors', subtitle: 'Your brand color palette', icon: Palette, hint: "These colors from your intake form will be applied to your funnel pages for consistent branding." }
 ];
 
 // Phase 3: Sales Scripts - Setter and Closer scripts (locked until Phase 2 approved)
@@ -2511,7 +2514,7 @@ export default function VaultPage() {
                                                 <Edit3 className="w-4 h-4" /> Edit
                                             </button>
                                             {/* Push to GHL button for applicable sections */}
-                                            {['funnelCopy', 'emails', 'sms', 'media'].includes(section.id) && (
+                                            {['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'].includes(section.id) && (
                                                 <PushToGHLButton
                                                     section={section.id}
                                                     funnelId={searchParams.get('funnel_id') || dataSource?.id}
@@ -2721,27 +2724,7 @@ export default function VaultPage() {
                     </p>
                 </div>
 
-                {/* Media Library Toggle (Only for Assets Tab) */}
-                {activeTab === 'assets' && hasFunnelChoice && !showMediaLibrary && (
-                    <div className="mb-8 p-6 bg-gradient-to-br from-cyan/10 to-blue-600/10 border border-cyan/20 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6">
-                        <div className="flex items-center gap-4 text-center md:text-left">
-                            <div className="w-12 h-12 rounded-xl bg-cyan/20 flex items-center justify-center">
-                                <ImageIcon className="w-6 h-6 text-cyan" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold">Media Library</h3>
-                                <p className="text-sm text-gray-400">Update images and videos in your deployed funnel instantly.</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => setShowMediaLibrary(true)}
-                            className="w-full md:w-auto px-6 py-3 bg-cyan text-black font-black rounded-xl hover:brightness-110 transition-all flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
-                        >
-                            <Edit3 className="w-4 h-4" />
-                            Update Assets
-                        </button>
-                    </div>
-                )}
+                {/* Media Library Toggle removed - using 'Upload Images and Videos' section instead */}
 
                 {/* Progress Bar (Hide in Media Library) */}
                 {!showMediaLibrary && (
