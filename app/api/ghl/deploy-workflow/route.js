@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (current deployment takes ~74s)
 
 /**
  * All 170+ custom value keys from Custom Values.xlsx

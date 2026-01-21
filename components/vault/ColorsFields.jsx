@@ -94,13 +94,22 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
                     // If we have generated colors in vault, use those
                     if (vaultData.fields && vaultData.fields.length > 0) {
-                        const colorsField = vaultData.fields.find(f => f.field_value);
+                        // Look specifically for the colorPalette field
+                        const colorsField = vaultData.fields.find(f => f.field_id === 'colorPalette');
 
                         if (colorsField?.field_value) {
                             // AI-generated color palette
-                            const generatedColors = typeof colorsField.field_value === 'string'
-                                ? JSON.parse(colorsField.field_value)
-                                : colorsField.field_value;
+                            let generatedColors;
+                            try {
+                                generatedColors = typeof colorsField.field_value === 'string'
+                                    ? JSON.parse(colorsField.field_value)
+                                    : colorsField.field_value;
+                            } catch (parseError) {
+                                console.error('[ColorsFields] JSON parse error:', parseError);
+                                console.log('[ColorsFields] Invalid JSON value:', colorsField.field_value);
+                                // Skip to fallback if JSON is invalid
+                                throw parseError;
+                            }
 
                             console.log('[ColorsFields] Using AI-generated colors from vault:', generatedColors);
 
