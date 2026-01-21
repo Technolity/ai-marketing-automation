@@ -654,6 +654,15 @@ export async function POST(req) {
 
         log(`[Deploy] Existing values in lookup: ${existingMap.size} entries`);
 
+        // Debug: Show all custom value names that contain "bio" or "photo"
+        const bioPhotoValues = existingValues.filter(v =>
+            v.name.toLowerCase().includes('bio') || v.name.toLowerCase().includes('photo')
+        );
+        if (bioPhotoValues.length > 0) {
+            log(`[Deploy] Bio/Photo custom values found in GHL:`);
+            bioPhotoValues.forEach(v => log(`[Deploy]   - "${v.name}" (ID: ${v.id})`));
+        }
+
         // 4. Fetch vault content
         const { data: vaultSections } = await supabaseAdmin
             .from('vault_content')
@@ -960,120 +969,180 @@ export async function POST(req) {
         log(`[Deploy] Appointment reminder keys: ${Object.keys(appointmentReminders).join(', ')}`);
         log(`[Deploy] appointmentReminders full structure: ${JSON.stringify(appointmentReminders, null, 2).substring(0, 500)}`);
 
-        // Appointment reminder emails are stored as NAMED FIELDS (not array)
-        // Vault structure: confirmationEmail, reminder48Hours, reminder24Hours, reminder1Hour, reminder10Minutes, startingNow, noShowFollowUp
+        // Appointment reminder emails can be stored in TWO formats:
+        // Format 1: Array (emails[0], emails[1], ...)
+        // Format 2: Named fields (confirmationEmail, reminder48Hours, ...)
+        const emailsArray = appointmentReminders.emails || [];
+        const hasArrayFormat = Array.isArray(emailsArray) && emailsArray.length > 0;
+        log(`[Deploy] Email format detected: ${hasArrayFormat ? 'ARRAY' : 'NAMED FIELDS'}`);
+
+        // Array index to GHL key mapping (Format 1)
+        const emailArrayToGHL = [
+            { subject: 'email_subject_when_call_booked', preheader: 'email_preheader_when_call_booked', body: 'email_body_when_call_booked', label: 'When Call Booked' },
+            { subject: 'email_subject_48_hour_before_call_time', preheader: 'email_preheader_48_hour_before_call_time', body: 'email_body_48_hour_before_call_time', label: '48 Hours Before' },
+            { subject: 'email_subject_24_hour_before_call_time', preheader: 'email_preheader_24_hour_before_call_time', body: 'email_body_24_hour_before_call_time', label: '24 Hours Before' },
+            { subject: 'email_subject_1_hour_before_call_time', preheader: 'email_preheader_1_hour_before_call_time', body: 'email_body_1_hour_before_call_time', label: '1 Hour Before' },
+            { subject: 'email_subject_10_min_before_call_time', preheader: 'email_preheader_10_min_before_call_time', body: 'email_body_10_min_before_call_time', label: '10 Minutes Before' },
+            { subject: 'email_subject_at_call_time', preheader: 'email_preheader_at_call_time', body: 'email_body_at_call_time', label: 'At Call Time' },
+        ];
+
+        // Named field to GHL key mapping (Format 2)
         const emailFieldsToGHL = {
-            // When Call Booked (Confirmation)
-            'confirmationEmail': {
-                subject: 'email_subject_when_call_booked',
-                preheader: 'email_preheader_when_call_booked',
-                body: 'email_body_when_call_booked'
-            },
-            // 48 Hours Before
-            'reminder48Hours': {
-                subject: 'email_subject_48_hour_before_call_time',
-                preheader: 'email_preheader_48_hour_before_call_time',
-                body: 'email_body_48_hour_before_call_time'
-            },
-            // 24 Hours Before
-            'reminder24Hours': {
-                subject: 'email_subject_24_hour_before_call_time',
-                preheader: 'email_preheader_24_hour_before_call_time',
-                body: 'email_body_24_hour_before_call_time'
-            },
-            // 1 Hour Before
-            'reminder1Hour': {
-                subject: 'email_subject_1_hour_before_call_time',
-                preheader: 'email_preheader_1_hour_before_call_time',
-                body: 'email_body_1_hour_before_call_time'
-            },
-            // 10 Minutes Before
-            'reminder10Minutes': {
-                subject: 'email_subject_10_min_before_call_time',
-                preheader: 'email_preheader_10_min_before_call_time',
-                body: 'email_body_10_min_before_call_time'
-            },
-            // At Call Time
-            'startingNow': {
-                subject: 'email_subject_at_call_time',
-                preheader: 'email_preheader_at_call_time',
-                body: 'email_body_at_call_time'
-            },
-            // No-Show Follow-up (map to 10 min before as fallback)
-            'noShowFollowUp': {
-                subject: 'email_subject_10_min_before_call_time',
-                preheader: 'email_preheader_10_min_before_call_time',
-                body: 'email_body_10_min_before_call_time'
-            }
+            'confirmationEmail': emailArrayToGHL[0],
+            'reminder48Hours': emailArrayToGHL[1],
+            'reminder24Hours': emailArrayToGHL[2],
+            'reminder1Hour': emailArrayToGHL[3],
+            'reminder10Minutes': emailArrayToGHL[4],
+            'startingNow': emailArrayToGHL[5],
+            'noShowFollowUp': emailArrayToGHL[4], // Fallback to 10 min before
         };
 
-        for (const [vaultField, ghlMapping] of Object.entries(emailFieldsToGHL)) {
-            const email = appointmentReminders[vaultField];
-            if (!email || typeof email !== 'object') {
-                log(`[Deploy] ⚠ No data found for ${vaultField} (value: ${JSON.stringify(email)})`);
-                continue;
-            }
+        // Process emails based on format
+        if (hasArrayFormat) {
+            log(`[Deploy] Processing ${emailsArray.length} appointment emails from array...`);
+            for (let i = 0; i < emailsArray.length && i < emailArrayToGHL.length; i++) {
+                const email = emailsArray[i];
+                const ghlMapping = emailArrayToGHL[i];
 
-            log(`[Deploy] Processing ${vaultField}... (has subject: ${!!email.subject}, has body: ${!!email.body}, has preheader: ${!!(email.preheader || email.previewText || email.preview)})`);
+                if (!email || typeof email !== 'object') {
+                    log(`[Deploy] ⚠ emails[${i}] (${ghlMapping.label}) is empty`);
+                    continue;
+                }
 
-            // Push subject
-            if (email.subject) {
-                const existing = findExisting(ghlMapping.subject);
-                if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.subject, email.subject);
-                    if (result.success) {
-                        results.updated++;
-                        updatedKeys.push(ghlMapping.subject);
-                        log(`[Deploy] ✓ Updated ${vaultField}.subject → ${ghlMapping.subject}`);
+                log(`[Deploy] Processing emails[${i}] (${ghlMapping.label})... (has subject: ${!!email.subject}, has body: ${!!email.body}, has preheader: ${!!(email.preheader || email.previewText || email.preview)})`);
+
+                // Push subject
+                if (email.subject) {
+                    const existing = findExisting(ghlMapping.subject);
+                    if (existing) {
+                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.subject, email.subject);
+                        if (result.success) {
+                            results.updated++;
+                            updatedKeys.push(ghlMapping.subject);
+                            log(`[Deploy] ✓ Updated emails[${i}].subject → ${ghlMapping.subject}`);
+                        } else {
+                            results.failed++;
+                            log(`[Deploy] ✗ Failed to update emails[${i}].subject`);
+                        }
                     } else {
-                        results.failed++;
-                        log(`[Deploy] ✗ Failed to update ${vaultField}.subject`);
+                        results.notFound++;
+                        notFoundKeys.push(ghlMapping.subject);
+                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.subject}`);
                     }
-                } else {
-                    results.notFound++;
-                    notFoundKeys.push(ghlMapping.subject);
-                    log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.subject}`);
+                }
+
+                // Push preheader (handle both 'preheader', 'previewText', and 'preview' field names)
+                const preheaderValue = email.preheader || email.previewText || email.preview;
+                if (preheaderValue && ghlMapping.preheader) {
+                    const existing = findExisting(ghlMapping.preheader);
+                    if (existing) {
+                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.preheader, preheaderValue);
+                        if (result.success) {
+                            results.updated++;
+                            updatedKeys.push(ghlMapping.preheader);
+                            log(`[Deploy] ✓ Updated emails[${i}].preheader → ${ghlMapping.preheader}`);
+                        } else {
+                            results.failed++;
+                            log(`[Deploy] ✗ Failed to update emails[${i}].preheader`);
+                        }
+                    } else {
+                        results.notFound++;
+                        notFoundKeys.push(ghlMapping.preheader);
+                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.preheader}`);
+                    }
+                }
+
+                // Push body
+                if (email.body) {
+                    const existing = findExisting(ghlMapping.body);
+                    if (existing) {
+                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.body, email.body);
+                        if (result.success) {
+                            results.updated++;
+                            updatedKeys.push(ghlMapping.body);
+                            log(`[Deploy] ✓ Updated emails[${i}].body → ${ghlMapping.body}`);
+                        } else {
+                            results.failed++;
+                            log(`[Deploy] ✗ Failed to update emails[${i}].body`);
+                        }
+                    } else {
+                        results.notFound++;
+                        notFoundKeys.push(ghlMapping.body);
+                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.body}`);
+                    }
                 }
             }
-
-            // Push preheader (handle both 'preheader', 'previewText', and 'preview' field names)
-            const preheaderValue = email.preheader || email.previewText || email.preview;
-            if (preheaderValue && ghlMapping.preheader) {
-                const existing = findExisting(ghlMapping.preheader);
-                if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.preheader, preheaderValue);
-                    if (result.success) {
-                        results.updated++;
-                        updatedKeys.push(ghlMapping.preheader);
-                        log(`[Deploy] ✓ Updated ${vaultField}.preheader → ${ghlMapping.preheader}`);
-                    } else {
-                        results.failed++;
-                        log(`[Deploy] ✗ Failed to update ${vaultField}.preheader`);
-                    }
-                } else {
-                    results.notFound++;
-                    notFoundKeys.push(ghlMapping.preheader);
-                    log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.preheader}`);
+        } else {
+            // Format 2: Named fields (confirmationEmail, reminder48Hours, etc.)
+            log(`[Deploy] Processing appointment emails from named fields...`);
+            for (const [vaultField, ghlMapping] of Object.entries(emailFieldsToGHL)) {
+                const email = appointmentReminders[vaultField];
+                if (!email || typeof email !== 'object') {
+                    log(`[Deploy] ⚠ No data found for ${vaultField} (value: ${JSON.stringify(email)})`);
+                    continue;
                 }
-            }
 
-            // Push body
-            if (email.body) {
-                const existing = findExisting(ghlMapping.body);
-                if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.body, email.body);
-                    if (result.success) {
-                        results.updated++;
-                        updatedKeys.push(ghlMapping.body);
-                        log(`[Deploy] ✓ Updated ${vaultField}.body → ${ghlMapping.body}`);
+                log(`[Deploy] Processing ${vaultField}... (has subject: ${!!email.subject}, has body: ${!!email.body}, has preheader: ${!!(email.preheader || email.previewText || email.preview)})`);
+
+                // Push subject
+                if (email.subject) {
+                    const existing = findExisting(ghlMapping.subject);
+                    if (existing) {
+                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.subject, email.subject);
+                        if (result.success) {
+                            results.updated++;
+                            updatedKeys.push(ghlMapping.subject);
+                            log(`[Deploy] ✓ Updated ${vaultField}.subject → ${ghlMapping.subject}`);
+                        } else {
+                            results.failed++;
+                            log(`[Deploy] ✗ Failed to update ${vaultField}.subject`);
+                        }
                     } else {
-                        results.failed++;
-                        log(`[Deploy] ✗ Failed to update ${vaultField}.body`);
+                        results.notFound++;
+                        notFoundKeys.push(ghlMapping.subject);
+                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.subject}`);
                     }
-                } else {
-                    results.notFound++;
-                    notFoundKeys.push(ghlMapping.body);
-                    log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.body}`);
+                }
+
+                // Push preheader
+                const preheaderValue = email.preheader || email.previewText || email.preview;
+                if (preheaderValue && ghlMapping.preheader) {
+                    const existing = findExisting(ghlMapping.preheader);
+                    if (existing) {
+                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.preheader, preheaderValue);
+                        if (result.success) {
+                            results.updated++;
+                            updatedKeys.push(ghlMapping.preheader);
+                            log(`[Deploy] ✓ Updated ${vaultField}.preheader → ${ghlMapping.preheader}`);
+                        } else {
+                            results.failed++;
+                            log(`[Deploy] ✗ Failed to update ${vaultField}.preheader`);
+                        }
+                    } else {
+                        results.notFound++;
+                        notFoundKeys.push(ghlMapping.preheader);
+                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.preheader}`);
+                    }
+                }
+
+                // Push body
+                if (email.body) {
+                    const existing = findExisting(ghlMapping.body);
+                    if (existing) {
+                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.body, email.body);
+                        if (result.success) {
+                            results.updated++;
+                            updatedKeys.push(ghlMapping.body);
+                            log(`[Deploy] ✓ Updated ${vaultField}.body → ${ghlMapping.body}`);
+                        } else {
+                            results.failed++;
+                            log(`[Deploy] ✗ Failed to update ${vaultField}.body`);
+                        }
+                    } else {
+                        results.notFound++;
+                        notFoundKeys.push(ghlMapping.body);
+                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.body}`);
+                    }
                 }
             }
         }
