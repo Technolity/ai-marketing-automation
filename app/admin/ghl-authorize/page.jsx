@@ -10,8 +10,8 @@ export default function GHLAuthorize() {
 
     const handleAuthorize = () => {
         setLoading(true);
-        // Redirect to the authorize endpoint
-        window.location.href = '/api/ghl/oauth/authorize';
+        // Redirect to the authorize endpoint (new path without 'ghl')
+        window.location.href = '/api/oauth/authorize';
     };
 
     return (
