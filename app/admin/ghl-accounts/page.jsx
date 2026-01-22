@@ -319,6 +319,57 @@ export default function AdminGHLAccounts() {
         }
     };
 
+    const handleBulkSetupSubaccounts = async () => {
+        if (isBulkCreating || selectedUsers.length === 0) return;
+
+        setIsBulkCreating(true);
+        setBulkProgress({ total: selectedUsers.length, completed: 0, failed: 0, results: [] });
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-accounts/setup-bulk', {
+                method: 'POST',
+                body: JSON.stringify({ userIds: selectedUsers })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Bulk setup failed');
+            }
+
+            const result = await response.json();
+
+            setBulkProgress({
+                total: result.total,
+                completed: result.successful,
+                failed: result.failed,
+                results: result.results
+            });
+
+            let message = [];
+            if (result.created > 0) message.push(`${result.created} subaccount${result.created > 1 ? 's' : ''} created`);
+            if (result.imported > 0) message.push(`${result.imported} snapshot${result.imported > 1 ? 's' : ''} imported`);
+            if (result.skipped > 0) message.push(`${result.skipped} skipped`);
+
+            if (result.successful > 0) {
+                toast.success(message.join(', '));
+            }
+
+            if (result.failed > 0) {
+                toast.error(`${result.failed} operation${result.failed > 1 ? 's' : ''} failed. Check the results.`);
+            }
+
+            // Refresh list
+            fetchAccounts();
+        } catch (err) {
+            console.error('Bulk setup error:', err);
+            toast.error(err.message || "Bulk setup failed");
+            setBulkProgress(null);
+        } finally {
+            setIsBulkCreating(false);
+            setSelectedUsers([]);
+        }
+    };
+
     const toggleUserSelection = (userId) => {
         setSelectedUsers(prev =>
             prev.includes(userId)
