@@ -145,24 +145,18 @@ body {
   min-height: 100%;
   max-width: 100vw;
   overflow-x: hidden;
-  overflow-y: visible;
-  /* Changed from auto - Edge needs this */
   background-color: #0a0a0b;
   overscroll-behavior-y: contain;
-  /* Changed from none - Edge compatibility */
   -ms-overflow-style: auto;
-  /* Edge compatibility */
   -ms-scroll-chaining: none;
-  /* Edge-specific */
-  touch-action: pan-y pinch-zoom;
-  /* Allow vertical scroll and zoom */
+  touch-action: manipulation;
+  /* Better cross-browser touch handling */
   scroll-behavior: smooth;
 }
 
 /* Ensure main content is scrollable in Edge */
 main {
   position: relative;
-  overflow-y: visible;
   -ms-scroll-chaining: chained;
 }
 
