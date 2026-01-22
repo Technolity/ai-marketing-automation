@@ -142,9 +142,13 @@ async function createGHLUser(accessToken, companyId, userData) {
     }
 
     const result = await response.json();
-    console.log('[GHL User Create] GHL user created successfully:', result.user?.id);
+    console.log('[GHL User Create] Full GHL response:', JSON.stringify(result, null, 2));
 
-    return result.user;
+    // GHL may return the user directly or nested under 'user'
+    const userData = result.user || result;
+    console.log('[GHL User Create] GHL user created successfully:', userData?.id || userData?._id || 'NO_ID');
+
+    return userData;
 }
 
 /**
@@ -180,6 +184,8 @@ export async function POST(req) {
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     console.log(`\n[GHL User Create ${requestId}] ========== START ==========`);
 
+    let targetUserId; // Declare here to use in error handler
+
     try {
         // 1. Verify authentication and admin status
         const { userId } = auth();
@@ -198,7 +204,7 @@ export async function POST(req) {
 
         // 2. Parse request body
         const body = await req.json();
-        const { userId: targetUserId } = body;
+        targetUserId = body.userId; // Use outer scope variable
 
         if (!targetUserId) {
             console.log(`[GHL User Create ${requestId}] Missing targetUserId`);
@@ -312,18 +318,19 @@ export async function POST(req) {
         console.error(`[GHL User Create ${requestId}] Error:`, error);
         console.error(`[GHL User Create ${requestId}] Stack:`, error.stack);
 
-        // Update database with error
-        try {
-            const body = await req.json();
-            await supabase
-                .from('ghl_subaccounts')
-                .update({
-                    ghl_user_creation_error: error.message,
-                    ghl_user_last_retry_at: new Date().toISOString()
-                })
-                .eq('user_id', body.userId);
-        } catch (dbError) {
-            console.error(`[GHL User Create ${requestId}] Failed to log error to DB:`, dbError);
+        // Update database with error (use targetUserId from outer scope)
+        if (targetUserId) {
+            try {
+                await supabase
+                    .from('ghl_subaccounts')
+                    .update({
+                        ghl_user_creation_error: error.message,
+                        ghl_user_last_retry_at: new Date().toISOString()
+                    })
+                    .eq('user_id', targetUserId);
+            } catch (dbError) {
+                console.error(`[GHL User Create ${requestId}] Failed to log error to DB:`, dbError);
+            }
         }
 
         return NextResponse.json({
