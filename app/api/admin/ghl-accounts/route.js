@@ -135,6 +135,10 @@ export async function GET(req) {
         snapshotStatus = 'in_progress';
       }
 
+      // GHL User status (NEW)
+      const hasGHLUser = !!subaccount?.ghl_user_created;
+      const canCreateUser = hasSubaccount && subaccount?.snapshot_imported && !hasGHLUser;
+
       return {
         ...account,
         // Override with OAuth subaccount data if available
@@ -148,7 +152,14 @@ export async function GET(req) {
         snapshot_imported_at: subaccount?.snapshot_imported_at || null,
         // OAuth-specific fields
         oauth_subaccount_id: subaccount?.id || null,
-        agency_id: subaccount?.agency_id || null
+        agency_id: subaccount?.agency_id || null,
+        // GHL User fields (NEW)
+        has_ghl_user: hasGHLUser,
+        ghl_user_id: subaccount?.ghl_user_id || null,
+        ghl_user_created: subaccount?.ghl_user_created || false,
+        ghl_user_invited: subaccount?.ghl_user_invited || false,
+        ghl_user_creation_error: subaccount?.ghl_user_creation_error || null,
+        can_create_user: canCreateUser
       };
     }) || [];
 

@@ -24,7 +24,10 @@ import {
     ExternalLink,
     RotateCcw,
     Loader2,
-    Layers
+    Layers,
+    UserPlus,
+    UserCheck,
+    X
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
@@ -55,6 +58,13 @@ export default function AdminGHLAccounts() {
     const [stats, setStats] = useState({ synced: 0, pending: 0, failed: 0, permanently_failed: 0, total: 0 });
     const [isRetrying, setIsRetrying] = useState(null); // userId being retried
     const [isImportingSnapshot, setIsImportingSnapshot] = useState(null); // userId for snapshot import
+
+    // GHL User Creation state
+    const [isCreatingUser, setIsCreatingUser] = useState(null); // userId being created
+    const [isRetryingUser, setIsRetryingUser] = useState(null); // userId being retried
+    const [selectedUsers, setSelectedUsers] = useState([]); // For bulk selection
+    const [isBulkCreating, setIsBulkCreating] = useState(false);
+    const [bulkProgress, setBulkProgress] = useState(null); // { total, completed, failed, results }
 
     useEffect(() => {
         if (!authLoading && session) {
@@ -153,8 +163,156 @@ export default function AdminGHLAccounts() {
         }
     };
 
+    const handleCreateBuilderLogin = async (userId) => {
+        if (isCreatingUser) return;
+        setIsCreatingUser(userId);
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-users/create', {
+                method: 'POST',
+                body: JSON.stringify({ userId })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to create GHL user');
+            }
+
+            const result = await response.json();
+            toast.success(`Builder login created for user! Email sent to ${result.email}`);
+
+            // Refresh list
+            fetchAccounts();
+        } catch (err) {
+            console.error('Create user error:', err);
+            toast.error(err.message || "Failed to create builder login");
+        } finally {
+            setIsCreatingUser(null);
+        }
+    };
+
+    const handleRetryUserCreation = async (userId) => {
+        if (isRetryingUser) return;
+        setIsRetryingUser(userId);
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-users/retry', {
+                method: 'POST',
+                body: JSON.stringify({ userId })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Retry failed');
+            }
+
+            const result = await response.json();
+            toast.success("Builder login created successfully!");
+
+            fetchAccounts();
+        } catch (err) {
+            console.error('Retry user error:', err);
+            toast.error(err.message || "Failed to retry creation");
+        } finally {
+            setIsRetryingUser(null);
+        }
+    };
+
+    const handleBulkCreateUsers = async () => {
+        if (isBulkCreating || selectedUsers.length === 0) return;
+
+        setIsBulkCreating(true);
+        setBulkProgress({ total: selectedUsers.length, completed: 0, failed: 0, results: [] });
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-users/create-bulk', {
+                method: 'POST',
+                body: JSON.stringify({ userIds: selectedUsers })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Bulk creation failed');
+            }
+
+            const result = await response.json();
+            const { summary } = result;
+
+            setBulkProgress({
+                total: summary.total,
+                completed: summary.successful,
+                failed: summary.failed,
+                results: summary.results
+            });
+
+            if (summary.successful > 0) {
+                toast.success(`Created ${summary.successful} builder login${summary.successful > 1 ? 's' : ''}!`);
+            }
+
+            if (summary.failed > 0) {
+                toast.error(`${summary.failed} creation${summary.failed > 1 ? 's' : ''} failed. Check the results.`);
+            }
+
+            // Refresh list
+            fetchAccounts();
+        } catch (err) {
+            console.error('Bulk create error:', err);
+            toast.error(err.message || "Bulk creation failed");
+            setBulkProgress(null);
+        } finally {
+            setIsBulkCreating(false);
+            setSelectedUsers([]);
+        }
+    };
+
+    const toggleUserSelection = (userId) => {
+        setSelectedUsers(prev =>
+            prev.includes(userId)
+                ? prev.filter(id => id !== userId)
+                : [...prev, userId]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        const selectableUsers = accounts.filter(acc => acc.can_create_user);
+        if (selectedUsers.length === selectableUsers.length) {
+            setSelectedUsers([]);
+        } else {
+            setSelectedUsers(selectableUsers.map(acc => acc.id));
+        }
+    };
+
+    const closeBulkModal = () => {
+        setBulkProgress(null);
+        setSelectedUsers([]);
+    };
+
     const columns = useMemo(
         () => [
+            {
+                id: "select",
+                header: () => (
+                    <input
+                        type="checkbox"
+                        checked={selectedUsers.length > 0 && selectedUsers.length === accounts.filter(acc => acc.can_create_user).length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 rounded border-gray-600 bg-[#0e0e0f] text-cyan focus:ring-cyan focus:ring-offset-0"
+                    />
+                ),
+                cell: ({ row }) => {
+                    const canCreate = row.original.can_create_user;
+                    if (!canCreate) return null;
+
+                    return (
+                        <input
+                            type="checkbox"
+                            checked={selectedUsers.includes(row.original.id)}
+                            onChange={() => toggleUserSelection(row.original.id)}
+                            className="w-4 h-4 rounded border-gray-600 bg-[#0e0e0f] text-cyan focus:ring-cyan focus:ring-offset-0"
+                        />
+                    );
+                },
+            },
             {
                 accessorKey: "full_name",
                 header: "User",
@@ -266,19 +424,52 @@ export default function AdminGHLAccounts() {
                 }
             },
             {
+                accessorKey: "builder_login",
+                header: "Builder Login",
+                cell: ({ row }) => {
+                    const hasGHLUser = row.original.has_ghl_user;
+                    const invited = row.original.ghl_user_invited;
+                    const error = row.original.ghl_user_creation_error;
+
+                    if (error) {
+                        return (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border bg-red-500/20 text-red-400 border-red-500/30" title={error}>
+                                <XCircle className="w-3 h-3" />
+                                Failed
+                            </div>
+                        );
+                    }
+
+                    if (hasGHLUser) {
+                        return (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border bg-green-500/20 text-green-400 border-green-500/30">
+                                <UserCheck className="w-3 h-3" />
+                                {invited ? 'Created' : 'Active'}
+                            </div>
+                        );
+                    }
+
+                    return <span className="text-gray-600 text-xs">Not Created</span>;
+                }
+            },
+            {
                 id: "actions",
                 header: "Actions",
                 cell: ({ row }) => {
                     const status = row.original.ghl_sync_status;
                     const hasSubaccount = row.original.has_subaccount;
                     const snapshotImported = row.original.snapshot_imported;
+                    const hasGHLUser = row.original.has_ghl_user;
+                    const userCreationError = row.original.ghl_user_creation_error;
 
                     const canRetry = ['failed', 'permanently_failed', 'pending', 'not_synced'].includes(status) && !hasSubaccount;
-                    const canImportSnapshot = hasSubaccount && !snapshotImported;
+                    const canImportSnapshot = hasSubaccount;
+                    const canCreateUser = row.original.can_create_user && !hasGHLUser;
+                    const canRetryUser = hasSubaccount && snapshotImported && userCreationError && !hasGHLUser;
 
                     return (
                         <div className="flex items-center gap-1">
-                            {/* Retry button */}
+                            {/* Retry Subaccount button */}
                             {canRetry && (
                                 <button
                                     onClick={() => handleRetry(row.original.id)}
@@ -296,7 +487,7 @@ export default function AdminGHLAccounts() {
                                     onClick={() => handleImportSnapshot(row.original.id)}
                                     disabled={isImportingSnapshot === row.original.id}
                                     className="p-2 hover:bg-purple-500/10 text-purple-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Import Snapshot"
+                                    title={snapshotImported ? "Re-Import Snapshot" : "Import Snapshot"}
                                 >
                                     {isImportingSnapshot === row.original.id ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -306,8 +497,36 @@ export default function AdminGHLAccounts() {
                                 </button>
                             )}
 
+                            {/* Create Builder Login button */}
+                            {canCreateUser && (
+                                <button
+                                    onClick={() => handleCreateBuilderLogin(row.original.id)}
+                                    disabled={isCreatingUser === row.original.id}
+                                    className="p-2 hover:bg-green-500/10 text-green-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Create Builder Login"
+                                >
+                                    {isCreatingUser === row.original.id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <UserPlus className="w-4 h-4" />
+                                    )}
+                                </button>
+                            )}
+
+                            {/* Retry User Creation button */}
+                            {canRetryUser && (
+                                <button
+                                    onClick={() => handleRetryUserCreation(row.original.id)}
+                                    disabled={isRetryingUser === row.original.id}
+                                    className="p-2 hover:bg-orange-500/10 text-orange-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Retry Builder Login Creation"
+                                >
+                                    <RotateCcw className={`w-4 h-4 ${isRetryingUser === row.original.id ? 'animate-spin' : ''}`} />
+                                </button>
+                            )}
+
                             {/* Show checkmark if everything is done */}
-                            {hasSubaccount && snapshotImported && (
+                            {hasSubaccount && snapshotImported && hasGHLUser && (
                                 <span className="text-green-400 p-2">
                                     <CheckCircle className="w-4 h-4" />
                                 </span>
@@ -317,7 +536,7 @@ export default function AdminGHLAccounts() {
                 },
             },
         ],
-        [isRetrying, isImportingSnapshot]
+        [isRetrying, isImportingSnapshot, isCreatingUser, isRetryingUser, selectedUsers, accounts]
     );
 
     const table = useReactTable({
@@ -486,6 +705,144 @@ export default function AdminGHLAccounts() {
                     )}
                 </div>
             </div>
+
+            {/* Bulk Selection Toolbar */}
+            {selectedUsers.length > 0 && (
+                <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50">
+                    <div className="bg-[#1b1b1d] border border-cyan/30 rounded-xl p-4 shadow-2xl backdrop-blur-sm flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <span className="text-white font-semibold">{selectedUsers.length}</span>
+                            <span className="text-gray-400">user{selectedUsers.length > 1 ? 's' : ''} selected</span>
+                        </div>
+
+                        {selectedUsers.length > 50 && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-500/20 text-orange-400 rounded-lg text-sm">
+                                <AlertTriangle className="w-4 h-4" />
+                                Max 50 users at once
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleBulkCreateUsers}
+                            disabled={isBulkCreating || selectedUsers.length > 50}
+                            className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-500 text-black font-bold rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {isBulkCreating ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Creating...
+                                </>
+                            ) : (
+                                <>
+                                    <UserPlus className="w-4 h-4" />
+                                    Create Builder Logins
+                                </>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={() => setSelectedUsers([])}
+                            className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg transition-colors"
+                            title="Clear selection"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Bulk Progress Modal */}
+            {bulkProgress && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-8 w-full max-w-2xl shadow-2xl">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-white">Bulk Creation Progress</h2>
+                            {bulkProgress.completed + bulkProgress.failed === bulkProgress.total && (
+                                <button
+                                    onClick={closeBulkModal}
+                                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                                >
+                                    <X className="w-5 h-5 text-gray-400" />
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* Progress bar */}
+                            <div>
+                                <div className="flex justify-between text-sm text-gray-400 mb-2">
+                                    <span>Processing: {bulkProgress.completed + bulkProgress.failed} / {bulkProgress.total}</span>
+                                    <span>{Math.round(((bulkProgress.completed + bulkProgress.failed) / bulkProgress.total) * 100)}%</span>
+                                </div>
+                                <div className="h-2 bg-[#2a2a2d] rounded-full overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-cyan to-blue-500 transition-all duration-300"
+                                        style={{ width: `${((bulkProgress.completed + bulkProgress.failed) / bulkProgress.total) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-green-400">{bulkProgress.completed}</div>
+                                    <div className="text-xs text-gray-400">Successful</div>
+                                </div>
+                                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-red-400">{bulkProgress.failed}</div>
+                                    <div className="text-xs text-gray-400">Failed</div>
+                                </div>
+                                <div className="bg-[#2a2a2d] border border-[#3a3a3d] rounded-lg p-3 text-center">
+                                    <div className="text-2xl font-bold text-white">{bulkProgress.total}</div>
+                                    <div className="text-xs text-gray-400">Total</div>
+                                </div>
+                            </div>
+
+                            {/* Results list (only show if complete) */}
+                            {bulkProgress.completed + bulkProgress.failed === bulkProgress.total && bulkProgress.results && (
+                                <div className="mt-4 max-h-60 overflow-y-auto">
+                                    <h3 className="text-sm font-semibold text-gray-400 mb-2">Results:</h3>
+                                    <div className="space-y-2">
+                                        {bulkProgress.results.map((result, index) => (
+                                            <div
+                                                key={index}
+                                                className={`p-3 rounded-lg flex items-center justify-between ${result.success
+                                                        ? 'bg-green-500/10 border border-green-500/30'
+                                                        : 'bg-red-500/10 border border-red-500/30'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    {result.success ? (
+                                                        <CheckCircle className="w-4 h-4 text-green-400" />
+                                                    ) : (
+                                                        <XCircle className="w-4 h-4 text-red-400" />
+                                                    )}
+                                                    <span className="text-sm text-white">
+                                                        {result.email || result.userId}
+                                                    </span>
+                                                </div>
+                                                {!result.success && result.error && (
+                                                    <span className="text-xs text-red-400">{result.error}</span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Close button when complete */}
+                            {bulkProgress.completed + bulkProgress.failed === bulkProgress.total && (
+                                <button
+                                    onClick={closeBulkModal}
+                                    className="w-full mt-4 px-4 py-3 bg-gradient-to-r from-cyan to-blue-500 text-black font-bold rounded-lg hover:brightness-110 transition-all"
+                                >
+                                    Close
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </AdminLayout>
     );
 }
