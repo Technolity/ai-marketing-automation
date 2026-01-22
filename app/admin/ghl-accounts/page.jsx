@@ -138,7 +138,7 @@ export default function AdminGHLAccounts() {
         try {
             const response = await fetchWithAuth('/api/admin/ghl-accounts/import-snapshot', {
                 method: 'POST',
-                body: JSON.stringify({ userId })
+                body: JSON.stringify({ userId, force: true }) // Always pass force=true from UI
             });
 
             if (!response.ok) {
@@ -147,10 +147,18 @@ export default function AdminGHLAccounts() {
             }
 
             const result = await response.json();
+
+            // Check snapshot status and show appropriate message
             if (result.alreadyImported) {
                 toast.info("Snapshot already imported for this user");
+            } else if (result.snapshotStatus === 'confirmed') {
+                toast.success("✅ Snapshot imported and confirmed by GHL!");
+            } else if (result.snapshotStatus === 'pending') {
+                toast.info("⏱️ Snapshot import in progress - may take a few minutes");
+            } else if (result.snapshotStatus === 'failed') {
+                toast.error("❌ Snapshot import failed");
             } else {
-                toast.success("Snapshot imported successfully!");
+                toast.success("Snapshot import initiated");
             }
 
             // Refresh list
@@ -807,8 +815,8 @@ export default function AdminGHLAccounts() {
                                             <div
                                                 key={index}
                                                 className={`p-3 rounded-lg flex items-center justify-between ${result.success
-                                                        ? 'bg-green-500/10 border border-green-500/30'
-                                                        : 'bg-red-500/10 border border-red-500/30'
+                                                    ? 'bg-green-500/10 border border-green-500/30'
+                                                    : 'bg-red-500/10 border border-red-500/30'
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-2">
