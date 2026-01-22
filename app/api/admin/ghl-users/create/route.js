@@ -145,10 +145,10 @@ async function createGHLUser(accessToken, companyId, userData) {
     console.log('[GHL User Create] Full GHL response:', JSON.stringify(result, null, 2));
 
     // GHL may return the user directly or nested under 'user'
-    const userData = result.user || result;
-    console.log('[GHL User Create] GHL user created successfully:', userData?.id || userData?._id || 'NO_ID');
+    const ghlUserData = result.user || result;
+    console.log('[GHL User Create] GHL user created successfully:', ghlUserData?.id || ghlUserData?._id || 'NO_ID');
 
-    return userData;
+    return ghlUserData;
 }
 
 /**
