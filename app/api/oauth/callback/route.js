@@ -93,7 +93,7 @@ export async function GET(req) {
                 client_secret: process.env.GHL_CLIENT_SECRET,
                 grant_type: 'authorization_code',
                 code: code,
-                redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/callback`,
+                redirect_uri: process.env.GHL_REDIRECT_URI, // Use env var to match authorization
             }).toString(),
         });
 

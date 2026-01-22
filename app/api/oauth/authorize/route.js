@@ -28,15 +28,15 @@ export async function GET(req) {
         const userType = searchParams.get('user_type') || 'Location';
 
         const clientId = process.env.GHL_CLIENT_ID;
-        const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/callback`;
+        const redirectUri = process.env.GHL_REDIRECT_URI;
 
-        if (!clientId) {
+        if (!clientId || !redirectUri) {
             return NextResponse.json({
-                error: 'GHL OAuth not configured. Missing GHL_CLIENT_ID.'
+                error: 'GHL OAuth not configured. Missing GHL_CLIENT_ID or GHL_REDIRECT_URI.'
             }, { status: 500 });
         }
 
-        // Scopes required for our use case
+        // Scopes required for our use case (including users.write for user creation)
         const scopes = [
             'businesses.write',           // Create sub-accounts
             'businesses.readonly',        // Read business info
@@ -46,6 +46,8 @@ export async function GET(req) {
             'locations/customValues.readonly', //Read custom values
             'snapshots.write',            // Import snapshots (if available)
             'oauth.write',                // Generate location tokens from agency token
+            'users.write',                // Create GHL users (REQUIRED for Builder Login)
+            'users.readonly',             // Read GHL user data
         ].join(' ');
 
         // Create state parameter with user ID (Base64 encoded for safety)
