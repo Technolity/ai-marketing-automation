@@ -155,7 +155,7 @@ export default function AdminLogin() {
     // 2FA Code Entry Screen
     if (needs2FA) {
         return (
-            <div className="min-h-screen flex items-center justify-center px-6 bg-[#0a0a0b] relative overflow-hidden">
+            <div className="min-h-screen flex items-center justify-center px-6 bg-[#0a0a0b] relative overflow-x-hidden">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-600/10 rounded-full blur-[150px] pointer-events-none" />
                 <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-red-600/10 rounded-full blur-[150px] pointer-events-none" />
 
@@ -216,7 +216,7 @@ export default function AdminLogin() {
 
     // Main Login Form
     return (
-        <div className="min-h-screen flex items-center justify-center px-6 bg-[#0a0a0b] relative overflow-hidden">
+        <div className="min-h-screen flex items-center justify-center px-6 bg-[#0a0a0b] relative overflow-x-hidden">
             {/* Background Glows - Red theme for admin */}
             <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-600/10 rounded-full blur-[150px] pointer-events-none" />
             <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-red-600/10 rounded-full blur-[150px] pointer-events-none" />

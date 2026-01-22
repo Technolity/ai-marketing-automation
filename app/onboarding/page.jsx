@@ -191,7 +191,7 @@ export default function Onboarding() {
 
       {/* Profile Form - only shows after license accepted */}
       {licenseAccepted && (
-        <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-[#0e0e0f] relative overflow-hidden">
+        <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-[#0e0e0f] relative overflow-x-hidden">
           {/* Background Glows */}
           <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan/10 rounded-full blur-[150px] pointer-events-none" />
           <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan/10 rounded-full blur-[150px] pointer-events-none" />

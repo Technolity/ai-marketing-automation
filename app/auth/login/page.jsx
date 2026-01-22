@@ -157,7 +157,7 @@ export default function Login({ searchParams }) {
   // Email verification step
   if (needsEmailVerification) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-hidden">
+      <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-x-hidden">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
 
@@ -230,7 +230,7 @@ export default function Login({ searchParams }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-x-hidden">
       {/* Background Glows */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />

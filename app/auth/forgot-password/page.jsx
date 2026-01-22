@@ -127,7 +127,7 @@ export default function ForgotPassword() {
     // Success step
     if (step === "success") {
         return (
-            <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-hidden">
+            <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-x-hidden">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
                 <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
 
@@ -158,7 +158,7 @@ export default function ForgotPassword() {
     // Code verification step
     if (step === "code") {
         return (
-            <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-hidden">
+            <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-x-hidden">
                 <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
                 <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
 
@@ -258,7 +258,7 @@ export default function ForgotPassword() {
 
     // Email input step (default)
     return (
-        <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-hidden">
+        <div className="min-h-screen flex items-center justify-center px-6 bg-dark relative overflow-x-hidden">
             <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
             <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan/20 rounded-full blur-[150px] pointer-events-none" />
 

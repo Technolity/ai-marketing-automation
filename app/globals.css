@@ -138,13 +138,14 @@
 html {
   height: 100%;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100%;
   max-width: 100vw;
-  overflow-x: hidden;
+  overflow-x: auto;
   background-color: #0a0a0b;
   overscroll-behavior-y: contain;
   -ms-overflow-style: auto;
@@ -191,4 +192,60 @@ div {
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-cyan/50;
+}
+
+/* ========================================
+   CROSS-BROWSER SCROLL COMPATIBILITY
+   ======================================== */
+
+/* Ensure proper scroll behavior on all browsers */
+* {
+  /* Reset any problematic scroll blocking */
+  -ms-scroll-chaining: chained;
+  /* Allow pointer events to pass through */
+  pointer-events: auto;
+}
+
+/* Safari-specific fixes */
+@supports (-webkit-appearance: none) {
+  body {
+    /* Ensure body can scroll on Safari */
+    position: relative;
+    height: auto;
+  }
+}
+
+/* Edge/IE-specific fixes */
+@supports (-ms-ime-align: auto) {
+
+  html,
+  body {
+    -ms-scroll-chaining: chained;
+    -ms-content-zooming: zoom;
+    touch-action: manipulation;
+  }
+}
+
+/* Firefox-specific fixes */
+@-moz-document url-prefix() {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) #0a0a0b;
+  }
+}
+
+/* Ensure all interactive elements don't block scroll */
+button,
+a,
+input,
+textarea,
+select {
+  /* Allow scroll events to bubble up */
+  touch-action: manipulation;
+}
+
+/* Prevent pointer-events:none from blocking scroll */
+[style*="pointer-events: none"] {
+  /* Decorative elements should not interfere with scrolling */
+  position: absolute;
 }

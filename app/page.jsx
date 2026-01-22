@@ -9,7 +9,7 @@ export default function Home() {
   // Users click buttons to go where they need to go
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden px-6 pt-20">
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-x-hidden px-6 pt-20">
       {/* Background Glows - Cyan/Ice theme */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-cyan/10 rounded-full blur-[120px] -z-10 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-cyan/8 rounded-full blur-[150px] -z-10 pointer-events-none" />

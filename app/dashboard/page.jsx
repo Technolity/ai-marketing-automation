@@ -183,7 +183,7 @@ export default function Dashboard() {
     const canCreateMore = businesses.length < maxFunnels;
 
     return (
-        <div className="min-h-screen bg-[#0e0e0f] relative overflow-hidden">
+        <div className="min-h-screen bg-[#0e0e0f] relative overflow-x-hidden">
             {/* Mesh Gradient Overlays */}
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-cyan/10 blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 blur-[120px] rounded-full pointer-events-none" />
