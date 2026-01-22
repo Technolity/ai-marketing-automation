@@ -165,7 +165,62 @@ export async function POST(req) {
       console.log(`[Profile Save] GHL sub-account already exists - skipped`);
     }
 
-    // 7. Return success
+    // 7. Auto-create GHL User if enabled (after subaccount creation)
+    try {
+      // Check if auto-create is enabled
+      const { data: autoCreateSetting } = await supabase
+        .from('admin_settings')
+        .select('setting_value')
+        .eq('setting_key', 'ghl_auto_create_users')
+        .single();
+
+      const autoCreateEnabled = autoCreateSetting?.setting_value?.enabled || false;
+
+      if (autoCreateEnabled) {
+        console.log(`[Profile Save] Auto-create is ENABLED - checking if GHL user needed`);
+
+        // Get user's subaccount to check if it exists and if user already created
+        const { data: subaccount } = await supabase
+          .from('ghl_subaccounts')
+          .select('location_id, ghl_user_created, ghl_user_id')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .single();
+
+        if (subaccount && !subaccount.ghl_user_created) {
+          console.log(`[Profile Save] Subaccount exists, GHL user not created yet - creating...`);
+
+          // Import and use helper function for better error handling
+          const { createGHLUserForUser } = await import('@/lib/ghl/createUser');
+
+          // Call asynchronously (don't block the profile save response)
+          createGHLUserForUser(userId, 'profile-save')
+            .then((result) => {
+              if (result.success) {
+                console.log(`[Profile Save] ✅ GHL user created: ${result.ghlUserId}`);
+              } else {
+                console.error(`[Profile Save] ❌ GHL user creation failed:`, result.error);
+              }
+            })
+            .catch(err => {
+              console.error(`[Profile Save] ❌ Error in GHL user creation:`, err.message);
+            });
+
+          console.log(`[Profile Save] GHL user creation initiated (async)`);
+        } else if (subaccount && subaccount.ghl_user_created) {
+          console.log(`[Profile Save] GHL user already created - skipped`);
+        } else {
+          console.log(`[Profile Save] No active subaccount found - GHL user creation skipped`);
+        }
+      } else {
+        console.log(`[Profile Save] Auto-create is DISABLED - manual creation required`);
+      }
+    } catch (autoCreateError) {
+      // Don't fail the profile save if auto-create check fails
+      console.error('[Profile Save] Auto-create check error:', autoCreateError.message);
+    }
+
+    // 8. Return success
     return NextResponse.json({
       success: true,
       message: 'Profile saved successfully'
