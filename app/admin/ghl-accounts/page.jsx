@@ -273,6 +273,52 @@ export default function AdminGHLAccounts() {
         }
     };
 
+    const handleBulkImportSnapshots = async () => {
+        if (isBulkCreating || selectedUsers.length === 0) return;
+
+        setIsBulkCreating(true);
+        setBulkProgress({ total: selectedUsers.length, completed: 0, failed: 0, results: [] });
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-accounts/import-snapshot-bulk', {
+                method: 'POST',
+                body: JSON.stringify({ userIds: selectedUsers })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Bulk snapshot import failed');
+            }
+
+            const result = await response.json();
+
+            setBulkProgress({
+                total: result.total,
+                completed: result.successful,
+                failed: result.failed,
+                results: result.results
+            });
+
+            if (result.successful > 0) {
+                toast.success(`Imported snapshots for ${result.successful} user${result.successful > 1 ? 's' : ''}!`);
+            }
+
+            if (result.failed > 0) {
+                toast.error(`${result.failed} snapshot import${result.failed > 1 ? 's' : ''} failed. Check the results.`);
+            }
+
+            // Refresh list
+            fetchAccounts();
+        } catch (err) {
+            console.error('Bulk snapshot import error:', err);
+            toast.error(err.message || "Bulk snapshot import failed");
+            setBulkProgress(null);
+        } finally {
+            setIsBulkCreating(false);
+            setSelectedUsers([]);
+        }
+    };
+
     const toggleUserSelection = (userId) => {
         setSelectedUsers(prev =>
             prev.includes(userId)
@@ -744,6 +790,24 @@ export default function AdminGHLAccounts() {
                                 <>
                                     <UserPlus className="w-4 h-4" />
                                     Create Builder Logins
+                                </>
+                            )}
+                        </button>
+
+                        <button
+                            onClick={handleBulkImportSnapshots}
+                            disabled={isBulkCreating || selectedUsers.length > 50}
+                            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            {isBulkCreating ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Importing...
+                                </>
+                            ) : (
+                                <>
+                                    <Download className="w-4 h-4" />
+                                    Import Snapshots
                                 </>
                             )}
                         </button>
