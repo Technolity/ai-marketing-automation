@@ -17,22 +17,29 @@ const supabase = createClient(
 );
 
 export async function GET(req) {
+    console.log('[GHL OAuth Authorize] ========== START ==========');
+
     try {
         // Verify user is admin
         const { userId } = auth();
+        console.log('[GHL OAuth Authorize] User ID:', userId);
 
         if (!userId) {
-            return NextResponse.redirect(new URL('/auth/login', req.url));
+            console.log('[GHL OAuth Authorize] No user ID - redirecting to login');
+            return NextResponse.redirect(new URL('/auth/login?redirect_url=/api/ghl/oauth/authorize', req.url));
         }
 
         // Check if user is admin
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
             .select('is_admin')
             .eq('id', userId)
             .single();
 
+        console.log('[GHL OAuth Authorize] Profile:', { is_admin: profile?.is_admin, error: profileError });
+
         if (!profile?.is_admin) {
+            console.log('[GHL OAuth Authorize] User is not admin');
             return NextResponse.json(
                 { error: 'Admin access required for GHL OAuth setup' },
                 { status: 403 }
@@ -40,7 +47,17 @@ export async function GET(req) {
         }
 
         // Check required env vars
-        if (!process.env.GHL_CLIENT_ID || !process.env.GHL_REDIRECT_URI) {
+        const hasClientId = !!process.env.GHL_CLIENT_ID;
+        const hasRedirectUri = !!process.env.GHL_REDIRECT_URI;
+
+        console.log('[GHL OAuth Authorize] Env vars:', {
+            hasClientId,
+            hasRedirectUri,
+            redirectUri: process.env.GHL_REDIRECT_URI
+        });
+
+        if (!hasClientId || !hasRedirectUri) {
+            console.log('[GHL OAuth Authorize] Missing env vars');
             return NextResponse.json(
                 { error: 'GHL OAuth not configured. Set GHL_CLIENT_ID and GHL_REDIRECT_URI.' },
                 { status: 500 }

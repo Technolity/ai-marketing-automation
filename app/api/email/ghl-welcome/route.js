@@ -6,41 +6,48 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(req) {
-    try {
-        const { to, firstName } = await req.json();
+  try {
+    const { to, firstName } = await req.json();
 
-        if (!to || !firstName) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-        }
-
-        console.log('[GHL Welcome Email] Sending to:', to);
-
-        const { data, error } = await resend.emails.send({
-            from: 'TedOS <noreply@tedos.ai>',
-            to: [to],
-            subject: 'Your TedOS Builder Access is Ready! 🚀',
-            html: generateEmailHTML(firstName),
-        });
-
-        if (error) {
-            console.error('[GHL Welcome Email] Error:', error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        console.log('[GHL Welcome Email] Sent successfully:', data.id);
-        return NextResponse.json({ success: true, id: data.id });
-
-    } catch (error) {
-        console.error('[GHL Welcome Email] Exception:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!to || !firstName) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+
+    // Check if Resend API key is configured
+    if (!process.env.RESEND_API_KEY) {
+      console.error('[GHL Welcome Email] RESEND_API_KEY not configured');
+      return NextResponse.json({ error: 'Email service not configured' }, { status: 500 });
+    }
+
+    console.log('[GHL Welcome Email] Sending to:', to);
+
+    // Initialize Resend here (lazy initialization to avoid build-time errors)
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const { data, error } = await resend.emails.send({
+      from: 'TedOS <noreply@tedos.ai>',
+      to: [to],
+      subject: 'Your TedOS Builder Access is Ready! 🚀',
+      html: generateEmailHTML(firstName),
+    });
+
+    if (error) {
+      console.error('[GHL Welcome Email] Error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    console.log('[GHL Welcome Email] Sent successfully:', data.id);
+    return NextResponse.json({ success: true, id: data.id });
+
+  } catch (error) {
+    console.error('[GHL Welcome Email] Exception:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
 function generateEmailHTML(firstName) {
-    return `
+  return `
 <!DOCTYPE html>
 <html>
 <head>
