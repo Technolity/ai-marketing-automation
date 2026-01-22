@@ -328,7 +328,7 @@ export default function AdminGHLAccounts() {
     };
 
     const toggleSelectAll = () => {
-        const selectableUsers = accounts.filter(acc => acc.can_create_user);
+        const selectableUsers = accounts.filter(acc => acc.has_subaccount);
         if (selectedUsers.length === selectableUsers.length) {
             setSelectedUsers([]);
         } else {
@@ -348,7 +348,7 @@ export default function AdminGHLAccounts() {
                 header: () => (
                     <input
                         type="checkbox"
-                        checked={selectedUsers.length > 0 && selectedUsers.length === accounts.filter(acc => acc.can_create_user).length}
+                        checked={selectedUsers.length > 0 && selectedUsers.length === accounts.filter(acc => acc.has_subaccount).length}
                         onChange={toggleSelectAll}
                         className="w-4 h-4 rounded border-gray-600 bg-[#0e0e0f] text-cyan focus:ring-cyan focus:ring-offset-0"
                     />
