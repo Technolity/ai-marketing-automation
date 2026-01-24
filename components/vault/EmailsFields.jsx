@@ -8,7 +8,7 @@ import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
 
-export default function EmailsFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, refreshTrigger }) {
+export default function EmailsFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -29,7 +29,8 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
             if (!response.ok) throw new Error('Failed to fetch');
             const data = await response.json();
             setFields(data.fields || []);
-            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            // Check if all fields are approved
+            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
             setForceRenderKey(prev => prev + 1);
             console.log(`[EmailsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
@@ -42,6 +43,11 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
     }, [funnelId]);
 
     useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
+
+    // Sync with parent approval state
+    useEffect(() => {
+        setSectionApproved(isApproved);
+    }, [isApproved]);
 
     useEffect(() => {
         if (refreshTrigger && funnelId) {

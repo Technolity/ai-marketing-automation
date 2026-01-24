@@ -41,7 +41,7 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
             setFields(data.fields || []);
 
             // Check if all fields are approved
-            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
 
         } catch (error) {

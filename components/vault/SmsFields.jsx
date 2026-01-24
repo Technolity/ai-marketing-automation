@@ -8,7 +8,7 @@ import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
 
-export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, refreshTrigger }) {
+export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -34,7 +34,7 @@ export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, 
             setFields(data.fields || []);
 
             // Calculate approval state
-            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
 
             // Force re-render to update FieldEditor components with fresh data
@@ -53,6 +53,11 @@ export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, 
     useEffect(() => {
         if (funnelId) fetchFields();
     }, [funnelId, fetchFields]);
+
+    // Sync with parent approval state
+    useEffect(() => {
+        setSectionApproved(isApproved);
+    }, [isApproved]);
 
     // Refresh when parent triggers refresh (e.g., after background generation)
     useEffect(() => {

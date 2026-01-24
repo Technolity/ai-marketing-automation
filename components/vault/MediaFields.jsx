@@ -17,7 +17,7 @@ import { toast } from 'sonner';
  * - Custom value mapping to GHL
  * - Full approval logic integration
  */
-export default function MediaFields({ funnelId, onApprove, onUnapprove, refreshTrigger }) {
+export default function MediaFields({ funnelId, onApprove, onUnapprove, isApproved, refreshTrigger }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -52,9 +52,9 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, refreshT
             const allFieldsApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
             const sectionStatusApproved = data.sectionStatus === 'approved';
 
-            // Section is approved if either vault_content.status='approved' OR all fields are approved
-            const isApproved = sectionStatusApproved || allFieldsApproved;
-            setSectionApproved(isApproved);
+            // Section is approved if either vault_content.status='approved' OR all fields are approved OR parent says so
+            const computedApproved = isApproved || sectionStatusApproved || allFieldsApproved;
+            setSectionApproved(computedApproved);
 
             // Force re-render to update components
             setForceRenderKey(prev => prev + 1);
@@ -74,6 +74,11 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, refreshT
             fetchFields();
         }
     }, [funnelId, fetchFields]);
+
+    // Sync with parent approval state
+    useEffect(() => {
+        setSectionApproved(isApproved);
+    }, [isApproved]);
 
     // Refresh when parent triggers refresh
     useEffect(() => {

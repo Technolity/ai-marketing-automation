@@ -17,7 +17,7 @@ import { toast } from 'sonner';
  * - onUnapprove: Callback when section becomes unapproved
  * - refreshTrigger: Triggers refresh when value changes
  */
-export default function SetterScriptFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, refreshTrigger }) {
+export default function SetterScriptFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
@@ -47,7 +47,8 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
             setFields(data.fields || []);
 
             // Calculate approval state
-            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            // Calculate approval state
+            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
 
             // Force re-render to update FieldEditor components with fresh data
@@ -68,6 +69,11 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
             fetchFields();
         }
     }, [funnelId, fetchFields]);
+
+    // Sync with parent approval state
+    useEffect(() => {
+        setSectionApproved(isApproved);
+    }, [isApproved]);
 
     // Refresh when parent triggers refresh (e.g., after background generation)
     useEffect(() => {

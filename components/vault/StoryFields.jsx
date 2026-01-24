@@ -29,7 +29,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
             if (!response.ok) throw new Error('Failed to fetch fields');
             const data = await response.json();
             setFields(data.fields || []);
-            const allApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
+            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
         } catch (error) {
             console.error('[StoryFields] Fetch error:', error);
