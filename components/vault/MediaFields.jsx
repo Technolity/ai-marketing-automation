@@ -49,10 +49,12 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
 
             // Check section approval from vault_content.status (set by vault-section-approve)
             // Also check if all fields are approved as fallback
+            // CRITICAL FIX: For sections with no fields, rely ONLY on sectionStatus
             const allFieldsApproved = data.fields.length > 0 && data.fields.every(f => f.is_approved);
             const sectionStatusApproved = data.sectionStatus === 'approved';
 
             // Section is approved if either vault_content.status='approved' OR all fields are approved OR parent says so
+            // Priority: 1. Parent isApproved, 2. vault_content.status, 3. All fields approved
             const computedApproved = isApproved || sectionStatusApproved || allFieldsApproved;
             setSectionApproved(computedApproved);
 

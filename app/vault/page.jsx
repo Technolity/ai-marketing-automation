@@ -145,7 +145,16 @@ function normalizeData(rawData) {
         allSections.forEach(section => {
             const numKey = section.numericKey.toString();
             if (rawData[numKey]) {
-                normalized[section.id] = rawData[numKey].data || rawData[numKey];
+                const sectionData = rawData[numKey].data || rawData[numKey];
+                // CRITICAL FIX: Preserve status field for approval persistence
+                if (rawData[numKey].status) {
+                    normalized[section.id] = {
+                        ...sectionData,
+                        _status: rawData[numKey].status  // Prefix with _ to avoid conflicts
+                    };
+                } else {
+                    normalized[section.id] = sectionData;
+                }
             }
         });
     } else {
@@ -846,17 +855,22 @@ export default function VaultPage() {
     };
 
     const getSectionStatus = (sectionId, phaseNumber, approvedList, index) => {
-        // 1. Already approved sections stay approved
+        // 1. Already approved sections stay approved (check approvedList first)
         if (approvedList.includes(sectionId)) return 'approved';
+
+        // 1b. CRITICAL FIX: Also check vault_content.status for database-persisted approvals
+        // This handles cases where Media/Colors were approved but not in approvedList
+        const sectionData = vaultData?.[sectionId];
+        if (sectionData?._status === 'approved') {
+            console.log(`[Vault] Section ${sectionId} approved via vault_content.status`);
+            return 'approved';
+        }
 
         // 2. Phase gating
         if (phaseNumber === 2 && !hasFunnelChoice) return 'locked';
         if (phaseNumber === 3 && !phase2FullyApproved) return 'locked';
 
-        // 3. Check if this section has generated content FIRST
-        const sectionData = vaultData?.[sectionId];
-
-        // Check for explicit error in data (from DB or normalization)
+        // 3. Check for explicit error in data (from DB or normalization)
         if (sectionData?.error) {
             return 'failed';
         }

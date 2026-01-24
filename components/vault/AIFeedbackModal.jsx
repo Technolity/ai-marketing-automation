@@ -162,8 +162,19 @@ export default function AIFeedbackModal({
         setIsProcessing(true);
 
         try {
-            if (mode === MODES.SINGLE && fieldId) {
-                // Save single field via PATCH
+            // CRITICAL FIX: Always use onSave callback if provided
+            // This allows parent components (like OfferFields) to handle saves with custom logic
+            if (onSave) {
+                console.log('[AIFeedbackModal] Using parent onSave callback');
+                await onSave({
+                    refinedContent: previewContent,
+                    subSection: fieldId,
+                    mode
+                });
+                toast.success(`${fieldLabel || sectionTitle || 'Content'} updated!`);
+            } else if (mode === MODES.SINGLE && fieldId) {
+                // Fallback: Save single field directly if no callback provided
+                console.log('[AIFeedbackModal] No onSave callback, saving directly');
                 const fieldValueToSave = previewContent[fieldId] || previewContent;
 
                 const response = await fetchWithAuth('/api/os/vault-field', {
@@ -181,11 +192,10 @@ export default function AIFeedbackModal({
 
                 toast.success(`${fieldLabel || 'Field'} updated!`);
             } else {
-                // Save full section - call onSave callback
-                if (onSave) {
-                    onSave(previewContent);
-                }
-                toast.success(`${sectionTitle || 'Section'} updated!`);
+                // No callback and not single mode - shouldn't happen
+                console.warn('[AIFeedbackModal] No save handler available');
+                toast.error('Unable to save - no handler configured');
+                return;
             }
 
             setStep(3);
