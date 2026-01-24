@@ -189,6 +189,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
                                 fieldDef={fieldDef}
                                 initialValue={getFieldValue(fieldDef.field_id)}
                                 readOnly={sectionApproved}
+                                sectionId={sectionId}
                                 funnelId={funnelId}
                                 onSave={handleFieldSave}
                                 onAIFeedback={handleAIFeedback}

@@ -220,6 +220,7 @@ export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, 
                                 fieldDef={fieldDef}
                                 initialValue={getFieldValue(fieldDef.field_id)}
                                 readOnly={sectionApproved}
+                                sectionId={sectionId}
                                 funnelId={funnelId}
                                 onSave={handleFieldSave}
                                 onAIFeedback={handleAIFeedback}

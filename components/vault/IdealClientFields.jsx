@@ -239,6 +239,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
                                     fieldDef={fieldDef}
                                     initialValue={currentValue}
                                     readOnly={sectionApproved}
+                                    sectionId={sectionId}
                                     funnelId={funnelId}
                                     onSave={handleFieldSave}
                                     onAIFeedback={handleAIFeedback}

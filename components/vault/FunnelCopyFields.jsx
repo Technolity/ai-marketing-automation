@@ -315,6 +315,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
                                             fieldDef={subfieldDef}
                                             initialValue={subfieldValue}
                                             readOnly={sectionApproved}
+                                            sectionId={sectionId}
                                             funnelId={funnelId}
                                             onSave={handleFieldSave}
                                             onAIFeedback={handleAIFeedback}

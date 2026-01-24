@@ -263,6 +263,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
                                     fieldDef={fieldDef}
                                     initialValue={currentValue}
                                     readOnly={sectionApproved}
+                                    sectionId={sectionId}
                                     funnelId={funnelId}
                                     onSave={handleFieldSave}
                                     onAIFeedback={handleAIFeedback}
@@ -284,6 +285,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
                                     }}
                                     initialValue={customField.field_value}
                                     readOnly={sectionApproved}
+                                    sectionId={sectionId}
                                     funnelId={funnelId}
                                     onSave={handleFieldSave}
                                     onAIFeedback={handleAIFeedback}
