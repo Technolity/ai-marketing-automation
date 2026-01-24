@@ -96,7 +96,7 @@ const PHASE_1_SECTIONS = [
 // Phase 2: Marketing Assets - Funnel & marketing materials (locked until funnel choice made)
 const PHASE_2_SECTIONS = [
     { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet, hint: "Give this away in exchange for an email address. Use the title and hook in your ads and landing pages." },
-    { id: 'vsl', numericKey: 7, title: 'Appointment Booking Video', subtitle: 'Video Sales Letter (VSL)', icon: Video, hint: "Record this script for your landing page or sales page video. Keep it authentic and focused on the viewer." },
+    { id: 'vsl', numericKey: 7, title: 'Appointment Booking Video', subtitle: 'Funnel video script', icon: Video, hint: "Record this script for your landing page or sales page video. Keep it authentic and focused on the viewer." },
     { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users, hint: "Use the short bio for guesting (podcasts/events) and the full bio for your 'About' page." },
     { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone, hint: "Test these ad variations on Facebook/Instagram. Use the hooks as the first line of your captions." },
     { id: 'emails', numericKey: 8, title: 'Email Campaigns', subtitle: '15-day nurture series', icon: Mail, hint: "Load these into your email autoresponder to nurture new leads over 15 days." },

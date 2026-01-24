@@ -30,7 +30,7 @@ const CONTENT_NAMES = {
     4: "Offer & Program",
     5: "Sales Scripts",
     6: "Free Gift",
-    7: "Video Sales Letter (VSL)",
+    7: "Funnel video script",
     8: "Email Sequences",
     9: "Facebook Ads",
     10: "Funnel Copy",
