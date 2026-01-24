@@ -220,33 +220,44 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton, 
         }
 
         return (
-            <div className="space-y-8">
-                {orderedGroups.map((groupName) => (
-                    <div key={groupName} className="bg-[#1a1a1d] border border-white/5 rounded-2xl overflow-hidden">
-                        {/* Group Header */}
-                        {groupName !== 'Other' && (
-                            <div className="bg-white/5 px-6 py-4 border-b border-white/5">
+            <div className="space-y-4">
+                {orderedGroups.map((groupName) => {
+                    const isExpanded = expandedGroup === groupName;
+                    return (
+                        <div key={groupName} className="bg-[#1a1a1d] border border-white/5 rounded-2xl overflow-hidden transition-all duration-300">
+                            {/* Group Header */}
+                            <button
+                                onClick={() => setExpandedGroup(isExpanded ? null : groupName)}
+                                className={`w-full flex items-center justify-between px-6 py-4 bg-white/5 hover:bg-white/10 transition-colors text-left ${isExpanded ? 'border-b border-white/5' : ''}`}
+                            >
                                 <h3 className="text-lg font-bold text-cyan">{groupName}</h3>
-                            </div>
-                        )}
+                                {isExpanded ? (
+                                    <ChevronUp className="w-5 h-5 text-gray-400" />
+                                ) : (
+                                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                                )}
+                            </button>
 
-                        {/* Group Fields */}
-                        <div className="p-6 space-y-6">
-                            {groups[groupName].map((field) => (
-                                <FieldEditor
-                                    key={`${field.field_id}-${forceRenderKey}`}
-                                    fieldDef={field}
-                                    initialValue={field.value}
-                                    readOnly={sectionApproved}
-                                    sectionId={sectionId}
-                                    funnelId={funnelId}
-                                    onSave={handleFieldSave}
-                                    onAIFeedback={handleAIFeedback}
-                                />
-                            ))}
+                            {/* Group Fields */}
+                            {isExpanded && (
+                                <div className="p-6 space-y-6 animate-in slide-in-from-top-2 duration-200">
+                                    {groups[groupName].map((field) => (
+                                        <FieldEditor
+                                            key={`${field.field_id}-${forceRenderKey}`}
+                                            fieldDef={field}
+                                            initialValue={field.value}
+                                            readOnly={sectionApproved}
+                                            sectionId={sectionId}
+                                            funnelId={funnelId}
+                                            onSave={handleFieldSave}
+                                            onAIFeedback={handleAIFeedback}
+                                        />
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         );
     };
