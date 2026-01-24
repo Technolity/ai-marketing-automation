@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Video, RefreshCw } from 'lucide-react';
@@ -284,9 +284,3 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton, 
         </>
     );
 }
-
-/ /  
- f o r c e  
- g i t  
- u p d a t e  
- 

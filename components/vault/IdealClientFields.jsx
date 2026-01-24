@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import AIFeedbackModal from './AIFeedbackModal';
@@ -58,8 +58,8 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
     }, [funnelId, refreshTrigger]);
 
     // Sync with parent approval state (from header's approve button)
-    // The header approve button in page.jsx calls handleApprove() → updates approvedPhase1
-    // → passes isApproved={true} → this effect syncs it to local state
+    // The header approve button in page.jsx calls handleApprove() â†’ updates approvedPhase1
+    // â†’ passes isApproved={true} â†’ this effect syncs it to local state
     useEffect(() => {
         console.log('[IdealClientFields] isApproved prop changed:', isApproved);
         setSectionApproved(isApproved);
@@ -358,8 +358,3 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
         </>
     );
 }
-/ /  
- f o r c e  
- g i t  
- u p d a t e  
- 
