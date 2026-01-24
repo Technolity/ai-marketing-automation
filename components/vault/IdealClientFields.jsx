@@ -54,10 +54,9 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
         }
     }, [funnelId, refreshTrigger]);
 
-    // Sync with parent approval state
-    useEffect(() => {
-        setSectionApproved(isApproved);
-    }, [isApproved]);
+    // REMOVED: Problematic isApproved override that was preventing approval from working
+    // The parent's isApproved prop was always false, overriding our local state
+    // Now we rely solely on the database state fetched in fetchFields()
 
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {
@@ -128,10 +127,11 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
 
     // Handle section approval
     const handleApproveSection = async () => {
+        console.log('[IdealClientFields] Approve button clicked');
         setIsApproving(true);
         try {
-            // Mark all fields as approved
-            const response = await fetch('/api/os/vault-fields/approve', {
+            // FIXED: Changed from /api/os/vault-fields/approve to /api/os/vault-section-approve
+            const response = await fetchWithAuth('/api/os/vault-section-approve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -140,17 +140,30 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to approve section');
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('[IdealClientFields] Approve API error:', errorData);
+                throw new Error(errorData.message || 'Failed to approve section');
+            }
 
+            const result = await response.json();
+            console.log('[IdealClientFields] Approval successful:', result);
+
+            // Update local state
             setSectionApproved(true);
+
+            // Update fields to mark them as approved
+            setFields(prev => prev.map(f => ({ ...f, is_approved: true })));
 
             // Notify parent component
             if (onApprove) {
                 onApprove(sectionId);
             }
 
+            console.log('[IdealClientFields] Section approved, sectionApproved=true');
         } catch (error) {
             console.error('[IdealClientFields] Approve error:', error);
+            alert(`Failed to approve section: ${error.message}`);
         } finally {
             setIsApproving(false);
         }
