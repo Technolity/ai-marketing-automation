@@ -246,6 +246,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
                                 />
                             );
                         })}
+                        {console.log('[IdealClientFields] Rendering fields, sectionApproved:', sectionApproved)}
                     </>
                 )}
             </div>

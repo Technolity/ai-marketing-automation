@@ -54,6 +54,8 @@ export default function FieldEditor({
     onAIFeedback,
     readOnly = false
 }) {
+    // Debug logging
+    console.log('[FieldEditor] Rendering:', { field: fieldDef.field_id, readOnly, sectionId });
     // Parse value - handle JSON strings for array fields
     const parseValue = (val, fieldType) => {
         if (val === null || val === undefined) return fieldType === 'array' ? [] : '';
