@@ -138,8 +138,11 @@
 html {
   height: 100%;
   overflow-y: scroll;
-  overflow-x: scroll;
+  overflow-x: auto;
   scroll-behavior: smooth;
+  /* Modern browser scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.1) #0a0a0b;
 }
 
 body {
@@ -167,13 +170,9 @@ input,
 textarea,
 select,
 button {
-
   touch-action: auto;
   overscroll-behavior: auto;
 }
-
-/* Fix Edge scroll blocking on common containers */
-
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
@@ -224,13 +223,7 @@ button {
   }
 }
 
-/* Firefox-specific fixes */
-@-moz-document url-prefix() {
-  html {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.1) #0a0a0b;
-  }
-}
+
 
 /* Ensure all interactive elements don't block scroll */
 button,

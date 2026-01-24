@@ -2264,7 +2264,7 @@ export default function VaultPage() {
                             <CheckCircle className="w-5 h-5 text-green-500" />
                             Phase 1
                         </h2>
-                        <div className="grid gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {PHASE_1_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 1))}
                         </div>
                     </div>
@@ -2275,7 +2275,7 @@ export default function VaultPage() {
                             <CheckCircle className="w-5 h-5 text-green-500" />
                             Phase 2
                         </h2>
-                        <div className="grid gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {PHASE_2_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 2))}
                         </div>
                     </div>
@@ -2286,7 +2286,7 @@ export default function VaultPage() {
                             <CheckCircle className="w-5 h-5 text-green-500" />
                             Phase 3
                         </h2>
-                        <div className="grid gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                             {PHASE_3_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 3))}
                         </div>
                     </div>
@@ -2408,32 +2408,32 @@ export default function VaultPage() {
                     }`}
             >
                 <div
-                    className={`w-full p-4 sm:p-5 flex items-center justify-between gap-4 text-left ${status === 'locked' || status === 'generating' ? 'cursor-not-allowed' : ''
+                    className={`w-full p-3 sm:p-5 flex items-center justify-between gap-4 text-left ${status === 'locked' || status === 'generating' ? 'cursor-not-allowed' : ''
                         }`}
                 >
                     <div className="flex items-center gap-4 flex-1">
-                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-cyan/20' :
+                        <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${status === 'approved' ? 'bg-cyan/20' :
                             status === 'current' ? 'bg-cyan/20' :
                                 status === 'generating' ? 'bg-cyan/20' :
                                     status === 'failed' ? 'bg-red-500/20' :
                                         status === 'locked' ? 'bg-cyan/5 border border-cyan/20' :
                                             'bg-gray-700/50'
                             }`}>
-                            {status === 'approved' ? <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" /> :
+                            {status === 'approved' ? <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6 text-cyan" /> :
                                 status === 'locked' ? (
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 sm:w-5 sm:h-5">
                                         <path d="M7 11V7a5 5 0 0 1 10 0v4" className="text-cyan" />
                                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" className="text-cyan fill-cyan/20" />
                                     </svg>
                                 ) :
-                                    status === 'generating' ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-cyan animate-spin" /> :
-                                        status === 'failed' ? <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-500" /> :
-                                            <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-cyan" />}
+                                    status === 'generating' ? <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-cyan animate-spin" /> :
+                                        status === 'failed' ? <AlertTriangle className="w-4 h-4 sm:w-6 sm:h-6 text-red-500" /> :
+                                            <Icon className="w-4 h-4 sm:w-6 sm:h-6 text-cyan" />}
 
                         </div>
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                                <h3 className={`font-bold text-base sm:text-lg ${status === 'approved' ? 'text-cyan' :
+                                <h3 className={`font-bold text-sm sm:text-lg ${status === 'approved' ? 'text-cyan' :
                                     status === 'current' ? 'text-white' :
                                         status === 'generating' ? 'text-white' :
                                             status === 'failed' ? 'text-red-400' :
@@ -2450,7 +2450,7 @@ export default function VaultPage() {
                                     </div>
                                 )}
                             </div>
-                            <p className="text-xs sm:text-sm text-gray-500 truncate">{section.subtitle}</p>
+                            <p className="text-[10px] sm:text-sm text-gray-500 truncate">{section.subtitle}</p>
                         </div>
                     </div>
 
@@ -2463,9 +2463,9 @@ export default function VaultPage() {
                                         // "One Action At A Time" - Only allow one section expanded
                                         setExpandedSections(new Set([section.id]));
                                     }}
-                                    className="px-4 py-2 bg-gradient-to-r from-cyan/20 to-blue-500/20 hover:from-cyan/30 hover:to-blue-500/30 text-cyan border border-cyan/30 rounded-lg text-sm font-bold flex items-center gap-2 transition-all hover:scale-105"
+                                    className="px-2 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-cyan/20 to-blue-500/20 hover:from-cyan/30 hover:to-blue-500/30 text-cyan border border-cyan/30 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all hover:scale-105"
                                 >
-                                    Show My {section.title} <ChevronDown className="w-4 h-4" />
+                                    <span className="hidden sm:inline">Show My {section.title}</span><span className="sm:hidden">Show</span> <ChevronDown className="w-4 h-4" />
                                 </button>
                             ) : (
                                 <div className="flex items-center gap-2">
@@ -2474,9 +2474,9 @@ export default function VaultPage() {
                                             setFeedbackSection(section);
                                             setFeedbackChatOpen(true); // Using Chat Modal
                                         }}
-                                        className="px-4 py-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-purple-300 hover:from-purple-600/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
+                                        className="px-2 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-purple-300 hover:from-purple-600/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
                                     >
-                                        <MessageSquare className="w-4 h-4" /> AI Feedback
+                                        <MessageSquare className="w-4 h-4" /> <span className="hidden sm:inline">AI Feedback</span>
                                     </button>
                                     {status === 'approved' ? (
                                         <div className="flex items-center gap-2">
@@ -2486,10 +2486,10 @@ export default function VaultPage() {
                                                     handleUnapprove(section.id, phase);
                                                     toast.info('Section unlocked for editing');
                                                 }}
-                                                className="px-3 py-2 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600 rounded-lg text-gray-300 hover:text-white text-sm font-medium flex items-center gap-2 transition-all"
+                                                className="px-2 py-1.5 sm:px-3 sm:py-2 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600 rounded-lg text-gray-300 hover:text-white text-xs sm:text-sm font-medium flex items-center gap-2 transition-all"
                                                 title="Edit this section"
                                             >
-                                                <Edit3 className="w-4 h-4" /> Edit
+                                                <Edit3 className="w-4 h-4" /> <span className="hidden sm:inline">Edit</span>
                                             </button>
                                             {/* Push to GHL button for applicable sections */}
                                             {['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'].includes(section.id) && (
@@ -2500,16 +2500,16 @@ export default function VaultPage() {
                                                     isVaultComplete={isVaultComplete}
                                                 />
                                             )}
-                                            <div className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2">
-                                                <CheckCircle className="w-4 h-4" /> Approved
+                                            <div className="px-2 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2 text-xs sm:text-sm">
+                                                <CheckCircle className="w-4 h-4" /> <span className="hidden sm:inline">Approved</span>
                                             </div>
                                         </div>
                                     ) : (
                                         <button
                                             onClick={() => handleApprove(section.id, phase)}
-                                            className="px-4 py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
+                                            className="px-2 py-1.5 sm:px-4 sm:py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
                                         >
-                                            <CheckCircle className="w-4 h-4" /> Approve
+                                            <CheckCircle className="w-4 h-4" /> <span className="hidden sm:inline">Approve</span>
                                         </button>
                                     )}
 
@@ -2753,7 +2753,7 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: 20 }}
                                 className="space-y-4"
                             >
-                                <div className="grid gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                                     {PHASE_1_SECTIONS.map((section, index) => {
                                         const status = getSectionStatus(section.id, 1, approvedPhase1, index);
                                         return renderSection(section, status, index, 1);
@@ -2796,7 +2796,7 @@ export default function VaultPage() {
                                 className="space-y-4"
                             >
                                 {hasFunnelChoice ? (
-                                    <div className="grid gap-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                                         {PHASE_2_SECTIONS.map((section, index) => {
                                             const status = getSectionStatus(section.id, 2, approvedPhase2, index);
                                             return renderSection(section, status, index, 2);
@@ -2857,7 +2857,7 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                <div className="grid gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                                     {PHASE_3_SECTIONS.map((section, index) => {
                                         const status = getSectionStatus(section.id, 3, approvedPhase3, index);
                                         return renderSection(section, status, index, 3);

@@ -21,9 +21,6 @@ export default function Home() {
         transition={{ duration: 0.8, ease: "easeOut" }}
         className="max-w-5xl text-center relative z-10"
       >
-        <div className="inline-block mb-6 px-4 py-1.5 rounded-full glass border border-cyan/30 text-cyan text-sm font-medium tracking-wide shadow-glow-sm">
-          TED OS v1.0
-        </div>
 
         <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold mb-8 text-white tracking-tight leading-tight drop-shadow-2xl">
           Your Business <br />
@@ -50,7 +47,7 @@ export default function Home() {
           </Link>
         </div>
 
-        <p className="text-sm text-gray-500 font-medium tracking-wide uppercase">Zero setup • Answer 12 questions • Launch in minutes</p>
+        <p className="text-sm text-gray-500 font-medium tracking-wide uppercase">Zero setup • Answer 20 questions • Launch in minutes</p>
       </motion.div>
 
       <motion.div

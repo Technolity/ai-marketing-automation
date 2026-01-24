@@ -152,7 +152,7 @@ export default function FieldEditor({
 
             // === FREE GIFT TITLE DEPENDENCY TRACKING ===
             // If this is the Lead Magnet Title, notify about dependent sections
-            if (sectionId === 'leadMagnet' && field_id === 'mainTitle') {
+            if (sectionId === 'freeGift' && field_id === 'mainTitle') {
                 const dependentSections = [
                     'Video Script (VSL)',
                     'Ad Copy',
@@ -163,7 +163,7 @@ export default function FieldEditor({
 
                 // Show toast with option to regenerate
                 toast.info(
-                    `Lead Magnet Title updated! This is used in: ${dependentSections.join(', ')}. Consider regenerating these sections to reflect the new title.`,
+                    `Free Gift Title updated! This is used in: ${dependentSections.join(', ')}. Consider regenerating these sections to reflect the new title.`,
                     {
                         duration: 10000,
                         action: {
