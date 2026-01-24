@@ -163,21 +163,112 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton, 
         </button>
     ) : null;
 
+    // Helper to group fields
+    const renderGroupedFields = () => {
+        // Group fields by their group property
+        const groups = {};
+        const orderedGroups = [];
+
+        // First, handle predefined fields order and grouping
+        predefinedFields.forEach(fieldDef => {
+            const groupName = fieldDef.group || 'Other';
+            if (!groups[groupName]) {
+                groups[groupName] = [];
+                orderedGroups.push(groupName);
+            }
+
+            // Find the actual field state
+            const fieldState = fields.find(f => f.field_id === fieldDef.field_id);
+            // Use state value if available, otherwise null
+            const value = fieldState ? fieldState.field_value : null;
+
+            groups[groupName].push({
+                ...fieldDef,
+                value
+            });
+        });
+
+        // Handle custom fields (put them in 'Custom Fields' group)
+        const customFields = fields.filter(f => f.is_custom);
+        if (customFields.length > 0) {
+            if (!groups['Custom Fields']) {
+                groups['Custom Fields'] = [];
+                orderedGroups.push('Custom Fields');
+            }
+            customFields.forEach(f => {
+                groups['Custom Fields'].push({
+                    field_id: f.field_id,
+                    field_label: f.field_label,
+                    field_type: f.field_type,
+                    field_metadata: f.field_metadata || {},
+                    value: f.field_value,
+                    is_custom: true
+                });
+            });
+        }
+
+        return (
+            <div className="space-y-8">
+                {orderedGroups.map((groupName) => (
+                    <div key={groupName} className="bg-[#1a1a1d] border border-white/5 rounded-2xl overflow-hidden">
+                        {/* Group Header */}
+                        {groupName !== 'Other' && (
+                            <div className="bg-white/5 px-6 py-4 border-b border-white/5">
+                                <h3 className="text-lg font-bold text-cyan">{groupName}</h3>
+                            </div>
+                        )}
+
+                        {/* Group Fields */}
+                        <div className="p-6 space-y-6">
+                            {groups[groupName].map((field) => (
+                                <FieldEditor
+                                    key={`${field.field_id}-${forceRenderKey}`}
+                                    fieldDef={field}
+                                    initialValue={field.value}
+                                    readOnly={sectionApproved}
+                                    sectionId={sectionId}
+                                    funnelId={funnelId}
+                                    onSave={handleFieldSave}
+                                    onAIFeedback={handleAIFeedback}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     return (
         <>
-            {/* Expose approve button via onRenderApproveButton callback */}
-            {/* Approve button removed (handled by Vault header) */}
-
             <div className="space-y-6">
                 {isLoading ? (
-                    <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-4 border-red-500/30 border-t-red-500 rounded-full animate-spin" /></div>
+                    <div className="flex items-center justify-center py-12">
+                        <div className="w-8 h-8 border-4 border-cyan/30 border-t-cyan rounded-full animate-spin" />
+                    </div>
                 ) : (
-                    <>
-                        {predefinedFields.map((fieldDef) => (<FieldEditor key={`${fieldDef.field_id}-${forceRenderKey}`} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} readOnly={sectionApproved} />))}
-                    </>
+                    renderGroupedFields()
                 )}
             </div>
-            {feedbackModalOpen && selectedField && (<FeedbackChatModal isOpen={feedbackModalOpen} onClose={() => { setFeedbackModalOpen(false); setSelectedField(null); }} sectionId={sectionId} sectionTitle="Video Script (VSL)" subSection={selectedField.field_id} subSectionTitle={selectedField.field_label} currentContent={selectedFieldValue} sessionId={funnelId} onSave={handleFeedbackSave} />)}
+
+            {/* AI Feedback Modal */}
+            {feedbackModalOpen && selectedField && (
+                <FeedbackChatModal
+                    isOpen={feedbackModalOpen}
+                    onClose={() => {
+                        setFeedbackModalOpen(false);
+                        setSelectedField(null);
+                        setSelectedFieldValue(null);
+                    }}
+                    sectionId={sectionId}
+                    sectionTitle="Funnel Video Script"
+                    subSection={selectedField.field_id}
+                    subSectionTitle={selectedField.field_label}
+                    currentContent={selectedFieldValue}
+                    sessionId={funnelId}
+                    onSave={handleFeedbackSave}
+                />
+            )}
         </>
     );
 }
