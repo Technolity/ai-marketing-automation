@@ -2264,7 +2264,7 @@ export default function VaultPage() {
                             <CheckCircle className="w-5 h-5 text-green-500" />
                             Phase 1
                         </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div className="grid gap-3">
                             {PHASE_1_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 1))}
                         </div>
                     </div>
@@ -2275,7 +2275,7 @@ export default function VaultPage() {
                             <CheckCircle className="w-5 h-5 text-green-500" />
                             Phase 2
                         </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div className="grid gap-3">
                             {PHASE_2_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 2))}
                         </div>
                     </div>
@@ -2286,7 +2286,7 @@ export default function VaultPage() {
                             <CheckCircle className="w-5 h-5 text-green-500" />
                             Phase 3
                         </h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        <div className="grid gap-3">
                             {PHASE_3_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 3))}
                         </div>
                     </div>
@@ -2753,7 +2753,7 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: 20 }}
                                 className="space-y-4"
                             >
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                <div className="grid gap-3">
                                     {PHASE_1_SECTIONS.map((section, index) => {
                                         const status = getSectionStatus(section.id, 1, approvedPhase1, index);
                                         return renderSection(section, status, index, 1);
@@ -2796,7 +2796,7 @@ export default function VaultPage() {
                                 className="space-y-4"
                             >
                                 {hasFunnelChoice ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    <div className="grid gap-3">
                                         {PHASE_2_SECTIONS.map((section, index) => {
                                             const status = getSectionStatus(section.id, 2, approvedPhase2, index);
                                             return renderSection(section, status, index, 2);
@@ -2857,7 +2857,7 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                <div className="grid gap-3">
                                     {PHASE_3_SECTIONS.map((section, index) => {
                                         const status = getSectionStatus(section.id, 3, approvedPhase3, index);
                                         return renderSection(section, status, index, 3);
