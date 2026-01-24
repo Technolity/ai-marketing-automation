@@ -23,6 +23,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
+    const [expandedGroup, setExpandedGroup] = useState(null);
 
     const sectionId = 'idealClient';
     const predefinedFields = getFieldsForSection(sectionId);
@@ -63,6 +64,15 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
         console.log('[IdealClientFields] isApproved prop changed:', isApproved);
         setSectionApproved(isApproved);
     }, [isApproved]);
+
+    // Initial expansion
+    useEffect(() => {
+        if (fields.length > 0 && !expandedGroup) {
+            // Find the first group name
+            const firstGroup = predefinedFields[0]?.group || 'Other';
+            setExpandedGroup(firstGroup);
+        }
+    }, [fields, expandedGroup]);
 
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {

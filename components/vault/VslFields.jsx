@@ -18,6 +18,7 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton, 
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
     const [forceRenderKey, setForceRenderKey] = useState(0);
+    const [expandedGroup, setExpandedGroup] = useState(null);
     const previousApprovalRef = useRef(false);
 
     const sectionId = 'vsl';
@@ -63,6 +64,17 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton, 
         }
         previousApprovalRef.current = sectionApproved;
     }, [sectionApproved, sectionId, onUnapprove]);
+
+    // Initial expansion
+    useEffect(() => {
+        if (fields.length > 0 && !expandedGroup) {
+            // Find the first group name
+            const firstGroup = predefinedFields[0]?.group || 'Other';
+            setExpandedGroup(firstGroup);
+        }
+    }, [fields, expandedGroup]);
+
+
 
     const handleFieldSave = async (field_id, value, result) => {
         console.log('[VslFields] Field saved:', field_id, 'version:', result.version);
