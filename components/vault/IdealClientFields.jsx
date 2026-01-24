@@ -54,9 +54,13 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
         }
     }, [funnelId, refreshTrigger]);
 
-    // REMOVED: Problematic isApproved override that was preventing approval from working
-    // The parent's isApproved prop was always false, overriding our local state
-    // Now we rely solely on the database state fetched in fetchFields()
+    // Sync with parent approval state (from header's approve button)
+    // The header approve button in page.jsx calls handleApprove() → updates approvedPhase1
+    // → passes isApproved={true} → this effect syncs it to local state
+    useEffect(() => {
+        console.log('[IdealClientFields] isApproved prop changed:', isApproved);
+        setSectionApproved(isApproved);
+    }, [isApproved]);
 
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {
