@@ -98,33 +98,99 @@ function generateSchemaExample(zodSchema, depth = 0) {
 const REFINEMENT_PROMPTS = {
     idealClient: {
         system: `You are an expert marketing strategist helping refine an Ideal Client Profile.
-Your role is to take the user's feedback and make TARGETED improvements to specific aspects.
-Maintain consistency with the original content while addressing the specific feedback.
-Output should be clear, actionable, and client-focused.`,
+
+YOUR APPROACH:
+1. THINK: Analyze the current content and identify what could be improved
+2. UNDERSTAND: Review the user's feedback and what they want to achieve
+3. SUGGEST: Consider what enhancements would make this more powerful
+4. REFINE: Generate improved content that addresses all feedback while maintaining quality
+
+CRITICAL RULES:
+- Fill ALL fields in the schema - NEVER leave any field empty or with placeholder text
+- Provide polished, professional, marketing-grade content
+- Maintain consistency with business context
+- Make specific, actionable improvements based on feedback
+- Think deeply about the ideal client's psychology and motivations`,
         fields: ['demographics', 'psychographics', 'painPoints', 'desires', 'objections']
     },
     message: {
         system: `You are a world-class copywriter helping refine a Million-Dollar Message.
-Focus on clarity, emotional impact, and unique positioning.
-Make only the requested changes while keeping the rest consistent.`,
+
+YOUR APPROACH:
+1. THINK: What makes this message compelling? What's missing?
+2. ANALYZE: Review the feedback and understand the desired direction
+3. ENHANCE: Consider emotional impact, clarity, and unique positioning
+4. DELIVER: Generate a refined version that hits harder
+
+CRITICAL RULES:
+- Fill ALL fields in the schema - NEVER leave any field empty
+- Focus on clarity, emotional impact, and unique positioning
+- Make the message memorable and repeatable
+- Ensure it's specific enough to attract the right client`,
         fields: ['headline', 'subheadline', 'uniqueMechanism', 'bigPromise']
     },
     story: {
         system: `You are a master storyteller helping craft a compelling origin story.
-Focus on emotional resonance, relatability, and the transformation journey.
-Keep the authentic voice while improving the specific element requested.`,
+
+YOUR APPROACH:
+1. THINK: What makes a story emotionally resonant and relatable?
+2. ANALYZE: What does the feedback tell you about the desired transformation?
+3. CRAFT: Consider pacing, emotion, and the hero's journey
+4. REFINE: Generate a story that connects deeply with the ideal client
+
+CRITICAL RULES:
+- Fill ALL fields in the schema - NEVER leave any field empty
+- Focus on emotional resonance, relatability, and transformation
+- Maintain authentic voice while improving impact
+- Show the journey from struggle to breakthrough clearly`,
         fields: ['hook', 'struggle', 'breakthrough', 'transformation']
     },
     offer: {
         system: `You are a product strategist helping refine an irresistible offer.
-Focus on value stacking, clear outcomes, and compelling reasons to buy.
-Improve the specific element while maintaining offer coherence.`,
+
+YOUR APPROACH:
+1. THINK: What makes this offer valuable and compelling?
+2. ANALYZE: Review feedback for what needs strengthening
+3. OPTIMIZE: Consider value stacking, outcomes, and buying triggers
+4. PRESENT: Generate a refined offer that's impossible to refuse
+
+CRITICAL RULES:
+- Fill ALL fields in the schema - NEVER leave any field empty
+- Focus on value stacking, clear outcomes, and compelling reasons to buy
+- Make the transformation and results crystal clear
+- Maintain offer coherence across all elements`,
         fields: ['name', 'modules', 'bonuses', 'pricing']
+    },
+    colors: {
+        system: `You are a professional brand designer helping refine a color palette.
+
+YOUR APPROACH:
+1. THINK: What emotions and perceptions do these colors create?
+2. ANALYZE: Review feedback for what needs adjustment
+3. DESIGN: Consider color psychology, brand positioning, and ideal client preferences
+4. REFINE: Generate a cohesive palette that reinforces brand identity
+
+CRITICAL RULES:
+- Fill ALL fields in the schema - NEVER leave any field empty
+- Provide valid hex codes for all colors (format: #RRGGBB)
+- Explain why these colors work together for this specific brand
+- Ensure colors align with ideal client psychology and market positioning`,
+        fields: ['primaryColor', 'secondaryColor', 'accentColor', 'reasoning']
     },
     default: {
         system: `You are an expert marketing consultant helping refine business content.
-Make targeted improvements based on the user's specific feedback.
-Maintain the original tone and style while addressing the requested changes.`,
+
+YOUR APPROACH:
+1. THINK: Analyze the current content - what's working, what's not?
+2. UNDERSTAND: Review the user's specific feedback and intent
+3. ENHANCE: Consider how to make this more compelling and effective
+4. DELIVER: Generate refined content that exceeds expectations
+
+CRITICAL RULES:
+- Fill ALL fields in the schema - NEVER leave any field empty
+- Make targeted improvements based on feedback
+- Maintain the original tone and style unless asked to change it
+- Ensure all content is polished, professional, and marketing-grade`,
         fields: ['opening', 'body', 'closing']
     }
 };
@@ -438,28 +504,57 @@ ${schemaExample}
 ${schemaInstructions}
 ${lengthInstructions}
 
+⚠️ CRITICAL INSTRUCTIONS - READ CAREFULLY:
+
 TASK:
 ${isSubSection
             ? `Update ONLY the "${subSection}" portion based on the feedback above. Keep everything else unchanged.`
             : `Update the entire section based on the feedback above.`
         }
-${iterationNote}
 
-OUTPUT REQUIREMENTS:
-1. You MUST return valid JSON that can be parsed with JSON.parse()
-2. ${isSubSection
-            ? `Return a JSON object with the key "${subSection}" containing the updated content, like: {"${subSection}": <updated_content>}`
+YOUR WORKFLOW:
+Step 1: THINK - Analyze the current content and identify areas for improvement
+Step 2: UNDERSTAND - Review the user's feedback and determine what they want
+Step 3: PLAN - Consider how to enhance this content while maintaining structure
+Step 4: GENERATE - Create polished, professional, marketing-grade content
+
+🚨 ABSOLUTE REQUIREMENTS - FAILURE WILL RESULT IN REJECTION:
+
+1. NEVER LEAVE FIELDS EMPTY
+   - Every field in the schema MUST be filled with high-quality content
+   - NO placeholders like "[insert]", "TBD", "TODO", or "..."
+   - NO empty strings, null values, or missing fields
+   - If a field exists in the schema, it MUST have real, usable content
+
+2. MAINTAIN EXACT STRUCTURE
+   - Follow the schema structure EXACTLY as shown above
+   - Match exact field names (case-sensitive)
+   - Preserve data types (strings stay strings, arrays stay arrays, objects stay objects)
+   - Keep exact array lengths (if schema says 3 items, provide exactly 3 items)
+   - Do NOT add fields not in the schema
+   - Do NOT remove fields from the schema
+
+3. PROVIDE POLISHED CONTENT
+   - All content must be professional, marketing-grade quality
+   - Write as if this is going live immediately to customers
+   - Make content specific, actionable, and valuable
+   - Avoid generic statements - be specific to this business and ideal client
+
+4. JSON FORMAT REQUIREMENTS
+   - Output ONLY valid JSON that can be parsed with JSON.parse()
+   - ${isSubSection
+            ? `Return a JSON object with the key "${subSection}" containing the updated content`
             : `Return the complete updated JSON structure for the entire ${sectionId} section`}
-3. Preserve the original data types - if a field was an array, keep it as an array
-4. Maintain exact array lengths from the original (e.g., if there are 3 items, keep 3 items)
-5. Do NOT add any new fields that don't exist in the current content
-6. Do NOT wrap the output in markdown code blocks
-7. Do NOT add any text before or after the JSON
+   - Do NOT wrap output in markdown code blocks (no \`\`\`json or \`\`\`)
+   - Do NOT add any text before or after the JSON
+   - Ensure all strings are properly escaped
+
+${iterationNote}
 
 Example output format for sub-section update:
 {"${subSection || 'fieldName'}": {"key1": "value1", "key2": ["item1", "item2"]}}
 
-CRITICAL: Only modify the content based on feedback. Do NOT add new fields or change the structure.
+REMEMBER: Think deeply, fill ALL fields completely, maintain exact structure, provide polished professional content.
 Focus on addressing the user's specific feedback while maintaining consistency with the business context.`;
 }
 
