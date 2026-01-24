@@ -261,7 +261,7 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
                                     key={`${fieldDef.field_id}-${forceRenderKey}`}
                                     fieldDef={fieldDef}
                                     initialValue={currentValue}
-                                    sectionId={sectionId}
+                                    readOnly={sectionApproved}
                                     funnelId={funnelId}
                                     onSave={handleFieldSave}
                                     onAIFeedback={handleAIFeedback}
@@ -282,7 +282,7 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
                                         field_metadata: customField.field_metadata || {}
                                     }}
                                     initialValue={customField.field_value}
-                                    sectionId={sectionId}
+                                    readOnly={sectionApproved}
                                     funnelId={funnelId}
                                     onSave={handleFieldSave}
                                     onAIFeedback={handleAIFeedback}

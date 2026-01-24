@@ -179,7 +179,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
                                 key={fieldDef.field_id}
                                 fieldDef={fieldDef}
                                 initialValue={getFieldValue(fieldDef.field_id)}
-                                sectionId={sectionId}
+                                readOnly={sectionApproved}
                                 funnelId={funnelId}
                                 onSave={handleFieldSave}
                                 onAIFeedback={handleAIFeedback}

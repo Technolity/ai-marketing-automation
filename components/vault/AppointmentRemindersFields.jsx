@@ -206,7 +206,7 @@ export default function AppointmentRemindersFields({ funnelId, onApprove, onRend
                                 key={`${fieldDef.field_id}-${forceRenderKey}`}
                                 fieldDef={fieldDef}
                                 initialValue={getFieldValue(fieldDef.field_id)}
-                                sectionId={sectionId}
+                                readOnly={sectionApproved}
                                 funnelId={funnelId}
                                 onSave={handleFieldSave}
                                 onAIFeedback={handleAIFeedback}

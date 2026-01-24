@@ -278,7 +278,7 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
                                         key={fieldDef.field_id}
                                         fieldDef={fieldDef}
                                         initialValue={getFieldValue(fieldDef.field_id)}
-                                        sectionId={sectionId}
+                                        readOnly={sectionApproved}
                                         funnelId={funnelId}
                                         onSave={handleFieldSave}
                                         onAIFeedback={handleAIFeedback}
@@ -300,7 +300,7 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
                                             key={fieldDef.field_id}
                                             fieldDef={fieldDef}
                                             initialValue={getFieldValue(fieldDef.field_id)}
-                                            sectionId={sectionId}
+                                            readOnly={sectionApproved}
                                             funnelId={funnelId}
                                             onSave={handleFieldSave}
                                             onAIFeedback={handleAIFeedback}
@@ -323,7 +323,7 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
                                             key={fieldDef.field_id}
                                             fieldDef={fieldDef}
                                             initialValue={getFieldValue(fieldDef.field_id)}
-                                            sectionId={sectionId}
+                                            readOnly={sectionApproved}
                                             funnelId={funnelId}
                                             onSave={handleFieldSave}
                                             onAIFeedback={handleAIFeedback}
@@ -344,7 +344,7 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
                                         key={fieldDef.field_id}
                                         fieldDef={fieldDef}
                                         initialValue={getFieldValue(fieldDef.field_id)}
-                                        sectionId={sectionId}
+                                        readOnly={sectionApproved}
                                         funnelId={funnelId}
                                         onSave={handleFieldSave}
                                         onAIFeedback={handleAIFeedback}
@@ -365,7 +365,7 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
                                         field_metadata: customField.field_metadata || {}
                                     }}
                                     initialValue={customField.field_value}
-                                    sectionId={sectionId}
+                                    readOnly={sectionApproved}
                                     funnelId={funnelId}
                                     onSave={handleFieldSave}
                                     onAIFeedback={handleAIFeedback}

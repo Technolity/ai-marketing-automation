@@ -235,7 +235,7 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
                                     key={fieldDef.field_id}
                                     fieldDef={fieldDef}
                                     initialValue={currentValue}
-                                    sectionId={sectionId}
+                                    readOnly={sectionApproved}
                                     funnelId={funnelId}
                                     onSave={handleFieldSave}
                                     onAIFeedback={handleAIFeedback}

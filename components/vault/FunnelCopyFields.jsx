@@ -314,7 +314,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
                                             key={`${subfieldDef.field_id}-${forceRenderKey}`}
                                             fieldDef={subfieldDef}
                                             initialValue={subfieldValue}
-                                            sectionId={sectionId}
+                                            readOnly={sectionApproved}
                                             funnelId={funnelId}
                                             onSave={handleFieldSave}
                                             onAIFeedback={handleAIFeedback}

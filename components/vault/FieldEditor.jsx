@@ -51,7 +51,8 @@ export default function FieldEditor({
     sectionId,
     funnelId,
     onSave,
-    onAIFeedback
+    onAIFeedback,
+    readOnly = false
 }) {
     // Parse value - handle JSON strings for array fields
     const parseValue = (val, fieldType) => {
@@ -220,7 +221,8 @@ export default function FieldEditor({
                             onChange={(e) => handleChange(e.target.value)}
                             placeholder={field_metadata.placeholder || field_label}
                             maxLength={field_metadata.maxLength}
-                            className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
+                            disabled={readOnly}
+                            className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                         />
                     ) : (
                         <textarea
@@ -232,8 +234,9 @@ export default function FieldEditor({
                             }}
                             placeholder={field_metadata.placeholder || field_label}
                             maxLength={field_metadata.maxLength}
+                            disabled={readOnly}
                             style={{ minHeight: '4.5rem', maxHeight: '18rem', height: 'auto' }}
-                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto"
+                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
                         />
                     )}
                     {field_metadata.maxLength && (
@@ -298,11 +301,12 @@ export default function FieldEditor({
                                         onBlur={handleBlur}
                                         placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
                                         maxLength={field_metadata.itemMaxLength}
+                                        disabled={readOnly}
                                         style={{ minHeight: '3.5rem', maxHeight: '12rem', height: 'auto' }}
-                                        className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto"
+                                        className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
                                     />
                                 </div>
-                                {arrayValue.length > minItems && (
+                                {arrayValue.length > minItems && !readOnly && (
                                     <button
                                         onClick={() => {
                                             const newArray = arrayValue.filter((_, i) => i !== idx);
@@ -334,7 +338,7 @@ export default function FieldEditor({
                                 <div key={idx} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-3 relative group">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-sm font-medium text-gray-400">Item {idx + 1}</span>
-                                        {arrayValue.length > minItems && (
+                                        {arrayValue.length > minItems && !readOnly && (
                                             <button
                                                 onClick={() => {
                                                     const newArray = arrayValue.filter((_, i) => i !== idx);
@@ -370,8 +374,9 @@ export default function FieldEditor({
                                                         onBlur={handleBlur}
                                                         placeholder={subfield.placeholder}
                                                         maxLength={subfield.maxLength}
+                                                        disabled={readOnly}
                                                         style={{ minHeight: '3rem', maxHeight: '10rem', height: 'auto' }}
-                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan overflow-y-auto"
+                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
                                                     />
                                                 ) : (
                                                     <input
@@ -385,7 +390,8 @@ export default function FieldEditor({
                                                         onBlur={handleBlur}
                                                         placeholder={subfield.placeholder}
                                                         maxLength={subfield.maxLength}
-                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
+                                                        disabled={readOnly}
+                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                                     />
                                                 )}
                                             </div>
@@ -487,8 +493,9 @@ export default function FieldEditor({
                             }}
                             onBlur={handleBlur}
                             placeholder={field_label}
+                            disabled={readOnly}
                             style={{ minHeight: '6rem' }}
-                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
+                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                         />
                     </div>
                 );
@@ -517,8 +524,9 @@ export default function FieldEditor({
                                             onBlur={handleBlur}
                                             placeholder={subfield.placeholder}
                                             maxLength={subfield.maxLength}
+                                            disabled={readOnly}
                                             style={{ minHeight: '3rem' }}
-                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
+                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     ) : (
                                         <input
@@ -531,7 +539,8 @@ export default function FieldEditor({
                                             onBlur={handleBlur}
                                             placeholder={subfield.placeholder}
                                             maxLength={subfield.maxLength}
-                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan"
+                                            disabled={readOnly}
+                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     )}
                                 </div>
@@ -591,13 +600,13 @@ export default function FieldEditor({
                     {!value ? (
                         <div className="space-y-3">
                             {/* Upload Area */}
-                            <label className={`relative block group cursor-pointer ${isUploading ? 'pointer-events-none opacity-70' : ''}`}>
+                            <label className={`relative block group cursor-pointer ${isUploading || readOnly ? 'pointer-events-none opacity-70' : ''}`}>
                                 <input
                                     type="file"
                                     accept={isVideo ? "video/*" : "image/*"}
                                     onChange={handleFileUpload}
                                     className="hidden"
-                                    disabled={isUploading}
+                                    disabled={isUploading || readOnly}
                                 />
                                 <div className="w-full px-4 py-8 border-2 border-dashed border-[#2a2a2d] rounded-xl text-center transition-all hover:border-cyan hover:bg-[#1f1f22]">
                                     {isUploading ? (
@@ -626,7 +635,8 @@ export default function FieldEditor({
                                     onChange={(e) => setValue(e.target.value)}
                                     onBlur={handleBlur}
                                     placeholder={field_metadata.placeholder || "Or paste URL..."}
-                                    className="w-full pl-10 pr-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan"
+                                    disabled={readOnly}
+                                    className="w-full pl-10 pr-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                 />
                             </div>
                         </div>
@@ -655,16 +665,18 @@ export default function FieldEditor({
                                     </a>
                                 </div>
 
-                                <button
-                                    onClick={() => {
-                                        setValue('');
-                                        handleSave(''); // Save empty value 
-                                    }}
-                                    className="p-2 text-gray-500 hover:text-red-500 transition-colors"
-                                    title="Remove file"
-                                >
-                                    <Trash2 className="w-5 h-5" />
-                                </button>
+                                {!readOnly && (
+                                    <button
+                                        onClick={() => {
+                                            setValue('');
+                                            handleSave(''); // Save empty value 
+                                        }}
+                                        className="p-2 text-gray-500 hover:text-red-500 transition-colors"
+                                        title="Remove file"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
