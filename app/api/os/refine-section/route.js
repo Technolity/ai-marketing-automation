@@ -235,7 +235,7 @@ export async function POST(req) {
         }
 
         // Build the refinement prompt
-        const userPrompt = buildRefinementPrompt({
+        const userPrompt = await buildRefinementPrompt({
             sectionId,
             subSection,
             feedback,
@@ -414,7 +414,7 @@ export async function POST(req) {
 /**
  * Build a context-aware refinement prompt
  */
-function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent, intakeData, iteration, previousAlternatives = [] }) {
+async function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent, intakeData, iteration, previousAlternatives = [] }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
@@ -447,29 +447,92 @@ function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent
     const isSubSection = subSection && subSection !== 'all';
 
     // Get schema information with FULL nested structure
-    const schema = VAULT_SCHEMAS[sectionId];
+    // CRITICAL FIX: Use fieldStructures.js for individual field updates, vaultSchemas.js for full section
     let schemaInstructions = '';
     let schemaExample = '';
 
-    if (schema) {
-        // Generate deep nested example structure from Zod schema
-        try {
-            const exampleStructure = generateSchemaExample(schema);
-            schemaExample = `\n\nEXACT SCHEMA STRUCTURE YOU MUST FOLLOW (${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
+    // Import fieldStructures to get the UI-friendly schema
+    const { VAULT_FIELD_STRUCTURES } = await import('@/lib/vault/fieldStructures');
+    const fieldStructure = VAULT_FIELD_STRUCTURES[sectionId];
 
-            // Add explicit differentiation for similar schemas
-            if (sectionId === 'setterScript') {
-                schemaExample += `\n\n⚠️ CRITICAL: You are working on SETTER SCRIPT (setterCallScript), NOT closer script (closerCallScript)!`;
-                schemaExample += `\n   Top-level key MUST be "setterCallScript" (10 steps + setterMindset)`;
-            } else if (sectionId === 'salesScripts') {
-                schemaExample += `\n\n⚠️ CRITICAL: You are working on CLOSER SCRIPT (closerCallScript), NOT setter script (setterCallScript)!`;
-                schemaExample += `\n   Top-level key MUST be "closerCallScript" (6 parts in callFlow)`;
+    // If updating a single field (not 'all'), use fieldStructures format
+    if (isSubSection && fieldStructure) {
+        console.log('[RefineSection] Using fieldStructures.js for single field update');
+
+        // Find the specific field definition
+        const fieldDef = fieldStructure.fields.find(f => f.field_id === subSection);
+
+        if (fieldDef) {
+            console.log('[RefineSection] Found field definition:', fieldDef.field_id, 'type:', fieldDef.field_type);
+
+            // Build schema example based on field type
+            let fieldSchemaExample = '';
+            if (fieldDef.field_type === 'array' && fieldDef.field_metadata?.itemType === 'object') {
+                // Array of objects with subfields
+                const subfieldExample = {};
+                (fieldDef.field_metadata.subfields || []).forEach(sf => {
+                    subfieldExample[sf.field_id] = `<${sf.field_type}>`;
+                });
+                fieldSchemaExample = JSON.stringify({ [subSection]: [subfieldExample] }, null, 2);
+                schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS FOR ${subSection}:
+- This is an ARRAY of objects
+- Each object MUST have these exact fields: ${(fieldDef.field_metadata.subfields || []).map(sf => sf.field_id).join(', ')}
+- Minimum ${fieldDef.field_metadata.minItems || 1} items required
+- NO placeholders like "[insert]" or "TBD" - fill ALL fields with real content
+- Return format: {"${subSection}": [{ field1: "value", field2: "value", ... }]}`;
+            } else if (fieldDef.field_type === 'array') {
+                // Array of strings
+                fieldSchemaExample = JSON.stringify({ [subSection]: ['<item 1>', '<item 2>', '<item 3>'] }, null, 2);
+                schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS FOR ${subSection}:
+- This is an ARRAY of ${fieldDef.field_metadata?.itemType || 'strings'}
+- Minimum ${fieldDef.field_metadata.minItems || 1} items required
+- Each item should be a complete, meaningful ${fieldDef.field_metadata?.itemType || 'string'}
+- Return format: {"${subSection}": ["item1", "item2", ...]}`;
+            } else if (fieldDef.field_type === 'object' && fieldDef.field_metadata?.subfields) {
+                // Object with subfields
+                const subfieldExample = {};
+                fieldDef.field_metadata.subfields.forEach(sf => {
+                    subfieldExample[sf.field_id] = `<${sf.field_type}>`;
+                });
+                fieldSchemaExample = JSON.stringify({ [subSection]: subfieldExample }, null, 2);
+                schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS FOR ${subSection}:
+- This is an OBJECT with subfields
+- MUST include ALL these fields: ${fieldDef.field_metadata.subfields.map(sf => sf.field_id).join(', ')}
+- NO placeholders like "[insert]" or "TBD" - fill ALL fields with real content
+- Return format: {"${subSection}": { field1: "value", field2: "value", ... }}`;
+            } else {
+                // Simple string/text field
+                fieldSchemaExample = JSON.stringify({ [subSection]: '<text content>' }, null, 2);
+                schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS FOR ${subSection}:
+- This is a ${fieldDef.field_type.toUpperCase()} field
+- Return the complete content as a string
+- Return format: {"${subSection}": "your content here"}`;
             }
-        } catch (e) {
-            console.warn('[RefineSection] Could not extract schema shape:', e.message);
-        }
 
-        schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS (SCHEMA VERSION 2.0):
+            schemaExample = `\n\nEXACT STRUCTURE YOU MUST RETURN:\n${fieldSchemaExample}`;
+        }
+    } else {
+        // Full section update - use vaultSchemas.js
+        const schema = VAULT_SCHEMAS[sectionId];
+        if (schema) {
+            // Generate deep nested example structure from Zod schema
+            try {
+                const exampleStructure = generateSchemaExample(schema);
+                schemaExample = `\n\nEXACT SCHEMA STRUCTURE YOU MUST FOLLOW (${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
+
+                // Add explicit differentiation for similar schemas
+                if (sectionId === 'setterScript') {
+                    schemaExample += `\n\n⚠️ CRITICAL: You are working on SETTER SCRIPT (setterCallScript), NOT closer script (closerCallScript)!`;
+                    schemaExample += `\n   Top-level key MUST be "setterCallScript" (10 steps + setterMindset)`;
+                } else if (sectionId === 'salesScripts') {
+                    schemaExample += `\n\n⚠️ CRITICAL: You are working on CLOSER SCRIPT (closerCallScript), NOT setter script (setterCallScript)!`;
+                    schemaExample += `\n   Top-level key MUST be "closerCallScript" (6 parts in callFlow)`;
+                }
+            } catch (e) {
+                console.warn('[RefineSection] Could not extract schema shape:', e.message);
+            }
+
+            schemaInstructions = `\n\nSTRICT SCHEMA REQUIREMENTS (SCHEMA VERSION 2.0):
 - Output ONLY the exact field structure shown above
 - Match exact array lengths (e.g., topChallenges: EXACTLY 3 items)
 - Follow EXACT field names and nesting as shown in schema
@@ -478,6 +541,7 @@ function buildRefinementPrompt({ sectionId, subSection, feedback, currentContent
 - NO extra fields beyond schema
 - NO reordering of fields - maintain exact order
 - Maintain exact data types (strings, arrays, objects)`;
+        }
     }
 
     // Add length constraints if applicable
