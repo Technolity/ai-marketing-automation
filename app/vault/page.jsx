@@ -142,6 +142,7 @@ function normalizeData(rawData) {
     const hasNumericKeys = Object.keys(rawData).some(key => !isNaN(key));
 
     if (hasNumericKeys) {
+        // Old format with numeric keys (legacy)
         allSections.forEach(section => {
             const numKey = section.numericKey.toString();
             if (rawData[numKey]) {
@@ -158,7 +159,26 @@ function normalizeData(rawData) {
             }
         });
     } else {
-        return rawData;
+        // New format with section IDs as keys
+        // Check if values have {data, status} structure
+        for (const [key, value] of Object.entries(rawData)) {
+            if (value && typeof value === 'object' && ('data' in value || 'status' in value)) {
+                // New format: { media: { data: {...}, status: "approved" } }
+                const sectionData = value.data || value;
+                if (value.status) {
+                    normalized[key] = {
+                        ...sectionData,
+                        _status: value.status  // Preserve status
+                    };
+                } else {
+                    normalized[key] = sectionData;
+                }
+            } else {
+                // Old flat format: { media: {...} }
+                normalized[key] = value;
+            }
+        }
+        return normalized;
     }
 
     return normalized;

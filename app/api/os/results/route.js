@@ -110,14 +110,20 @@ export async function GET(req) {
         const populatedSections = new Set(populatedFields?.map(f => f.section_id) || []);
 
         // Aggregate content by section_id
+        // CRITICAL FIX: Include status field for approval persistence
         const aggregatedData = {};
         if (vaultContent && vaultContent.length > 0) {
             for (const item of vaultContent) {
-                aggregatedData[item.section_id] = item.content;
+                // Structure data to include status for normalizeData processing
+                aggregatedData[item.section_id] = {
+                    data: item.content,
+                    status: item.status  // Include status for approval persistence
+                };
+
                 // Inject _isPopulated flag if granular fields exist
                 if (populatedSections.has(item.section_id)) {
-                    if (aggregatedData[item.section_id] && typeof aggregatedData[item.section_id] === 'object') {
-                        aggregatedData[item.section_id]._isPopulated = true;
+                    if (aggregatedData[item.section_id].data && typeof aggregatedData[item.section_id].data === 'object') {
+                        aggregatedData[item.section_id].data._isPopulated = true;
                     }
                 }
             }
