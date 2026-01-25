@@ -195,7 +195,7 @@ export async function POST(req) {
             }
 
             // Build conversational prompt with FULL PROJECT CONTEXT
-            const { systemPrompt, userPrompt } = buildConversationalPrompt({
+            const { systemPrompt, userPrompt } = await buildConversationalPrompt({
                 sectionId,
                 subSection,
                 parentSection, // Pass parent field context for hierarchical selections
@@ -826,7 +826,7 @@ async function parseAndValidate(fullText, sectionId, subSection) {
  * Build conversational prompt from message history with FULL PROJECT CONTEXT
  * Uses the full context prompts system to give AI complete knowledge of original generation
  */
-function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle }) {
+async function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
@@ -958,8 +958,80 @@ CONVERSATION STYLE:
     const schema = VAULT_SCHEMAS[sectionId];
     let schemaExample = '';
 
-    if (schema) {
-        // Generate deep nested example structure from Zod schema
+    // CRITICAL FIX: For single-field updates with array of objects, use fieldStructures.js
+    const isSubSection = subSection && subSection !== 'all';
+
+    if (isSubSection) {
+        console.log('[BuildContext] Single-field update detected, checking fieldStructures.js');
+        try {
+            const { getFieldsForSection } = await import('@/lib/vault/fieldStructures');
+            const fieldStructure = getFieldsForSection(sectionId);
+            const fieldDef = fieldStructure?.fields?.find(f => f.field_id === subSection);
+
+            if (fieldDef) {
+                console.log('[BuildContext] Found field definition:', {
+                    fieldId: fieldDef.field_id,
+                    fieldType: fieldDef.field_type,
+                    hasMetadata: !!fieldDef.field_metadata
+                });
+
+                // Check if this is an array of objects with subfields
+                if (fieldDef.field_type === 'array' && fieldDef.field_metadata?.itemType === 'object' && fieldDef.field_metadata?.subfields) {
+                    const subfieldExample = {};
+                    fieldDef.field_metadata.subfields.forEach(sf => {
+                        subfieldExample[sf.field_id] = `<${sf.field_type}: ${sf.placeholder || sf.field_label}>`;
+                    });
+
+                    // Build array with minItems examples
+                    const minItems = fieldDef.field_metadata.minItems || 1;
+                    const exampleArray = Array(minItems).fill(null).map((_, i) => ({
+                        ...subfieldExample,
+                        _example: `Item ${i + 1}`
+                    }));
+
+                    schemaExample = `\n\n🎯 EXACT SCHEMA STRUCTURE FOR "${subSection}" (from fieldStructures.js):
+CRITICAL: This field is an ARRAY of OBJECTS, NOT an object with numbered keys!
+
+CORRECT FORMAT (what you MUST return):
+{
+  "${subSection}": ${JSON.stringify(exampleArray, null, 2).split('\n').map((line, idx) => idx === 0 ? line : '  ' + line).join('\n')}
+}
+
+⚠️ WRONG FORMATS (DO NOT USE):
+❌ {"${subSection}": {"step1": "...", "step2": "...", "step3": "..."}}  // Object with numbered keys - WRONG!
+❌ {"step1": "...", "step2": "..."}  // Individual properties - WRONG!
+❌ [{"stepName": "..."}, ...]  // Array without wrapping key - WRONG!
+
+✅ REQUIRED STRUCTURE:
+- Root key: "${subSection}"
+- Value: ARRAY (use [ ] brackets)
+- Array items: Objects with these exact fields: ${fieldDef.field_metadata.subfields.map(sf => sf.field_id).join(', ')}
+- Minimum ${minItems} items required
+- Each item MUST have ALL ${fieldDef.field_metadata.subfields.length} fields filled with real content
+- NO placeholders like "[insert]" or "TBD"
+
+FIELD DESCRIPTIONS:
+${fieldDef.field_metadata.subfields.map(sf => `- ${sf.field_id}: ${sf.field_label} (${sf.field_type}) - ${sf.placeholder || 'Fill with relevant content'}`).join('\n')}`;
+
+                    console.log('[BuildContext] Using fieldStructures.js schema for array of objects field');
+                } else {
+                    // Not an array of objects, fall back to Zod schema
+                    if (schema) {
+                        const exampleStructure = generateSchemaExample(schema);
+                        schemaExample = `\n\nEXACT SCHEMA STRUCTURE (from Zod schema for ${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('[BuildContext] Could not load fieldStructures:', error.message);
+            // Fall back to Zod schema
+            if (schema) {
+                const exampleStructure = generateSchemaExample(schema);
+                schemaExample = `\n\nEXACT SCHEMA STRUCTURE (from Zod schema for ${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
+            }
+        }
+    } else if (schema) {
+        // Full section update - use Zod schema
         try {
             const exampleStructure = generateSchemaExample(schema);
             schemaExample = `\n\nEXACT SCHEMA STRUCTURE (from Zod schema for ${sectionId}):\n${JSON.stringify(exampleStructure, null, 2)}`;
@@ -986,7 +1058,6 @@ CONVERSATION STYLE:
         }
     }
 
-    const isSubSection = subSection && subSection !== 'all';
     const isHierarchical = parentSection && subSection?.includes('.');
 
     // Parse hierarchical field path if present (e.g., "optinPage.headline_text")

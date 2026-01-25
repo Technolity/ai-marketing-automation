@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import FieldEditor from './FieldEditor';
-import AIFeedbackModal from './AIFeedbackModal';
+import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
@@ -350,7 +350,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
 
             {/* AI Feedback Modal */}
             {feedbackModalOpen && selectedField && (
-                <AIFeedbackModal
+                <FeedbackChatModal
                     isOpen={feedbackModalOpen}
                     onClose={() => {
                         setFeedbackModalOpen(false);
@@ -359,8 +359,6 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
                     }}
                     sectionId={sectionId}
                     sectionTitle="Ideal Client Profile"
-                    subSection={selectedField.field_id}
-                    subSectionTitle={selectedField.field_label}
                     currentContent={selectedFieldValue}
                     sessionId={funnelId}
                     onSave={handleFeedbackSave}
