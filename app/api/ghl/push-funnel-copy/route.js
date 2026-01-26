@@ -228,10 +228,18 @@ export async function POST(req) {
 
         // Reconstruct content structure from individual fields
         // Fields are stored as: optinPage, salesPage, bookingPage, thankYouPage (each is a JSON object)
+        // IMPORTANT: Filter out nested field entries (those with dots in field_id)
+        // Nested fields like "optinPage.footer_company_name" are already merged into their parent "optinPage"
         const content = {};
 
         for (const field of fields) {
             const { field_id, field_value } = field;
+
+            // Skip nested field entries - they're already in the parent object
+            if (field_id.includes('.')) {
+                console.log('[PushFunnelCopy] Skipping nested field entry:', field_id);
+                continue;
+            }
 
             // Parse field value (may be JSON string or object)
             let parsedValue = field_value;
@@ -247,7 +255,7 @@ export async function POST(req) {
             content[field_id] = parsedValue;
         }
 
-        console.log('[PushFunnelCopy] Reconstructed content from', fields.length, 'fields:', Object.keys(content));
+        console.log('[PushFunnelCopy] Reconstructed content from', Object.keys(content).length, 'parent fields:', Object.keys(content));
 
         // Build custom values payload using customValuesMap
         const customValues = [];
