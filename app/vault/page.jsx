@@ -2517,7 +2517,7 @@ export default function VaultPage() {
                                             <button
                                                 onClick={() => {
                                                     // Enable editing by unapproving first
-                                                    handleUnapprove(section.id, phase);
+                                                    handleUnapprove(section.id);
                                                     toast.info('Section unlocked for editing');
                                                 }}
                                                 className="px-2 py-1.5 sm:px-3 sm:py-2 bg-gray-700/50 hover:bg-gray-600/50 border border-gray-600 rounded-lg text-gray-300 hover:text-white text-xs sm:text-sm font-medium flex items-center gap-2 transition-all"
