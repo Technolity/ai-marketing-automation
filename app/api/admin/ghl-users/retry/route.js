@@ -56,15 +56,29 @@ export async function POST(req) {
             body: JSON.stringify({ userId: targetUserId })
         });
 
-        const result = await response.json();
+        let result;
+        try {
+            const responseText = await response.text();
+            result = responseText ? JSON.parse(responseText) : null;
+        } catch (parseError) {
+            console.error(`[GHL User Retry ${requestId}] Failed to parse response:`, parseError);
+            result = { error: 'Invalid response from create endpoint' };
+        }
 
         if (!response.ok) {
-            console.error(`[GHL User Retry ${requestId}] Retry failed:`, result);
-            return NextResponse.json(result, { status: response.status });
+            console.error(`[GHL User Retry ${requestId}] Retry failed:`, {
+                status: response.status,
+                result: result,
+                hasResult: !!result
+            });
+            return NextResponse.json(
+                result || { error: `Request failed with status ${response.status}` },
+                { status: response.status }
+            );
         }
 
         console.log(`[GHL User Retry ${requestId}] Retry successful`);
-        return NextResponse.json(result);
+        return NextResponse.json(result || { success: true });
 
     } catch (error) {
         console.error(`[GHL User Retry ${requestId}] Error:`, error);

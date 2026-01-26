@@ -167,15 +167,24 @@ async function sendWelcomeEmail(userEmail, firstName) {
             })
         });
 
+        const responseText = await response.text();
+
         if (!response.ok) {
-            console.error('[GHL User Create] Failed to send email:', await response.text());
+            console.error('[GHL User Create] Failed to send email:', {
+                status: response.status,
+                statusText: response.statusText,
+                body: responseText
+            });
             return false;
         }
 
         console.log('[GHL User Create] Welcome email sent successfully');
         return true;
     } catch (error) {
-        console.error('[GHL User Create] Email error:', error);
+        console.error('[GHL User Create] Email error:', {
+            message: error.message,
+            stack: error.stack
+        });
         return false;
     }
 }
@@ -233,13 +242,15 @@ export async function POST(req) {
         const firstName = userProfile.first_name || fullName.split(' ')[0] || 'User';
         const lastName = userProfile.last_name || fullName.split(' ').slice(1).join(' ') || '';
 
-        // 4. Fetch subaccount
+        // 4. Fetch subaccount (get most recent if multiple exist)
         console.log(`[GHL User Create ${requestId}] Fetching subaccount...`);
         const { data: subaccount, error: subError } = await supabase
             .from('ghl_subaccounts')
             .select('*')
             .eq('user_id', targetUserId)
             .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
         if (subError) {

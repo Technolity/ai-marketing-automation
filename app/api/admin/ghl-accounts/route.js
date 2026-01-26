@@ -111,11 +111,15 @@ export async function GET(req) {
         .from('ghl_subaccounts')
         .select('*')
         .in('user_id', userIds)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
 
       if (subaccounts) {
+        // Use only the most recent subaccount per user (already ordered by created_at desc)
         subaccounts.forEach(sa => {
-          subaccountsMap[sa.user_id] = sa;
+          if (!subaccountsMap[sa.user_id]) {
+            subaccountsMap[sa.user_id] = sa;
+          }
         });
       }
     }
