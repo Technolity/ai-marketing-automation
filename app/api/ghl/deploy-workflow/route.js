@@ -12,170 +12,132 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (current deployment takes ~74s)
 
 /**
- * All 170+ custom value keys from Custom Values.xlsx
- * Organized by section with comments for clarity
+ * NEW Custom Value Mappings - Updated to 03_* structure
+ * Maps vault field names to GHL custom value keys
  */
-const CUSTOM_VALUE_KEYS = {
-    // === OPTIN PAGE ===
-    optinPageText: {
-        '02_optin_page_headline_text': 'headline_text',
-        '02_optin_subhealine_text': 'subheadline_text',
-        '02_optin_cta_text': 'cta_text',
-        '02_optin_healine_text': 'headline_text', // Alternative
-    },
-    optinPageColor: {
-        '02_optin_cta_background_colour': null, // From colors section
-        '02_optin_healine_text_colour': null,
-        '02_optin_subhealine_text_colour': null,
-    },
-    optinPageMedia: {
-        '02_optin_logo_image': null, // From media section
-        '02_optin_mockup_image': null,
-    },
 
-    // === VSL PAGE ===
-    vslPageText: {
-        '02_vsl_hero_headline_text': 'hero_headline_text',
-        '02_vsl_cta_text': 'cta_text',
-        '02_vsl_acknowledge_pill_text': 'acknowledge_pill_text',
-        '02_vsl_process_headline_text': 'process_headline_text',
-        '02_vsl_process_sub_headline_text': 'process_sub_headline_text',
-        '02_vsl_process_bullet_1_text': 'process_bullet_1_text',
-        '02_vsl_process_bullet_2_text': 'process_bullet_2_text',
-        '02_vsl_process_bullet_3_text': 'process_bullet_3_text',
-        '02_vsl_process_bullet_4_text': 'process_bullet_4_text',
-        '02_vsl_process_bullet_5_text': 'process_bullet_5_text',
-        '02_vsl_audience_callout_headline_text': 'audience_callout_headline_text',
-        '02_vsl_audience_callout_bullet_1_text': 'audience_callout_bullet_1_text',
-        '02_vsl_audience_callout_bullet_2_text': 'audience_callout_bullet_2_text',
-        '02_vsl_audience_callout_bullet_3_text': 'audience_callout_bullet_3_text',
-        '02_vsl_audience_callout_cta_text': 'audience_callout_cta_text',
-        '02_vsl_call_details_headline_text': 'call_details_headline_text',
-        '02_vsl_call_details_is_heading': 'call_details_is_heading',
-        '02_vsl_call_details_is_not_heading': 'call_details_is_not_heading',
-        '02_vsl_call_details_is_bullet_1_text': 'call_details_is_bullet_1_text',
-        '02_vsl_call_details_is_bullet_2_text': 'call_details_is_bullet_2_text',
-        '02_vsl_call_details_is_bullet_3_text': 'call_details_is_bullet_3_text',
-        '02_vsl_call_details_is_not_bullet_1_text': 'call_details_is_not_bullet_1_text',
-        '02_vsl_call_details_is_not_bullet_2_text': 'call_details_is_not_bullet_2_text',
-        '02_vsl_call_details_is_not_bullet_3_text': 'call_details_is_not_bullet_3_text',
-        '02_vsl_bio_headline_text': 'bio_headline_text',
-        '02_vsl_bio_paragraph_text': 'bio_paragraph_text',
-        '02_vsl_faq_headline_text': 'faq_headline_text',
-        '02_vsl_faq_question_1_text': 'faq_question_1_text',
-        '02_vsl_faq_answer_1_text': 'faq_answer_1_text',
-        '02_vsl_faq_question_2_text': 'faq_question_2_text',
-        '02_vsl_faq_answer_2_text': 'faq_answer_2_text',
-        '02_vsl_faq_question_3_text': 'faq_question_3_text',
-        '02_vsl_faq_answer_3_text': 'faq_answer_3_text',
-        '02_vsl_faq_question_4_text': 'faq_question_4_text',
-        '02_vsl_faq_answer_4_text': 'faq_answer_4_text',
-        '02_vsl_testimonials_headline_text': 'testimonials_headline_text',
-        '02_vsl_testimonials_subheadline_text': 'testimonials_subheadline_text',
-        '02_vsl_testimonial_review_1_headline': 'testimonial_review_1_headline',
-        '02_vsl_testimonial_review_1_paragraph_with_name': 'testimonial_review_1_paragraph_with_name',
-        '02_vsl_testimonial_review_2_headline': 'testimonial_review_2_headline',
-        '02_vsl_testimonial_review_2_paragraph_with_name': 'testimonial_review_2_paragraph_with_name',
-        '02_vsl_testimonial_review_3_headline': 'testimonial_review_3_headline',
-        '02_vsl_testimonial_review_3_paragraph_with_name': 'testimonial_review_3_paragraph_with_name',
-        '02_vsl_testimonial_review_4_headline': 'testimonial_review_4_headline',
-        '02_vsl_testimonial_review_4_paragraph_with_name': 'testimonial_review_4_paragraph_with_name',
-    },
-
-    // === BOOKING PAGE ===
-    bookingPageText: {
-        '02_booking_pill_text': 'booking_pill_text',
-        '03_booking_calender_embedded_code': null, // Manual
-    },
-
-    // === THANK YOU PAGE ===
-    thankYouPageText: {
-        '02_thankyou_page_headline_text': 'headline_text',
-        '02_thankyou_page_subheadline_text': 'subheadline_text',
-    },
-
-    // === FOOTER ===
-    footer: {
-        '02_footer_company_name': 'footer_company_name',
-    },
+// === OPTIN PAGE MAPPINGS (4 fields) ===
+const OPTIN_PAGE_MAP = {
+    'headline_text': '03_optin_headline_text',
+    'subheadline_text': '03_optin_subheadline_text',
+    'cta_button_text': '03_optin_cta_button_text',
+    'mockup_image': '03_optin_mockup_image'
 };
 
-// Map vault salesPage keys to GHL keys
-const SALES_PAGE_KEY_MAP = {
-    'hero_headline_text': '02_vsl_hero_headline_text',
-    'cta_text': '02_vsl_cta_text',
-    'acknowledge_pill_text': '02_vsl_acknowledge_pill_text',
-    'process_headline_text': '02_vsl_process_headline_text',
-    'process_sub_headline_text': '02_vsl_process_sub_headline_text',
-    'process_bullet_1_text': '02_vsl_process_bullet_1_text',
-    'process_bullet_2_text': '02_vsl_process_bullet_2_text',
-    'process_bullet_3_text': '02_vsl_process_bullet_3_text',
-    'process_bullet_4_text': '02_vsl_process_bullet_4_text',
-    'process_bullet_5_text': '02_vsl_process_bullet_5_text',
-    'audience_callout_headline_text': '02_vsl_audience_callout_headline_text',
-    'audience_callout_bullet_1_text': '02_vsl_audience_callout_bullet_1_text',
-    'audience_callout_bullet_2_text': '02_vsl_audience_callout_bullet_2_text',
-    'audience_callout_bullet_3_text': '02_vsl_audience_callout_bullet_3_text',
-    'audience_callout_cta_text': '02_vsl_audience_callout_cta_text',
-    'call_details_headline_text': '02_vsl_call_details_headline_text',
-    'call_details_is_heading': '02_vsl_call_details_is_heading',
-    'call_details_is_not_heading': '02_vsl_call_details_is_not_heading',
-    'call_details_is_bullet_1_text': '02_vsl_call_details_is_bullet_1_text',
-    'call_details_is_bullet_2_text': '02_vsl_call_details_is_bullet_2_text',
-    'call_details_is_bullet_3_text': '02_vsl_call_details_is_bullet_3_text',
-    'call_details_is_not_bullet_1_text': '02_vsl_call_details_is_not_bullet_1_text',
-    'call_details_is_not_bullet_2_text': '02_vsl_call_details_is_not_bullet_2_text',
-    'call_details_is_not_bullet_3_text': '02_vsl_call_details_is_not_bullet_3_text',
-    'bio_photo_text': '02_vsl_bio_photo_text',
-    'bio_headline_text': '02_vsl_bio_headline_text',
-    'bio_paragraph_text': '02_vsl_bio_paragraph_text',
-    'faq_headline_text': '02_vsl_faq_headline_text',
-    'faq_question_1_text': '02_vsl_faq_question_1_text',
-    'faq_answer_1_text': '02_vsl_faq_answer_1_text',
-    'faq_question_2_text': '02_vsl_faq_question_2_text',
-    'faq_answer_2_text': '02_vsl_faq_answer_2_text',
-    'faq_question_3_text': '02_vsl_faq_question_3_text',
-    'faq_answer_3_text': '02_vsl_faq_answer_3_text',
-    'faq_question_4_text': '02_vsl_faq_question_4_text',
-    'faq_answer_4_text': '02_vsl_faq_answer_4_text',
-    'testimonials_headline_text': '02_vsl_testimonials_headline_text',
-    'testimonials_subheadline_text': '02_vsl_testimonials_subheadline_text',
-    'testimonial_review_1_headline': '02_vsl_testimonial_review_1_headline',
-    'testimonial_review_1_paragraph_with_name': '02_vsl_testimonial_review_1_paragraph_with_name',
-    'testimonial_review_2_headline': '02_vsl_testimonial_review_2_headline',
-    'testimonial_review_2_paragraph_with_name': '02_vsl_testimonial_review_2_paragraph_with_name',
-    'testimonial_review_3_headline': '02_vsl_testimonial_review_3_headline',
-    'testimonial_review_3_paragraph_with_name': '02_vsl_testimonial_review_3_paragraph_with_name',
-    'testimonial_review_4_headline': '02_vsl_testimonial_review_4_headline',
-    'testimonial_review_4_paragraph_with_name': '02_vsl_testimonial_review_4_paragraph_with_name',
+// === VSL/SALES PAGE MAPPINGS (75+ fields) ===
+const SALES_PAGE_MAP = {
+    // Hero Section (4)
+    'hero_headline_text': '03_vsl_hero_headline_text',
+    'hero_subheadline_text': '03_vsl_hero_subheadline_text',
+    'hero_below_cta_sub_text': '03_vsl_hero_below_cta_sub_text',
+    'cta_text': '03_vsl_cta_text',
+
+    // Process Overview (2)
+    'process_headline': '03_vsl_process_headline',
+    'process_subheadline': '03_vsl_process_subheadline',
+
+    // 6 Processes (12)
+    'process_1_headline': '03_vsl_process_1_headline',
+    'process_1_subheadline': '03_vsl_process_1_subheadline',
+    'process_2_headline': '03_vsl_process_2_headline',
+    'process_2_subheadline': '03_vsl_process_2_subheadline',
+    'process_3_headline': '03_vsl_process_3_headline',
+    'process_3_subheadline': '03_vsl_process_3_subheadline',
+    'process_4_headline': '03_vsl_process_4_headline',
+    'process_4_subheadline': '03_vsl_process_4_subheadline',
+    'process_5_headline': '03_vsl_process_5_headline',
+    'process_5_subheadline': '03_vsl_process_5_subheadline',
+    'process_6_headline': '03_vsl_process_6_headline',
+    'process_6_subheadline': '03_vsl_process_6_subheadline',
+
+    // How It Works (5)
+    'how_it_works_headline': '03_vsl_how_it_works_headline',
+    'how_it_works_subheadline_above_cta': '03_vsl_how_it_works_subheadline_above_cta',
+    'how_it_works_point_1': '03_vsl_how_it_works_point_1',
+    'how_it_works_point_2': '03_vsl_how_it_works_point_2',
+    'how_it_works_point_3': '03_vsl_how_it_works_point_3',
+
+    // Audience Callout (10)
+    'audience_callout_headline': '03_vsl_audience_callout_headline',
+    'audience_callout_for_headline': '03_vsl_audience_callout_for_headline',
+    'audience_callout_for_1': '03_vsl_audience_callout_for_1',
+    'audience_callout_for_2': '03_vsl_audience_callout_for_2',
+    'audience_callout_for_3': '03_vsl_audience_callout_for_3',
+    'audience_callout_not_headline': '03_vsl_audience_callout_not_headline',
+    'audience_callout_not_1': '03_vsl_audience_callout_not_1',
+    'audience_callout_not_2': '03_vsl_audience_callout_not_2',
+    'audience_callout_not_3': '03_vsl_audience_callout_not_3',
+    'audience_callout_cta_sub_text': '03_vsl_audience_callout_cta_sub_text',
+
+    // This Is For (1)
+    'this_is_for_headline': '03_vsl_this_is_for_headline',
+
+    // Call Expectations (9)
+    'call_expectations_headline': '03_vsl_call_expectations_headline',
+    'call_expectations_is_for_headline': '03_vsl_call_expectations_is_for_headline',
+    'call_expectations_is_for_bullet_1': '03_vsl_call_expectations_is_for_bullet_1',
+    'call_expectations_is_for_bullet_2': '03_vsl_call_expectations_is_for_bullet_2',
+    'call_expectations_is_for_bullet_3': '03_vsl_call_expectations_is_for_bullet_3',
+    'call_expectations_not_for_headline': '03_vsl_call_expectations_not_for_headline',
+    'call_expectations_not_for_bullet_1': '03_vsl_call_expectations_not_for_bullet_1',
+    'call_expectations_not_for_bullet_2': '03_vsl_call_expectations_not_for_bullet_2',
+    'call_expectations_not_for_bullet_3': '03_vsl_call_expectations_not_for_bullet_3',
+
+    // Bio (3)
+    'bio_headline_text': '03_vsl_bio_headline_text',
+    'bio_paragraph_text': '03_vsl_bio_paragraph_text',
+    'bio_image': '03_vsl_bio_image',
+
+    // Testimonials (13)
+    'testimonial_headline_text': '03_vsl_testimonial_headline_text',
+    'testimonial_subheadline_text': '03_vsl_testimonial_subheadline_text',
+    'testimonial_review_1_headline': '03_vsl_testimonial_review_1_headline',
+    'testimonial_review_1_subheadline_with_name': '03_vsl_testimonial_review_1_subheadline_with_name',
+    'testimonial_review_1_image': '03_vsl_testimonial_review_1_image',
+    'testimonial_review_2_headline': '03_vsl_testimonial_review_2_headline',
+    'testimonial_review_2_subheadline_with_name': '03_vsl_testimonial_review_2_subheadline_with_name',
+    'testimonial_review_2_image': '03_vsl_testimonial_review_2_image',
+    'testimonial_review_3_headline': '03_vsl_testimonial_review_3_headline',
+    'testimonial_review_3_subheadline_with_name': '03_vsl_testimonial_review_3_subheadline_with_name',
+    'testimonial_review_3_image': '03_vsl_testimonial_review_3_image',
+    'testimonial_review_4_headline': '03_vsl_testimonial_review_4_headline',
+    'testimonial_review_4_subheadline_with_name': '03_vsl_testimonial_review_4_subheadline_with_name',
+    'testimonial_review_4_image': '03_vsl_testimonial_review_4_image',
+
+    // FAQ (9)
+    'faq_headline_text': '03_vsl_faq_headline_text',
+    'faq_question_1': '03_vsl_faq_question_1',
+    'faq_answer_1': '03_vsl_faq_answer_1',
+    'faq_question_2': '03_vsl_faq_question_2',
+    'faq_answer_2': '03_vsl_faq_answer_2',
+    'faq_question_3': '03_vsl_faq_question_3',
+    'faq_answer_3': '03_vsl_faq_answer_3',
+    'faq_question_4': '03_vsl_faq_question_4',
+    'faq_answer_4': '03_vsl_faq_answer_4',
+
+    // Final CTA (3)
+    'final_cta_headline': '03_vsl_final_cta_headline',
+    'final_cta_subheadline': '03_vsl_final_cta_subheadline',
+    'final_cta_subtext': '03_vsl_final_cta_subtext',
+
+    // Video
+    'video_link': '03_vsl_video_link'
 };
 
-const OPTIN_PAGE_KEY_MAP = {
-    'headline_text': '02_optin_page_headline_text',
-    'subheadline_text': '02_optin_subhealine_text',
-    'cta_text': '02_optin_cta_text',
-    'footer_company_name': '02_footer_company_name',
+// === COLORS MAPPINGS (3 colors) ===
+const COLORS_MAP = {
+    'primary': 'primary_color',
+    'secondary': 'secondary_color',
+    'tertiary': 'tertiary_color'
 };
 
-const BOOKING_PAGE_KEY_MAP = {
-    'booking_pill_text': '02_booking_pill_text',
-    'calendar_embedded_code': '03_booking_calender_embedded_code', // Note: GHL typo "calender"
+// === UNIVERSAL MAPPINGS (cross-page fields) ===
+const UNIVERSAL_MAP = {
+    'logo_image': 'logo_image',  // Universal logo across all pages
+    'company_name': 'company_name'  // Universal company name
 };
 
-const THANKYOU_PAGE_KEY_MAP = {
-    'headline_text': '02_thankyou_page_headline_text',
-    'subheadline_text': '02_thankyou_page_subheadline_text',
-    'testimonials_headline_text': '02_vsl_testimonials_headline_text',
-    'testimonials_subheadline_text': '02_vsl_testimonials_subheadline_text',
-    'testimonial_review_1_headline': '02_vsl_testimonial_review_1_headline',
-    'testimonial_review_1_paragraph_with_name': '02_vsl_testimonial_review_1_paragraph_with_name',
-    'testimonial_review_2_headline': '02_vsl_testimonial_review_2_headline',
-    'testimonial_review_2_paragraph_with_name': '02_vsl_testimonial_review_2_paragraph_with_name',
-    'testimonial_review_3_headline': '02_vsl_testimonial_review_3_headline',
-    'testimonial_review_3_paragraph_with_name': '02_vsl_testimonial_review_3_paragraph_with_name',
-    'testimonial_review_4_headline': '02_vsl_testimonial_review_4_headline',
-    'testimonial_review_4_paragraph_with_name': '02_vsl_testimonial_review_4_paragraph_with_name',
-};
+// Old mappings removed - now using new 03_* structure above
 
 // === EMAIL KEY MAPPINGS ===
 const EMAIL_KEY_MAP = {
@@ -610,6 +572,8 @@ export async function POST(req) {
         const typoFixes = {
             // Bio photo - GHL doesn't have "_text" suffix
             '02_vsl_bio_photo_text': existingMap.get('02_vsl_bio_photo') || existingMap.get('02 vsl bio photo'),
+            // Optin headline - can be with or without "page"
+            '02_optin_page_headline_text': existingMap.get('02_optin_headline_text') || existingMap.get('02 optin headline text'),
             // Text fields with typos
             '02_optin_subhealine_text': existingMap.get('02_optin_sub_headline_text') || existingMap.get('02_optin_sub-headline_text'),
             '02_vsl_process_sub_headline_text': existingMap.get('02_vsl_process_sub_headline_text') || existingMap.get('02_vsl_process_sub-headline_text'),
@@ -728,19 +692,19 @@ export async function POST(req) {
                 existingMap.get(ghlKey.toLowerCase().replace(/\s+/g, '_'));
         };
 
-        // === PROCESS FUNNEL COPY ===
-        log('[Deploy] Processing funnelCopy...');
+        // === PROCESS FUNNEL COPY (NEW 03_* STRUCTURE) ===
+        log('[Deploy] Processing funnelCopy with new 03_* structure...');
         const funnelCopy = vaultContent.funnelCopy || {};
         const fcContent = funnelCopy.funnelCopy || funnelCopy; // Handle double-nesting
 
         log(`[Deploy] FunnelCopy pages: ${Object.keys(fcContent).join(', ')}`);
 
-        // Process optinPage
+        // Process optinPage (4 fields)
         const optinPage = fcContent.optinPage || {};
-        log(`[Deploy] optinPage keys: ${Object.keys(optinPage).join(', ')}`);
+        log(`[Deploy] optinPage fields: ${Object.keys(optinPage).join(', ')}`);
 
         for (const [vaultKey, value] of Object.entries(optinPage)) {
-            const ghlKey = OPTIN_PAGE_KEY_MAP[vaultKey];
+            const ghlKey = OPTIN_PAGE_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -749,34 +713,24 @@ export async function POST(req) {
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
+                    log(`[Deploy] ✓ Updated ${ghlKey}`);
                 } else {
                     results.failed++;
+                    log(`[Deploy] ✗ Failed ${ghlKey}`);
                 }
             } else {
                 results.notFound++;
                 notFoundKeys.push(ghlKey);
+                log(`[Deploy] ⚠ Not found: ${ghlKey}`);
             }
         }
 
-        // SPECIAL: Push headline_text to BOTH keys (some GHL pages use different keys)
-        if (optinPage.headline_text) {
-            const healineKey = '02_optin_healine_text'; // Typo key used by some GHL pages
-            const existingHealine = findExisting(healineKey);
-            if (existingHealine) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existingHealine.id, healineKey, optinPage.headline_text);
-                if (result.success) {
-                    results.updated++;
-                    updatedKeys.push(healineKey);
-                }
-            }
-        }
-
-        // Process salesPage
+        // Process salesPage/VSL (75+ fields)
         const salesPage = fcContent.salesPage || {};
-        log(`[Deploy] salesPage keys: ${Object.keys(salesPage).join(', ')}`);
+        log(`[Deploy] salesPage fields count: ${Object.keys(salesPage).length}`);
 
         for (const [vaultKey, value] of Object.entries(salesPage)) {
-            const ghlKey = SALES_PAGE_KEY_MAP[vaultKey];
+            const ghlKey = SALES_PAGE_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -785,31 +739,65 @@ export async function POST(req) {
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
+                    log(`[Deploy] ✓ Updated ${ghlKey}`);
                 } else {
                     results.failed++;
+                    log(`[Deploy] ✗ Failed ${ghlKey}`);
                 }
             } else {
                 results.notFound++;
                 notFoundKeys.push(ghlKey);
+                log(`[Deploy] ⚠ Not found: ${ghlKey}`);
             }
         }
 
-        // Process bookingPage
-        const bookingPage = fcContent.bookingPage || {};
-        log(`[Deploy] bookingPage keys: ${Object.keys(bookingPage).join(', ')}`);
+        // === PROCESS COLORS (NEW 3-COLOR STRUCTURE) ===
+        log('[Deploy] Processing colors...');
+        const colors = vaultContent.colors || {};
+        const colorPalette = colors.colorPalette || colors;
 
-        for (const [vaultKey, value] of Object.entries(bookingPage)) {
-            const ghlKey = BOOKING_PAGE_KEY_MAP[vaultKey];
-            if (!ghlKey || !value) continue;
+        if (colorPalette) {
+            for (const [colorKey, colorData] of Object.entries(colorPalette)) {
+                const ghlKey = COLORS_MAP[colorKey];
+                if (!ghlKey || colorKey === 'reasoning') continue; // Skip reasoning field
 
+                // Extract hex value from color object
+                const hexValue = colorData?.hex || colorData;
+                if (!hexValue) continue;
+
+                const existing = findExisting(ghlKey);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, hexValue);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(ghlKey);
+                        log(`[Deploy] ✓ Updated ${ghlKey} = ${hexValue}`);
+                    } else {
+                        results.failed++;
+                        log(`[Deploy] ✗ Failed ${ghlKey}`);
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(ghlKey);
+                    log(`[Deploy] ⚠ Not found: ${ghlKey}`);
+                }
+            }
+        }
+
+        // === PROCESS UNIVERSAL FIELDS (CROSS-PAGE) ===
+        log('[Deploy] Processing universal fields...');
+        const media = vaultContent.media || {};
+
+        // Logo image (universal across all pages)
+        if (media.logo_image) {
+            const ghlKey = UNIVERSAL_MAP.logo_image;
             const existing = findExisting(ghlKey);
             if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, media.logo_image);
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
-                } else {
-                    results.failed++;
+                    log(`[Deploy] ✓ Updated ${ghlKey} (universal logo)`);
                 }
             } else {
                 results.notFound++;
@@ -817,28 +805,29 @@ export async function POST(req) {
             }
         }
 
-        // Process thankYouPage
-        const thankYouPage = fcContent.thankYouPage || {};
-        log(`[Deploy] thankYouPage keys: ${Object.keys(thankYouPage).join(', ')}`);
+        // Company name (universal across all pages)
+        // Check multiple possible sources for company name
+        const companyName = fcContent.company_name ||
+                           optinPage.company_name ||
+                           vaultContent.company_name;
 
-        for (const [vaultKey, value] of Object.entries(thankYouPage)) {
-            const ghlKey = THANKYOU_PAGE_KEY_MAP[vaultKey];
-            if (!ghlKey || !value) continue;
-
+        if (companyName) {
+            const ghlKey = UNIVERSAL_MAP.company_name;
             const existing = findExisting(ghlKey);
             if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, companyName);
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
-                } else {
-                    results.failed++;
+                    log(`[Deploy] ✓ Updated ${ghlKey} (universal company name)`);
                 }
             } else {
                 results.notFound++;
                 notFoundKeys.push(ghlKey);
             }
         }
+
+        // Note: Legacy thankYouPage, bookingPage fields removed - not in new 03_* structure
 
         // === PROCESS EMAILS ===
         log('[Deploy] Processing emails...');

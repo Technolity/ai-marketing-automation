@@ -1,0 +1,86 @@
+Optin Page,
+03 Optin CTA Button Text,{{custom_values.03_optin_cta_button_text}}
+03 Optin Headline Text,{{custom_values.03_optin_headline_text}}
+03 Optin Mockup Image,{{custom_values.03_optin_mockup_image}}
+03 Optin Sub-Headline Text,{{custom_values.03_optin_subheadline_text}}
+VSL Page,
+03 VSL Bio Headline Text,{{custom_values.03_vsl_bio_headline_text}}
+03 VSL Bio Image,{{custom_values.03_vsl_bio_image}}
+03 VSL Bio Paragraph Text,{{custom_values.03_vsl_bio_paragraph_text}}
+03 VSL CTA Text,{{custom_values.03_vsl_cta_text}}
+03 VSL Call Expectations Headline,{{custom_values.03_vsl_call_expectations_headline}}
+03 VSL Call Expectations Is For Bullet 1,{{custom_values.03_vsl_call_expectations_is_for_bullet_1}}
+03 VSL Call Expectations Is For Bullet 2,{{custom_values.03_vsl_call_expectations_is_for_bullet_2}}
+03 VSL Call Expectations Is For Bullet 3,{{custom_values.03_vsl_call_expectations_is_for_bullet_3}}
+03 VSL Call Expectations Is For Headline,{{custom_values.03_vsl_call_expectations_is_for_headline}}
+03 VSL Call Expectations Not For Bullet 1,{{custom_values.03_vsl_call_expectations_not_for_bullet_1}}
+03 VSL Call Expectations Not For Bullet 2,{{custom_values.03_vsl_call_expectations_not_for_bullet_2}}
+03 VSL Call Expectations Not For Bullet 3,{{custom_values.03_vsl_call_expectations_not_for_bullet_3}}
+03 VSL Call Expectations Not For Headline,{{custom_values.03_vsl_call_expectations_not_for_headline}}
+03 VSL FAQ Answer 1,{{custom_values.03_vsl_faq_answer_1}}
+03 VSL FAQ Answer 2,{{custom_values.03_vsl_faq_answer_2}}
+03 VSL FAQ Answer 3,{{custom_values.03_vsl_faq_answer_3}}
+03 VSL FAQ Answer 4,{{custom_values.03_vsl_faq_answer_4}}
+03 VSL FAQ Headline Text,{{custom_values.03_vsl_faq_headline_text}}
+03 VSL FAQ Question 1,{{custom_values.03_vsl_faq_question_1}}
+03 VSL FAQ Question 2,{{custom_values.03_vsl_faq_question_2}}
+03 VSL FAQ Question 3,{{custom_values.03_vsl_faq_question_3}}
+03 VSL FAQ Question 4,{{custom_values.03_vsl_faq_question_4}}
+03 VSL Final CTA Headline,{{custom_values.03_vsl_final_cta_headline}}
+03 VSL Final CTA Sub-Headline,{{custom_values.03_vsl_final_cta_subheadline}}
+03 VSL Final CTA Sub-text,{{custom_values.03_vsl_final_cta_subtext}}
+03 VSL How It Works Headline,{{custom_values.03_vsl_how_it_works_headline}}
+03 VSL How It Works Point 1,{{custom_values.03_vsl_how_it_works_point_1}}
+03 VSL How It Works Point 2,{{custom_values.03_vsl_how_it_works_point_2}}
+03 VSL How It Works Point 3,{{custom_values.03_vsl_how_it_works_point_3}}
+03 VSL How It Works sub-Headline above CTA,{{custom_values.03_vsl_how_it_works_subheadline_above_cta}}
+03 VSL Process 1 Headline,{{custom_values.03_vsl_process_1_headline}}
+03 VSL Process 1 Sub-Headline,{{custom_values.03_vsl_process_1_subheadline}}
+03 VSL Process 2 Headline,{{custom_values.03_vsl_process_2_headline}}
+03 VSL Process 2 Sub-Headline,{{custom_values.03_vsl_process_2_subheadline}}
+03 VSL Process 3 Headline,{{custom_values.03_vsl_process_3_headline}}
+03 VSL Process 3 Sub-Headline,{{custom_values.03_vsl_process_3_subheadline}}
+03 VSL Process 4 Headline,{{custom_values.03_vsl_process_4_headline}}
+03 VSL Process 4 Sub-Headline,{{custom_values.03_vsl_process_4_subheadline}}
+03 VSL Process 5 Headline,{{custom_values.03_vsl_process_5_headline}}
+03 VSL Process 5 Sub-Headline,{{custom_values.03_vsl_process_5_subheadline}}
+03 VSL Process 6 Headline,{{custom_values.03_vsl_process_6_headline}}
+03 VSL Process 6 Sub-Headline,{{custom_values.03_vsl_process_6_subheadline}}
+03 VSL Process Headline,{{custom_values.03_vsl_process_headline}}
+03 VSL Process Sub-Headline,{{custom_values.03_vsl_process_subheadline}}
+03 VSL Testimonial Headline Text,{{custom_values.03_vsl_testimonial_headline_text}}
+03 VSL Testimonial Review 1 Headline,{{custom_values.03_vsl_testimonial_review_1_headline}}
+03 VSL Testimonial Review 1 Image,{{custom_values.03_vsl_testimonial_review_1_image}}
+03 VSL Testimonial Review 1 Sub-Headline With Name,{{custom_values.03_vsl_testimonial_review_1_subheadline_with_name}}
+03 VSL Testimonial Review 2 Headline,{{custom_values.03_vsl_testimonial_review_2_headline}}
+03 VSL Testimonial Review 2 Image,{{custom_values.03_vsl_testimonial_review_2_image}}
+03 VSL Testimonial Review 2 Sub-Headline With Name,{{custom_values.03_vsl_testimonial_review_2_subheadline_with_name}}
+03 VSL Testimonial Review 3 Headline,{{custom_values.03_vsl_testimonial_review_3_headline}}
+03 VSL Testimonial Review 3 Image,{{custom_values.03_vsl_testimonial_review_3_image}}
+03 VSL Testimonial Review 3 Sub-Headline With Name,{{custom_values.03_vsl_testimonial_review_3_subheadline_with_name}}
+03 VSL Testimonial Review 4 Headline,{{custom_values.03_vsl_testimonial_review_4_headline}}
+03 VSL Testimonial Review 4 Image,{{custom_values.03_vsl_testimonial_review_4_image}}
+03 VSL Testimonial Review 4 Sub-Headline With Name,{{custom_values.03_vsl_testimonial_review_4_subheadline_with_name}}
+03 VSL Testimonial Sub-Headline Text,{{custom_values.03_vsl_testimonial_subheadline_text}}
+03 VSL This is For Headline,{{custom_values.03_vsl_this_is_for_headline}}
+03 VSL Video Link,{{custom_values.03_vsl_video_link}}
+03 VSL hero Headline Text,{{custom_values.03_vsl_hero_headline_text}}
+03 VSL hero Sub-Headline Text,{{custom_values.03_vsl_hero_subheadline_text}}
+03 VSL hero below CTA Sub Text,{{custom_values.03_vsl_hero_below_cta_sub_text}}
+03_VSL_Audience Callout_CTA Sub Text,{{custom_values.03_vsl_audience_callout_cta_sub_text}}
+03_VSL_Audience Callout_FOR_1,{{custom_values.03_vsl_audience_callout_for_1}}
+03_VSL_Audience Callout_FOR_2,{{custom_values.03_vsl_audience_callout_for_2}}
+03_VSL_Audience Callout_FOR_3,{{custom_values.03_vsl_audience_callout_for_3}}
+03_VSL_Audience Callout_FOR_Headline,{{custom_values.03_vsl_audience_callout_for_headline}}
+03_VSL_Audience Callout_Headline,{{custom_values.03_vsl_audience_callout_headline}}
+03_VSL_Audience Callout_NOT_1,{{custom_values.03_vsl_audience_callout_not_1}}
+03_VSL_Audience Callout_NOT_2,{{custom_values.03_vsl_audience_callout_not_2}}
+03_VSL_Audience Callout_NOT_3,{{custom_values.03_vsl_audience_callout_not_3}}
+03_VSL_Audience Callout_NOT_Headline,{{custom_values.03_vsl_audience_callout_not_headline}}
+Color,
+Primary Color,{{custom_values.primary_color}}
+Secondary Color,{{custom_values.secondary_color}}
+Tertiary Color,{{custom_values.tertiary_color}}
+Universal ,
+Logo Image,{{custom_values.logo_image}}
+Company Name,{{custom_values.company_name}}

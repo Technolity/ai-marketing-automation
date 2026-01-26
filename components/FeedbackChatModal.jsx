@@ -215,7 +215,7 @@ const SECTION_OPTIONS = {
     ],
     funnelCopy: [
         { id: 'optinPage', label: 'Opt-In Page' },
-        { id: 'salesPage', label: 'Sales/VSL Page' },
+        { id: 'salesPage', label: 'VSL / Sales Page' },
         { id: 'bookingPage', label: 'Booking Page' },
         { id: 'thankYouPage', label: 'Thank You Page' },
         { id: 'all', label: 'Update the entire section' }
