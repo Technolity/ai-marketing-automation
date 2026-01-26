@@ -209,21 +209,48 @@ export async function POST(req) {
 
         console.log(`[PushFunnelCopy] Found ${existingValues.length} existing custom values`);
 
-        // Get funnel copy content from vault
-        const { data: vaultContent, error: vaultError } = await supabaseAdmin
-            .from('vault_content')
-            .select('content')
+        // Get funnel copy content from vault_content_fields (granular storage)
+        const { data: fields, error: fieldsError } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_id, field_value')
             .eq('funnel_id', funnelId)
             .eq('section_id', 'funnelCopy')
-            .single();
+            .eq('is_current_version', true);
 
-        if (vaultError || !vaultContent) {
+        if (fieldsError) {
+            console.error('[PushFunnelCopy] Database error:', fieldsError);
+            return Response.json({ error: 'Failed to fetch funnel copy fields' }, { status: 500 });
+        }
+
+        if (!fields || fields.length === 0) {
             return Response.json({ error: 'Funnel copy content not found' }, { status: 404 });
         }
 
+        // Reconstruct content structure from individual fields
+        // Fields are stored as: optinPage, salesPage, bookingPage, thankYouPage (each is a JSON object)
+        const content = {};
+
+        for (const field of fields) {
+            const { field_id, field_value } = field;
+
+            // Parse field value (may be JSON string or object)
+            let parsedValue = field_value;
+            if (typeof field_value === 'string') {
+                try {
+                    parsedValue = JSON.parse(field_value);
+                } catch (e) {
+                    // If not JSON, use as-is
+                    parsedValue = field_value;
+                }
+            }
+
+            content[field_id] = parsedValue;
+        }
+
+        console.log('[PushFunnelCopy] Reconstructed content from', fields.length, 'fields:', Object.keys(content));
+
         // Build custom values payload using customValuesMap
         const customValues = [];
-        const content = vaultContent.content;
 
         // Process each page in funnel copy
         for (const [page, fieldMap] of Object.entries(FUNNEL_COPY_MAP)) {
