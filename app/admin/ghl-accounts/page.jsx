@@ -27,7 +27,11 @@ import {
     Layers,
     UserPlus,
     UserCheck,
-    X
+    X,
+    CheckSquare,
+    FileCheck,
+    FileX,
+    Download
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
@@ -58,6 +62,7 @@ export default function AdminGHLAccounts() {
     const [stats, setStats] = useState({ synced: 0, pending: 0, failed: 0, permanently_failed: 0, total: 0 });
     const [isRetrying, setIsRetrying] = useState(null); // userId being retried
     const [isImportingSnapshot, setIsImportingSnapshot] = useState(null); // userId for snapshot import
+    const [isMarkingSnapshot, setIsMarkingSnapshot] = useState(null); // userId for manual snapshot marking
 
     // GHL User Creation state
     const [isCreatingUser, setIsCreatingUser] = useState(null); // userId being created
@@ -168,6 +173,34 @@ export default function AdminGHLAccounts() {
             toast.error(err.message || "Failed to import snapshot");
         } finally {
             setIsImportingSnapshot(null);
+        }
+    };
+
+    const handleMarkSnapshotImported = async (userId) => {
+        if (isMarkingSnapshot) return;
+        setIsMarkingSnapshot(userId);
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-accounts/mark-snapshot-imported', {
+                method: 'POST',
+                body: JSON.stringify({ userId })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to mark snapshot as imported');
+            }
+
+            const result = await response.json();
+            toast.success("✅ Snapshot marked as imported successfully!");
+
+            // Refresh list
+            fetchAccounts();
+        } catch (err) {
+            console.error('Mark snapshot error:', err);
+            toast.error(err.message || "Failed to mark snapshot as imported");
+        } finally {
+            setIsMarkingSnapshot(null);
         }
     };
 
@@ -419,6 +452,32 @@ export default function AdminGHLAccounts() {
                 },
             },
             {
+                accessorKey: "profile_complete",
+                header: "Profile",
+                cell: ({ row }) => {
+                    const hasRequiredFields = row.original.first_name &&
+                                             row.original.last_name &&
+                                             row.original.address &&
+                                             row.original.email;
+
+                    if (hasRequiredFields) {
+                        return (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border bg-green-500/20 text-green-400 border-green-500/30">
+                                <FileCheck className="w-3 h-3" />
+                                Complete
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border bg-orange-500/20 text-orange-400 border-orange-500/30">
+                            <FileX className="w-3 h-3" />
+                            Incomplete
+                        </div>
+                    );
+                }
+            },
+            {
                 accessorKey: "full_name",
                 header: "User",
                 cell: ({ row }) => (
@@ -564,13 +623,15 @@ export default function AdminGHLAccounts() {
                     const status = row.original.ghl_sync_status;
                     const hasSubaccount = row.original.has_subaccount;
                     const snapshotImported = row.original.snapshot_imported;
+                    const snapshotStatus = row.original.snapshot_status;
                     const hasGHLUser = row.original.has_ghl_user;
                     const userCreationError = row.original.ghl_user_creation_error;
 
                     const canRetry = ['failed', 'permanently_failed', 'pending', 'not_synced'].includes(status) && !hasSubaccount;
                     const canImportSnapshot = hasSubaccount;
-                    const canCreateUser = row.original.can_create_user && !hasGHLUser;
-                    const canRetryUser = hasSubaccount && snapshotImported && userCreationError && !hasGHLUser;
+                    const canMarkSnapshot = hasSubaccount && !snapshotImported; // Show manual mark button
+                    const canCreateUser = hasSubaccount && !hasGHLUser; // Show for ALL users with subaccount
+                    const canRetryUser = hasSubaccount && userCreationError && !hasGHLUser;
 
                     return (
                         <div className="flex items-center gap-1">
@@ -602,7 +663,23 @@ export default function AdminGHLAccounts() {
                                 </button>
                             )}
 
-                            {/* Create Builder Login button */}
+                            {/* Manual Mark Snapshot as Imported button */}
+                            {canMarkSnapshot && (
+                                <button
+                                    onClick={() => handleMarkSnapshotImported(row.original.id)}
+                                    disabled={isMarkingSnapshot === row.original.id}
+                                    className="p-2 hover:bg-blue-500/10 text-blue-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Mark Snapshot as Imported (Manual)"
+                                >
+                                    {isMarkingSnapshot === row.original.id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <CheckSquare className="w-4 h-4" />
+                                    )}
+                                </button>
+                            )}
+
+                            {/* Create Builder Login button - Show for ALL users with subaccount */}
                             {canCreateUser && (
                                 <button
                                     onClick={() => handleCreateBuilderLogin(row.original.id)}
@@ -641,7 +718,7 @@ export default function AdminGHLAccounts() {
                 },
             },
         ],
-        [isRetrying, isImportingSnapshot, isCreatingUser, isRetryingUser, selectedUsers, accounts]
+        [isRetrying, isImportingSnapshot, isMarkingSnapshot, isCreatingUser, isRetryingUser, selectedUsers, accounts]
     );
 
     const table = useReactTable({
