@@ -236,19 +236,11 @@ export async function PATCH(req) {
         });
     }
 
-    // 🔥 FIX: Handle nested field paths (e.g., "optinPage.headline_text")
-    const isNestedField = field_id.includes('.');
-    const parentFieldId = isNestedField ? field_id.split('.')[0] : field_id;
-    const childFieldId = isNestedField ? field_id.split('.')[1] : null;
-
     console.log('[VaultField PATCH] Updating field:', {
         userId,
         funnel_id,
         section_id,
         field_id,
-        isNestedField,
-        parentFieldId,
-        childFieldId,
         valueType: typeof field_value,
         valuePreview: JSON.stringify(field_value).substring(0, 100)
     });
@@ -269,49 +261,20 @@ export async function PATCH(req) {
             });
         }
 
-        // 🔥 FIX: Fetch the PARENT field when dealing with nested paths
-        const dbFieldId = isNestedField ? parentFieldId : field_id;
-
+        // Get current field for validation and versioning
         const { data: currentField, error: fetchError } = await supabaseAdmin
             .from('vault_content_fields')
             .select('*')
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
-            .eq('field_id', dbFieldId)  // Use parent field ID for database lookup
+            .eq('field_id', field_id)
             .eq('is_current_version', true)
             .single();
 
-        // 🔥 FIX: Merge nested field value into parent object
-        let finalFieldValue = field_value;
-
-        if (isNestedField && currentField) {
-            // Parse parent object value
-            let parentObject = {};
-            if (typeof currentField.field_value === 'string') {
-                try {
-                    parentObject = JSON.parse(currentField.field_value);
-                } catch (e) {
-                    console.warn('[VaultField PATCH] Failed to parse parent object, using empty object');
-                }
-            } else if (typeof currentField.field_value === 'object' && currentField.field_value !== null) {
-                parentObject = { ...currentField.field_value };
-            }
-
-            // Update the child field within parent object
-            parentObject[childFieldId] = field_value;
-            finalFieldValue = parentObject;
-
-            console.log('[VaultField PATCH] Merged nested field into parent:', {
-                parentFieldId,
-                childFieldId,
-                mergedObject: Object.keys(parentObject)
-            });
-        }
-
         // Validate field value if field definition exists
-        const fieldDef = getFieldDefinition(section_id, dbFieldId);
+        const fieldDef = getFieldDefinition(section_id, field_id);
         if (fieldDef) {
-            const validation = validateFieldValue(fieldDef, finalFieldValue);
+            const validation = validateFieldValue(fieldDef, field_value);
             if (!validation.valid) {
                 console.warn('[VaultField PATCH] Validation failed:', validation.errors);
                 return new Response(JSON.stringify({
@@ -325,18 +288,18 @@ export async function PATCH(req) {
         }
 
         // Serialize field_value for storage (arrays to JSON strings)
-        const serializedValue = Array.isArray(finalFieldValue)
-            ? JSON.stringify(finalFieldValue)
-            : (typeof finalFieldValue === 'object' && finalFieldValue !== null)
-                ? JSON.stringify(finalFieldValue)
-                : finalFieldValue;
+        const serializedValue = Array.isArray(field_value)
+            ? JSON.stringify(field_value)
+            : (typeof field_value === 'object' && field_value !== null)
+                ? JSON.stringify(field_value)
+                : field_value;
 
         let newVersion;
 
         // UPSERT LOGIC: Handle both new fields and existing fields
         if (!currentField || fetchError) {
             // Field doesn't exist yet - CREATE IT
-            console.log('[VaultField PATCH] Creating new field (first save):', { field_id: dbFieldId });
+            console.log('[VaultField PATCH] Creating new field (first save):', { field_id });
 
             // Get field definition for defaults
             const fieldStructure = fieldDef || {};
@@ -359,8 +322,8 @@ export async function PATCH(req) {
                     funnel_id,
                     user_id: userId,
                     section_id,
-                    field_id: dbFieldId,  // 🔥 FIX: Use parent field_id
-                    field_label: fieldStructure.field_label || dbFieldId,
+                    field_id,
+                    field_label: fieldStructure.field_label || field_id,
                     field_value: serializedValue,
                     field_type: fieldStructure.field_type || 'text',
                     field_metadata: fieldStructure.field_metadata || {},
@@ -379,11 +342,11 @@ export async function PATCH(req) {
             }
 
             newVersion = insertedField;
-            console.log('[VaultField PATCH] New field created:', { field_id: dbFieldId, version: 1 });
+            console.log('[VaultField PATCH] New field created:', { field_id, version: 1 });
 
         } else {
             // Field exists - VERSION IT
-            console.log('[VaultField PATCH] Versioning existing field:', { field_id: dbFieldId, currentVersion: currentField.version });
+            console.log('[VaultField PATCH] Versioning existing field:', { field_id, currentVersion: currentField.version });
 
             // Mark current version as old
             await supabaseAdmin
@@ -398,7 +361,7 @@ export async function PATCH(req) {
                     funnel_id,
                     user_id: userId,
                     section_id,
-                    field_id: dbFieldId,  // 🔥 FIX: Use parent field_id
+                    field_id,
                     field_label: currentField.field_label,
                     field_value: serializedValue,
                     field_type: currentField.field_type,
@@ -419,7 +382,7 @@ export async function PATCH(req) {
 
             newVersion = insertedField;
             console.log('[VaultField PATCH] Field updated successfully:', {
-                field_id: dbFieldId,
+                field_id,
                 oldVersion: currentField.version,
                 newVersion: newVersion.version
             });
