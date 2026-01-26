@@ -786,14 +786,14 @@ export async function POST(req) {
 
         // === PROCESS UNIVERSAL FIELDS (CROSS-PAGE) ===
         log('[Deploy] Processing universal fields...');
-        const media = vaultContent.media || {};
+        const universalMedia = vaultContent.media || {};
 
         // Logo image (universal across all pages)
-        if (media.logo_image) {
+        if (universalMedia.logo_image) {
             const ghlKey = UNIVERSAL_MAP.logo_image;
             const existing = findExisting(ghlKey);
             if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, media.logo_image);
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, universalMedia.logo_image);
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
@@ -808,8 +808,8 @@ export async function POST(req) {
         // Company name (universal across all pages)
         // Check multiple possible sources for company name
         const companyName = fcContent.company_name ||
-                           optinPage.company_name ||
-                           vaultContent.company_name;
+            optinPage.company_name ||
+            vaultContent.company_name;
 
         if (companyName) {
             const ghlKey = UNIVERSAL_MAP.company_name;
@@ -1159,11 +1159,13 @@ export async function POST(req) {
                 continue;
             }
 
-            log(`[Deploy] Found SMS: ${vaultKey} → ${ghlKey} (${value.length} chars)`);
+            // Safely convert value to string and log
+            const stringValue = typeof value === 'string' ? value : String(value);
+            log(`[Deploy] Found SMS: ${vaultKey} → ${ghlKey} (${stringValue.length} chars)`);
 
             const existing = findExisting(ghlKey);
             if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, stringValue);
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
