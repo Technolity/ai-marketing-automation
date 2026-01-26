@@ -1011,6 +1011,15 @@ export default function VaultPage() {
     const handleUnapprove = async (sectionId) => {
         console.log('[Vault] Section unapproved due to field edit:', sectionId);
 
+        // Update local vaultData to set status to 'pending' immediately
+        setVaultData(prev => ({
+            ...prev,
+            [sectionId]: {
+                ...prev[sectionId],
+                _status: 'pending'
+            }
+        }));
+
         // Determine which phase this section belongs to
         const isPhase1Section = PHASE_1_SECTIONS.some(s => s.id === sectionId);
         const isPhase2Section = PHASE_2_SECTIONS.some(s => s.id === sectionId);
