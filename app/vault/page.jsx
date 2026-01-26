@@ -1007,30 +1007,39 @@ export default function VaultPage() {
         setExpandedSections(newExpanded);
     };
 
-    // Handle unapprove when fields are edited
-    const handleUnapprove = async (sectionId) => {
-        console.log('[Vault] Section unapproved due to field edit:', sectionId);
+    // Handle unapprove when fields are edited or Edit button clicked
+    const handleUnapprove = async (sectionId, phaseNumber = null) => {
+        console.log('[Vault] Section unapproved:', sectionId, 'phase:', phaseNumber);
 
-        // Determine which phase this section belongs to
-        const isPhase1Section = PHASE_1_SECTIONS.some(s => s.id === sectionId);
-        const isPhase2Section = PHASE_2_SECTIONS.some(s => s.id === sectionId);
-        const isPhase3Section = PHASE_3_SECTIONS.some(s => s.id === sectionId);
+        // If phase is provided, use it directly; otherwise auto-detect
+        let targetPhase = phaseNumber;
 
-        if (isPhase1Section) {
+        if (!targetPhase) {
+            // Auto-detect which phase this section belongs to
+            const isPhase1Section = PHASE_1_SECTIONS.some(s => s.id === sectionId);
+            const isPhase2Section = PHASE_2_SECTIONS.some(s => s.id === sectionId);
+            const isPhase3Section = PHASE_3_SECTIONS.some(s => s.id === sectionId);
+
+            if (isPhase1Section) targetPhase = 1;
+            else if (isPhase2Section) targetPhase = 2;
+            else if (isPhase3Section) targetPhase = 3;
+        }
+
+        if (targetPhase === 1) {
             const newApprovals = approvedPhase1.filter(id => id !== sectionId);
             setApprovedPhase1(newApprovals);
             await saveApprovals(newApprovals, approvedPhase2, approvedPhase3);
-        } else if (isPhase2Section) {
+        } else if (targetPhase === 2) {
             const newApprovals = approvedPhase2.filter(id => id !== sectionId);
             setApprovedPhase2(newApprovals);
             await saveApprovals(approvedPhase1, newApprovals, approvedPhase3);
-        } else if (isPhase3Section) {
+        } else if (targetPhase === 3) {
             const newApprovals = approvedPhase3.filter(id => id !== sectionId);
             setApprovedPhase3(newApprovals);
             await saveApprovals(approvedPhase1, approvedPhase2, newApprovals);
         }
 
-        // Trigger refresh of field components
+        // Trigger refresh of field components to update readOnly state
         setRefreshTrigger(prev => prev + 1);
     };
 
