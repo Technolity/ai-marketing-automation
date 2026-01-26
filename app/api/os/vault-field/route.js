@@ -261,20 +261,76 @@ export async function PATCH(req) {
             });
         }
 
-        // Get current field for validation and versioning
+        // NESTED FIELD DETECTION: Handle fields like "optinPage.headline_text"
+        let actualFieldId = field_id;
+        let actualFieldValue = field_value;
+        let isNestedField = field_id.includes('.');
+
+        if (isNestedField) {
+            // Split into parent and child (e.g., "optinPage.headline_text" -> "optinPage" + "headline_text")
+            const [parentId, childId] = field_id.split('.');
+            console.log('[VaultField PATCH] Nested field detected:', { parentId, childId });
+
+            // Fetch the parent field
+            const { data: parentField, error: parentError } = await supabaseAdmin
+                .from('vault_content_fields')
+                .select('*')
+                .eq('funnel_id', funnel_id)
+                .eq('section_id', section_id)
+                .eq('field_id', parentId)
+                .eq('is_current_version', true)
+                .single();
+
+            if (parentError || !parentField) {
+                console.error('[VaultField PATCH] Parent field not found:', { parentId, error: parentError });
+                return new Response(JSON.stringify({
+                    error: `Parent field '${parentId}' not found. Cannot update nested field.`
+                }), {
+                    status: 404,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+
+            // Parse parent object value
+            let parentObject = {};
+            if (typeof parentField.field_value === 'string') {
+                try {
+                    parentObject = JSON.parse(parentField.field_value);
+                } catch (e) {
+                    console.error('[VaultField PATCH] Failed to parse parent value:', e);
+                }
+            } else if (typeof parentField.field_value === 'object' && parentField.field_value !== null) {
+                parentObject = { ...parentField.field_value };
+            }
+
+            // Update the child property
+            parentObject[childId] = field_value;
+
+            // Update variables to save the merged parent object
+            actualFieldId = parentId;
+            actualFieldValue = parentObject;
+
+            console.log('[VaultField PATCH] Merged parent object:', {
+                parentId,
+                childId,
+                updatedValue: JSON.stringify(parentObject).substring(0, 200)
+            });
+        }
+
+        // Get current field for validation and versioning (using actual field ID)
         const { data: currentField, error: fetchError } = await supabaseAdmin
             .from('vault_content_fields')
             .select('*')
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
-            .eq('field_id', field_id)
+            .eq('field_id', actualFieldId)
             .eq('is_current_version', true)
             .single();
 
-        // Validate field value if field definition exists
-        const fieldDef = getFieldDefinition(section_id, field_id);
+        // Validate field value if field definition exists (use actualFieldValue for validation)
+        const fieldDef = getFieldDefinition(section_id, actualFieldId);
         if (fieldDef) {
-            const validation = validateFieldValue(fieldDef, field_value);
+            const validation = validateFieldValue(fieldDef, actualFieldValue);
             if (!validation.valid) {
                 console.warn('[VaultField PATCH] Validation failed:', validation.errors);
                 return new Response(JSON.stringify({
@@ -287,19 +343,19 @@ export async function PATCH(req) {
             }
         }
 
-        // Serialize field_value for storage (arrays to JSON strings)
-        const serializedValue = Array.isArray(field_value)
-            ? JSON.stringify(field_value)
-            : (typeof field_value === 'object' && field_value !== null)
-                ? JSON.stringify(field_value)
-                : field_value;
+        // Serialize field_value for storage (arrays to JSON strings) - use actualFieldValue
+        const serializedValue = Array.isArray(actualFieldValue)
+            ? JSON.stringify(actualFieldValue)
+            : (typeof actualFieldValue === 'object' && actualFieldValue !== null)
+                ? JSON.stringify(actualFieldValue)
+                : actualFieldValue;
 
         let newVersion;
 
         // UPSERT LOGIC: Handle both new fields and existing fields
         if (!currentField || fetchError) {
             // Field doesn't exist yet - CREATE IT
-            console.log('[VaultField PATCH] Creating new field (first save):', { field_id });
+            console.log('[VaultField PATCH] Creating new field (first save):', { field_id: actualFieldId, isNested: isNestedField });
 
             // Get field definition for defaults
             const fieldStructure = fieldDef || {};
@@ -322,8 +378,8 @@ export async function PATCH(req) {
                     funnel_id,
                     user_id: userId,
                     section_id,
-                    field_id,
-                    field_label: fieldStructure.field_label || field_id,
+                    field_id: actualFieldId,
+                    field_label: fieldStructure.field_label || actualFieldId,
                     field_value: serializedValue,
                     field_type: fieldStructure.field_type || 'text',
                     field_metadata: fieldStructure.field_metadata || {},
@@ -342,11 +398,11 @@ export async function PATCH(req) {
             }
 
             newVersion = insertedField;
-            console.log('[VaultField PATCH] New field created:', { field_id, version: 1 });
+            console.log('[VaultField PATCH] New field created:', { field_id: actualFieldId, version: 1, isNested: isNestedField });
 
         } else {
             // Field exists - VERSION IT
-            console.log('[VaultField PATCH] Versioning existing field:', { field_id, currentVersion: currentField.version });
+            console.log('[VaultField PATCH] Versioning existing field:', { field_id: actualFieldId, currentVersion: currentField.version, isNested: isNestedField });
 
             // Mark current version as old
             await supabaseAdmin
@@ -361,7 +417,7 @@ export async function PATCH(req) {
                     funnel_id,
                     user_id: userId,
                     section_id,
-                    field_id,
+                    field_id: actualFieldId,
                     field_label: currentField.field_label,
                     field_value: serializedValue,
                     field_type: currentField.field_type,
@@ -382,9 +438,11 @@ export async function PATCH(req) {
 
             newVersion = insertedField;
             console.log('[VaultField PATCH] Field updated successfully:', {
-                field_id,
+                field_id: actualFieldId,
+                originalFieldId: field_id,
                 oldVersion: currentField.version,
-                newVersion: newVersion.version
+                newVersion: newVersion.version,
+                isNested: isNestedField
             });
         }
 
