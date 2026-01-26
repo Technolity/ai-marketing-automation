@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import {
   User, Building2, MapPin, Phone, Globe, Clock, Loader2, FileCheck
 } from "lucide-react";
-import LicenseAgreementModal from "@/components/LicenseAgreementModal";
+
 
 // Common timezones - simplified list
 const TIMEZONES = [
@@ -49,14 +49,12 @@ const COUNTRY_CODES = [
 
 export default function Onboarding() {
   const router = useRouter();
-  const { session, loading: authLoading, refreshProfile } = useAuth();
+  const { session, loading: authLoading, refreshProfile, licenseAccepted } = useAuth();
   const { user } = useUser();
 
   const isSignedIn = !!session;
   const isLoaded = !authLoading;
 
-  const [licenseAccepted, setLicenseAccepted] = useState(false);
-  const [checkingLicense, setCheckingLicense] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -80,13 +78,6 @@ export default function Onboarding() {
     }
   }, [isSignedIn, isLoaded, router]);
 
-  // Check if user has already accepted the license
-  useEffect(() => {
-    if (isSignedIn) {
-      checkLicenseStatus();
-    }
-  }, [isSignedIn]);
-
   // Populate names from Clerk user if available
   useEffect(() => {
     if (user) {
@@ -97,44 +88,6 @@ export default function Onboarding() {
       }));
     }
   }, [user]);
-
-  const checkLicenseStatus = async () => {
-    try {
-      const response = await fetch("/api/users/accept-license");
-      const data = await response.json();
-
-      if (data.licenseAccepted) {
-        setLicenseAccepted(true);
-      }
-    } catch (error) {
-      console.error("Error checking license status:", error);
-    } finally {
-      setCheckingLicense(false);
-    }
-  };
-
-  const handleAcceptLicense = async () => {
-    try {
-      const response = await fetch("/api/users/accept-license", {
-        method: "POST"
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to accept license");
-      }
-
-      console.log("License accepted successfully:", result);
-      setLicenseAccepted(true);
-      toast.success("License agreement accepted!");
-
-    } catch (error) {
-      console.error("Error accepting license:", error);
-      toast.error(error.message || "Failed to accept license");
-      throw error; // Re-throw so modal can handle loading state
-    }
-  };
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -172,8 +125,8 @@ export default function Onboarding() {
     }
   };
 
-  // Show loading while checking auth and license
-  if (!isLoaded || checkingLicense) {
+  // Show loading while checking auth
+  if (!isLoaded) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0e0e0f]">
         <Loader2 className="w-10 h-10 text-cyan animate-spin" />
@@ -183,12 +136,6 @@ export default function Onboarding() {
 
   return (
     <>
-      {/* EULA Modal - only shows if license not accepted */}
-      <LicenseAgreementModal
-        isOpen={!licenseAccepted}
-        onAccept={handleAcceptLicense}
-      />
-
       {/* Profile Form - only shows after license accepted */}
       {licenseAccepted && (
         <div className="min-h-screen flex items-center justify-center px-6 py-12 bg-[#0e0e0f] relative overflow-x-hidden">
