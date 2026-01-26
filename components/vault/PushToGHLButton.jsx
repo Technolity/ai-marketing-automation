@@ -44,7 +44,8 @@ export default function PushToGHLButton({
         setPushSuccess(false);
 
         try {
-            const endpoint = `/api/ghl/push-${section}`;
+            // Map section name to correct API endpoint path
+            const endpoint = `/api/ghl/${getSectionEndpoint(section)}`;
             const response = await fetchWithAuth(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -107,6 +108,24 @@ export default function PushToGHLButton({
             )}
         </button>
     );
+}
+
+/**
+ * Map section ID to API endpoint path
+ */
+function getSectionEndpoint(section) {
+    const endpointMap = {
+        'funnelCopy': 'push-funnel-copy',
+        'funnel-copy': 'push-funnel-copy',
+        'appointmentReminders': 'push-appointmentReminders',
+        'appointment-reminders': 'push-appointmentReminders',
+        'colors': 'push-colors',
+        'emails': 'push-emails',
+        'sms': 'push-sms',
+        'media': 'push-media',
+        'vsl': 'push-vsl',
+    };
+    return endpointMap[section] || `push-${section}`;
 }
 
 /**
