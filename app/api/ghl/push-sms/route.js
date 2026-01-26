@@ -142,21 +142,34 @@ export async function POST(req) {
             existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
         });
 
-        // Get SMS content from vault
-        const { data: vaultContent } = await supabaseAdmin
-            .from('vault_content')
-            .select('content')
+        // Get SMS content from vault_content_fields (granular storage)
+        const { data: fields, error: fieldsError } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_id, field_value')
             .eq('funnel_id', funnelId)
             .eq('section_id', 'sms')
-            .single();
+            .eq('is_current_version', true);
 
-        if (!vaultContent) {
+        if (fieldsError || !fields || fields.length === 0) {
             return Response.json({ error: 'SMS content not found' }, { status: 404 });
+        }
+
+        // Reconstruct content structure from fields
+        const content = {};
+        for (const field of fields) {
+            let parsedValue = field.field_value;
+            if (typeof field.field_value === 'string') {
+                try {
+                    parsedValue = JSON.parse(field.field_value);
+                } catch (e) {
+                    parsedValue = field.field_value;
+                }
+            }
+            content[field.field_id] = parsedValue;
         }
 
         // Build custom values using SMS_MAP
         const customValues = [];
-        const content = vaultContent.content;
 
         for (const [sequence, messages] of Object.entries(SMS_MAP)) {
             const sequenceContent = content[sequence] || {};

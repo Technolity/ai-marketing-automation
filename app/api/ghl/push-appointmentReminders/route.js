@@ -154,20 +154,32 @@ export async function POST(req) {
         existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), { id: v.id, name: v.name });
     });
 
-    // Fetch vault content
-    const { data: vaultSection } = await supabaseAdmin
-        .from('vault_content')
-        .select('content')
+    // Get appointment reminder content from vault_content_fields (granular storage)
+    const { data: fields, error: fieldsError } = await supabaseAdmin
+        .from('vault_content_fields')
+        .select('field_id, field_value')
         .eq('funnel_id', funnelId)
         .eq('section_id', 'appointmentReminders')
-        .eq('is_current_version', true)
-        .single();
+        .eq('is_current_version', true);
 
-    if (!vaultSection?.content) {
-        return NextResponse.json({ error: 'No appointment reminders found in vault' }, { status: 404 });
+    if (fieldsError || !fields || fields.length === 0) {
+        return NextResponse.json({ error: 'Appointment reminder content not found' }, { status: 404 });
     }
 
-    const appointmentReminders = vaultSection.content?.appointmentReminders || vaultSection.content || {};
+    // Reconstruct content structure from fields
+    const appointmentReminders = {};
+    for (const field of fields) {
+        let parsedValue = field.field_value;
+        if (typeof field.field_value === 'string') {
+            try {
+                parsedValue = JSON.parse(field.field_value);
+            } catch (e) {
+                parsedValue = field.field_value;
+            }
+        }
+        appointmentReminders[field.field_id] = parsedValue;
+    }
+
     const emails = appointmentReminders.emails || [];
     const smsReminders = appointmentReminders.smsReminders || {};
 
