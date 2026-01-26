@@ -162,7 +162,16 @@ export async function POST(req) {
         // SECURITY FIX: Added is_current_version filter to only update current versions
         const allApproved = [...(businessCoreApprovals || []), ...(funnelAssetsApprovals || []), ...(scriptsApprovals || [])];
 
+        // Define all possible sections
+        const PHASE_1_SECTION_IDS = ['idealClient', 'message', 'story', 'offer'];
+        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'emails', 'sms', 'appointmentReminders', 'media', 'funnelCopy'];
+        const PHASE_3_SECTION_IDS = ['setterScript', 'salesScripts'];
+        const allSections = [...PHASE_1_SECTION_IDS, ...PHASE_2_SECTION_IDS, ...PHASE_3_SECTION_IDS];
 
+        // Sections that should be set to 'pending' (not in approved list)
+        const unapprovedSections = allSections.filter(s => !allApproved.includes(s));
+
+        // Set approved sections to 'approved'
         if (allApproved.length > 0) {
             const { error: vaultError } = await supabaseAdmin
                 .from('vault_content')
@@ -173,7 +182,22 @@ export async function POST(req) {
                 .in('section_id', allApproved);
 
             if (vaultError) {
-                console.error('[Approvals API] Error updating vault status:', vaultError);
+                console.error('[Approvals API] Error updating approved vault status:', vaultError);
+            }
+        }
+
+        // Set unapproved sections to 'pending'
+        if (unapprovedSections.length > 0) {
+            const { error: pendingError } = await supabaseAdmin
+                .from('vault_content')
+                .update({ status: 'pending' })
+                .eq('funnel_id', funnelId)
+                .eq('user_id', userId)
+                .eq('is_current_version', true)
+                .in('section_id', unapprovedSections);
+
+            if (pendingError) {
+                console.error('[Approvals API] Error updating pending vault status:', pendingError);
             }
         }
 
