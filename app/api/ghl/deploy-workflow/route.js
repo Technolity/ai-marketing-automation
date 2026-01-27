@@ -1192,6 +1192,7 @@ export async function POST(req) {
             duration: `${duration}s`,
             updatedKeys: updatedKeys.slice(0, 20),
             notFoundKeys: notFoundKeys.slice(0, 10),
+            logs: logs, // Include all deployment logs for debugging
         });
 
     } catch (error) {
