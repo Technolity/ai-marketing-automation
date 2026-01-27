@@ -97,37 +97,81 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
     const handleFeedbackSave = async (refinedContent) => {
         try {
-            // Save refined color data to vault
-            const response = await fetch('/api/os/vault-field', {
+            console.log('[ColorsFields] AI feedback received, parsing response...');
+
+            // Parse the AI response to extract structured color object
+            let colorPaletteObject;
+
+            // Try to parse as JSON first (AI might return structured JSON)
+            if (typeof refinedContent === 'string') {
+                const trimmed = refinedContent.trim();
+                if (trimmed.startsWith('{')) {
+                    try {
+                        colorPaletteObject = JSON.parse(trimmed);
+                    } catch (e) {
+                        // Not valid JSON, parse as text
+                    }
+                }
+            } else if (typeof refinedContent === 'object') {
+                colorPaletteObject = refinedContent;
+            }
+
+            // If not JSON, extract colors from text
+            if (!colorPaletteObject || !colorPaletteObject.primary) {
+                const extractedColors = parseColorsFromText(refinedContent);
+                console.log('[ColorsFields] Extracted colors from text:', extractedColors);
+
+                // Build structured object from extracted colors
+                colorPaletteObject = {
+                    primary: extractedColors[0] || { name: 'Primary', hex: '#000000' },
+                    secondary: extractedColors[1] || { name: 'Secondary', hex: '#6B7280' },
+                    tertiary: extractedColors[2] || { name: 'Tertiary', hex: '#3B82F6' },
+                    reasoning: typeof refinedContent === 'string' ? refinedContent : 'AI-generated color palette'
+                };
+            }
+
+            console.log('[ColorsFields] Saving structured color palette:', colorPaletteObject);
+
+            // Save to vault_content table via vault-section API (NOT vault-field)
+            // This is what deploy-workflow reads from
+            const response = await fetch('/api/os/vault-section', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    funnel_id: funnelId,
-                    section_id: sectionId,
-                    field_id: 'colorPalette',
-                    field_value: refinedContent
+                    sectionId: 'colors',
+                    funnelId: funnelId,
+                    content: {
+                        colorPalette: colorPaletteObject
+                    }
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to save');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save colors');
+            }
 
             const result = await response.json();
-            console.log('[ColorsFields] AI feedback saved, version:', result.version);
+            console.log('[ColorsFields] Colors saved to vault_content:', result);
 
-            // Re-fetch colors to display updated data
-            setBrandColorsText(refinedContent);
-            setRawAnswer(refinedContent);
-            const colors = parseColorsFromText(refinedContent);
-            setParsedColors(colors);
+            // Update local state with parsed colors
+            const displayColors = [];
+            if (colorPaletteObject.primary) displayColors.push(colorPaletteObject.primary);
+            if (colorPaletteObject.secondary) displayColors.push(colorPaletteObject.secondary);
+            if (colorPaletteObject.tertiary) displayColors.push(colorPaletteObject.tertiary);
+
+            setParsedColors(displayColors);
+            setRawAnswer(colorPaletteObject.reasoning || 'AI-generated professional color palette');
+            setBrandColorsText(colorPaletteObject.reasoning || refinedContent);
 
             setFeedbackModalOpen(false);
-            toast.success('Brand colors updated successfully!');
+            toast.success('Brand colors updated successfully! Ready for deployment.');
 
             // Notify parent of change if onSave exists
             if (onSave) onSave();
         } catch (error) {
             console.error('[ColorsFields] Save error:', error);
-            toast.error('Failed to save changes');
+            toast.error('Failed to save changes: ' + error.message);
         }
     };
 
