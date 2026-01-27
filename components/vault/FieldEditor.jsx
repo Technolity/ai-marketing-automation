@@ -70,8 +70,21 @@ export default function FieldEditor({
                     if (Array.isArray(parsed)) {
                         return parsed.map(item => typeof item === 'string' ? sanitizeDisplayContent(item) : item);
                     }
+                    // If parsed JSON is not an array, check if it's a string we can split
+                    if (typeof parsed === 'string') {
+                        return parsed.split('\n')
+                            .map(line => line.replace(/^[\s•\-\*]+/, '').trim())
+                            .filter(line => line.length > 0);
+                    }
                     return [];
                 } catch {
+                    // Fallback: If JSON parse fails, try splitting by newlines
+                    // This handles AI output that is just a bulleted list string
+                    if (val.trim()) {
+                        return val.split('\n')
+                            .map(line => line.replace(/^[\s•\-\*]+/, '').trim())
+                            .filter(line => line.length > 0);
+                    }
                     return [];
                 }
             }
