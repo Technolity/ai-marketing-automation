@@ -193,22 +193,28 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
                             // Convert to display format
                             const displayColors = [];
-                            if (generatedColors.primaryColor) {
+                            // Handle "primaryColor" (legacy) AND "primary" (new) keys
+                            const primary = generatedColors.primaryColor || generatedColors.primary;
+                            if (primary) {
                                 displayColors.push({
-                                    name: generatedColors.primaryColor.name,
-                                    hex: generatedColors.primaryColor.hex
+                                    name: primary.name,
+                                    hex: primary.hex
                                 });
                             }
-                            if (generatedColors.secondaryColor) {
+
+                            const secondary = generatedColors.secondaryColor || generatedColors.secondary;
+                            if (secondary) {
                                 displayColors.push({
-                                    name: generatedColors.secondaryColor.name,
-                                    hex: generatedColors.secondaryColor.hex
+                                    name: secondary.name,
+                                    hex: secondary.hex
                                 });
                             }
-                            if (generatedColors.accentColor) {
+
+                            const tertiary = generatedColors.accentColor || generatedColors.tertiary;
+                            if (tertiary) {
                                 displayColors.push({
-                                    name: generatedColors.accentColor.name,
-                                    hex: generatedColors.accentColor.hex
+                                    name: tertiary.name,
+                                    hex: tertiary.hex
                                 });
                             }
 

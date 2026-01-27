@@ -190,7 +190,7 @@ export async function POST(req) {
         if (unapprovedSections.length > 0) {
             const { error: pendingError } = await supabaseAdmin
                 .from('vault_content')
-                .update({ status: 'pending' })
+                .update({ status: 'generated' })
                 .eq('funnel_id', funnelId)
                 .eq('user_id', userId)
                 .eq('is_current_version', true)
