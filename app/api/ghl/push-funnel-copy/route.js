@@ -134,7 +134,7 @@ export async function POST(req) {
         }
 
         // Reconstruct content structure from individual fields
-        // Fields are stored as: optinPage, salesPage, bookingPage, thankYouPage (each is a JSON object)
+        // Fields are stored as: optinPage, salesPage, calendarPage, thankYouPage (each is a JSON object)
         // IMPORTANT: Filter out nested field entries (those with dots in field_id)
         // Nested fields like "optinPage.footer_company_name" are already merged into their parent "optinPage"
         const content = {};
