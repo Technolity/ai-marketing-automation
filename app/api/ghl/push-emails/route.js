@@ -154,51 +154,45 @@ export async function POST(req) {
 
         console.log('[PushEmails] Pushing', customValues.length, 'values');
 
-        // Push to GHL
-        const results = { success: true, pushed: 0, updated: 0, created: 0, failed: 0, errors: [] };
+        // Push to GHL (ONLY UPDATE, never create)
+        const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
 
         for (const { key, value, existingId } of customValues) {
             try {
-                let response;
-
-                if (existingId) {
-                    response = await fetch(
-                        `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
-                        {
-                            method: 'PUT',
-                            headers: {
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Content-Type': 'application/json',
-                                'Version': '2021-07-28',
-                            },
-                            body: JSON.stringify({ value }),
-                        }
-                    );
-                    if (response.ok) { results.updated++; results.pushed++; }
-                } else {
-                    response = await fetch(
-                        `https://services.leadconnectorhq.com/locations/${locationId}/customValues`,
-                        {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Content-Type': 'application/json',
-                                'Version': '2021-07-28',
-                            },
-                            body: JSON.stringify({ name: key, value }),
-                        }
-                    );
-                    if (response.ok) { results.created++; results.pushed++; }
+                // ONLY UPDATE existing values (never create)
+                if (!existingId) {
+                    results.skipped++;
+                    console.log(`[PushEmails] SKIPPED: ${key} (not found in GHL)`);
+                    continue;
                 }
 
-                if (!response.ok) {
+                const response = await fetch(
+                    `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json',
+                            'Version': '2021-07-28',
+                        },
+                        body: JSON.stringify({ value }),
+                    }
+                );
+
+                if (response.ok) {
+                    results.updated++;
+                    results.pushed++;
+                    console.log(`[PushEmails] UPDATED: ${key}`);
+                } else {
                     results.failed++;
-                    const err = await response.json().catch(() => ({}));
+                    const err = await response.json().catch(() => ({ message: 'Unknown error' }));
                     results.errors.push({ key, error: err });
+                    console.error(`[PushEmails] FAILED: ${key} -`, err);
                 }
             } catch (err) {
                 results.failed++;
                 results.errors.push({ key, error: err.message });
+                console.error(`[PushEmails] ERROR: ${key} -`, err.message);
             }
         }
 

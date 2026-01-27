@@ -229,55 +229,35 @@ export async function POST(req) {
  * Uses PUT for existing values (update), POST for new values (create)
  */
 async function pushToGHL(locationId, accessToken, customValues) {
-    const results = { success: true, pushed: 0, updated: 0, created: 0, failed: 0, errors: [] };
+    const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
 
     for (const { key, value, existingId } of customValues) {
         try {
-            let response;
-
-            if (existingId) {
-                // UPDATE existing value (PUT)
-                response = await fetch(
-                    `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
-                    {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json',
-                            'Version': '2021-07-28',
-                        },
-                        body: JSON.stringify({ value }),
-                    }
-                );
-
-                if (response.ok) {
-                    results.updated++;
-                    results.pushed++;
-                    console.log(`[PushFunnelCopy] UPDATED: ${key}`);
-                }
-            } else {
-                // CREATE new value (POST) - only if no existing
-                response = await fetch(
-                    `https://services.leadconnectorhq.com/locations/${locationId}/customValues`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json',
-                            'Version': '2021-07-28',
-                        },
-                        body: JSON.stringify({ name: key, value }),
-                    }
-                );
-
-                if (response.ok) {
-                    results.created++;
-                    results.pushed++;
-                    console.log(`[PushFunnelCopy] CREATED: ${key}`);
-                }
+            // ONLY UPDATE existing values (never create)
+            if (!existingId) {
+                results.skipped++;
+                console.log(`[PushFunnelCopy] SKIPPED: ${key} (not found in GHL)`);
+                continue;
             }
 
-            if (!response.ok) {
+            const response = await fetch(
+                `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                        'Version': '2021-07-28',
+                    },
+                    body: JSON.stringify({ value }),
+                }
+            );
+
+            if (response.ok) {
+                results.updated++;
+                results.pushed++;
+                console.log(`[PushFunnelCopy] UPDATED: ${key}`);
+            } else {
                 results.failed++;
                 const err = await response.json().catch(() => ({ message: 'Unknown error' }));
                 results.errors.push({ key, error: err });
