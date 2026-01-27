@@ -570,6 +570,14 @@ const SUBSECTION_PATHS = {
         backgroundColor: ['backgroundColor'],
         backgroundSecondary: ['backgroundSecondary'],
         reasoning: ['reasoning']
+    },
+    // funnelCopy uses NESTED structure from funnelCopy.js generation
+    funnelCopy: {
+        optinPage: ['optinPage'],
+        salesPage: ['salesPage'],
+        // Support direct field access if needed in future
+        headline_text: ['optinPage', 'headline_text'],
+        hero_headline_text: ['salesPage', 'hero_headline_text']
     }
 };
 
