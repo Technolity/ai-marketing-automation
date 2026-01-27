@@ -157,6 +157,34 @@ export async function POST(req) {
             if (existingMap.has('03 ' + titleCaseNoPrefix)) return existingMap.get('03 ' + titleCaseNoPrefix);
             if (existingMap.has('02 ' + titleCaseNoPrefix)) return existingMap.get('02 ' + titleCaseNoPrefix);
 
+            // 9. Handle GHL's hyphenated naming: "subheadline" → "Sub-Headline"
+            // GHL uses: "03 Optin Sub-Headline Text", "03 VSL hero Sub-Headline Text"
+            const toGhlFormat = (key) => {
+                return key
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, c => c.toUpperCase())
+                    // Specific word transforms for GHL naming
+                    .replace(/Subheadline/gi, 'Sub-Headline')
+                    .replace(/Subtext/gi, 'Sub-text')
+                    .replace(/Thankyou/gi, 'Thankyou')
+                    .replace(/Optin/gi, 'Optin')
+                    .replace(/Vsl/gi, 'VSL')
+                    .replace(/Cta/gi, 'CTA')
+                    .replace(/Faq/gi, 'FAQ');
+            };
+
+            const ghlFormat = toGhlFormat(ghlKey);
+            if (existingMap.has(ghlFormat)) return existingMap.get(ghlFormat);
+
+            // 10. Try with 03/02 prefix in GHL format
+            const ghlFormatNoPrefix = toGhlFormat(withoutPrefix);
+            if (existingMap.has('03 ' + ghlFormatNoPrefix)) return existingMap.get('03 ' + ghlFormatNoPrefix);
+            if (existingMap.has('02 ' + ghlFormatNoPrefix)) return existingMap.get('02 ' + ghlFormatNoPrefix);
+
+            // 11. Try lowercase hero → "hero" (GHL keeps some words lowercase)
+            const ghlFormatLowerHero = ghlFormat.replace(/Hero/g, 'hero');
+            if (existingMap.has(ghlFormatLowerHero)) return existingMap.get(ghlFormatLowerHero);
+
             return null;
         };
 

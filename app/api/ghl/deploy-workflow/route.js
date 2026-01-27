@@ -608,7 +608,7 @@ export async function POST(req) {
         const notFoundKeys = [];
 
         // Helper to find existing value - tries MULTIPLE naming formats
-        // GHL uses inconsistent naming: "03_vsl_bio_image" vs "03 VSL Bio Image"
+        // GHL uses inconsistent naming: "03_vsl_bio_image" vs "03 VSL Bio Image" vs "03 VSL Sub-Headline Text"
         const findExisting = (ghlKey) => {
             // 1. Exact match
             if (existingMap.has(ghlKey)) return existingMap.get(ghlKey);
@@ -645,6 +645,34 @@ export async function POST(req) {
             // Try "03 " + titleCase version
             if (existingMap.has('03 ' + titleCaseNoPrefix)) return existingMap.get('03 ' + titleCaseNoPrefix);
             if (existingMap.has('02 ' + titleCaseNoPrefix)) return existingMap.get('02 ' + titleCaseNoPrefix);
+
+            // 9. Handle GHL's hyphenated naming: "subheadline" → "Sub-Headline"
+            // GHL uses: "03 Optin Sub-Headline Text", "03 VSL hero Sub-Headline Text"
+            const toGhlFormat = (key) => {
+                return key
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, c => c.toUpperCase())
+                    // Specific word transforms for GHL naming
+                    .replace(/Subheadline/gi, 'Sub-Headline')
+                    .replace(/Subtext/gi, 'Sub-text')
+                    .replace(/Thankyou/gi, 'Thankyou')
+                    .replace(/Optin/gi, 'Optin')
+                    .replace(/Vsl/gi, 'VSL')
+                    .replace(/Cta/gi, 'CTA')
+                    .replace(/Faq/gi, 'FAQ');
+            };
+
+            const ghlFormat = toGhlFormat(ghlKey);
+            if (existingMap.has(ghlFormat)) return existingMap.get(ghlFormat);
+
+            // 10. Try with 03/02 prefix in GHL format
+            const ghlFormatNoPrefix = toGhlFormat(withoutPrefix);
+            if (existingMap.has('03 ' + ghlFormatNoPrefix)) return existingMap.get('03 ' + ghlFormatNoPrefix);
+            if (existingMap.has('02 ' + ghlFormatNoPrefix)) return existingMap.get('02 ' + ghlFormatNoPrefix);
+
+            // 11. Try lowercase hero → "hero" (GHL keeps some words lowercase)
+            const ghlFormatLowerHero = ghlFormat.replace(/Hero/g, 'hero');
+            if (existingMap.has(ghlFormatLowerHero)) return existingMap.get(ghlFormatLowerHero);
 
             return null;
         };
@@ -708,8 +736,8 @@ export async function POST(req) {
             }
         }
 
-        // === PROCESS COLORS (NEW 3-COLOR STRUCTURE) ===
-        log('[Deploy] Processing colors with STRICT SEMANTICS...');
+        // === PROCESS COLORS (3 UNIVERSAL KEYS) ===
+        log('[Deploy] Processing colors with 3 UNIVERSAL KEYS...');
         // Handle various storage locations for colors
         const colorsData = vaultContent.colors || vaultContent.colorPalette || {};
         const palette = colorsData.colorPalette || colorsData; // Handle nesting
@@ -723,33 +751,17 @@ export async function POST(req) {
             const primary = getHex(palette.primary) || '#000000';
             const secondary = getHex(palette.secondary) || '#6B7280';
             const tertiary = getHex(palette.tertiary) || '#3B82F6';
-            const background = getHex(palette.background) || '#FFFFFF';
 
-            // Define STRICT mappings based on Semantic Roles
-            const strictColorMap = {
-                // Global
-                '03_header_background_color': background,
+            log(`[Deploy] Colors extracted: primary=${primary}, secondary=${secondary}, tertiary=${tertiary}`);
 
-                // Optin Page
-                '03_optin_cta_background_colour': primary,
-                '03_optin_cta_text_colour': '#FFFFFF', // Contrast text for primary
-                '03_optin_subhealine_text_colour': tertiary,
-                '03_optin_healine_text_colour': tertiary,
-
-                // VSL Page
-                '03_vsl_cta_background_colour': primary,
-                '03_vsl_cta_text_colour': '#FFFFFF',
-                '03_vsl_hero_sub_headline_text_colour': tertiary,
-                '03_vsl_hero_headline_text_colour': tertiary,
-                '03_vsl_process_headline_text_colour': tertiary,
-                '03_vsl_process_sub_headline_text_colour': tertiary,
-
-                // Components
-                '03_vsl_acknowledge_pill_bg_colour': secondary,
-                '03_vsl_acknowledge_pill_text_colour': '#FFFFFF'
+            // 3 Universal Color Keys (these exist in GHL)
+            const universalColorMap = {
+                'primary_color': primary,
+                'secondary_color': secondary,
+                'tertiary_color': tertiary
             };
 
-            for (const [ghlKey, hexVal] of Object.entries(strictColorMap)) {
+            for (const [ghlKey, hexVal] of Object.entries(universalColorMap)) {
                 if (!hexVal) continue;
 
                 const existing = findExisting(ghlKey);
@@ -761,6 +773,7 @@ export async function POST(req) {
                         log(`[Deploy] ✓ Updated ${ghlKey} = ${hexVal}`);
                     } else {
                         results.failed++;
+                        log(`[Deploy] ✗ Failed to update ${ghlKey}`);
                     }
                 } else {
                     results.notFound++;
@@ -768,11 +781,9 @@ export async function POST(req) {
                     log(`[Deploy] ⚠ Color key not found: ${ghlKey}`);
                 }
             }
+        } else {
+            log('[Deploy] No color palette found in vault content');
         }
-
-        // NOTE: If all 03_* color fields are NOT FOUND, they need to be created in GHL snapshot first
-        // The user's current snapshot may not have these custom values defined yet.
-        // Color fields will only update if they already exist in GHL.
 
         // === PROCESS MEDIA (STRICT MAPPING) ===
         log('[Deploy] Processing media with STRICT MAPPING...');
