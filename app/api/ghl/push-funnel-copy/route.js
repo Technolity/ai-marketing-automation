@@ -7,7 +7,7 @@
 
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-import { FUNNEL_COPY_MAP } from '@/lib/ghl/customValuesMap';
+import { FUNNEL_COPY_MAP, UNIVERSAL_MAP } from '@/lib/ghl/customValuesMap';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 
@@ -164,20 +164,67 @@ export async function POST(req) {
 
         console.log('[PushFunnelCopy] Reconstructed content from', Object.keys(content).length, 'parent fields:', Object.keys(content));
 
+        // Get user's company email from user_profiles
+        const { data: userProfile } = await supabaseAdmin
+            .from('user_profiles')
+            .select('business_email')
+            .eq('user_id', userId)
+            .single();
+
+        const companyEmail = userProfile?.business_email || '';
+        console.log('[PushFunnelCopy] Company email from user_profiles:', companyEmail || '(not set)');
+
         // Build custom values payload using customValuesMap
         const customValues = [];
 
-        // Process each page in funnel copy
+        // Add universal fields first (company_email, etc.)
+        console.log('[PushFunnelCopy] ========== UNIVERSAL FIELDS ==========');
+        for (const [field, ghlKey] of Object.entries(UNIVERSAL_MAP)) {
+            let value = null;
+            if (field === 'company_email') {
+                value = companyEmail;
+            }
+            // company_name and logo_image are handled elsewhere
+
+            if (value) {
+                const existingId = existingMap.get(ghlKey) ||
+                    existingMap.get(ghlKey.toLowerCase()) ||
+                    existingMap.get(ghlKey.toLowerCase().replace(/\s+/g, '_'));
+
+                customValues.push({
+                    key: ghlKey,
+                    value: value,
+                    existingId: existingId || null
+                });
+                console.log(`[PushFunnelCopy]   ✓ ${field} → ${ghlKey} = ${value}`);
+            }
+        }
+
+        console.log('[PushFunnelCopy] ========== MAPPING PAGES ==========');
+        console.log('[PushFunnelCopy] Available pages in FUNNEL_COPY_MAP:', Object.keys(FUNNEL_COPY_MAP));
+        console.log('[PushFunnelCopy] Available pages in content:', Object.keys(content));
+
+        // Process each page in funnel copy (optinPage, salesPage, calendarPage, thankYouPage)
         for (const [page, fieldMap] of Object.entries(FUNNEL_COPY_MAP)) {
             const pageContent = content[page] || {};
+            const fieldCount = Object.keys(pageContent).length;
 
+            console.log(`[PushFunnelCopy] Processing ${page}: ${fieldCount} fields available`);
+
+            if (fieldCount === 0) {
+                console.log(`[PushFunnelCopy] ⚠ SKIPPING ${page} - No content found in vault`);
+                continue;
+            }
+
+            let pageMapped = 0;
             for (const [field, ghlKey] of Object.entries(fieldMap)) {
                 const rawValue = pageContent[field];
                 if (rawValue) {
-                    // Polish content with AI
+                    // Polish content with AI (skip for calendar_embedded_code and image fields)
+                    const skipPolish = field.includes('calendar_embedded') || field.includes('_image') || field.includes('video_link');
                     const fieldType = field.includes('headline') ? 'headline' :
                         field.includes('bullet') ? 'bullet' : 'paragraph';
-                    const polishedValue = await polishTextContent(rawValue, fieldType);
+                    const polishedValue = skipPolish ? rawValue : await polishTextContent(rawValue, fieldType);
 
                     // Find existing value ID
                     const existingId = existingMap.get(ghlKey) ||
@@ -189,11 +236,18 @@ export async function POST(req) {
                         value: polishedValue,
                         existingId: existingId || null
                     });
+
+                    pageMapped++;
+                    console.log(`[PushFunnelCopy]   ✓ ${page}.${field} → ${ghlKey}`);
+                } else {
+                    console.log(`[PushFunnelCopy]   ⚠ ${page}.${field} → ${ghlKey} (NO VALUE in vault)`);
                 }
             }
+
+            console.log(`[PushFunnelCopy] ${page} complete: ${pageMapped} fields mapped`);
         }
 
-        console.log('[PushFunnelCopy] Pushing', customValues.length, 'values to GHL');
+        console.log('[PushFunnelCopy] ========== TOTAL: Pushing', customValues.length, 'values to GHL ==========');
 
         // Push to GHL
         const pushResults = await pushToGHL(locationId, accessToken, customValues);
