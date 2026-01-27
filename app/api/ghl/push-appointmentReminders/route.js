@@ -1,11 +1,12 @@
 /**
  * Push Appointment Reminders to GHL Custom Values
- * Same pattern as push-emails
+ * Uses OAuth via ghl_subaccounts with automatic token refresh
  */
 
 import { auth } from '@clerk/nextjs';
 import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { getLocationToken } from '@/lib/ghl/tokenHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,54 +28,6 @@ const APPOINTMENT_SMS_MAP = {
     'reminder48Hour': 'sms_48_hour_before_call_time',
     'reminder10Min': 'sms_10_min_before_call_time',
 };
-
-async function getLocationToken(userId, locationId) {
-    const { data: subaccount } = await supabaseAdmin
-        .from('ghl_subaccounts')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .single();
-
-    if (!subaccount) {
-        return { success: false, error: 'No sub-account found' };
-    }
-
-    const { data: tokenData } = await supabaseAdmin
-        .from('ghl_tokens')
-        .select('*')
-        .eq('user_type', 'Company')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-    if (!tokenData?.company_id) {
-        return { success: false, error: 'No agency token found' };
-    }
-
-    const response = await fetch(
-        'https://services.leadconnectorhq.com/oauth/locationToken',
-        {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${tokenData.access_token}`,
-                'Content-Type': 'application/json',
-                'Version': '2021-07-28',
-            },
-            body: JSON.stringify({
-                companyId: tokenData.company_id,
-                locationId: locationId || subaccount.location_id,
-            }),
-        }
-    );
-
-    if (!response.ok) {
-        return { success: false, error: 'Failed to generate location token' };
-    }
-
-    const data = await response.json();
-    return { success: true, access_token: data.access_token, location_id: subaccount.location_id };
-}
 
 async function fetchExistingValues(locationId, accessToken) {
     const allValues = [];

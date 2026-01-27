@@ -1,6 +1,6 @@
 /**
  * Push Emails to GHL Custom Values
- * Uses OAuth via ghl_subaccounts (same as deploy-workflow)
+ * Uses OAuth via ghl_subaccounts with automatic token refresh
  * Uses customValuesMap.js for correct GHL key mapping
  * Uses contentPolisher.js for AI polishing
  */
@@ -9,63 +9,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { EMAIL_MAP } from '@/lib/ghl/customValuesMap';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
+import { getLocationToken } from '@/lib/ghl/tokenHelper';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Get location access token for GHL API calls (OAuth)
- */
-async function getLocationToken(userId, locationId) {
-    const { data: subaccount } = await supabaseAdmin
-        .from('ghl_subaccounts')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .single();
-
-    if (!subaccount) {
-        return { success: false, error: 'No sub-account found for user' };
-    }
-
-    const { data: tokenData } = await supabaseAdmin
-        .from('ghl_tokens')
-        .select('*')
-        .eq('user_type', 'Company')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-    if (!tokenData?.company_id) {
-        return { success: false, error: 'No agency token found' };
-    }
-
-    const response = await fetch(
-        'https://services.leadconnectorhq.com/oauth/locationToken',
-        {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${tokenData.access_token}`,
-                'Content-Type': 'application/json',
-                'Version': '2021-07-28',
-            },
-            body: JSON.stringify({
-                companyId: tokenData.company_id,
-                locationId: locationId || subaccount.location_id,
-            }),
-        }
-    );
-
-    if (!response.ok) {
-        return { success: false, error: 'Failed to generate location token' };
-    }
-
-    const data = await response.json();
-    return {
-        success: true,
-        access_token: data.access_token,
-        location_id: locationId || subaccount.location_id
-    };
-}
 
 /**
  * Fetch existing GHL custom values to get IDs

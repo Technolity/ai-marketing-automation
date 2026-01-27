@@ -1163,57 +1163,8 @@ export async function POST(req) {
 
         log(`[Deploy] Appointment reminders done, running total: ${results.updated}`);
 
-        // === PROCESS COLORS ===
-        log('[Deploy] Processing colors...');
-        let colorsUpdated = 0;
-
-        for (const [ghlKey, colorValue] of Object.entries(DEFAULT_COLORS)) {
-            const existing = findExisting(ghlKey);
-            if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, colorValue);
-                if (result.success) {
-                    results.updated++;
-                    colorsUpdated++;
-                    updatedKeys.push(ghlKey);
-                } else {
-                    results.failed++;
-                }
-            } else {
-                results.notFound++;
-                notFoundKeys.push(ghlKey);
-            }
-        }
-
-        log(`[Deploy] Colors done: ${colorsUpdated} colors updated, running total: ${results.updated}`);
-
-        // === PROCESS MEDIA ===
-        log('[Deploy] Processing media...');
-        // Use mediaFromFields (from vault_content_fields table) - this is where user uploads go
-        const media = { ...vaultContent.media, ...mediaFromFields }; // Merge both sources, fields take priority
-        log(`[Deploy] Media keys combined: ${Object.keys(media).join(', ')} (${Object.keys(media).length} total)`);
-        let mediaUpdated = 0;
-
-        for (const [vaultKey, ghlKey] of Object.entries(MEDIA_KEY_MAP)) {
-            const value = media[vaultKey];
-            if (!value || typeof value !== 'string' || !value.trim()) continue;
-
-            const existing = findExisting(ghlKey);
-            if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value.trim());
-                if (result.success) {
-                    results.updated++;
-                    mediaUpdated++;
-                    updatedKeys.push(ghlKey);
-                } else {
-                    results.failed++;
-                }
-            } else {
-                results.notFound++;
-                notFoundKeys.push(ghlKey);
-            }
-        }
-
-        log(`[Deploy] Media done: ${mediaUpdated} media updated, running total: ${results.updated}`);
+        // Note: Colors and Media are already processed above (lines 677-789)
+        // No duplicate processing needed here
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         log(`[Deploy] ========== DEPLOY COMPLETE ==========`);
