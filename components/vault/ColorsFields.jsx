@@ -154,6 +154,29 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
             const result = await response.json();
             console.log('[ColorsFields] Colors saved to vault_content:', result);
 
+            // ALSO save to vault_content_fields so UI displays correctly
+            // (UI reads from vault_content_fields, deploy reads from vault_content)
+            try {
+                const fieldsResponse = await fetch('/api/os/vault-section-save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sectionId: 'colors',
+                        funnelId: funnelId,
+                        fields: [{
+                            field_id: 'colorPalette',
+                            field_value: colorPaletteObject
+                        }]
+                    })
+                });
+                if (fieldsResponse.ok) {
+                    console.log('[ColorsFields] Also saved to vault_content_fields for UI consistency');
+                }
+            } catch (fieldError) {
+                console.warn('[ColorsFields] Could not save to vault_content_fields:', fieldError);
+                // Non-fatal - deploy will still work from vault_content
+            }
+
             // Update local state with parsed colors
             const displayColors = [];
             if (colorPaletteObject.primary) displayColors.push(colorPaletteObject.primary);

@@ -20,7 +20,7 @@ const CALENDAR_PAGE_MAP = {
 // === THANK YOU PAGE MAPPINGS (3 fields) ===
 const THANK_YOU_PAGE_MAP = {
     'headline': '03_thankyou_page_headline',
-    'subheadline': '03_thankyou_page_sub__headline',
+    'subheadline': '03_thankyou_page_sub__headline',  // Note: double underscore for GHL's "Sub - Headline"
     'video_link': '03_thankyou_page_video_link'
 };
 
@@ -657,18 +657,23 @@ export async function POST(req) {
 
             // 9. Handle GHL's hyphenated naming: "subheadline" → "Sub-Headline"
             // GHL uses: "03 Optin Sub-Headline Text", "03 VSL hero Sub-Headline Text"
+            // Also handles double underscore: "sub__headline" → "Sub - Headline" (space-dash-space)
             const toGhlFormat = (key) => {
                 return key
+                    // First handle double underscores → space-dash-space (like "Sub - Headline")
+                    .replace(/__/g, ' - ')
+                    // Then regular underscores to spaces
                     .replace(/_/g, ' ')
                     .replace(/\b\w/g, c => c.toUpperCase())
                     // Specific word transforms for GHL naming
-                    .replace(/Subheadline/gi, 'Sub-Headline')
+                    .replace(/Subheadline/gi, 'sub-Headline')  // Note: lowercase 'sub'
                     .replace(/Subtext/gi, 'Sub-text')
                     .replace(/Thankyou/gi, 'Thankyou')
                     .replace(/Optin/gi, 'Optin')
                     .replace(/Vsl/gi, 'VSL')
                     .replace(/Cta/gi, 'CTA')
-                    .replace(/Faq/gi, 'FAQ');
+                    .replace(/Faq/gi, 'FAQ')
+                    .replace(/Calender/gi, 'Calender');  // GHL spelling
             };
 
             const ghlFormat = toGhlFormat(ghlKey);
@@ -799,11 +804,15 @@ export async function POST(req) {
 
         // === PROCESS COMPANY INFO FROM USER_PROFILES ===
         log('[Deploy] Fetching company info from user_profiles...');
-        const { data: userProfile } = await supabaseAdmin
+        const { data: userProfile, error: profileError } = await supabaseAdmin
             .from('user_profiles')
             .select('business_name, email')
-            .eq('user_id', userId)
+            .eq('id', userId)  // Note: column is 'id' not 'user_id'
             .single();
+
+        if (profileError) {
+            log(`[Deploy] ⚠ Profile fetch error: ${profileError.message}`);
+        }
 
         if (userProfile) {
             log(`[Deploy] User profile found: business_name="${userProfile.business_name}", email="${userProfile.email}"`);
