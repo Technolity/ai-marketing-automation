@@ -238,18 +238,18 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
 
         await updateJobStatus(jobId, 'processing', 30);
 
-        // === PARALLEL CHUNKED GENERATION (NEW 79-field structure) ===
+        // === PARALLEL CHUNKED GENERATION (NEW 78-field structure) ===
         // Import the 4 optimized chunk prompts
         const { funnelCopyChunks } = await import('@/lib/prompts/funnelCopyChunks');
         const { mergeFunnelCopyChunks, validateMergedFunnelCopy } = await import('@/lib/prompts/funnelCopyMerger');
 
         console.log('[FunnelCopy] ========== STARTING PARALLEL CHUNKED GENERATION ==========');
-        console.log('[FunnelCopy] Using NEW 79-field structure (03_* custom values)');
+        console.log('[FunnelCopy] Using NEW 78-field structure (03_* custom values)');
         console.log('[FunnelCopy] Generating 4 chunks in parallel:');
         console.log('[FunnelCopy]   - Chunk 1: Optin Page (4 fields)');
         console.log('[FunnelCopy]   - Chunk 2: Sales Part 1 - Hero + Process + How It Works (23 fields)');
         console.log('[FunnelCopy]   - Chunk 3: Sales Part 2 - Audience + Call Expectations + Bio (23 fields)');
-        console.log('[FunnelCopy]   - Chunk 4: Sales Part 3 - Testimonials + FAQ + Final CTA (29 fields)');
+        console.log('[FunnelCopy]   - Chunk 4: Sales Part 3 - Testimonials + FAQ + Final CTA (28 fields)');
         console.log('[FunnelCopy] Context includes:', {
             businessName: context.businessName || 'N/A',
             hasBrandColors: !!context.brandColors,
@@ -378,7 +378,7 @@ CRITICAL REQUIREMENTS:
 
         console.log('[FunnelCopy] ========== GENERATION COMPLETE ==========');
         console.log('[FunnelCopy] Total generation time:', chunkDuration, 'seconds');
-        console.log('[FunnelCopy] Total fields:', validation.fieldCount, '(expected: 79)');
+        console.log('[FunnelCopy] Total fields:', validation.fieldCount, '(expected: 78)');
         console.log('[FunnelCopy] Empty text fields:', validation.emptyFieldCount || 0);
 
         await updateJobStatus(jobId, 'processing', 80);
