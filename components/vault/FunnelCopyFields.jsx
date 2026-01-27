@@ -152,8 +152,12 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
         setFeedbackModalOpen(true);
     };
 
-    const handleFeedbackSave = async (refinedContent) => {
+    const handleFeedbackSave = async (saveData) => {
         if (!selectedField) return;
+
+        // FeedbackChatModal passes { refinedContent, subSection }
+        const refinedContent = saveData?.refinedContent || saveData;
+
         try {
             const response = await fetch('/api/os/vault-field', {
                 method: 'PATCH',

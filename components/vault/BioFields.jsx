@@ -77,10 +77,14 @@ export default function BioFields({ funnelId, onApprove, onRenderApproveButton, 
         setFeedbackModalOpen(true);
     };
 
-    const handleFeedbackSave = async (refinedContent) => {
+    const handleFeedbackSave = async (saveData) => {
         if (!selectedField) return;
+
+        // FeedbackChatModal passes { refinedContent, subSection }
+        const refinedContent = saveData?.refinedContent || saveData;
+
         try {
-            const response = await fetch('/api/os/vault-field', {
+            const response = await fetchWithAuth('/api/os/vault-field', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, field_id: selectedField.field_id, field_value: refinedContent })

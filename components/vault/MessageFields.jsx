@@ -77,10 +77,13 @@ export default function MessageFields({ funnelId, onApprove, onRenderApproveButt
     };
 
     // Handle AI feedback save
-    const handleFeedbackSave = async (refinedContent) => {
-        console.log('[MessageFields] AI feedback save:', { selectedField, refinedContent });
+    const handleFeedbackSave = async (saveData) => {
+        console.log('[MessageFields] AI feedback save:', { selectedField, saveData });
 
         if (!selectedField) return;
+
+        // FeedbackChatModal passes { refinedContent, subSection }
+        const refinedContent = saveData?.refinedContent || saveData;
 
         // The refinedContent should be the new field value
         // Auto-save it via the FieldEditor's save mechanism

@@ -223,8 +223,12 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
     };
 
     // Handle AI feedback save
-    const handleFeedbackSave = async (refinedContent) => {
+    const handleFeedbackSave = async (saveData) => {
         if (!selectedField) return;
+
+        // FeedbackChatModal passes { refinedContent, subSection }
+        const refinedContent = saveData?.refinedContent || saveData;
+
         try {
             await handleFieldSave(selectedField.field_id, refinedContent);
 

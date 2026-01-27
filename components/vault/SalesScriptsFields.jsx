@@ -120,8 +120,11 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
     };
 
     // Handle AI feedback save
-    const handleFeedbackSave = async (refinedContent) => {
+    const handleFeedbackSave = async (saveData) => {
         if (!selectedField) return;
+
+        // FeedbackChatModal passes { refinedContent, subSection }
+        const refinedContent = saveData?.refinedContent || saveData;
 
         try {
             const response = await fetchWithAuth('/api/os/vault-field', {
