@@ -1014,12 +1014,8 @@ CONVERSATION STYLE:
         console.log('[BuildContext] Added Lead Magnet Title to context:', leadMagnetTitle);
     }
 
-    // CRITICAL: Add Brand Colors for funnel copy context
-    if (brandColors && sectionId === 'funnelCopy') {
-        const colorsText = `Brand Colors: Primary (${brandColors.primary?.name || brandColors.primary?.hex || 'N/A'}), Secondary (${brandColors.secondary?.name || brandColors.secondary?.hex || 'N/A'}), Tertiary (${brandColors.tertiary?.name || brandColors.tertiary?.hex || 'N/A'})`;
-        contextParts.push(colorsText);
-        console.log('[BuildContext] Added Brand Colors to funnel copy context:', colorsText);
-    }
+    // REMOVED: Brand Colors injection for funnelCopy per user request
+    // User wants pure copy generation without color context
 
     const businessContext = contextParts.length > 0
         ? `\n\nBUSINESS CONTEXT:\n${contextParts.join('\n')}`

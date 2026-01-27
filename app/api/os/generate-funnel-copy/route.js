@@ -233,12 +233,8 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
             console.log('[FunnelCopy] Injected profile business_name into context:', profileBusinessName);
         }
 
-        // CRITICAL: Inject brand colors for visual context and color references
-        if (brandColors) {
-            context.brandColors = brandColors;
-            context.colorPalette = brandColors;
-            console.log('[FunnelCopy] Injected brand colors into context:', brandColors);
-        }
+        // REMOVED: Brand Colors injection per user request
+        // User wants pure copy generation without color context
 
         await updateJobStatus(jobId, 'processing', 30);
 
