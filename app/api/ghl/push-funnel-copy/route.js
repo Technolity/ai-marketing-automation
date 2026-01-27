@@ -1,6 +1,6 @@
 /**
  * Push Funnel Copy to GHL Custom Values
- * Uses OAuth via ghl_subaccounts (same as deploy-workflow)
+ * Uses OAuth via ghl_subaccounts with automatic token refresh
  * Uses customValuesMap.js for correct GHL key mapping
  * Uses contentPolisher.js for AI polishing
  */
@@ -9,102 +9,9 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { FUNNEL_COPY_MAP } from '@/lib/ghl/customValuesMap';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
+import { getLocationToken } from '@/lib/ghl/tokenHelper';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Get location access token for GHL API calls (OAuth)
- */
-async function getLocationToken(userId, locationId) {
-    // Get user's sub-account
-    const { data: subaccount, error: subError } = await supabaseAdmin
-        .from('ghl_subaccounts')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .single();
-
-    if (subError || !subaccount) {
-        return { success: false, error: 'No sub-account found for user' };
-    }
-
-    // Get agency token
-    const { data: tokenData, error: tokenError } = await supabaseAdmin
-        .from('ghl_tokens')
-        .select('*')
-        .eq('user_type', 'Company')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-    if (tokenError || !tokenData) {
-        return { success: false, error: 'No agency token found' };
-    }
-
-    const companyId = tokenData.company_id;
-    if (!companyId) {
-        return { success: false, error: 'companyId not found in agency token' };
-    }
-
-    // Generate location token
-    const locationTokenResponse = await fetch(
-        'https://services.leadconnectorhq.com/oauth/locationToken',
-        {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${tokenData.access_token}`,
-                'Content-Type': 'application/json',
-                'Version': '2021-07-28',
-            },
-            body: JSON.stringify({
-                companyId: companyId,
-                locationId: locationId || subaccount.location_id,
-            }),
-        }
-    );
-
-    // Check for HTML response (GHL error page)
-    const contentType = locationTokenResponse.headers.get('content-type') || '';
-    if (contentType.includes('text/html')) {
-        const htmlBody = await locationTokenResponse.text();
-        console.error('[PushFunnelCopy] getLocationToken: GHL returned HTML:', htmlBody.substring(0, 200));
-        return { success: false, error: 'GHL OAuth returned HTML - token may be invalid or expired' };
-    }
-
-    if (!locationTokenResponse.ok) {
-        const responseText = await locationTokenResponse.text();
-        // Check if it's HTML
-        if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
-            console.error('[PushFunnelCopy] getLocationToken: HTML error:', responseText.substring(0, 200));
-            return { success: false, error: 'GHL OAuth returned HTML error page' };
-        }
-        try {
-            const errorData = JSON.parse(responseText);
-            return { success: false, error: errorData.message || 'Failed to generate location token' };
-        } catch {
-            return { success: false, error: `Failed to generate location token: ${responseText.substring(0, 100)}` };
-        }
-    }
-
-    const responseText = await locationTokenResponse.text();
-    // Check if response looks like HTML even with 200 status
-    if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
-        console.error('[PushFunnelCopy] getLocationToken: Unexpected HTML response:', responseText.substring(0, 200));
-        return { success: false, error: 'GHL returned HTML - re-authorization may be required' };
-    }
-
-    const locationTokenData = JSON.parse(responseText);
-
-    if (!locationTokenData.access_token) {
-        return { success: false, error: 'Location token response missing access_token' };
-    }
-
-    return {
-        success: true,
-        access_token: locationTokenData.access_token,
-        location_id: locationId || subaccount.location_id
-    };
-}
 
 /**
  * Fetch existing GHL custom values to get IDs
