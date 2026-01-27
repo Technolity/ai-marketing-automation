@@ -1,8 +1,7 @@
 /**
  * Push Media to GHL Custom Values
  * Uses OAuth via ghl_subaccounts with automatic token refresh
- * Uses customValuesMap.js for correct GHL key mapping
- * Pushes images, videos, and other media URLs
+ * ONLY UPDATES existing custom values (never creates new ones)
  */
 
 import { auth } from '@clerk/nextjs';
@@ -56,7 +55,8 @@ export async function POST(req) {
             return Response.json({ error: 'funnelId is required' }, { status: 400 });
         }
 
-        console.log('[PushMedia] Starting push for funnel:', funnelId);
+        console.log('[PushMedia] ========== START ==========');
+        console.log('[PushMedia] Funnel ID:', funnelId);
 
         // Get user's location ID
         const { data: subaccount } = await supabaseAdmin
@@ -70,16 +70,22 @@ export async function POST(req) {
             return Response.json({ error: 'GHL sub-account not found' }, { status: 400 });
         }
 
+        console.log('[PushMedia] Location ID:', subaccount.location_id);
+
         // Get OAuth token
         const tokenResult = await getLocationToken(userId, subaccount.location_id);
         if (!tokenResult.success) {
+            console.error('[PushMedia] Token error:', tokenResult.error);
             return Response.json({ error: tokenResult.error }, { status: 401 });
         }
 
         const { access_token: accessToken, location_id: locationId } = tokenResult;
+        console.log('[PushMedia] OAuth token obtained');
 
         // Fetch existing custom values
         const existingValues = await fetchExistingCustomValues(locationId, accessToken);
+        console.log('[PushMedia] Found', existingValues.length, 'existing custom values in GHL');
+
         const existingMap = new Map();
         existingValues.forEach(v => {
             existingMap.set(v.name, v.id);
@@ -87,7 +93,7 @@ export async function POST(req) {
             existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
         });
 
-        // Get media library content from vault_content_fields
+        // Get media content from vault_content_fields
         const { data: mediaFields } = await supabaseAdmin
             .from('vault_content_fields')
             .select('field_id, field_value')
@@ -95,123 +101,120 @@ export async function POST(req) {
             .eq('section_id', 'media')
             .eq('is_current_version', true);
 
-        // Also try vault_content for legacy storage
-        const { data: vaultContent } = await supabaseAdmin
-            .from('vault_content')
-            .select('content')
-            .eq('funnel_id', funnelId)
-            .eq('section_id', 'media')
-            .single();
-
-        // Build media content map from fields (use field_value not content)
-        const mediaContent = {};
+        console.log('[PushMedia] Media fields from vault:', mediaFields?.length || 0);
         if (mediaFields) {
-            mediaFields.forEach(field => {
-                mediaContent[field.field_id] = field.field_value;
+            mediaFields.forEach(f => {
+                console.log(`[PushMedia]   - ${f.field_id}: ${f.field_value?.substring(0, 50)}...`);
             });
         }
 
-        // Merge with vault_content if exists
-        if (vaultContent?.content) {
-            Object.assign(mediaContent, vaultContent.content);
+        if (!mediaFields || mediaFields.length === 0) {
+            return Response.json({ error: 'No media content found. Please upload media first.' }, { status: 404 });
         }
 
-        // Build custom values using MEDIA_MAP
+        // Build media content map
+        const mediaContent = {};
+        mediaFields.forEach(field => {
+            mediaContent[field.field_id] = field.field_value;
+        });
+
+        // Build custom values using MEDIA_MAP (flat structure)
         const customValues = [];
+        const notFoundKeys = [];
 
-        for (const [section, fields] of Object.entries(MEDIA_MAP)) {
-            for (const [field, ghlKey] of Object.entries(fields)) {
-                // Try multiple key variations to find media
-                const possibleKeys = [
-                    field,
-                    `${section}_${field}`,
-                    `${section}.${field}`,
-                    field.toLowerCase(),
-                ];
+        console.log('[PushMedia] Mapping media fields to GHL custom values...');
+        for (const [vaultFieldId, ghlKey] of Object.entries(MEDIA_MAP)) {
+            const mediaUrl = mediaContent[vaultFieldId];
 
-                let mediaUrl = null;
-                for (const key of possibleKeys) {
-                    if (mediaContent[key]) {
-                        mediaUrl = mediaContent[key];
-                        break;
-                    }
-                }
+            if (mediaUrl && mediaUrl.trim()) {
+                const existingId = existingMap.get(ghlKey) || existingMap.get(ghlKey.toLowerCase());
 
-                if (mediaUrl) {
+                if (existingId) {
                     customValues.push({
+                        vaultField: vaultFieldId,
                         key: ghlKey,
                         value: mediaUrl,
-                        existingId: existingMap.get(ghlKey) || existingMap.get(ghlKey.toLowerCase())
+                        existingId
                     });
+                    console.log(`[PushMedia] ✓ Mapped: ${vaultFieldId} → ${ghlKey} (exists in GHL)`);
+                } else {
+                    notFoundKeys.push(ghlKey);
+                    console.log(`[PushMedia] ⚠ Skipping: ${vaultFieldId} → ${ghlKey} (NOT FOUND in GHL)`);
                 }
+            } else {
+                console.log(`[PushMedia] ⚠ Skipping: ${vaultFieldId} (no media URL)`);
             }
         }
 
-        console.log('[PushMedia] Pushing', customValues.length, 'values');
+        if (customValues.length === 0) {
+            return Response.json({
+                error: 'No media URLs found to push',
+                notFoundKeys,
+                hint: 'Upload media files in the Media Library section first'
+            }, { status: 400 });
+        }
 
-        // Push to GHL
-        const results = { success: true, pushed: 0, updated: 0, created: 0, failed: 0, errors: [] };
+        console.log('[PushMedia] Pushing', customValues.length, 'media values to GHL...');
 
-        for (const { key, value, existingId } of customValues) {
+        // Push to GHL (ONLY UPDATE, never create)
+        const results = { success: true, updated: 0, skipped: 0, failed: 0, errors: [], notFoundKeys };
+
+        for (const { vaultField, key, value, existingId } of customValues) {
             try {
-                let response;
+                const response = await fetch(
+                    `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json',
+                            'Version': '2021-07-28',
+                        },
+                        body: JSON.stringify({ value }),
+                    }
+                );
 
-                if (existingId) {
-                    response = await fetch(
-                        `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
-                        {
-                            method: 'PUT',
-                            headers: {
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Content-Type': 'application/json',
-                                'Version': '2021-07-28',
-                            },
-                            body: JSON.stringify({ value }),
-                        }
-                    );
-                    if (response.ok) { results.updated++; results.pushed++; }
+                if (response.ok) {
+                    results.updated++;
+                    console.log(`[PushMedia] ✓ UPDATED: ${key} (${vaultField})`);
                 } else {
-                    response = await fetch(
-                        `https://services.leadconnectorhq.com/locations/${locationId}/customValues`,
-                        {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${accessToken}`,
-                                'Content-Type': 'application/json',
-                                'Version': '2021-07-28',
-                            },
-                            body: JSON.stringify({ name: key, value }),
-                        }
-                    );
-                    if (response.ok) { results.created++; results.pushed++; }
-                }
-
-                if (!response.ok) {
                     results.failed++;
-                    const err = await response.json().catch(() => ({}));
+                    const err = await response.json().catch(() => ({ message: 'Unknown error' }));
                     results.errors.push({ key, error: err });
+                    console.error(`[PushMedia] ✗ FAILED: ${key} -`, err);
                 }
             } catch (err) {
                 results.failed++;
                 results.errors.push({ key, error: err.message });
+                console.error(`[PushMedia] ✗ ERROR: ${key} -`, err.message);
             }
         }
 
         results.success = results.failed === 0;
+        results.skipped = notFoundKeys.length;
 
-        // Log push
+        console.log('[PushMedia] ========== COMPLETE ==========');
+        console.log('[PushMedia] Updated:', results.updated);
+        console.log('[PushMedia] Skipped (not found in GHL):', results.skipped);
+        console.log('[PushMedia] Failed:', results.failed);
+
+        // Log push operation
         await supabaseAdmin.from('ghl_push_logs').insert({
             user_id: userId,
             funnel_id: funnelId,
             section: 'media',
-            values_pushed: results.pushed,
+            values_pushed: results.updated,
             success: results.success,
         });
 
-        return Response.json({ success: true, ...results });
+        return Response.json({
+            success: true,
+            ...results,
+            message: `Updated ${results.updated} media value(s). ${results.skipped} custom value(s) not found in GHL (will not be created).`
+        });
 
     } catch (error) {
-        console.error('[PushMedia] Error:', error);
+        console.error('[PushMedia] FATAL ERROR:', error);
         return Response.json({ error: error.message }, { status: 500 });
     }
 }
