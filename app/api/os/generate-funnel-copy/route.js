@@ -242,125 +242,109 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
 
         await updateJobStatus(jobId, 'processing', 30);
 
-        // ===  CHUNKED PARALLEL GENERATION (4 chunks) ===
-        // Import chunk prompts and merger
-        const {
-            funnelCopyChunk1Prompt,
-            funnelCopyChunk2Prompt,
-            funnelCopyChunk3Prompt,
-            funnelCopyChunk4Prompt
-        } = await import('@/lib/prompts/funnelCopyChunks');
+        // === SINGLE COMPREHENSIVE GENERATION (NEW 79-field structure) ===
+        // Import the updated funnelCopy prompt with complete 79-field structure
+        const { funnelCopyPrompt } = await import('@/lib/prompts/funnelCopy');
 
-        const { mergeFunnelCopyChunks, validateMergedFunnelCopy } = await import('@/lib/prompts/funnelCopyMerger');
+        console.log('[FunnelCopy] ========== STARTING COMPREHENSIVE GENERATION ==========');
+        console.log('[FunnelCopy] Using NEW 79-field structure (03_* custom values)');
+        console.log('[FunnelCopy] Context includes:', {
+            businessName: context.businessName || 'N/A',
+            hasBrandColors: !!context.brandColors,
+            hasIdealClient: !!context.idealClient,
+            hasMessage: !!context.message,
+            hasStory: !!context.story,
+            hasOffer: !!context.offer,
+            hasLeadMagnet: !!context.leadMagnet,
+            hasVsl: !!context.vsl,
+            hasBio: !!context.bio
+        });
 
-        console.log('[FunnelCopy] Starting 4-chunk parallel generation...');
+        // System prompt with strict requirements
+        const systemPrompt = `You are an elite funnel copywriter creating conversion-optimized page copy.
 
-        // System prompt for all chunks
-        const systemPrompt = "You are TED-OS Funnel Copy Generator. Return ONLY valid JSON with no markdown code blocks or explanations.";
+CRITICAL REQUIREMENTS:
+✅ Return ONLY valid JSON (no markdown code blocks, no explanations)
+✅ Fill ALL 79 fields with complete, specific copy
+✅ NO empty fields allowed (except image/video URLs which should be empty strings)
+✅ Use the Company Name from context throughout
+✅ Reference Brand Colors context when appropriate
+✅ NO placeholders like [Insert X], [Your Name], or TODO
+✅ Create realistic, specific content from the business context provided
 
-        // Generate all 4 chunks in parallel
-        const [chunk1Result, chunk2Result, chunk3Result, chunk4Result] = await Promise.all([
-            // Chunk 1: Optin Page (6 fields, ~2000 tokens, 45s timeout)
-            retryWithBackoff(
-                () => generateWithProvider(
-                    systemPrompt,
-                    funnelCopyChunk1Prompt(context),
-                    {
-                        maxTokens: 2000,
-                        temperature: 0.7,
-                        jsonMode: true,
-                        timeout: 45000 // 45 seconds
-                    }
-                ),
-                2, // maxRetries
-                1000 // initialDelay
-            ).then(text => {
-                console.log('[FunnelCopy] Chunk 1 (Optin Page) complete');
-                return parseJsonSafe(text);
-            }),
+Return the JSON in this exact structure:
+{
+  "optinPage": { /* 4 fields */ },
+  "salesPage": { /* 75 fields */ }
+}`;
 
-            // Chunk 2: Sales Page (42 fields, ~4000 tokens, 60s timeout)
-            retryWithBackoff(
-                () => generateWithProvider(
-                    systemPrompt,
-                    funnelCopyChunk2Prompt(context),
-                    {
-                        maxTokens: 4000,
-                        temperature: 0.7,
-                        jsonMode: true,
-                        timeout: 60000 // 60 seconds
-                    }
-                ),
-                2,
-                1000
-            ).then(text => {
-                console.log('[FunnelCopy] Chunk 2 (Sales Page) complete');
-                return parseJsonSafe(text);
-            }),
+        // Generate complete funnel copy in one call
+        console.log('[FunnelCopy] Sending to AI (10000 token limit, 120s timeout)...');
 
-            // Chunk 3: Booking Page (4 fields, ~1500 tokens, 30s timeout)
-            retryWithBackoff(
-                () => generateWithProvider(
-                    systemPrompt,
-                    funnelCopyChunk3Prompt(context),
-                    {
-                        maxTokens: 1500,
-                        temperature: 0.7,
-                        jsonMode: true,
-                        timeout: 30000 // 30 seconds
-                    }
-                ),
-                2,
-                1000
-            ).then(text => {
-                console.log('[FunnelCopy] Chunk 3 (Booking Page) complete');
-                return parseJsonSafe(text);
-            }),
+        const generatedText = await retryWithBackoff(
+            () => generateWithProvider(
+                systemPrompt,
+                funnelCopyPrompt(context),
+                {
+                    maxTokens: 10000, // 79 fields need substantial tokens
+                    temperature: 0.7,
+                    jsonMode: true,
+                    timeout: 120000 // 2 minutes
+                }
+            ),
+            2, // maxRetries
+            2000 // initialDelay
+        );
 
-            // Chunk 4: Thank You Page (17 fields, ~3000 tokens, 45s timeout)
-            retryWithBackoff(
-                () => generateWithProvider(
-                    systemPrompt,
-                    funnelCopyChunk4Prompt(context),
-                    {
-                        maxTokens: 3000,
-                        temperature: 0.7,
-                        jsonMode: true,
-                        timeout: 45000 // 45 seconds
-                    }
-                ),
-                2,
-                1000
-            ).then(text => {
-                console.log('[FunnelCopy] Chunk 4 (Thank You Page) complete');
-                return parseJsonSafe(text);
-            })
-        ]);
-
-        console.log('[FunnelCopy] All 4 chunks complete, merging...');
+        console.log('[FunnelCopy] AI generation complete, parsing JSON...');
 
         await updateJobStatus(jobId, 'processing', 70);
 
-        // Merge chunks into final structure
-        const generatedContent = mergeFunnelCopyChunks(
-            chunk1Result,
-            chunk2Result,
-            chunk3Result,
-            chunk4Result
-        );
+        // Parse the generated JSON
+        const generatedContent = parseJsonSafe(generatedText);
 
-        // Validate merged result
-        const validation = validateMergedFunnelCopy(generatedContent);
-
-        if (!validation.valid) {
-            throw new Error(`Funnel Copy validation failed: ${validation.issues.join(', ')}`);
+        if (!generatedContent || typeof generatedContent !== 'object') {
+            throw new Error('AI returned invalid JSON structure');
         }
 
-        console.log('[FunnelCopy] Validation passed:', {
-            pages: validation.pageCount,
-            fields: validation.fieldCount,
-            warnings: validation.warnings
-        });
+        // Validate structure
+        const hasOptinPage = generatedContent.optinPage && typeof generatedContent.optinPage === 'object';
+        const hasSalesPage = generatedContent.salesPage && typeof generatedContent.salesPage === 'object';
+
+        if (!hasOptinPage || !hasSalesPage) {
+            throw new Error('AI did not return both optinPage and salesPage');
+        }
+
+        // Count fields
+        const optinFieldCount = Object.keys(generatedContent.optinPage).length;
+        const salesFieldCount = Object.keys(generatedContent.salesPage).length;
+        const totalFieldCount = optinFieldCount + salesFieldCount;
+
+        console.log('[FunnelCopy] ========== GENERATION VALIDATION ==========');
+        console.log('[FunnelCopy] Optin Page fields:', optinFieldCount, '(expected: 4)');
+        console.log('[FunnelCopy] Sales Page fields:', salesFieldCount, '(expected: 75)');
+        console.log('[FunnelCopy] Total fields:', totalFieldCount, '(expected: 79)');
+
+        // Check for empty fields (warning, not error)
+        const emptyFields = [];
+        for (const [key, value] of Object.entries(generatedContent.optinPage)) {
+            if (!value && key !== 'mockup_image') {
+                emptyFields.push(`optinPage.${key}`);
+            }
+        }
+        for (const [key, value] of Object.entries(generatedContent.salesPage)) {
+            if (!value && !key.includes('image') && !key.includes('video')) {
+                emptyFields.push(`salesPage.${key}`);
+            }
+        }
+
+        if (emptyFields.length > 0) {
+            console.warn('[FunnelCopy] ⚠️ WARNING: Found empty fields:', emptyFields);
+        } else {
+            console.log('[FunnelCopy] ✅ All required fields populated');
+        }
+
+        console.log('[FunnelCopy] ========== VALIDATION COMPLETE ==========');
 
         await updateJobStatus(jobId, 'processing', 80);
 
