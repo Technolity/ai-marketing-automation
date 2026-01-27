@@ -770,7 +770,10 @@ export async function POST(req) {
             }
         }
 
-        // === PROCESS MEDIA (STRICT MAPPING) ===
+        // NOTE: If all 03_* color fields are NOT FOUND, they need to be created in GHL snapshot first
+        // The user's current snapshot may not have these custom values defined yet.
+        // Color fields will only update if they already exist in GHL.
+
         // === PROCESS MEDIA (STRICT MAPPING) ===
         log('[Deploy] Processing media with STRICT MAPPING...');
         const mediaLibraryContent = vaultContent.mediaLibrary || vaultContent.media || {};
@@ -780,27 +783,38 @@ export async function POST(req) {
 
         log(`[Deploy] Combined Media keys: ${Object.keys(combinedMedia).join(', ')}`);
 
-        // Strict Mapping Definition
+        // Strict Mapping Definition - using ACTUAL vault field names
+        // Vault fields: logo, bio_author, product_mockup, main_vsl, thankyou_video
         const strictMediaMap = {
-            // Logo
+            // Logo (universal)
             'logo_image': combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
 
-            // Bio
-            '03_vsl_bio_image': combinedMedia.bioPhoto || combinedMedia.bio_photo || combinedMedia.profilePhoto,
+            // Bio/Author Photo -> 03 VSL Bio Image
+            '03_vsl_bio_image': combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
 
-            // Mockup
-            '03_optin_mockup_image': combinedMedia.mockup || combinedMedia.mockupImage || combinedMedia.optin_mockup,
+            // Product Mockup -> 03 Optin Mockup Image  
+            '03_optin_mockup_image': combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
 
-            // Videos
-            '03_vsl_video_link': combinedMedia.vslVideo || combinedMedia.vsl_video || combinedMedia.mainVideo,
-            '03_thankyou_page_video_link': combinedMedia.thankYouVideo || combinedMedia.thank_you_video,
+            // VSL Video -> 03 VSL Video Link
+            '03_vsl_video_link': combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video,
 
-            // Testimonials
-            '03_vsl_testimonial_review_1_image': combinedMedia.testimonial1Photo,
-            '03_vsl_testimonial_review_2_image': combinedMedia.testimonial2Photo,
-            '03_vsl_testimonial_review_3_image': combinedMedia.testimonial3Photo,
-            '03_vsl_testimonial_review_4_image': combinedMedia.testimonial4Photo
+            // Thank You Video -> 03 Thank You Page Video Link
+            '03_thankyou_page_video_link': combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video,
+
+            // Testimonials (if present)
+            '03_vsl_testimonial_review_1_image': combinedMedia.testimonial1Photo || combinedMedia.testimonial_1_photo,
+            '03_vsl_testimonial_review_2_image': combinedMedia.testimonial2Photo || combinedMedia.testimonial_2_photo,
+            '03_vsl_testimonial_review_3_image': combinedMedia.testimonial3Photo || combinedMedia.testimonial_3_photo,
+            '03_vsl_testimonial_review_4_image': combinedMedia.testimonial4Photo || combinedMedia.testimonial_4_photo
         };
+
+        // Log each media field attempt for debugging
+        log(`[Deploy] Media mapping attempts:`);
+        log(`[Deploy]   logo: ${combinedMedia.logo ? '✓' : '✗'}`);
+        log(`[Deploy]   bio_author: ${combinedMedia.bio_author ? '✓' : '✗'}`);
+        log(`[Deploy]   product_mockup: ${combinedMedia.product_mockup ? '✓' : '✗'}`);
+        log(`[Deploy]   main_vsl: ${combinedMedia.main_vsl ? '✓' : '✗'}`);
+        log(`[Deploy]   thankyou_video: ${combinedMedia.thankyou_video ? '✓' : '✗'}`);
 
         for (const [ghlKey, val] of Object.entries(strictMediaMap)) {
             if (!val) continue;
