@@ -16,197 +16,8 @@ export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (cu
 const CALENDAR_PAGE_MAP = {};
 const THANK_YOU_PAGE_MAP = {};
 
-export async function POST(req) {
-    try {
-        console.log('[Deploy Workflow] === NEW DEPLOYMENT STARTED ===');
-        const authResult = auth();
-        const userId = authResult.userId;
+// Duplicate POST function removed
 
-        if (!userId) {
-            console.error('[Deploy Workflow] Unauthorized access attempt');
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        console.log(`[Deploy Workflow] User: ${userId}`);
-
-        // 1. Get user profile and subaccount
-        const { data: profile, error: profileError } = await supabaseAdmin
-            .from('user_profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-
-        if (profileError || !profile) {
-            console.error('[Deploy Workflow] Profile lookup failed:', profileError);
-            return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-        }
-
-        const { data: subaccount, error: subError } = await supabaseAdmin
-            .from('ghl_subaccounts')
-            .select('*')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .single();
-
-        if (subError || !subaccount) {
-            console.error('[Deploy Workflow] No active subaccount found:', subError);
-            return NextResponse.json({ error: 'GHL Subaccount not found' }, { status: 404 });
-        }
-
-        const locationId = subaccount.location_id;
-        console.log(`[Deploy Workflow] Target Location: ${locationId}`);
-
-        // 2. Get Agency Token
-        const { data: tokenData, error: tokenError } = await supabaseAdmin
-            .from('ghl_tokens')
-            .select('*')
-            .eq('user_type', 'Company')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-
-        if (tokenError || !tokenData) {
-            console.error('[Deploy Workflow] Agency token missing');
-            return NextResponse.json({ error: 'Agency token missing' }, { status: 500 });
-        }
-
-        // 3. Get all vault content
-        console.log('[Deploy Workflow] Fetching vault content...');
-        const sections = ['optinPage', 'salesPage', 'calendarPage', 'thankYouPage', 'colorPalette', 'mediaLibrary'];
-        const vaultContent = {};
-
-        for (const section of sections) {
-            const { data: sectionData } = await supabaseAdmin
-                .from('vault_content')
-                .select('content')
-                .eq('user_id', userId)
-                .eq('section_id', section)
-                .single();
-
-            if (sectionData?.content) {
-                vaultContent[section] = sectionData.content;
-                console.log(`[Deploy Workflow] Loaded section: ${section}`);
-            } else {
-                console.log(`[Deploy Workflow] Warning: Section ${section} is empty or missing`);
-            }
-        }
-
-        // 4. Prepare Custom Values Payload
-        const customValues = {};
-        let mappedCount = 0;
-
-        // --- FUNNEL COPY ---
-        const copySections = {
-            'optinPage': OPTIN_PAGE_MAP,
-            'salesPage': SALES_PAGE_MAP,
-            'calendarPage': CALENDAR_PAGE_MAP,
-            'thankYouPage': THANK_YOU_PAGE_MAP
-        };
-
-        Object.entries(copySections).forEach(([sectionName, map]) => {
-            if (vaultContent[sectionName]) {
-                const content = vaultContent[sectionName];
-                Object.entries(map).forEach(([field, key]) => {
-                    if (content[field]) {
-                        customValues[key] = content[field];
-                        mappedCount++;
-                    }
-                });
-            }
-        });
-        console.log(`[Deploy Workflow] Mapped ${mappedCount} copy fields`);
-
-        // --- COLORS ---
-        if (vaultContent.colorPalette) {
-            const colors = vaultContent.colorPalette;
-            console.log('[Deploy Workflow] Processing colors:', JSON.stringify(colors));
-
-            // Map basic keys
-            customValues['03_header_background_color'] = colors.background || '#FFFFFF';
-
-            // User's requested semantics:
-            // Primary -> CTA / Backgrounds
-            const primary = colors.primary || '#000000';
-            const secondary = colors.secondary || '#6B7280';
-            const tertiary = colors.tertiary || '#3B82F6'; // Text
-
-            // Global
-            customValues['03_header_background_color'] = colors.background || '#FFFFFF';
-
-            // Optin
-            customValues['03_optin_cta_background_colour'] = primary;
-            customValues['03_optin_cta_text_colour'] = '#FFFFFF'; // Assuming white text for primary buttons
-            customValues['03_optin_subhealine_text_colour'] = tertiary;
-            customValues['03_optin_healine_text_colour'] = tertiary;
-
-            // VSL
-            customValues['03_vsl_cta_background_colour'] = primary;
-            customValues['03_vsl_cta_text_colour'] = '#FFFFFF';
-            customValues['03_vsl_hero_sub_headline_text_colour'] = tertiary;
-            customValues['03_vsl_hero_headline_text_colour'] = tertiary;
-            customValues['03_vsl_process_headline_text_colour'] = tertiary;
-            customValues['03_vsl_process_sub_headline_text_colour'] = tertiary;
-
-            // Acknowledge Pill
-            customValues['03_vsl_acknowledge_pill_bg_colour'] = secondary;
-            customValues['03_vsl_acknowledge_pill_text_colour'] = '#FFFFFF'; // Assuming white text
-        }
-
-        // --- MEDIA ---
-        if (vaultContent.mediaLibrary) {
-            const media = vaultContent.mediaLibrary;
-            console.log('[Deploy Workflow] Processing media:', Object.keys(media));
-
-            // 1. Business Logo -> logo_image
-            if (media.logo || media.logoUrl || media.logo_url) {
-                customValues['logo_image'] = media.logo || media.logoUrl || media.logo_url;
-            }
-
-            // 2. Bio/Author Photo -> 03_vsl_bio_image
-            if (media.bioPhoto || media.bio_photo) {
-                customValues['03_vsl_bio_image'] = media.bioPhoto || media.bio_photo;
-            }
-
-            // 3. Free Gift Image -> 03_optin_mockup_image
-            if (media.mockup || media.mockupImage || media.optin_mockup) {
-                customValues['03_optin_mockup_image'] = media.mockup || media.mockupImage || media.optin_mockup;
-            }
-
-            // 4. VSL Video -> 03_vsl_video_link
-            if (media.vslVideo || media.vsl_video || media.mainVideo) {
-                customValues['03_vsl_video_link'] = media.vslVideo || media.vsl_video || media.mainVideo;
-            }
-
-            // 5. Thank You Video -> 03_thankyou_page_video_link
-            if (media.thankYouVideo || media.thank_you_video) {
-                customValues['03_thankyou_page_video_link'] = media.thankYouVideo || media.thank_you_video;
-            }
-
-            // Map Testimonial Images
-            const testimonialPics = [
-                { field: 'testimonial1Photo', key: '03_vsl_testimonial_review_1_image' },
-                { field: 'testimonial2Photo', key: '03_vsl_testimonial_review_2_image' },
-                { field: 'testimonial3Photo', key: '03_vsl_testimonial_review_3_image' },
-                { field: 'testimonial4Photo', key: '03_vsl_testimonial_review_4_image' }
-            ];
-
-            testimonialPics.forEach(pic => {
-                const val = media[pic.field] || media[pic.field.toLowerCase()];
-                if (val) customValues[pic.key] = val;
-            });
-        }
-
-        console.log(`[Deploy Workflow] Prepared ${Object.keys(customValues).length} custom values to push`);
-
-        // 5. Push to GHL (Using simple update loop or shared function?)
-        // The original code uses a simple loop. Let's add logging to it.
-
-        // ... (rest of the push logic)
-    } catch (error) {
-        console.error('[Deploy Workflow] Uncaught error during deployment:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    }
-}
 
 /**
  * NEW Custom Value Mappings - Updated to 03_* structure
@@ -864,78 +675,135 @@ export async function POST(req) {
         }
 
         // === PROCESS COLORS (NEW 3-COLOR STRUCTURE) ===
-        log('[Deploy] Processing colors...');
-        const colors = vaultContent.colors || {};
-        const colorPalette = colors.colorPalette || colors;
+        log('[Deploy] Processing colors with STRICT SEMANTICS...');
+        // Handle various storage locations for colors
+        const colorsData = vaultContent.colors || vaultContent.colorPalette || {};
+        const palette = colorsData.colorPalette || colorsData; // Handle nesting
 
-        if (colorPalette) {
-            for (const [colorKey, colorData] of Object.entries(colorPalette)) {
-                const ghlKey = COLORS_MAP[colorKey];
-                if (!ghlKey || colorKey === 'reasoning') continue; // Skip reasoning field
+        if (palette) {
+            log(`[Deploy] Color palette found: ${JSON.stringify(palette)}`);
 
-                // Extract hex value from color object
-                const hexValue = colorData?.hex || colorData;
-                if (!hexValue) continue;
+            // Extract core colors (handle object with .hex or direct string)
+            const getHex = (val) => (val && typeof val === 'object' ? val.hex : val) || null;
+
+            const primary = getHex(palette.primary) || '#000000';
+            const secondary = getHex(palette.secondary) || '#6B7280';
+            const tertiary = getHex(palette.tertiary) || '#3B82F6';
+            const background = getHex(palette.background) || '#FFFFFF';
+
+            // Define STRICT mappings based on Semantic Roles
+            const strictColorMap = {
+                // Global
+                '03_header_background_color': background,
+
+                // Optin Page
+                '03_optin_cta_background_colour': primary,
+                '03_optin_cta_text_colour': '#FFFFFF', // Contrast text for primary
+                '03_optin_subhealine_text_colour': tertiary,
+                '03_optin_healine_text_colour': tertiary,
+
+                // VSL Page
+                '03_vsl_cta_background_colour': primary,
+                '03_vsl_cta_text_colour': '#FFFFFF',
+                '03_vsl_hero_sub_headline_text_colour': tertiary,
+                '03_vsl_hero_headline_text_colour': tertiary,
+                '03_vsl_process_headline_text_colour': tertiary,
+                '03_vsl_process_sub_headline_text_colour': tertiary,
+
+                // Components
+                '03_vsl_acknowledge_pill_bg_colour': secondary,
+                '03_vsl_acknowledge_pill_text_colour': '#FFFFFF'
+            };
+
+            for (const [ghlKey, hexVal] of Object.entries(strictColorMap)) {
+                if (!hexVal) continue;
 
                 const existing = findExisting(ghlKey);
                 if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, hexValue);
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, hexVal);
                     if (result.success) {
                         results.updated++;
                         updatedKeys.push(ghlKey);
-                        log(`[Deploy] ✓ Updated ${ghlKey} = ${hexValue}`);
+                        log(`[Deploy] ✓ Updated ${ghlKey} = ${hexVal}`);
                     } else {
                         results.failed++;
-                        log(`[Deploy] ✗ Failed ${ghlKey}`);
                     }
                 } else {
                     results.notFound++;
                     notFoundKeys.push(ghlKey);
-                    log(`[Deploy] ⚠ Not found: ${ghlKey}`);
+                    log(`[Deploy] ⚠ Color key not found: ${ghlKey}`);
                 }
             }
         }
 
-        // === PROCESS UNIVERSAL FIELDS (CROSS-PAGE) ===
-        log('[Deploy] Processing universal fields...');
-        const universalMedia = vaultContent.media || {};
+        // === PROCESS MEDIA (STRICT MAPPING) ===
+        // === PROCESS MEDIA (STRICT MAPPING) ===
+        log('[Deploy] Processing media with STRICT MAPPING...');
+        const mediaLibraryContent = vaultContent.mediaLibrary || vaultContent.media || {};
 
-        // Logo image (universal across all pages)
-        if (universalMedia.logo_image) {
-            const ghlKey = UNIVERSAL_MAP.logo_image;
+        // Combine with uploaded fields if any (mediaFromFields was fetched earlier in this function)
+        const combinedMedia = { ...mediaLibraryContent, ...mediaFromFields };
+
+        log(`[Deploy] Combined Media keys: ${Object.keys(combinedMedia).join(', ')}`);
+
+        // Strict Mapping Definition
+        const strictMediaMap = {
+            // Logo
+            'logo_image': combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
+
+            // Bio
+            '03_vsl_bio_image': combinedMedia.bioPhoto || combinedMedia.bio_photo || combinedMedia.profilePhoto,
+
+            // Mockup
+            '03_optin_mockup_image': combinedMedia.mockup || combinedMedia.mockupImage || combinedMedia.optin_mockup,
+
+            // Videos
+            '03_vsl_video_link': combinedMedia.vslVideo || combinedMedia.vsl_video || combinedMedia.mainVideo,
+            '03_thankyou_page_video_link': combinedMedia.thankYouVideo || combinedMedia.thank_you_video,
+
+            // Testimonials
+            '03_vsl_testimonial_review_1_image': combinedMedia.testimonial1Photo,
+            '03_vsl_testimonial_review_2_image': combinedMedia.testimonial2Photo,
+            '03_vsl_testimonial_review_3_image': combinedMedia.testimonial3Photo,
+            '03_vsl_testimonial_review_4_image': combinedMedia.testimonial4Photo
+        };
+
+        for (const [ghlKey, val] of Object.entries(strictMediaMap)) {
+            if (!val) continue;
+
             const existing = findExisting(ghlKey);
             if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, universalMedia.logo_image);
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, val);
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
-                    log(`[Deploy] ✓ Updated ${ghlKey} (universal logo)`);
+                    log(`[Deploy] ✓ Updated ${ghlKey}`);
+                } else {
+                    results.failed++;
                 }
             } else {
                 results.notFound++;
                 notFoundKeys.push(ghlKey);
+                log(`[Deploy] ⚠ Media key not found: ${ghlKey}`);
             }
         }
 
-        // Company name (universal across all pages)
+        // Company Name (Universal)
         // Check multiple possible sources for company name
-        const companyName = fcContent.company_name ||
-            optinPage.company_name ||
-            vaultContent.company_name;
+        const companyName = fcContent.company_name || optinPage.company_name || vaultContent.company_name;
 
         if (companyName) {
-            const ghlKey = UNIVERSAL_MAP.company_name;
+            const ghlKey = 'company_name'; // Specific key
             const existing = findExisting(ghlKey);
             if (existing) {
                 const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, companyName);
                 if (result.success) {
                     results.updated++;
                     updatedKeys.push(ghlKey);
-                    log(`[Deploy] ✓ Updated ${ghlKey} (universal company name)`);
+                    log(`[Deploy] ✓ Updated ${ghlKey}`);
                 }
             } else {
                 results.notFound++;
-                notFoundKeys.push(ghlKey);
             }
         }
 
