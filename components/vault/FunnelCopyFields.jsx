@@ -29,6 +29,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     const bookingPage = predefinedFields.find(f => f.field_id === 'bookingPage');
     const thankYouPage = predefinedFields.find(f => f.field_id === 'thankYouPage');
 
+
     const fetchFields = useCallback(async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
@@ -374,6 +375,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
                         {activeTab === 'sales' && renderPageSubfields(salesPage)}
                         {activeTab === 'booking' && renderPageSubfields(bookingPage)}
                         {activeTab === 'thankyou' && renderPageSubfields(thankYouPage)}
+
                     </div>
                 )}
             </div>
