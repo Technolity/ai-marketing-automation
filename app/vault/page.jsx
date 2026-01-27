@@ -1466,6 +1466,15 @@ export default function VaultPage() {
             }
         }
 
+        // NEW UNWRAP FIX: Handle case where 'all' or simplified return wraps content in section ID (e.g., 'bio')
+        if (refinedContent && typeof refinedContent === 'object' && feedbackSection) {
+            const keys = Object.keys(refinedContent);
+            if (keys.length === 1 && keys[0] === feedbackSection.id) {
+                console.log(`[Vault] Detected section wrapper for ${feedbackSection.id}, unwrapping.`);
+                refinedContent = refinedContent[feedbackSection.id];
+            }
+        }
+
         // Get current content for this section
         const currentSectionContent = vaultData[feedbackSection.id] || {};
 
