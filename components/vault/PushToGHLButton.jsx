@@ -8,28 +8,23 @@ import { fetchWithAuth } from '@/lib/fetchWithAuth';
 /**
  * Push to GHL Button Component
  * Shows rocket icon button that pushes section content to GHL custom values
- * 
- * @param {string} section - 'funnelCopy', 'colors', 'emails', 'sms', 'media'
+ *
+ * @param {string} section - 'funnelCopy', 'colors', 'emails', 'sms', 'media', 'appointmentReminders'
  * @param {string} funnelId - Current funnel ID
  * @param {boolean} isApproved - Whether section is approved (only show if approved)
- * @param {boolean} isVaultComplete - For colors section, only show after all phases approved
+ * @param {string} label - Custom button label (default: 'Push to Builder')
  */
 export default function PushToGHLButton({
     section,
     funnelId,
     isApproved = false,
-    isVaultComplete = false,
     label = 'Push to Builder'
 }) {
     const [isPushing, setIsPushing] = useState(false);
     const [pushSuccess, setPushSuccess] = useState(false);
 
-    // Colors section only shows after all phases approved
-    if (section === 'colors' && !isVaultComplete) {
-        return null;
-    }
-
     // Only show for approved sections
+    // All sections can be pushed independently once approved
     if (!isApproved) {
         return null;
     }

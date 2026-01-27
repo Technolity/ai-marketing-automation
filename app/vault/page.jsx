@@ -2540,7 +2540,6 @@ export default function VaultPage() {
                                                     section={section.id}
                                                     funnelId={searchParams.get('funnel_id') || dataSource?.id}
                                                     isApproved={true}
-                                                    isVaultComplete={isVaultComplete}
                                                 />
                                             )}
                                             <div className="px-2 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2 text-xs sm:text-sm">
