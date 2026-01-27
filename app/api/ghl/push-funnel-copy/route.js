@@ -116,6 +116,36 @@ export async function POST(req) {
 
         console.log(`[PushFunnelCopy] Found ${existingValues.length} existing custom values`);
 
+        // ========== LOG ALL EXISTING CUSTOM VALUES ==========
+        console.log('[PushFunnelCopy] ========== ALL EXISTING CUSTOM VALUES IN GHL ==========');
+
+        // Group by prefix for easier reading
+        const grouped = {
+            '03_': existingValues.filter(v => v.name.startsWith('03_')),
+            '02_': existingValues.filter(v => v.name.startsWith('02_')),
+            'no_prefix': existingValues.filter(v => !v.name.startsWith('03_') && !v.name.startsWith('02_'))
+        };
+
+        console.log(`[PushFunnelCopy] 03_ prefixed values (${grouped['03_'].length}):`);
+        grouped['03_'].forEach(v => {
+            console.log(`  - "${v.name}" (ID: ${v.id})`);
+        });
+
+        console.log(`[PushFunnelCopy] 02_ prefixed values (${grouped['02_'].length}):`);
+        grouped['02_'].forEach(v => {
+            console.log(`  - "${v.name}" (ID: ${v.id})`);
+        });
+
+        console.log(`[PushFunnelCopy] No prefix values (${grouped['no_prefix'].length}):`);
+        grouped['no_prefix'].slice(0, 20).forEach(v => {
+            console.log(`  - "${v.name}" (ID: ${v.id})`);
+        });
+        if (grouped['no_prefix'].length > 20) {
+            console.log(`  ... and ${grouped['no_prefix'].length - 20} more`);
+        }
+
+        console.log('[PushFunnelCopy] ========== END CUSTOM VALUES LIST ==========');
+
         // Get funnel copy content from vault_content_fields (granular storage)
         const { data: fields, error: fieldsError } = await supabaseAdmin
             .from('vault_content_fields')
@@ -248,6 +278,22 @@ export async function POST(req) {
         }
 
         console.log('[PushFunnelCopy] ========== TOTAL: Pushing', customValues.length, 'values to GHL ==========');
+
+        // Log matching status for each custom value we're trying to push
+        console.log('[PushFunnelCopy] ========== MATCHING STATUS ==========');
+        const matched = customValues.filter(cv => cv.existingId);
+        const notMatched = customValues.filter(cv => !cv.existingId);
+
+        console.log(`[PushFunnelCopy] ✓ MATCHED (${matched.length}): Will be updated`);
+        matched.forEach(cv => {
+            console.log(`  ✓ "${cv.key}" → Found in GHL (ID: ${cv.existingId})`);
+        });
+
+        console.log(`[PushFunnelCopy] ✗ NOT MATCHED (${notMatched.length}): Will be skipped`);
+        notMatched.forEach(cv => {
+            console.log(`  ✗ "${cv.key}" → NOT FOUND in GHL (tried: "${cv.key}", "${cv.key.toLowerCase()}", "${cv.key.toLowerCase().replace(/\s+/g, '_')}")`);
+        });
+        console.log('[PushFunnelCopy] ========== END MATCHING STATUS ==========');
 
         // Push to GHL
         const pushResults = await pushToGHL(locationId, accessToken, customValues);

@@ -3,10 +3,10 @@
  * Uses OAuth via ghl_subaccounts with automatic token refresh
  * ONLY UPDATES existing custom values (never creates new ones)
  *
- * Semantic Color Mapping:
- * - Primary = Main brand color for section backgrounds, CTAs
- * - Secondary = Alternating backgrounds
- * - Tertiary = Text colors
+ * SIMPLIFIED: Only 3 universal color custom values:
+ * - primary_color (backgrounds, headers, CTAs)
+ * - secondary_color (alternating backgrounds)
+ * - tertiary_color (text colors)
  */
 
 import { auth } from '@clerk/nextjs';
@@ -90,6 +90,20 @@ export async function POST(req) {
         const existingValues = await fetchExistingCustomValues(locationId, accessToken);
         console.log('[PushColors] Found', existingValues.length, 'existing custom values in GHL');
 
+        // ========== LOG COLOR-RELATED CUSTOM VALUES ==========
+        console.log('[PushColors] ========== COLOR CUSTOM VALUES IN GHL ==========');
+        const colorRelated = existingValues.filter(v =>
+            v.name.toLowerCase().includes('color') ||
+            v.name.toLowerCase().includes('primary') ||
+            v.name.toLowerCase().includes('secondary') ||
+            v.name.toLowerCase().includes('tertiary')
+        );
+        console.log(`[PushColors] Found ${colorRelated.length} color-related custom values:`);
+        colorRelated.forEach(v => {
+            console.log(`  - "${v.name}" (ID: ${v.id})`);
+        });
+        console.log('[PushColors] ========== END COLOR CUSTOM VALUES ==========');
+
         const existingMap = new Map();
         existingValues.forEach(v => {
             existingMap.set(v.name, v.id);
@@ -122,47 +136,23 @@ export async function POST(req) {
         const secondary = getHex(palette.secondary) || getHex(palette.secondaryColor) || '#6B7280';
         const tertiary = getHex(palette.tertiary) || getHex(palette.accentColor) || '#3B82F6';
 
-        console.log('[PushColors] Brand Colors:');
-        console.log('[PushColors]   Primary (backgrounds, CTAs):', primary);
-        console.log('[PushColors]   Secondary (alternating):', secondary);
-        console.log('[PushColors]   Tertiary (text):', tertiary);
+        console.log('[PushColors] ========== BRAND COLORS ==========');
+        console.log('[PushColors] Primary (backgrounds, headers, CTAs):', primary);
+        console.log('[PushColors] Secondary (alternating backgrounds):', secondary);
+        console.log('[PushColors] Tertiary (text colors):', tertiary);
 
-        // Semantic color mappings
-        // Primary = Main brand color for section backgrounds, CTA backgrounds
-        // Secondary = Alternating backgrounds
-        // Tertiary = Text colors
+        // SIMPLIFIED: Only 3 universal color custom values
+        // GHL uses these colors across ALL pages via CSS variables
         const colorMappings = {
-            // Universal brand colors
             'primary_color': primary,
             'secondary_color': secondary,
             'tertiary_color': tertiary,
-
-            // Optin Page - Primary for CTAs, Tertiary for text
-            '03_optin_cta_background_colour': primary,
-            '03_optin_cta_text_colour': '#FFFFFF',
-            '03_optin_healine_text_colour': tertiary,
-            '03_optin_subhealine_text_colour': tertiary,
-
-            // VSL Page - Primary for CTAs, Tertiary for text
-            '03_vsl_cta_background_colour': primary,
-            '03_vsl_cta_text_colour': '#FFFFFF',
-            '03_vsl_hero_headline_text_colour': tertiary,
-            '03_vsl_hero_sub_headline_text_colour': tertiary,
-            '03_vsl_process_headline_text_colour': tertiary,
-            '03_vsl_process_sub_headline_text_colour': tertiary,
-
-            // Components - Secondary for pill backgrounds
-            '03_vsl_acknowledge_pill_bg_colour': secondary,
-            '03_vsl_acknowledge_pill_text_colour': '#FFFFFF',
-
-            // Headers - Secondary for alternating background
-            '03_header_background_color': secondary,
         };
 
         const customValues = [];
         const notFoundKeys = [];
 
-        console.log('[PushColors] Mapping colors to GHL custom values...');
+        console.log('[PushColors] ========== MAPPING COLORS ==========');
         for (const [ghlKey, hexValue] of Object.entries(colorMappings)) {
             if (!hexValue) continue;
 
@@ -174,18 +164,19 @@ export async function POST(req) {
                     value: hexValue,
                     existingId
                 });
-                console.log(`[PushColors] ✓ Mapped: ${ghlKey} = ${hexValue}`);
+                console.log(`[PushColors] ✓ Mapped: ${ghlKey} = ${hexValue} (ID: ${existingId})`);
             } else {
                 notFoundKeys.push(ghlKey);
-                console.log(`[PushColors] ⚠ Skipping: ${ghlKey} (NOT FOUND in GHL)`);
+                console.log(`[PushColors] ✗ NOT FOUND: ${ghlKey} (tried: "${ghlKey}", "${ghlKey.toLowerCase()}")`);
             }
         }
+        console.log('[PushColors] ========== END MAPPING ==========');
 
         if (customValues.length === 0) {
             return Response.json({
                 error: 'No color custom values found in GHL',
                 notFoundKeys,
-                hint: 'Make sure the GHL snapshot has the required color custom values'
+                hint: 'Make sure primary_color, secondary_color, and tertiary_color exist in GHL'
             }, { status: 400 });
         }
 
@@ -246,7 +237,7 @@ export async function POST(req) {
             success: true,
             ...results,
             colors: { primary, secondary, tertiary },
-            message: `Updated ${results.updated} color value(s). ${results.skipped} custom value(s) not found in GHL (will not be created).`
+            message: `Updated ${results.updated} color value(s). These colors will be used across all pages in your funnel.`
         });
 
     } catch (error) {

@@ -86,6 +86,23 @@ export async function POST(req) {
         const existingValues = await fetchExistingCustomValues(locationId, accessToken);
         console.log('[PushMedia] Found', existingValues.length, 'existing custom values in GHL');
 
+        // ========== LOG MEDIA-RELATED CUSTOM VALUES ==========
+        console.log('[PushMedia] ========== MEDIA CUSTOM VALUES IN GHL ==========');
+        const mediaRelated = existingValues.filter(v =>
+            v.name.toLowerCase().includes('image') ||
+            v.name.toLowerCase().includes('video') ||
+            v.name.toLowerCase().includes('logo') ||
+            v.name.toLowerCase().includes('bio') ||
+            v.name.toLowerCase().includes('mockup') ||
+            v.name.toLowerCase().includes('vsl') ||
+            v.name.toLowerCase().includes('thankyou')
+        );
+        console.log(`[PushMedia] Found ${mediaRelated.length} media-related custom values:`);
+        mediaRelated.forEach(v => {
+            console.log(`  - "${v.name}" (ID: ${v.id})`);
+        });
+        console.log('[PushMedia] ========== END MEDIA CUSTOM VALUES ==========');
+
         const existingMap = new Map();
         existingValues.forEach(v => {
             existingMap.set(v.name, v.id);
