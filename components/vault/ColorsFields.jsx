@@ -134,6 +134,43 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
     useEffect(() => {
         const fetchColors = async () => {
             try {
+                // PRIORITIZE: passed content prop (real-time updates)
+                if (content && (content.colorPalette || content.primary || content.primaryColor)) {
+                    console.log('[ColorsFields] Using passed content prop:', content);
+                    let generatedColors = content.colorPalette || content;
+
+                    // Handle stringified JSON
+                    if (typeof generatedColors === 'string') {
+                        try {
+                            generatedColors = JSON.parse(generatedColors);
+                        } catch (e) {
+                            // Keep as string
+                        }
+                    }
+
+                    if (typeof generatedColors === 'object') {
+                        console.log('[ColorsFields] Processing passed content colors:', generatedColors);
+
+                        const displayColors = [];
+                        // Handle "primaryColor" (legacy) AND "primary" (new) keys
+                        const primary = generatedColors.primaryColor || generatedColors.primary;
+                        if (primary) displayColors.push({ name: primary.name, hex: primary.hex });
+
+                        const secondary = generatedColors.secondaryColor || generatedColors.secondary;
+                        if (secondary) displayColors.push({ name: secondary.name, hex: secondary.hex });
+
+                        const tertiary = generatedColors.accentColor || generatedColors.tertiary;
+                        if (tertiary) displayColors.push({ name: tertiary.name, hex: tertiary.hex });
+
+                        if (displayColors.length > 0) {
+                            setParsedColors(displayColors);
+                            setRawAnswer(generatedColors.reasoning || JSON.stringify(generatedColors.reasoning) || 'AI-generated professional color palette');
+                            setLoading(false);
+                            return;
+                        }
+                    }
+                }
+
                 // FIRST: Try to fetch AI-generated colors from vault_content
                 const vaultResponse = await fetch(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=colors`);
 
@@ -295,7 +332,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
         } else {
             setLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, content]);
 
     if (loading) {
         return (
