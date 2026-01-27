@@ -11,10 +11,18 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 export const dynamic = 'force_dynamic';
 export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (current deployment takes ~74s)
 
-// Placeholder for CALENDAR_PAGE_MAP and THANK_YOU_PAGE_MAP to ensure syntax correctness
-// These would typically be defined with actual mappings similar to OPTIN_PAGE_MAP and SALES_PAGE_MAP
-const CALENDAR_PAGE_MAP = {};
-const THANK_YOU_PAGE_MAP = {};
+// === CALENDAR PAGE MAPPINGS (2 fields) ===
+const CALENDAR_PAGE_MAP = {
+    'headline': '03_calender_page_headline',
+    'calendar_embedded_code': '03_calender_page_embedded_calender_code'
+};
+
+// === THANK YOU PAGE MAPPINGS (3 fields) ===
+const THANK_YOU_PAGE_MAP = {
+    'headline': '03_thankyou_page_headline',
+    'subheadline': '03_thankyou_page_sub__headline',
+    'video_link': '03_thankyou_page_video_link'
+};
 
 // Duplicate POST function removed
 
@@ -24,12 +32,13 @@ const THANK_YOU_PAGE_MAP = {};
  * Maps vault field names to GHL custom value keys
  */
 
-// === OPTIN PAGE MAPPINGS (4 fields) ===
+// === OPTIN PAGE MAPPINGS (5 fields) ===
 const OPTIN_PAGE_MAP = {
     'headline_text': '03_optin_headline_text',
     'subheadline_text': '03_optin_subheadline_text',
     'cta_button_text': '03_optin_cta_button_text',
-    'mockup_image': '03_optin_mockup_image'
+    'mockup_image': '03_optin_mockup_image',
+    'popup_form_headline': '03_opt_in_popup_form_headline'
 };
 
 // === VSL/SALES PAGE MAPPINGS (75+ fields) ===
@@ -734,6 +743,108 @@ export async function POST(req) {
                 notFoundKeys.push(ghlKey);
                 log(`[Deploy] ⚠ Not found: ${ghlKey}`);
             }
+        }
+
+        // === PROCESS CALENDAR PAGE (2 fields) ===
+        const calendarPage = fcContent.calendarPage || {};
+        log(`[Deploy] calendarPage fields: ${Object.keys(calendarPage).join(', ')}`);
+
+        for (const [vaultKey, value] of Object.entries(calendarPage)) {
+            const ghlKey = CALENDAR_PAGE_MAP[vaultKey];
+            if (!ghlKey || !value) continue;
+
+            const existing = findExisting(ghlKey);
+            if (existing) {
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                if (result.success) {
+                    results.updated++;
+                    updatedKeys.push(ghlKey);
+                    log(`[Deploy] ✓ Updated ${ghlKey}`);
+                } else {
+                    results.failed++;
+                    log(`[Deploy] ✗ Failed ${ghlKey}`);
+                }
+            } else {
+                results.notFound++;
+                notFoundKeys.push(ghlKey);
+                log(`[Deploy] ⚠ Not found: ${ghlKey}`);
+            }
+        }
+
+        // === PROCESS THANK YOU PAGE (3 fields) ===
+        const thankYouPage = fcContent.thankYouPage || {};
+        log(`[Deploy] thankYouPage fields: ${Object.keys(thankYouPage).join(', ')}`);
+
+        for (const [vaultKey, value] of Object.entries(thankYouPage)) {
+            const ghlKey = THANK_YOU_PAGE_MAP[vaultKey];
+            if (!ghlKey || !value) continue;
+
+            const existing = findExisting(ghlKey);
+            if (existing) {
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                if (result.success) {
+                    results.updated++;
+                    updatedKeys.push(ghlKey);
+                    log(`[Deploy] ✓ Updated ${ghlKey}`);
+                } else {
+                    results.failed++;
+                    log(`[Deploy] ✗ Failed ${ghlKey}`);
+                }
+            } else {
+                results.notFound++;
+                notFoundKeys.push(ghlKey);
+                log(`[Deploy] ⚠ Not found: ${ghlKey}`);
+            }
+        }
+
+        // === PROCESS COMPANY INFO FROM USER_PROFILES ===
+        log('[Deploy] Fetching company info from user_profiles...');
+        const { data: userProfile } = await supabaseAdmin
+            .from('user_profiles')
+            .select('business_name, email')
+            .eq('user_id', userId)
+            .single();
+
+        if (userProfile) {
+            log(`[Deploy] User profile found: business_name="${userProfile.business_name}", email="${userProfile.email}"`);
+
+            // Company Name
+            if (userProfile.business_name) {
+                const companyNameKey = 'company_name';
+                const existing = findExisting(companyNameKey);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, companyNameKey, userProfile.business_name);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(companyNameKey);
+                        log(`[Deploy] ✓ Updated ${companyNameKey} = ${userProfile.business_name}`);
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(companyNameKey);
+                    log(`[Deploy] ⚠ Not found: ${companyNameKey}`);
+                }
+            }
+
+            // Company Email
+            if (userProfile.email) {
+                const companyEmailKey = '03_company_email';
+                const existing = findExisting(companyEmailKey);
+                if (existing) {
+                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, companyEmailKey, userProfile.email);
+                    if (result.success) {
+                        results.updated++;
+                        updatedKeys.push(companyEmailKey);
+                        log(`[Deploy] ✓ Updated ${companyEmailKey} = ${userProfile.email}`);
+                    }
+                } else {
+                    results.notFound++;
+                    notFoundKeys.push(companyEmailKey);
+                    log(`[Deploy] ⚠ Not found: ${companyEmailKey}`);
+                }
+            }
+        } else {
+            log('[Deploy] ⚠ No user profile found for Company Name/Email');
         }
 
         // === PROCESS COLORS (3 UNIVERSAL KEYS) ===

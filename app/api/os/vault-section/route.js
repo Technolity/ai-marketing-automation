@@ -26,6 +26,19 @@ export async function PATCH(req) {
 
         console.log(`[VaultSection] Updating section: ${sectionId} for user: ${userId}, providedId: ${providedId}`);
 
+        // EXPLICIT COLORS LOGGING: Track Brand Colors saves from AI feedback
+        if (sectionId === 'colors') {
+            console.log('[VaultSection] === COLORS SECTION SAVE ===');
+            console.log('[VaultSection] Content keys:', Object.keys(content || {}));
+            if (content?.colorPalette) {
+                const cp = content.colorPalette;
+                console.log('[VaultSection] ColorPalette keys:', Object.keys(cp));
+                console.log('[VaultSection] Primary:', cp.primary?.name, cp.primary?.hex);
+                console.log('[VaultSection] Secondary:', cp.secondary?.name, cp.secondary?.hex);
+                console.log('[VaultSection] Tertiary:', cp.tertiary?.name, cp.tertiary?.hex);
+            }
+        }
+
         if (!sectionId || !content) {
             return NextResponse.json({
                 error: 'Missing required fields: sectionId and content'
@@ -121,7 +134,7 @@ export async function PATCH(req) {
         // If still no funnel, try to update saved_sessions instead
         if (!targetFunnelId) {
             console.log(`[VaultSection] No funnel found, trying saved_sessions`);
-            
+
             // Try to find saved session
             const { data: session } = await supabaseAdmin
                 .from('saved_sessions')
@@ -130,7 +143,7 @@ export async function PATCH(req) {
                 .order('updated_at', { ascending: false })
                 .limit(1)
                 .single();
-            
+
             if (session) {
                 // Update the results_data in saved_sessions
                 const existingData = session.results_data || {};
@@ -138,20 +151,20 @@ export async function PATCH(req) {
                     ...existingData,
                     [sectionId]: { data: validatedContent }
                 };
-                
+
                 const { error: updateError } = await supabaseAdmin
                     .from('saved_sessions')
-                    .update({ 
+                    .update({
                         results_data: updatedData,
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', session.id);
-                
+
                 if (updateError) {
                     console.error('[VaultSection] Session update error:', updateError);
                     return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
                 }
-                
+
                 console.log(`[VaultSection] Updated section ${sectionId} in session ${session.id}`);
                 return NextResponse.json({
                     success: true,
@@ -160,7 +173,7 @@ export async function PATCH(req) {
                     source: 'saved_sessions'
                 });
             }
-            
+
             return NextResponse.json({
                 error: 'No funnel or session found for user'
             }, { status: 404 });
