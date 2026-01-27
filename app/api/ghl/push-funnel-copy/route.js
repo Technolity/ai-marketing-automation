@@ -107,12 +107,58 @@ export async function POST(req) {
         const existingValues = await fetchExistingCustomValues(locationId, accessToken);
 
         // Build map for quick lookup (key name -> id)
+        // Store MULTIPLE format variants for each value to handle GHL's inconsistent naming
         const existingMap = new Map();
         existingValues.forEach(v => {
+            // Original name
             existingMap.set(v.name, v.id);
+            // Lowercase
             existingMap.set(v.name.toLowerCase(), v.id);
+            // Lowercase with underscores
             existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
+            // With dashes replaced
+            existingMap.set(v.name.replace(/[-\s]+/g, '_').toLowerCase(), v.id);
+            // Handle "Sub -Headline" -> "sub_headline"
+            existingMap.set(v.name.replace(/\s*-\s*/g, '_').replace(/\s+/g, '_').toLowerCase(), v.id);
         });
+
+        // Helper function to find existing value ID with multiple format attempts
+        const findExistingId = (ghlKey) => {
+            // 1. Exact match
+            if (existingMap.has(ghlKey)) return existingMap.get(ghlKey);
+
+            // 2. Lowercase
+            const lower = ghlKey.toLowerCase();
+            if (existingMap.has(lower)) return existingMap.get(lower);
+
+            // 3. Replace spaces with underscores
+            const spacesToUnder = ghlKey.replace(/\s+/g, '_');
+            if (existingMap.has(spacesToUnder)) return existingMap.get(spacesToUnder);
+
+            // 4. Lowercase + replace spaces
+            const lowerUnder = lower.replace(/\s+/g, '_');
+            if (existingMap.has(lowerUnder)) return existingMap.get(lowerUnder);
+
+            // 5. Replace underscores with spaces (GHL Title Case format)
+            const underToSpaces = ghlKey.replace(/_/g, ' ');
+            if (existingMap.has(underToSpaces)) return existingMap.get(underToSpaces);
+
+            // 6. Title Case with spaces: "03_vsl_bio_image" → "03 VSL Bio Image"
+            const titleCase = ghlKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            if (existingMap.has(titleCase)) return existingMap.get(titleCase);
+
+            // 7. Lowercase with spaces
+            const lowerSpaces = ghlKey.replace(/_/g, ' ').toLowerCase();
+            if (existingMap.has(lowerSpaces)) return existingMap.get(lowerSpaces);
+
+            // 8. Try matching without prefix (03_ or 02_)
+            const withoutPrefix = ghlKey.replace(/^0[23]_/, '');
+            const titleCaseNoPrefix = withoutPrefix.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            if (existingMap.has('03 ' + titleCaseNoPrefix)) return existingMap.get('03 ' + titleCaseNoPrefix);
+            if (existingMap.has('02 ' + titleCaseNoPrefix)) return existingMap.get('02 ' + titleCaseNoPrefix);
+
+            return null;
+        };
 
         console.log(`[PushFunnelCopy] Found ${existingValues.length} existing custom values`);
 
@@ -217,9 +263,7 @@ export async function POST(req) {
             // company_name and logo_image are handled elsewhere
 
             if (value) {
-                const existingId = existingMap.get(ghlKey) ||
-                    existingMap.get(ghlKey.toLowerCase()) ||
-                    existingMap.get(ghlKey.toLowerCase().replace(/\s+/g, '_'));
+                const existingId = findExistingId(ghlKey);
 
                 customValues.push({
                     key: ghlKey,
@@ -256,10 +300,8 @@ export async function POST(req) {
                         field.includes('bullet') ? 'bullet' : 'paragraph';
                     const polishedValue = skipPolish ? rawValue : await polishTextContent(rawValue, fieldType);
 
-                    // Find existing value ID
-                    const existingId = existingMap.get(ghlKey) ||
-                        existingMap.get(ghlKey.toLowerCase()) ||
-                        existingMap.get(ghlKey.toLowerCase().replace(/\s+/g, '_'));
+                    // Find existing value ID using helper function
+                    const existingId = findExistingId(ghlKey);
 
                     customValues.push({
                         key: ghlKey,

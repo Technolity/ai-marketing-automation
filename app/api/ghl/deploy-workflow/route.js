@@ -607,12 +607,46 @@ export async function POST(req) {
         const skippedKeys = [];
         const notFoundKeys = [];
 
-        // Helper to find existing value
+        // Helper to find existing value - tries MULTIPLE naming formats
+        // GHL uses inconsistent naming: "03_vsl_bio_image" vs "03 VSL Bio Image"
         const findExisting = (ghlKey) => {
-            return existingMap.get(ghlKey) ||
-                existingMap.get(ghlKey.toLowerCase()) ||
-                existingMap.get(ghlKey.replace(/\s+/g, '_')) ||
-                existingMap.get(ghlKey.toLowerCase().replace(/\s+/g, '_'));
+            // 1. Exact match
+            if (existingMap.has(ghlKey)) return existingMap.get(ghlKey);
+
+            // 2. Lowercase
+            const lower = ghlKey.toLowerCase();
+            if (existingMap.has(lower)) return existingMap.get(lower);
+
+            // 3. Replace spaces with underscores
+            const spacesToUnder = ghlKey.replace(/\s+/g, '_');
+            if (existingMap.has(spacesToUnder)) return existingMap.get(spacesToUnder);
+
+            // 4. Lowercase + replace spaces
+            const lowerUnder = lower.replace(/\s+/g, '_');
+            if (existingMap.has(lowerUnder)) return existingMap.get(lowerUnder);
+
+            // 5. Replace underscores with spaces (GHL Title Case format)
+            const underToSpaces = ghlKey.replace(/_/g, ' ');
+            if (existingMap.has(underToSpaces)) return existingMap.get(underToSpaces);
+
+            // 6. Title Case with spaces: "03_vsl_bio_image" → "03 VSL Bio Image"
+            const titleCase = ghlKey
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, c => c.toUpperCase());
+            if (existingMap.has(titleCase)) return existingMap.get(titleCase);
+
+            // 7. Lowercase with spaces
+            const lowerSpaces = ghlKey.replace(/_/g, ' ').toLowerCase();
+            if (existingMap.has(lowerSpaces)) return existingMap.get(lowerSpaces);
+
+            // 8. Try matching without prefix (03_ or 02_)
+            const withoutPrefix = ghlKey.replace(/^0[23]_/, '');
+            const titleCaseNoPrefix = withoutPrefix.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            // Try "03 " + titleCase version
+            if (existingMap.has('03 ' + titleCaseNoPrefix)) return existingMap.get('03 ' + titleCaseNoPrefix);
+            if (existingMap.has('02 ' + titleCaseNoPrefix)) return existingMap.get('02 ' + titleCaseNoPrefix);
+
+            return null;
         };
 
         // === PROCESS FUNNEL COPY (NEW 03_* STRUCTURE) ===
