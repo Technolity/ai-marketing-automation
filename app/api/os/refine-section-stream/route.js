@@ -194,6 +194,54 @@ export async function POST(req) {
                 }
             }
 
+            // Fetch Company Name from user_profiles (for funnel copy)
+            let companyName = null;
+            try {
+                const { data: userProfile } = await supabaseAdmin
+                    .from('user_profiles')
+                    .select('business_name')
+                    .eq('user_id', userId)
+                    .single();
+
+                if (userProfile?.business_name) {
+                    companyName = userProfile.business_name;
+                    console.log('[RefineStream] Found Company Name:', companyName);
+                }
+            } catch (profileError) {
+                console.log('[RefineStream] No company name found in user_profiles:', profileError.message);
+            }
+
+            // Fetch Brand Colors from vault (primary, secondary, tertiary) for funnel copy context
+            let brandColors = null;
+            if (sessionId && sectionId === 'funnelCopy') {
+                try {
+                    const { data: colorsField } = await supabaseAdmin
+                        .from('vault_content_fields')
+                        .select('field_value')
+                        .eq('funnel_id', sessionId)
+                        .eq('section_id', 'colors')
+                        .eq('field_id', 'colorPalette')
+                        .eq('is_current_version', true)
+                        .single();
+
+                    if (colorsField?.field_value) {
+                        // Handle both object and JSON string formats
+                        const colorsData = typeof colorsField.field_value === 'string'
+                            ? JSON.parse(colorsField.field_value)
+                            : colorsField.field_value;
+
+                        brandColors = {
+                            primary: colorsData.primary || colorsData.primaryColor,
+                            secondary: colorsData.secondary || colorsData.secondaryColor,
+                            tertiary: colorsData.tertiary || colorsData.accentColor
+                        };
+                        console.log('[RefineStream] Found Brand Colors:', brandColors);
+                    }
+                } catch (colorsError) {
+                    console.log('[RefineStream] No brand colors found:', colorsError.message);
+                }
+            }
+
             // Build conversational prompt with FULL PROJECT CONTEXT
             const { systemPrompt, userPrompt } = await buildConversationalPrompt({
                 sectionId,
@@ -202,7 +250,9 @@ export async function POST(req) {
                 messageHistory: messageHistory.slice(-10), // Last 10 messages for context
                 currentContent,
                 intakeData,
-                leadMagnetTitle // Pass the Lead Magnet title for dependencies
+                leadMagnetTitle, // Pass the Lead Magnet title for dependencies
+                companyName, // Pass company name from user_profiles
+                brandColors // Pass brand colors for funnel copy context
             });
 
             // COMPREHENSIVE LOGGING: Prompt generation
@@ -826,7 +876,7 @@ async function parseAndValidate(fullText, sectionId, subSection) {
  * Build conversational prompt from message history with FULL PROJECT CONTEXT
  * Uses the full context prompts system to give AI complete knowledge of original generation
  */
-async function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle }) {
+async function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle, companyName, brandColors }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
@@ -944,10 +994,23 @@ CONVERSATION STYLE:
     if (intakeData.businessName) contextParts.push(`Business: ${intakeData.businessName}`);
     if (intakeData.niche) contextParts.push(`Niche: ${intakeData.niche}`);
 
+    // CRITICAL: Add Company Name from user_profiles for funnel copy
+    if (companyName) {
+        contextParts.push(`Company Name: ${companyName}`);
+        console.log('[BuildContext] Added Company Name from user_profiles:', companyName);
+    }
+
     // CRITICAL: Add Lead Magnet Title for dependent sections (Ad Copy, Emails, SMS, etc.)
     if (leadMagnetTitle) {
         contextParts.push(`Lead Magnet Title (Free Gift): ${leadMagnetTitle}`);
         console.log('[BuildContext] Added Lead Magnet Title to context:', leadMagnetTitle);
+    }
+
+    // CRITICAL: Add Brand Colors for funnel copy context
+    if (brandColors && sectionId === 'funnelCopy') {
+        const colorsText = `Brand Colors: Primary (${brandColors.primary?.name || brandColors.primary?.hex || 'N/A'}), Secondary (${brandColors.secondary?.name || brandColors.secondary?.hex || 'N/A'}), Tertiary (${brandColors.tertiary?.name || brandColors.tertiary?.hex || 'N/A'})`;
+        contextParts.push(colorsText);
+        console.log('[BuildContext] Added Brand Colors to funnel copy context:', colorsText);
     }
 
     const businessContext = contextParts.length > 0

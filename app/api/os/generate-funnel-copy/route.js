@@ -166,6 +166,31 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
         const profileBusinessName = userProfile?.business_name || null;
         console.log('[FunnelCopy] Fetched profile business name:', profileBusinessName);
 
+        // Fetch brand colors from vault (primary, secondary, tertiary)
+        let brandColors = null;
+        const { data: colorsField } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_value')
+            .eq('funnel_id', funnelId)
+            .eq('section_id', 'colors')
+            .eq('field_id', 'colorPalette')
+            .eq('is_current_version', true)
+            .single();
+
+        if (colorsField?.field_value) {
+            // Handle both object and JSON string formats
+            const colorsData = typeof colorsField.field_value === 'string'
+                ? JSON.parse(colorsField.field_value)
+                : colorsField.field_value;
+
+            brandColors = {
+                primary: colorsData.primary || colorsData.primaryColor,
+                secondary: colorsData.secondary || colorsData.secondaryColor,
+                tertiary: colorsData.tertiary || colorsData.accentColor
+            };
+            console.log('[FunnelCopy] Fetched brand colors:', brandColors);
+        }
+
         // Build context object
         const context = {};
         vaultContent.forEach(section => {
@@ -202,7 +227,17 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
             if (typeof context.message === 'object' && !context.message.businessName) {
                 context.message.businessName = profileBusinessName;
             }
+            // Add to top-level context for direct access
+            context.businessName = profileBusinessName;
+            context.business_name = profileBusinessName;
             console.log('[FunnelCopy] Injected profile business_name into context:', profileBusinessName);
+        }
+
+        // CRITICAL: Inject brand colors for visual context and color references
+        if (brandColors) {
+            context.brandColors = brandColors;
+            context.colorPalette = brandColors;
+            console.log('[FunnelCopy] Injected brand colors into context:', brandColors);
         }
 
         await updateJobStatus(jobId, 'processing', 30);
