@@ -16,7 +16,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
-    const [activeTab, setActiveTab] = useState('optin'); // optin, sales, booking, thankyou
+    const [activeTab, setActiveTab] = useState('optin'); // optin, sales, calendar, thankyou
     const [forceRenderKey, setForceRenderKey] = useState(0);
 
     const sectionId = 'funnelCopy';
@@ -26,7 +26,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     // Get subfields for each page
     const optinPage = predefinedFields.find(f => f.field_id === 'optinPage');
     const salesPage = predefinedFields.find(f => f.field_id === 'salesPage');
-    const bookingPage = predefinedFields.find(f => f.field_id === 'bookingPage');
+    const calendarPage = predefinedFields.find(f => f.field_id === 'calendarPage');
     const thankYouPage = predefinedFields.find(f => f.field_id === 'thankYouPage');
 
 
@@ -344,7 +344,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     const tabs = [
         { id: 'optin', label: 'Optin Page', icon: FileText },
         { id: 'sales', label: 'VSL / Sales Page', icon: FileText },
-        { id: 'booking', label: 'Booking Page', icon: FileText },
+        { id: 'calendar', label: 'Calendar Page', icon: FileText },
         { id: 'thankyou', label: 'Thank You Page', icon: FileText }
     ];
 
@@ -377,7 +377,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
                     <div className="py-4">
                         {activeTab === 'optin' && renderPageSubfields(optinPage)}
                         {activeTab === 'sales' && renderPageSubfields(salesPage)}
-                        {activeTab === 'booking' && renderPageSubfields(bookingPage)}
+                        {activeTab === 'calendar' && renderPageSubfields(calendarPage)}
                         {activeTab === 'thankyou' && renderPageSubfields(thankYouPage)}
 
                     </div>
