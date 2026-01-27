@@ -669,11 +669,12 @@ export async function POST(req) {
                     .replace(/Subheadline/gi, 'sub-Headline')  // Note: lowercase 'sub'
                     .replace(/Subtext/gi, 'Sub-text')
                     .replace(/Thankyou/gi, 'Thankyou')
-                    .replace(/Optin/gi, 'Optin')
+                    .replace(/Optin/gi, 'Opt In')  // GHL uses "Opt In" with space
                     .replace(/Vsl/gi, 'VSL')
                     .replace(/Cta/gi, 'CTA')
                     .replace(/Faq/gi, 'FAQ')
-                    .replace(/Calender/gi, 'Calender');  // GHL spelling
+                    .replace(/Calender/gi, 'Calender')  // GHL spelling
+                    .replace(/\bAbove\b/g, 'above');  // GHL uses lowercase 'above'
             };
 
             const ghlFormat = toGhlFormat(ghlKey);

@@ -159,18 +159,24 @@ export async function POST(req) {
 
             // 9. Handle GHL's hyphenated naming: "subheadline" → "Sub-Headline"
             // GHL uses: "03 Optin Sub-Headline Text", "03 VSL hero Sub-Headline Text"
+            // Also handles double underscore: "sub__headline" → "Sub - Headline" (space-dash-space)
             const toGhlFormat = (key) => {
                 return key
+                    // First handle double underscores → space-dash-space (like "Sub - Headline")
+                    .replace(/__/g, ' - ')
+                    // Then regular underscores to spaces
                     .replace(/_/g, ' ')
                     .replace(/\b\w/g, c => c.toUpperCase())
                     // Specific word transforms for GHL naming
-                    .replace(/Subheadline/gi, 'Sub-Headline')
+                    .replace(/Subheadline/gi, 'sub-Headline')  // Note: lowercase 'sub'
                     .replace(/Subtext/gi, 'Sub-text')
                     .replace(/Thankyou/gi, 'Thankyou')
-                    .replace(/Optin/gi, 'Optin')
+                    .replace(/Optin/gi, 'Opt In')  // GHL uses "Opt In" with space
                     .replace(/Vsl/gi, 'VSL')
                     .replace(/Cta/gi, 'CTA')
-                    .replace(/Faq/gi, 'FAQ');
+                    .replace(/Faq/gi, 'FAQ')
+                    .replace(/Calender/gi, 'Calender')  // GHL spelling
+                    .replace(/\bAbove\b/g, 'above');  // GHL uses lowercase 'above'
             };
 
             const ghlFormat = toGhlFormat(ghlKey);
