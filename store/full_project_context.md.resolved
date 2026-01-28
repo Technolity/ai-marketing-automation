@@ -1,0 +1,221 @@
+# 🧠 TedOS / AI Marketing Automation - Full Project Context
+
+> **Last Updated**: 2026-01-28
+> **Purpose**: Definitive technical guide for developers. Covers architecture, data flow, API inventory, and integration logic.
+
+---
+
+## 🏗️ 1. Architecture Overview
+
+### Technology Stack
+*   **Framework**: Next.js 14 (App Router)
+*   **Language**: JavaScript / React / Node.js
+*   **Styling**: Tailwind CSS + Framer Motion (Animations)
+*   **Auth**: Clerk (Identity) + Internal Auth Context (Profile Sync)
+*   **Database**: Supabase (PostgreSQL)
+*   **AI**: OpenAI/Anthropic (via streamed responses)
+*   **Integration**: GoHighLevel (OAuth 2.0 + Custom Values)
+
+### Key Directories
+| Path | Purpose |
+| :--- | :--- |
+| [app/](file:///c:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/LicenseWrapper.jsx#5-31) | Next.js Pages & API Routes. Split into [(user)](file:///c:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/api/os/refine-section-stream/route.js#1187-1212) and `admin` logic. |
+| `app/vault` | **Core Feature**: Where users view/edit/approve generated content. |
+| `app/onboarding` | **Entry Point**: Wizard to collect user business data. |
+| `app/admin` | **Admin Dashboard**: GHL account management, billing, content review. |
+| `components/` | React Components (Atomic design). `components/vault/` contains specific field editors. |
+| `lib/` | Utilities. `lib/ghl` (Integration), `lib/ai` (LLM logic), `lib/supabase` (DB). |
+| `lib/prompts` | **AI Brain**: Centralized prompt templates for all content generation. |
+
+---
+
+## 👥 2. Core Workflows
+
+### A. The User Journey (The "TedOS" Experience)
+1.  **Authentication**: User signs up via Clerk -> Redirects to `/onboarding`.
+2.  **License Check**: `LicenseWrapper.jsx` ensures terms acceptance before access.
+3.  **Onboarding (The Wizard)**:
+    *   **UI**: `components/OSWizard.jsx`
+    *   **Data**: User answers questions (Business Name, Avatar, Offer).
+    *   **Save**: `POST /api/intake-form/save` -> Stores in `saved_sessions`.
+4.  **Generation ("The Brain")**:
+    *   **Action**: User clicks "Generate My Vault".
+    *   **Process**: `POST /api/os/generate-stream` (SSE Stream).
+    *   **Output**: Generates text JSON blobs -> Saved to `vault_content` table.
+5.  **The Vault (Results & Edit)**:
+    *   **Read**: `GET /api/os/results` fetches generated content.
+    *   **Refine**: User highlights text -> "Refine with AI" -> `POST /api/os/refine-section-stream`.
+    *   **Approve**: User marks sections as "Approved" -> Unlocks deployment.
+6.  **Deployment (GHL)**:
+    *   **Hybrid Model**:
+        *   **Initial**: "Start Deployment" (`POST /api/ghl/deploy-workflow`) -> Bulk Push.
+        *   **Update**: "Push to Builder" (`POST /api/ghl/push-*`) -> Granular Update.
+
+### B. The Admin Journey
+1.  **Access**: `/admin` (Protected by `lib/adminAuth.js` or equivalent middleware).
+2.  **Functions**:
+    *   **GHL Connect**: Authorize "Location" sub-accounts via OAuth.
+    *   **Billing**: Manage Stripe subscriptions.
+    *   **Content Review**: See what users are generating (Audit logs).
+    *   **User Management**: Sync Clerk users to local DB.
+
+---
+
+## 💾 3. Database Schema (Inferred)
+
+### Key Tables
+| Table Name | Description | Key Columns |
+| :--- | :--- | :--- |
+| `user_profiles` | Core user identity linked to Clerk. | `user_id` (PK), `clerk_id`, `business_name`, `role` (user/admin) |
+| `vault_content` | **Heavy Lifter**. Stores the JSON blobs of generated content. | `id` (PK), `user_id`, `funnel_id`, `ideal_client_blob`, `message_blob`, etc. |
+| `vault_content_fields` | **Granular Storage**. Stores specific field values for easier querying. | `field_key` (e.g. `mainTitle`), `field_value`, `section_id` |
+| `ghl_tokens` | Stores OAuth refresh tokens for GHL integrations. | `location_id` (PK), `access_token`, `refresh_token`, `expires_at` |
+| `ghl_subaccounts` | Maps users to GHL Locations. | `user_id`, `location_id`, `business_name` |
+| `saved_sessions` | Stores raw Wizard answers. | `id`, `user_id`, `answers` (JSONB), `intake_data` |
+| `content_edit_history`| Audit log of AI refinements. | `user_id`, `content_before`, `content_after`, `user_feedback_text` |
+| `license_agreements` | Tracks who signed the TOS. | `user_id`, `signed_at`, `ip_address` |
+
+### Infrastructure
+*   **Client**: `lib/supabaseServiceRole.js` uses **Supavisor (Connection Pooling)** in production (`process.env.SUPABASE_POOLER_URL`) to handle high concurrency.
+
+---
+
+## 🔌 4. API Route Inventory
+
+### 🤖 AI Generation & Manipulation
+*   `POST /api/os/generate-stream`: **CORE**. Main generation endpoint. Streams SSE.
+*   `POST /api/os/refine-section-stream`: **CORE**. "Chat with your content". Context-aware refinement.
+*   `POST /api/os/save-section`: Saves manual edits to the Vault.
+*   `POST /api/os/progress`: Updates completion status (Phase 1/2/3).
+
+### 🚀 GHL Deployment (Hybrid)
+*   `POST /api/ghl/deploy-workflow`: **Bulk Push**. The "Big Red Button" script. Reliable.
+*   `POST /api/ghl/push-funnel-copy`: **Granular**. Updates Funnel Copy only. (⚠️ Developing).
+*   `POST /api/ghl/push-emails`: **Granular**. Updates Emails only.
+*   `POST /api/ghl/push-sms`: **Granular**. Updates SMS only.
+*   `POST /api/ghl/push-appointmentReminders`: **Granular**. Updates Reminders.
+
+### 🔐 Auth & integration
+*   `GET /api/ghl/authorize`: OAuth Callback handler.
+*   `GET /api/ghl/token`: Debug endpoint for checking token status.
+*   `POST /api/profile/save`: Syncs Onboarding data to `user_profiles`.
+
+### 🛠️ Admin
+*   `POST /api/admin/realtimeSync`: Syncs data (likely GHL <-> DB).
+*   `GET /api/admin/metrics`: Dashboard stats.
+
+---
+
+## 🧠 5. The "Brain" (AI Logic)
+
+### A. Generation Flow ("Chunked & Streamed")
+> **Correction**: Use to be a massive single prompt, but that was too slow. Now it is **Chunked & Parallel**.
+
+**Endpoint**: `POST /api/os/generate-stream`
+
+**Architecture**:
+1.  **Fast Redirect (Phase 1)**:
+    *   Generates `Ideal Client` + `Message` immediately (~30s).
+    *   Emits `early_redirect` event to let user enter Vault ASAP.
+2.  **Background Batches**:
+    *   Once user is redirected, the server continues generating in the background.
+    *   **Parallel Execution**: Runs unrelated sections simultaneously to save time.
+    *   **Chunking (The Speed Secret)**: Large sections are split into smaller parallel requests:
+        *   **Emails**: 4 Paralllel Chunks (Emails 1-4, 5-8, 9-12, 13-15).
+        *   **SMS**: 2 Parallel Chunks.
+        *   **Setter Script**: 2 Parallel Chunks (Flow vs. Objections).
+        *   **Closer Script**: 2 Parallel Chunks (Discovery vs. Close).
+    *   **Merging**: `lib/prompts/*Merger.js` scripts stitch the JSON chunks back together.
+
+**File Map**:
+*   `app/api/os/generate-stream/route.js`: The Orchestrator. Manages batches and streams events.
+*   `lib/prompts/emailChunks.js`: Definitions for Email chunks.
+*   `lib/prompts/*Merger.js`: Logic to combine chunks.
+
+### B. Refinement Flow ("Feedback Chat")
+**Endpoint**: `POST /api/os/refine-section-stream`
+**UI**: `components/FeedbackChatModal.jsx`
+
+**Workflow**:
+1.  **User Trigger**: Click "Refine with AI" on a specific section (e.g., "Networking Story").
+2.  **Granularity**: User selects *specific sub-fields* (e.g., "Just the Hook") or the whole section.
+3.  **Context Injection**:
+    *   The prompt receives: `Original Content` + `User Feedback` + `Project Context` (Offer, Avatar).
+    *   This ensures the new version fits the overall strategy.
+4.  **Streaming**: Response is streamed token-by-token for a chat-like experience.
+5.  **JSON Repair**: The system auto-repairs broken JSON (common in streams) before showing it to the user.
+6.  **Partial Recovery**: If the stream times out, it saves the "Partial Content" so the user doesn't lose everything.
+
+### C. Brand Colors Generation Logic
+**Prompt File**: `lib/prompts/brandColors.js`
+**UI Component**: `components/vault/ColorsFields.jsx`
+
+**The 3 Color Hierarchy Rules**:
+1.  **PRIMARY (Funnel Backgrounds)**: Always a **DARKER** version of user's brand color unless they explicitly say "light/pastel". Used for hero sections, page backgrounds.
+2.  **TERTIARY (Text)**: White if Primary is dark, Black if Primary is light. Ensures maximum readability. **Never colorful text**.
+3.  **SECONDARY (Buttons, Nav, Footer)**: Opposite of Tertiary. Black if Tertiary is white, White if Tertiary is black. Creates clean contrast.
+
+**Example**: User says "Red" → `Primary: #800020 (Maroon)`, `Tertiary: #FFFFFF (White)`, `Secondary: #1A1A1A (Black)`.
+
+---
+
+## 🔗 6. GHL Integration Details
+
+### Mapping Logic
+*   **File**: `lib/ghl/customValuesMap.js`
+*   **Concept**: Maps Internal Keys <-> GHL Custom Values.
+    *   Vault: `headline_text`
+    *   GHL: `03_optin_headline_text`
+    *   **Fuzzy Match**: The Deployment script (`deploy-workflow`) handles capitalization mismatches, underscores vs spaces, and common typos.
+
+### Why Hybrid Deployment?
+*   **Problem**: GHL API has rate limits and latency. Pushing 100+ values one-by-one is slow and error-prone.
+*   **Solution**:
+    1.  **Initial**: `deploy-workflow` runs a robust, localized bulk update logic.
+    2.  **Updates**: Users usually only tweak one section at a time (e.g., "Change the headline"). Granular `push-*` routes handle this efficiently (once fixed).
+
+### Strict Update Policy
+*   The system **NEVER creates** new Custom Values. It expects the GHL Snapshot to be pre-loaded.
+*   It only **UPDATES** values that it finds in the account. This prevents polluting the user's GHL account with junk data.
+
+---
+
+## 🗺️ 7. File & Property Map ("What connects to what?")
+
+### A. The Generation Pipeline
+| File | Role | Connected To |
+| :--- | :--- | :--- |
+| `app/api/os/generate-stream/route.js` | **Orchestrator**. Calls prompts, manages batches. | `lib/prompts/*`, `vault_content` (DB) |
+| `lib/prompts/masterPrompt.js` | **Legacy/Fallback**. Old single-prompt logic. | (Mostly Unused) |
+| `lib/prompts/emailChunks.js` | **Chunk Logic**. Splits email gen into 4 parts. | `generate-stream` |
+| `lib/prompts/*Merger.js` | **Assembler**. Stitches chunks back together. | `generate-stream` |
+
+### B. The Vault UI (Display & Edit)
+| File | Component | Properties Displayed |
+| :--- | :--- | :--- |
+| `components/vault/VaultSection.jsx` | Wrapper | Title, Status, "Refine" Button |
+| `components/FeedbackChatModal.jsx` | **Refinement Chat** | Chat history, Streaming Feedback, Partial Recovery |
+| `components/vault/FunnelCopyFields.jsx` | Editor | `optinPage`, `salesPage`, `thankYouPage` |
+| `components/vault/EmailFields.jsx` | Editor | `email1`...`email15` (Subject, Body) |
+| `lib/vault/fieldStructures.js` | **Schema Def** | Defines *which* fields exist for each section. |
+
+### C. GHL Architecture
+| File | Role | Key logic |
+| :--- | :--- | :--- |
+| `app/api/ghl/deploy-workflow/route.js` | **Bulk Deploy** | Iterates ALL sections. Matches `customValuesMap.js`. |
+| `components/vault/PushToGHLButton.jsx` | **Granular Trigger** | Calls `push-*` routes based on section ID. |
+| `lib/ghl/customValuesMap.js` | **The Rosetta Stone** | Maps `vault_key` (e.g. `bigIdea`) -> `ghl_key` (e.g. `01_big_idea`). |
+
+---
+
+## 📝 Developer Cheat Sheet
+
+*   **Adding a New Field**:
+    1.  Add to `lib/vault/fieldStructures.js` (UI Definition).
+    2.  Add to `lib/ghl/customValuesMap.js` (GHL Mapping).
+    3.  Update AI Prompt to ensure generation.
+*   **Debugging Deployment**:
+    *   Check `ghl_logs` (if exists) or server console.
+    *   Ensure `ghl_tokens` has a valid token for the `location_id`.
+*   **Fixing AI Output**:
+    *   Check `lib/prompts`. The `structure` key in the prompt usually defines the JSON output schema.
