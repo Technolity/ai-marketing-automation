@@ -888,7 +888,9 @@ export default function VaultPage() {
 
         // 2. Phase gating
         if (phaseNumber === 2 && !hasFunnelChoice) return 'locked';
-        if (phaseNumber === 3 && !phase2FullyApproved) return 'locked';
+        // FIXED: Phase 3 should only be locked if Phase 2 is not approved AND Phase 3 is not already approved
+        // This prevents the bug where Phase 3 appears locked on return from dashboard due to loading timing
+        if (phaseNumber === 3 && !phase2FullyApproved && !phase3FullyApproved && !approvedPhase3.includes(sectionId)) return 'locked';
 
         // 3. Check for explicit error in data (from DB or normalization)
         if (sectionData?.error) {
