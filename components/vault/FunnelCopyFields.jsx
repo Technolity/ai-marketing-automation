@@ -282,7 +282,33 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
         }
 
         const pageValue = getPageFieldValue(pageFieldDef.field_id);
-        const subfields = pageFieldDef.field_metadata.subfields;
+
+        // Clone to allow UI-specific modifications without affecting source
+        let subfields = [...pageFieldDef.field_metadata.subfields];
+
+        // CUSTOM UI TRANSFORMATION FOR OPTIN PAGE (User Request)
+        if (pageFieldDef.field_id === 'optinPage') {
+            // 1. Rename 'Sub-Headline' to 'Audience Callout'
+            subfields = subfields.map(field => {
+                if (field.field_id === 'subheadline_text') {
+                    return { ...field, field_label: 'Audience Callout' };
+                }
+                return field;
+            });
+
+            // 2. Reorder sequence: Audience Callout -> Headline -> Button text
+            const orderMap = {
+                'subheadline_text': 1,
+                'headline_text': 2,
+                'cta_button_text': 3
+            };
+
+            subfields.sort((a, b) => {
+                const orderA = orderMap[a.field_id] || 99;
+                const orderB = orderMap[b.field_id] || 99;
+                return orderA - orderB;
+            });
+        }
 
         // Group by 'group' property, preserving order
         const groups = [];
