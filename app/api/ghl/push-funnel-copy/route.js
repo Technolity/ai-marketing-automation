@@ -10,62 +10,11 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { FUNNEL_COPY_MAP, UNIVERSAL_MAP } from '@/lib/ghl/customValuesMap';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Fetch existing GHL custom values to get IDs
- */
-async function fetchExistingCustomValues(locationId, accessToken) {
-    const allValues = [];
-    let skip = 0;
-    const limit = 100;
-
-    while (true) {
-        const response = await fetch(
-            `https://services.leadconnectorhq.com/locations/${locationId}/customValues?skip=${skip}&limit=${limit}`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Version': '2021-07-28',
-                }
-            }
-        );
-
-        // Check for HTML response (GHL error page)
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('text/html')) {
-            const htmlBody = await response.text();
-            console.error('[PushFunnelCopy] GHL returned HTML instead of JSON:', htmlBody.substring(0, 200));
-            throw new Error('GHL API returned HTML error page - check OAuth token validity');
-        }
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[PushFunnelCopy] GHL API error:', response.status, errorText.substring(0, 200));
-            throw new Error(`GHL API error: ${response.status} - ${errorText.substring(0, 100)}`);
-        }
-
-        const responseText = await response.text();
-        // Check if response looks like HTML
-        if (responseText.trim().startsWith('<!') || responseText.trim().startsWith('<html')) {
-            console.error('[PushFunnelCopy] GHL returned HTML:', responseText.substring(0, 200));
-            throw new Error('GHL API returned HTML - OAuth token may be expired');
-        }
-
-        const data = JSON.parse(responseText);
-        const values = data.customValues || [];
-        allValues.push(...values);
-
-        if (values.length < limit) break;
-        skip += limit;
-
-        // Safety limit
-        if (allValues.length >= 500) break;
-    }
-
-    return allValues;
-}
+export const maxDuration = 120; // 2 minutes for large funnel copy
 
 export async function POST(req) {
     const { userId } = auth();
@@ -106,125 +55,17 @@ export async function POST(req) {
         console.log('[PushFunnelCopy] Fetching existing custom values...');
         const existingValues = await fetchExistingCustomValues(locationId, accessToken);
 
-        // Build map for quick lookup (key name -> id)
-        // Store MULTIPLE format variants for each value to handle GHL's inconsistent naming
-        const existingMap = new Map();
-        existingValues.forEach(v => {
-            // Original name
-            existingMap.set(v.name, v.id);
-            // Lowercase
-            existingMap.set(v.name.toLowerCase(), v.id);
-            // Lowercase with underscores
-            existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
-            // With dashes replaced
-            existingMap.set(v.name.replace(/[-\s]+/g, '_').toLowerCase(), v.id);
-            // Handle "Sub -Headline" -> "sub_headline"
-            existingMap.set(v.name.replace(/\s*-\s*/g, '_').replace(/\s+/g, '_').toLowerCase(), v.id);
-        });
-
-        // Helper function to find existing value ID with multiple format attempts
-        const findExistingId = (ghlKey) => {
-            // 1. Exact match
-            if (existingMap.has(ghlKey)) return existingMap.get(ghlKey);
-
-            // 2. Lowercase
-            const lower = ghlKey.toLowerCase();
-            if (existingMap.has(lower)) return existingMap.get(lower);
-
-            // 3. Replace spaces with underscores
-            const spacesToUnder = ghlKey.replace(/\s+/g, '_');
-            if (existingMap.has(spacesToUnder)) return existingMap.get(spacesToUnder);
-
-            // 4. Lowercase + replace spaces
-            const lowerUnder = lower.replace(/\s+/g, '_');
-            if (existingMap.has(lowerUnder)) return existingMap.get(lowerUnder);
-
-            // 5. Replace underscores with spaces (GHL Title Case format)
-            const underToSpaces = ghlKey.replace(/_/g, ' ');
-            if (existingMap.has(underToSpaces)) return existingMap.get(underToSpaces);
-
-            // 6. Title Case with spaces: "03_vsl_bio_image" → "03 VSL Bio Image"
-            const titleCase = ghlKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            if (existingMap.has(titleCase)) return existingMap.get(titleCase);
-
-            // 7. Lowercase with spaces
-            const lowerSpaces = ghlKey.replace(/_/g, ' ').toLowerCase();
-            if (existingMap.has(lowerSpaces)) return existingMap.get(lowerSpaces);
-
-            // 8. Try matching without prefix (03_ or 02_)
-            const withoutPrefix = ghlKey.replace(/^0[23]_/, '');
-            const titleCaseNoPrefix = withoutPrefix.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            if (existingMap.has('03 ' + titleCaseNoPrefix)) return existingMap.get('03 ' + titleCaseNoPrefix);
-            if (existingMap.has('02 ' + titleCaseNoPrefix)) return existingMap.get('02 ' + titleCaseNoPrefix);
-
-            // 9. Handle GHL's hyphenated naming: "subheadline" → "Sub-Headline"
-            // GHL uses: "03 Optin Sub-Headline Text", "03 VSL hero Sub-Headline Text"
-            // Also handles double underscore: "sub__headline" → "Sub - Headline" (space-dash-space)
-            const toGhlFormat = (key) => {
-                return key
-                    // First handle double underscores → space-dash-space (like "Sub - Headline")
-                    .replace(/__/g, ' - ')
-                    // Then regular underscores to spaces
-                    .replace(/_/g, ' ')
-                    .replace(/\b\w/g, c => c.toUpperCase())
-                    // Specific word transforms for GHL naming
-                    .replace(/Subheadline/gi, 'sub-Headline')  // Note: lowercase 'sub'
-                    .replace(/Subtext/gi, 'Sub-text')
-                    .replace(/Thankyou/gi, 'Thankyou')
-                    .replace(/Optin/gi, 'Opt In')  // GHL uses "Opt In" with space
-                    .replace(/Vsl/gi, 'VSL')
-                    .replace(/Cta/gi, 'CTA')
-                    .replace(/Faq/gi, 'FAQ')
-                    .replace(/Calender/gi, 'Calender')  // GHL spelling
-                    .replace(/\bAbove\b/g, 'above');  // GHL uses lowercase 'above'
-            };
-
-            const ghlFormat = toGhlFormat(ghlKey);
-            if (existingMap.has(ghlFormat)) return existingMap.get(ghlFormat);
-
-            // 10. Try with 03/02 prefix in GHL format
-            const ghlFormatNoPrefix = toGhlFormat(withoutPrefix);
-            if (existingMap.has('03 ' + ghlFormatNoPrefix)) return existingMap.get('03 ' + ghlFormatNoPrefix);
-            if (existingMap.has('02 ' + ghlFormatNoPrefix)) return existingMap.get('02 ' + ghlFormatNoPrefix);
-
-            // 11. Try lowercase hero → "hero" (GHL keeps some words lowercase)
-            const ghlFormatLowerHero = ghlFormat.replace(/Hero/g, 'hero');
-            if (existingMap.has(ghlFormatLowerHero)) return existingMap.get(ghlFormatLowerHero);
-
-            return null;
-        };
+        // Build map for quick lookup using shared utility (returns {id, name} objects)
+        // This uses the enhanced 11-level key matching from ghlKeyMatcher.js
+        const existingMap = buildExistingMap(existingValues);
 
         console.log(`[PushFunnelCopy] Found ${existingValues.length} existing custom values`);
 
-        // ========== LOG ALL EXISTING CUSTOM VALUES ==========
-        console.log('[PushFunnelCopy] ========== ALL EXISTING CUSTOM VALUES IN GHL ==========');
+        // Log summary of prefixed values (only counts, not full listing for performance)
+        const count03 = existingValues.filter(v => v.name.startsWith('03_')).length;
+        const count02 = existingValues.filter(v => v.name.startsWith('02_')).length;
+        console.log(`[PushFunnelCopy] Prefix summary: ${count03} with 03_, ${count02} with 02_, ${existingValues.length - count03 - count02} other`);
 
-        // Group by prefix for easier reading
-        const grouped = {
-            '03_': existingValues.filter(v => v.name.startsWith('03_')),
-            '02_': existingValues.filter(v => v.name.startsWith('02_')),
-            'no_prefix': existingValues.filter(v => !v.name.startsWith('03_') && !v.name.startsWith('02_'))
-        };
-
-        console.log(`[PushFunnelCopy] 03_ prefixed values (${grouped['03_'].length}):`);
-        grouped['03_'].forEach(v => {
-            console.log(`  - "${v.name}" (ID: ${v.id})`);
-        });
-
-        console.log(`[PushFunnelCopy] 02_ prefixed values (${grouped['02_'].length}):`);
-        grouped['02_'].forEach(v => {
-            console.log(`  - "${v.name}" (ID: ${v.id})`);
-        });
-
-        console.log(`[PushFunnelCopy] No prefix values (${grouped['no_prefix'].length}):`);
-        grouped['no_prefix'].slice(0, 20).forEach(v => {
-            console.log(`  - "${v.name}" (ID: ${v.id})`);
-        });
-        if (grouped['no_prefix'].length > 20) {
-            console.log(`  ... and ${grouped['no_prefix'].length - 20} more`);
-        }
-
-        console.log('[PushFunnelCopy] ========== END CUSTOM VALUES LIST ==========');
 
         // Get funnel copy content from vault_content_fields (granular storage)
         const { data: fields, error: fieldsError } = await supabaseAdmin
@@ -334,13 +175,14 @@ export async function POST(req) {
                         field.includes('bullet') ? 'bullet' : 'paragraph';
                     const polishedValue = skipPolish ? rawValue : await polishTextContent(rawValue, fieldType);
 
-                    // Find existing value ID using helper function
-                    const existingId = findExistingId(ghlKey);
+                    // Find existing value using shared utility (returns {id, name} object)
+                    const match = findExistingId(existingMap, ghlKey);
 
                     customValues.push({
                         key: ghlKey,
                         value: polishedValue,
-                        existingId: existingId || null
+                        existingId: match?.id || null,
+                        ghlName: match?.name || ghlKey  // Use actual GHL name for API body
                     });
 
                     pageMapped++;
@@ -402,12 +244,12 @@ export async function POST(req) {
 
 /**
  * Push values to GHL Custom Values API
- * Uses PUT for existing values (update), POST for new values (create)
+ * ONLY updates existing values (never creates new ones)
  */
 async function pushToGHL(locationId, accessToken, customValues) {
     const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
 
-    for (const { key, value, existingId } of customValues) {
+    for (const { key, value, existingId, ghlName } of customValues) {
         try {
             // ONLY UPDATE existing values (never create)
             if (!existingId) {
@@ -425,7 +267,8 @@ async function pushToGHL(locationId, accessToken, customValues) {
                         'Content-Type': 'application/json',
                         'Version': '2021-07-28',
                     },
-                    body: JSON.stringify({ value }),
+                    // GHL API requires both 'name' and 'value' for PUT requests
+                    body: JSON.stringify({ name: ghlName, value }),
                 }
             );
 
