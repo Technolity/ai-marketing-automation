@@ -85,7 +85,7 @@ export async function GET(req) {
 
         // Define phases by section ID (source of truth)
         const PHASE_1_SECTION_IDS = ['idealClient', 'message', 'story', 'offer'];
-        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'emails', 'sms', 'appointmentReminders', 'media', 'funnelCopy'];
+        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'emails', 'sms', 'appointmentReminders', 'media', 'funnelCopy', 'colors'];
         const PHASE_3_SECTION_IDS = ['setterScript', 'salesScripts'];
 
         // Filter by section ID, not stored phase value (which may be incorrect)
@@ -164,7 +164,7 @@ export async function POST(req) {
 
         // Define all possible sections
         const PHASE_1_SECTION_IDS = ['idealClient', 'message', 'story', 'offer'];
-        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'emails', 'sms', 'appointmentReminders', 'media', 'funnelCopy'];
+        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'emails', 'sms', 'appointmentReminders', 'media', 'funnelCopy', 'colors'];
         const PHASE_3_SECTION_IDS = ['setterScript', 'salesScripts'];
         const allSections = [...PHASE_1_SECTION_IDS, ...PHASE_2_SECTION_IDS, ...PHASE_3_SECTION_IDS];
 

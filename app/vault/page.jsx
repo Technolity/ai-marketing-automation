@@ -2402,7 +2402,7 @@ export default function VaultPage() {
                                         </div>
                                         <h3 className="text-xl font-bold text-white mb-2">Ready to Deploy?</h3>
                                         <p className="text-gray-400 max-w-sm mx-auto mb-8">
-                                            This will push all your approved content to your connected GoHighLevel account.
+                                            This will push all your approved content to your connected builder account.
                                         </p>
 
                                         <div className="flex gap-3">
