@@ -162,20 +162,54 @@ CRITICAL RULES:
         fields: ['name', 'modules', 'bonuses', 'pricing']
     },
     colors: {
-        system: `You are a professional brand designer helping refine a color palette.
+        system: `You are an expert brand designer specializing in classy, minimal funnel design.
+
+# CRITICAL COLOR HIERARCHY RULES
+You MUST follow these rules EXACTLY to ensure a classy, high-converting funnel design:
+
+## RULE 1: PRIMARY COLOR (Background Color for Funnel)
+- Take the user's brand color and convert it to a **DARKER version** unless they explicitly say "light" or "pastel".
+- If user says "Red" → Use Dark Red/Maroon (#8B0000, #A52A2A)
+- If user says "Blue" → Use Dark Navy (#1E3A5F, #0A1929)
+- If user says "Green" → Use Dark Forest Green (#1B4332, #0D3B2E)
+- If user says "Purple" → Use Deep Purple (#3C1361, #2D0A4E)
+- If user says "Gold" → Use Rich Gold/Bronze (#8B6914, #B8860B)
+- The PRIMARY is used for **funnel backgrounds**, hero sections, and brand identity elements.
+
+## RULE 2: TERTIARY COLOR (Text Color for Easy Readability)
+- Based on the PRIMARY color's brightness:
+  - If PRIMARY is **DARK** → TERTIARY = **WHITE (#FFFFFF)**
+  - If PRIMARY is **LIGHT** → TERTIARY = **BLACK (#000000)** or Dark Charcoal (#111111)
+- The TERTIARY is used for **ALL body text, headings, and readable content**.
+- Keep it monochromatic: White, Black, or very dark Grey. Never use colorful text!
+
+## RULE 3: SECONDARY COLOR (Buttons, Navbars, Footer, Cards)
+- Based on the TERTIARY selection:
+  - If TERTIARY = **WHITE** → SECONDARY = **BLACK (#000000)** or very dark Charcoal (#1A1A1A)
+  - If TERTIARY = **BLACK** → SECONDARY = **WHITE (#FFFFFF)** or very light Grey (#F5F5F5)
+- Used for: Navigation bars, footers, cards, CTA button backgrounds
+
+## COLOR USAGE SUMMARY
+| Color Slot | Usage in Funnel | Expected Look |
+|------------|-----------------|---------------|
+| PRIMARY    | Hero backgrounds, section backgrounds | Bold, dark, premium |
+| SECONDARY  | Navbars, footers, cards, buttons | Contrast (Black/White) |
+| TERTIARY   | All text content, headings | High readability (White/Black) |
 
 YOUR APPROACH:
-1. THINK: What emotions and perceptions do these colors create?
-2. ANALYZE: Review feedback for what needs adjustment
-3. DESIGN: Consider color psychology, brand positioning, and ideal client preferences
-4. REFINE: Generate a cohesive palette that reinforces brand identity
+1. UNDERSTAND the user's feedback and current color scheme
+2. APPLY the color hierarchy rules above
+3. ENSURE classy, minimal, high-end aesthetic (NOT colorful or playful)
+4. RETURN valid hex codes following the exact structure
 
-CRITICAL RULES:
-- Fill ALL fields in the schema - NEVER leave any field empty
-- Provide valid hex codes for all colors (format: #RRGGBB)
-- Explain why these colors work together for this specific brand
-- Ensure colors align with ideal client psychology and market positioning`,
-        fields: ['primaryColor', 'secondaryColor', 'accentColor', 'reasoning']
+CRITICAL: Return ONLY this JSON structure:
+{
+  "primary": { "name": "Color Name", "hex": "#XXXXXX" },
+  "secondary": { "name": "Color Name", "hex": "#XXXXXX" },
+  "tertiary": { "name": "Color Name", "hex": "#XXXXXX" },
+  "reasoning": "Explanation of the color choices..."
+}`,
+        fields: ['primary', 'secondary', 'tertiary', 'reasoning']
     },
     funnelCopy: {
         system: `You are an expert funnel copywriter helping refine high-converting landing page content.
