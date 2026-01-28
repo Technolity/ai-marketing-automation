@@ -837,8 +837,10 @@ export default function VaultPage() {
                 // Deduplicate from localStorage too
                 const phase1Deduped = [...new Set(approvals.phase1 || [])];
                 const phase2Deduped = [...new Set(approvals.phase2 || [])];
+                const phase3Deduped = [...new Set(approvals.phase3 || [])];
                 setApprovedPhase1(phase1Deduped);
                 setApprovedPhase2(phase2Deduped);
+                setApprovedPhase3(phase3Deduped);
             }
         }
     };
