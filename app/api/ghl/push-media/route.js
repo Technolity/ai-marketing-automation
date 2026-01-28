@@ -2,45 +2,17 @@
  * Push Media to GHL Custom Values
  * Uses OAuth via ghl_subaccounts with automatic token refresh
  * ONLY UPDATES existing custom values (never creates new ones)
+ * Uses ghlKeyMatcher.js for enhanced 11-level key matching
  */
 
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { MEDIA_MAP } from '@/lib/ghl/customValuesMap';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Fetch existing GHL custom values to get IDs
- */
-async function fetchExistingCustomValues(locationId, accessToken) {
-    const allValues = [];
-    let skip = 0;
-
-    while (allValues.length < 500) {
-        const response = await fetch(
-            `https://services.leadconnectorhq.com/locations/${locationId}/customValues?skip=${skip}&limit=100`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Version': '2021-07-28',
-                }
-            }
-        );
-
-        if (!response.ok) break;
-
-        const data = await response.json();
-        const values = data.customValues || [];
-        allValues.push(...values);
-
-        if (values.length < 100) break;
-        skip += 100;
-    }
-
-    return allValues;
-}
+export const maxDuration = 60; // 60 seconds timeout
 
 export async function POST(req) {
     const { userId } = auth();
@@ -82,7 +54,7 @@ export async function POST(req) {
         const { access_token: accessToken, location_id: locationId } = tokenResult;
         console.log('[PushMedia] OAuth token obtained');
 
-        // Fetch existing custom values
+        // Fetch existing custom values using shared utility
         const existingValues = await fetchExistingCustomValues(locationId, accessToken);
         console.log('[PushMedia] Found', existingValues.length, 'existing custom values in GHL');
 
@@ -103,12 +75,8 @@ export async function POST(req) {
         });
         console.log('[PushMedia] ========== END MEDIA CUSTOM VALUES ==========');
 
-        const existingMap = new Map();
-        existingValues.forEach(v => {
-            existingMap.set(v.name, v.id);
-            existingMap.set(v.name.toLowerCase(), v.id);
-            existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
-        });
+        // Build enhanced lookup map with 11-level matching
+        const existingMap = buildExistingMap(existingValues);
 
         // Get media content from vault_content_fields
         const { data: mediaFields } = await supabaseAdmin
@@ -144,7 +112,8 @@ export async function POST(req) {
             const mediaUrl = mediaContent[vaultFieldId];
 
             if (mediaUrl && mediaUrl.trim()) {
-                const existingId = existingMap.get(ghlKey) || existingMap.get(ghlKey.toLowerCase());
+                // Use enhanced 11-level key matching
+                const existingId = findExistingId(existingMap, ghlKey);
 
                 if (existingId) {
                     customValues.push({
@@ -156,7 +125,7 @@ export async function POST(req) {
                     console.log(`[PushMedia] ✓ Mapped: ${vaultFieldId} → ${ghlKey} (exists in GHL)`);
                 } else {
                     notFoundKeys.push(ghlKey);
-                    console.log(`[PushMedia] ⚠ Skipping: ${vaultFieldId} → ${ghlKey} (NOT FOUND in GHL)`);
+                    console.log(`[PushMedia] ⚠ Skipping: ${vaultFieldId} → ${ghlKey} (NOT FOUND in GHL after 11 tries)`);
                 }
             } else {
                 console.log(`[PushMedia] ⚠ Skipping: ${vaultFieldId} (no media URL)`);

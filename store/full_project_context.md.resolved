@@ -90,10 +90,12 @@
 
 ### 🚀 GHL Deployment (Hybrid)
 *   `POST /api/ghl/deploy-workflow`: **Bulk Push**. The "Big Red Button" script. Reliable.
-*   `POST /api/ghl/push-funnel-copy`: **Granular**. Updates Funnel Copy only. (⚠️ Developing).
-*   `POST /api/ghl/push-emails`: **Granular**. Updates Emails only.
-*   `POST /api/ghl/push-sms`: **Granular**. Updates SMS only.
-*   `POST /api/ghl/push-appointmentReminders`: **Granular**. Updates Reminders.
+*   `POST /api/ghl/push-funnel-copy`: **Granular**. Updates Funnel Copy only. ✓ Uses 11-level key matching.
+*   `POST /api/ghl/push-emails`: **Granular**. Updates Emails only. ✓ Uses 11-level key matching.
+*   `POST /api/ghl/push-sms`: **Granular**. Updates SMS only. ✓ Uses 11-level key matching.
+*   `POST /api/ghl/push-colors`: **Granular**. Updates Brand Colors only. ✓ Uses 11-level key matching.
+*   `POST /api/ghl/push-media`: **Granular**. Updates Media/Images only. ✓ Uses 11-level key matching.
+*   `POST /api/ghl/push-appointmentReminders`: **Granular**. Updates Reminders. ✓ Uses 11-level key matching.
 
 ### 🔐 Auth & integration
 *   `GET /api/ghl/authorize`: OAuth Callback handler.
@@ -166,13 +168,33 @@
 *   **Concept**: Maps Internal Keys <-> GHL Custom Values.
     *   Vault: `headline_text`
     *   GHL: `03_optin_headline_text`
-    *   **Fuzzy Match**: The Deployment script (`deploy-workflow`) handles capitalization mismatches, underscores vs spaces, and common typos.
+    *   **Fuzzy Match**: Uses 11-level key matching for GHL's inconsistent naming.
+
+### Key Matching Utility
+*   **File**: `lib/ghl/ghlKeyMatcher.js` (Shared Utility)
+*   **Functions**:
+    *   `buildExistingMap(values)`: Creates enhanced lookup map from GHL values
+    *   `findExistingId(map, key)`: 11-level fallback matching for finding GHL value IDs
+    *   `fetchExistingCustomValues(locationId, token)`: Paginated fetch with timeout
+    *   `updateCustomValue(locationId, token, id, key, value)`: Update with timeout
+*   **11 Match Levels**:
+    1. Exact match
+    2. Lowercase
+    3. Spaces → underscores
+    4. Lowercase + underscores
+    5. Underscores → spaces
+    6. Title Case
+    7. Lowercase with spaces
+    8. Without prefix (03_/02_)
+    9. GHL format ("Subheadline" → "Sub-Headline", "Optin" → "Opt In")
+    10. GHL format with prefix
+    11. Lowercase hero ("Hero" → "hero")
 
 ### Why Hybrid Deployment?
 *   **Problem**: GHL API has rate limits and latency. Pushing 100+ values one-by-one is slow and error-prone.
 *   **Solution**:
     1.  **Initial**: `deploy-workflow` runs a robust, localized bulk update logic.
-    2.  **Updates**: Users usually only tweak one section at a time (e.g., "Change the headline"). Granular `push-*` routes handle this efficiently (once fixed).
+    2.  **Updates**: Users tweak one section at a time. Granular `push-*` routes now use the same 11-level matching as deploy-workflow.
 
 ### Strict Update Policy
 *   The system **NEVER creates** new Custom Values. It expects the GHL Snapshot to be pre-loaded.
@@ -202,9 +224,13 @@
 ### C. GHL Architecture
 | File | Role | Key logic |
 | :--- | :--- | :--- |
-| `app/api/ghl/deploy-workflow/route.js` | **Bulk Deploy** | Iterates ALL sections. Matches `customValuesMap.js`. |
+| `app/api/ghl/deploy-workflow/route.js` | **Bulk Deploy** | Iterates ALL sections. Uses inline 11-level matching. |
+| `app/api/ghl/push-*/route.js` | **Granular Push** | Section-specific updates. Uses `ghlKeyMatcher.js`. |
 | `components/vault/PushToGHLButton.jsx` | **Granular Trigger** | Calls `push-*` routes based on section ID. |
-| `lib/ghl/customValuesMap.js` | **The Rosetta Stone** | Maps `vault_key` (e.g. `bigIdea`) -> `ghl_key` (e.g. `01_big_idea`). |
+| `components/vault/ColorsFields.jsx` | **Colors Editor** | Displays brand colors + has PushToGHLButton. |
+| `lib/ghl/customValuesMap.js` | **The Rosetta Stone** | Maps `vault_key` -> `ghl_key` (e.g. `03_optin_headline_text`). |
+| `lib/ghl/ghlKeyMatcher.js` | **Key Matcher Utility** | 11-level fallback matching shared by all push routes. |
+| `lib/ghl/tokenHelper.js` | **Token Manager** | OAuth token refresh and location token generation. |
 
 ---
 

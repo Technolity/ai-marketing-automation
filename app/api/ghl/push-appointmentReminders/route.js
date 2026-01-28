@@ -1,14 +1,17 @@
 /**
  * Push Appointment Reminders to GHL Custom Values
  * Uses OAuth via ghl_subaccounts with automatic token refresh
+ * Uses ghlKeyMatcher.js for enhanced 11-level key matching
  */
 
 import { auth } from '@clerk/nextjs';
 import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues, updateCustomValue } from '@/lib/ghl/ghlKeyMatcher';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120; // 2 minutes timeout
 
 // GHL key mappings for appointment reminders
 const APPOINTMENT_EMAIL_MAP = {
@@ -28,44 +31,6 @@ const APPOINTMENT_SMS_MAP = {
     'reminder48Hour': 'sms_48_hour_before_call_time',
     'reminder10Min': 'sms_10_min_before_call_time',
 };
-
-async function fetchExistingValues(locationId, accessToken) {
-    const allValues = [];
-    let skip = 0;
-    const maxPages = 3;
-
-    for (let page = 0; page < maxPages; page++) {
-        const resp = await fetch(
-            `https://services.leadconnectorhq.com/locations/${locationId}/customValues?skip=${skip}&limit=100`,
-            {
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Version': '2021-07-28' },
-            }
-        );
-        if (!resp.ok) break;
-        const data = await resp.json();
-        const values = data.customValues || [];
-        allValues.push(...values);
-        if (values.length < 100) break;
-        skip += 100;
-    }
-    return allValues;
-}
-
-async function updateValue(locationId, accessToken, existingId, key, value) {
-    const resp = await fetch(
-        `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
-        {
-            method: 'PUT',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-                'Version': '2021-07-28',
-            },
-            body: JSON.stringify({ name: key, value: String(value) }),
-        }
-    );
-    return resp.ok;
-}
 
 export async function POST(req) {
     const { userId } = auth();
@@ -100,12 +65,12 @@ export async function POST(req) {
         return NextResponse.json({ error: tokenResult.error }, { status: 401 });
     }
 
-    // Fetch existing GHL values
-    const existingValues = await fetchExistingValues(subaccount.location_id, tokenResult.access_token);
-    const existingMap = new Map();
-    existingValues.forEach(v => {
-        existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), { id: v.id, name: v.name });
-    });
+    // Fetch existing GHL values using shared utility
+    const existingValues = await fetchExistingCustomValues(subaccount.location_id, tokenResult.access_token);
+    console.log('[PushAppointmentReminders] Found', existingValues.length, 'existing custom values');
+
+    // Build enhanced lookup map with 11-level matching
+    const existingMap = buildExistingMap(existingValues);
 
     // Get appointment reminder content from vault_content_fields (granular storage)
     const { data: fields, error: fieldsError } = await supabaseAdmin
@@ -137,50 +102,92 @@ export async function POST(req) {
     const smsReminders = appointmentReminders.smsReminders || {};
 
     let pushed = 0;
-    const findExisting = (key) => existingMap.get(key) || existingMap.get(key.toLowerCase());
+    let notFound = 0;
 
-    // Push emails
+    // Push emails using enhanced key matching
     for (const [index, mapping] of Object.entries(APPOINTMENT_EMAIL_MAP)) {
         const email = emails[parseInt(index)];
         if (!email) continue;
 
         if (email.subject) {
-            const existing = findExisting(mapping.subject);
-            if (existing && await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.subject, email.subject)) {
-                pushed++;
+            const existingId = findExistingId(existingMap, mapping.subject);
+            if (existingId) {
+                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, existingId, mapping.subject, email.subject);
+                if (result.success) {
+                    pushed++;
+                    console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.subject}`);
+                }
+            } else {
+                notFound++;
+                console.log(`[PushAppointmentReminders] ⚠ Not found: ${mapping.subject}`);
             }
         }
-        const preheaderValue = email.preheader || email.preview;
+        // Handle both 'preheader' and 'preview' field names
+        const preheaderValue = email.preheader || email.previewText || email.preview;
         if (preheaderValue) {
-            const existing = findExisting(mapping.preheader);
-            if (existing && await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.preheader, preheaderValue)) {
-                pushed++;
+            const existingId = findExistingId(existingMap, mapping.preheader);
+            if (existingId) {
+                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, existingId, mapping.preheader, preheaderValue);
+                if (result.success) {
+                    pushed++;
+                    console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.preheader}`);
+                }
+            } else {
+                notFound++;
             }
         }
         if (email.body) {
-            const existing = findExisting(mapping.body);
-            if (existing && await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, mapping.body, email.body)) {
-                pushed++;
+            const existingId = findExistingId(existingMap, mapping.body);
+            if (existingId) {
+                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, existingId, mapping.body, email.body);
+                if (result.success) {
+                    pushed++;
+                    console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.body}`);
+                }
+            } else {
+                notFound++;
             }
         }
     }
 
-    // Push SMS
+    // Push SMS using enhanced key matching
     for (const [vaultKey, ghlKey] of Object.entries(APPOINTMENT_SMS_MAP)) {
-        const value = smsReminders[vaultKey];
+        let value = smsReminders[vaultKey];
         if (!value) continue;
 
-        const existing = findExisting(ghlKey);
-        if (existing && await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value)) {
-            pushed++;
+        // Extract SMS text from various formats
+        if (typeof value === 'object') {
+            value = value.message || value.body || value.text || JSON.stringify(value);
+        }
+
+        const existingId = findExistingId(existingMap, ghlKey);
+        if (existingId) {
+            const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, existingId, ghlKey, value);
+            if (result.success) {
+                pushed++;
+                console.log(`[PushAppointmentReminders] ✓ Updated: ${ghlKey}`);
+            }
+        } else {
+            notFound++;
+            console.log(`[PushAppointmentReminders] ⚠ Not found: ${ghlKey}`);
         }
     }
 
-    console.log('[PushAppointmentReminders] Complete:', pushed, 'values pushed');
+    console.log('[PushAppointmentReminders] Complete:', pushed, 'values pushed,', notFound, 'not found');
+
+    // Log push operation
+    await supabaseAdmin.from('ghl_push_logs').insert({
+        user_id: userId,
+        funnel_id: funnelId,
+        section: 'appointmentReminders',
+        values_pushed: pushed,
+        success: true,
+    });
 
     return NextResponse.json({
         success: true,
         pushed,
-        message: `${pushed} appointment reminder values pushed to Builder`,
+        notFound,
+        message: `${pushed} appointment reminder values pushed to Builder${notFound > 0 ? ` (${notFound} not found in GHL)` : ''}`,
     });
 }

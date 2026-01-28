@@ -12,39 +12,10 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * Fetch existing GHL custom values to get IDs
- */
-async function fetchExistingCustomValues(locationId, accessToken) {
-    const allValues = [];
-    let skip = 0;
-
-    while (allValues.length < 500) {
-        const response = await fetch(
-            `https://services.leadconnectorhq.com/locations/${locationId}/customValues?skip=${skip}&limit=100`,
-            {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Version': '2021-07-28',
-                }
-            }
-        );
-
-        if (!response.ok) break;
-
-        const data = await response.json();
-        const values = data.customValues || [];
-        allValues.push(...values);
-
-        if (values.length < 100) break;
-        skip += 100;
-    }
-
-    return allValues;
-}
+export const maxDuration = 60; // 60 seconds timeout
 
 export async function POST(req) {
     const { userId } = auth();
@@ -86,7 +57,7 @@ export async function POST(req) {
         const { access_token: accessToken, location_id: locationId } = tokenResult;
         console.log('[PushColors] OAuth token obtained');
 
-        // Fetch existing custom values
+        // Fetch existing custom values using shared utility
         const existingValues = await fetchExistingCustomValues(locationId, accessToken);
         console.log('[PushColors] Found', existingValues.length, 'existing custom values in GHL');
 
@@ -104,12 +75,8 @@ export async function POST(req) {
         });
         console.log('[PushColors] ========== END COLOR CUSTOM VALUES ==========');
 
-        const existingMap = new Map();
-        existingValues.forEach(v => {
-            existingMap.set(v.name, v.id);
-            existingMap.set(v.name.toLowerCase(), v.id);
-            existingMap.set(v.name.toLowerCase().replace(/\s+/g, '_'), v.id);
-        });
+        // Build enhanced lookup map with 11-level matching
+        const existingMap = buildExistingMap(existingValues);
 
         // Get brand colors from vault_content_fields
         const { data: colorField } = await supabaseAdmin
@@ -156,7 +123,8 @@ export async function POST(req) {
         for (const [ghlKey, hexValue] of Object.entries(colorMappings)) {
             if (!hexValue) continue;
 
-            const existingId = existingMap.get(ghlKey) || existingMap.get(ghlKey.toLowerCase());
+            // Use enhanced 11-level key matching
+            const existingId = findExistingId(existingMap, ghlKey);
 
             if (existingId) {
                 customValues.push({
@@ -167,7 +135,7 @@ export async function POST(req) {
                 console.log(`[PushColors] ✓ Mapped: ${ghlKey} = ${hexValue} (ID: ${existingId})`);
             } else {
                 notFoundKeys.push(ghlKey);
-                console.log(`[PushColors] ✗ NOT FOUND: ${ghlKey} (tried: "${ghlKey}", "${ghlKey.toLowerCase()}")`);
+                console.log(`[PushColors] ✗ NOT FOUND: ${ghlKey} (tried 11 naming variations)`);
             }
         }
         console.log('[PushColors] ========== END MAPPING ==========');
