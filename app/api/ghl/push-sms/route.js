@@ -101,11 +101,13 @@ export async function POST(req) {
 
                     // Polish SMS content
                     const polished = await polishSMSContent(smsText);
+                    const match = findExistingId(existingMap, ghlKey);
 
                     customValues.push({
                         key: ghlKey,
                         value: polished.message || polished,
-                        existingId: findExistingId(existingMap, ghlKey)
+                        existingId: match?.id || null,
+                        ghlName: match?.name || ghlKey
                     });
                 }
             }
@@ -116,7 +118,7 @@ export async function POST(req) {
         // Push to GHL (ONLY UPDATE, never create)
         const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
 
-        for (const { key, value, existingId } of customValues) {
+        for (const { key, value, existingId, ghlName } of customValues) {
             try {
                 // ONLY UPDATE existing values (never create)
                 if (!existingId) {
@@ -134,7 +136,8 @@ export async function POST(req) {
                             'Content-Type': 'application/json',
                             'Version': '2021-07-28',
                         },
-                        body: JSON.stringify({ value }),
+                        // GHL API requires both 'name' and 'value' for PUT requests
+                        body: JSON.stringify({ name: ghlName, value }),
                     }
                 );
 

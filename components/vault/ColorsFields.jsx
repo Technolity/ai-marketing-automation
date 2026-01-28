@@ -9,7 +9,6 @@
 import { useState, useEffect } from 'react';
 import { Palette, Check, AlertCircle, Sparkles } from 'lucide-react';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
-import PushToGHLButton from '@/components/vault/PushToGHLButton';
 import { toast } from 'sonner';
 
 // Color name to hex mapping for interpreting color names
@@ -474,19 +473,9 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
             )}
 
             {isApproved && parsedColors.length > 0 && (
-                <div className="flex flex-col gap-3 mt-4">
-                    <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 p-3 rounded-lg">
-                        <Check className="w-4 h-4" />
-                        <span>Colors approved and ready to push to Builder</span>
-                    </div>
-                    <div className="flex justify-end">
-                        <PushToGHLButton
-                            section="colors"
-                            funnelId={funnelId}
-                            isApproved={isApproved}
-                            label="Push Colors to Builder"
-                        />
-                    </div>
+                <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 p-3 rounded-lg mt-4">
+                    <Check className="w-4 h-4" />
+                    <span>Colors approved and ready to push to Builder</span>
                 </div>
             )}
         </div>

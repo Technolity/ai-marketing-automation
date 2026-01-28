@@ -110,9 +110,9 @@ export async function POST(req) {
         if (!email) continue;
 
         if (email.subject) {
-            const existingId = findExistingId(existingMap, mapping.subject);
-            if (existingId) {
-                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, existingId, mapping.subject, email.subject);
+            const match = findExistingId(existingMap, mapping.subject);
+            if (match) {
+                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, match.id, match.name, email.subject);
                 if (result.success) {
                     pushed++;
                     console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.subject}`);
@@ -125,9 +125,9 @@ export async function POST(req) {
         // Handle both 'preheader' and 'preview' field names
         const preheaderValue = email.preheader || email.previewText || email.preview;
         if (preheaderValue) {
-            const existingId = findExistingId(existingMap, mapping.preheader);
-            if (existingId) {
-                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, existingId, mapping.preheader, preheaderValue);
+            const match = findExistingId(existingMap, mapping.preheader);
+            if (match) {
+                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, match.id, match.name, preheaderValue);
                 if (result.success) {
                     pushed++;
                     console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.preheader}`);
@@ -137,9 +137,9 @@ export async function POST(req) {
             }
         }
         if (email.body) {
-            const existingId = findExistingId(existingMap, mapping.body);
-            if (existingId) {
-                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, existingId, mapping.body, email.body);
+            const match = findExistingId(existingMap, mapping.body);
+            if (match) {
+                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, match.id, match.name, email.body);
                 if (result.success) {
                     pushed++;
                     console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.body}`);
@@ -160,9 +160,9 @@ export async function POST(req) {
             value = value.message || value.body || value.text || JSON.stringify(value);
         }
 
-        const existingId = findExistingId(existingMap, ghlKey);
-        if (existingId) {
-            const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, existingId, ghlKey, value);
+        const match = findExistingId(existingMap, ghlKey);
+        if (match) {
+            const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, match.id, match.name, value);
             if (result.success) {
                 pushed++;
                 console.log(`[PushAppointmentReminders] ✓ Updated: ${ghlKey}`);

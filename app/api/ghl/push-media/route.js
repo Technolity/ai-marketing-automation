@@ -113,14 +113,15 @@ export async function POST(req) {
 
             if (mediaUrl && mediaUrl.trim()) {
                 // Use enhanced 11-level key matching
-                const existingId = findExistingId(existingMap, ghlKey);
+                const match = findExistingId(existingMap, ghlKey);
 
-                if (existingId) {
+                if (match) {
                     customValues.push({
                         vaultField: vaultFieldId,
                         key: ghlKey,
                         value: mediaUrl,
-                        existingId
+                        existingId: match.id,
+                        ghlName: match.name
                     });
                     console.log(`[PushMedia] ✓ Mapped: ${vaultFieldId} → ${ghlKey} (exists in GHL)`);
                 } else {
@@ -145,7 +146,7 @@ export async function POST(req) {
         // Push to GHL (ONLY UPDATE, never create)
         const results = { success: true, updated: 0, skipped: 0, failed: 0, errors: [], notFoundKeys };
 
-        for (const { vaultField, key, value, existingId } of customValues) {
+        for (const { vaultField, key, value, existingId, ghlName } of customValues) {
             try {
                 const response = await fetch(
                     `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
@@ -156,7 +157,8 @@ export async function POST(req) {
                             'Content-Type': 'application/json',
                             'Version': '2021-07-28',
                         },
-                        body: JSON.stringify({ value }),
+                        // GHL API requires both 'name' and 'value' for PUT requests
+                        body: JSON.stringify({ name: ghlName, value }),
                     }
                 );
 

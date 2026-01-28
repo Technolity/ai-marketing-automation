@@ -123,16 +123,22 @@ export async function POST(req) {
         for (const [ghlKey, hexValue] of Object.entries(colorMappings)) {
             if (!hexValue) continue;
 
-            // Use enhanced 11-level key matching
-            const existingId = findExistingId(existingMap, ghlKey);
+            // Use enhanced 11-level key matching - returns { id, name } if found
+            const matchResult = findExistingId(existingMap, ghlKey);
 
-            if (existingId) {
+            if (matchResult) {
+                // matchResult may be just the ID string or an object { id, name }
+                const existingId = typeof matchResult === 'string' ? matchResult : matchResult.id;
+                const existingName = typeof matchResult === 'object' ? matchResult.name : null;
+
                 customValues.push({
                     key: ghlKey,
                     value: hexValue,
-                    existingId
+                    existingId,
+                    // Store the original GHL name for the API call
+                    ghlName: existingName || ghlKey
                 });
-                console.log(`[PushColors] ✓ Mapped: ${ghlKey} = ${hexValue} (ID: ${existingId})`);
+                console.log(`[PushColors] ✓ Mapped: ${ghlKey} = ${hexValue} (ID: ${existingId}, Name: ${existingName || ghlKey})`);
             } else {
                 notFoundKeys.push(ghlKey);
                 console.log(`[PushColors] ✗ NOT FOUND: ${ghlKey} (tried 11 naming variations)`);
@@ -153,7 +159,7 @@ export async function POST(req) {
         // Push to GHL (ONLY UPDATE, never create)
         const results = { success: true, updated: 0, skipped: 0, failed: 0, errors: [], notFoundKeys };
 
-        for (const { key, value, existingId } of customValues) {
+        for (const { key, value, existingId, ghlName } of customValues) {
             try {
                 const response = await fetch(
                     `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
@@ -164,7 +170,8 @@ export async function POST(req) {
                             'Content-Type': 'application/json',
                             'Version': '2021-07-28',
                         },
-                        body: JSON.stringify({ value }),
+                        // GHL API requires both 'name' and 'value' for PUT requests
+                        body: JSON.stringify({ name: ghlName, value }),
                     }
                 );
 
