@@ -218,31 +218,33 @@ FUNNEL COPY STRUCTURE - YOU MUST KNOW THIS:
 The funnelCopy section has FOUR pages with the following structure:
 
 1. optinPage (5 fields):
-   - headline_text: Main opt-in headline (max 15 words)
-   - subheadline_text: Supporting benefit statement (max 25 words)
-   - cta_button_text: Action button text (max 5 words)
+   - headline_text: Main opt-in headline (6-10 words STRICTLY)
+   - subheadline_text: Supporting benefit statement (12-16 words STRICTLY)
+   - cta_button_text: Action button text (2-3 words MAX, e.g., "Get Access", "Download Now")
    - popup_form_headline: Popup form headline (6-10 words)
    - mockup_image: Leave as-is (image reference)
 
 2. salesPage (72+ fields):
-   - hero_headline_text, hero_subheadline_text, cta_text
+   - hero_headline_text (8-15 words), hero_subheadline_text (10-20 words), cta_text (2-5 words)
    - process_headline, process_subheadline
    - process_1_headline through process_6_headline (with subheadlines)
    - how_it_works_headline, how_it_works_point_1/2/3
-   - audience_callout_headline, audience_callout_for_1/2/3, audience_callout_not_1/2/3
-   - call_expectations_headline, call_expectations_is_for_bullet_1/2/3, call_expectations_not_for_bullet_1/2/3
+   - audience_callout_headline, audience_callout_for_1/2/3 (10-15 words each, CONSISTENT LENGTH)
+   - audience_callout_not_1/2/3 (10-15 words each, CONSISTENT LENGTH)
+   - call_expectations_is_for_bullet_1/2/3 (10-15 words each, CONSISTENT LENGTH)
+   - call_expectations_not_for_bullet_1/2/3 (10-15 words each, CONSISTENT LENGTH)
    - bio_headline_text, bio_paragraph_text
    - testimonial_headline_text, testimonial_review_1_headline (through 4)
    - faq_headline_text, faq_question_1/2/3/4, faq_answer_1/2/3/4
    - final_cta_headline, final_cta_subheadline, final_cta_subtext
 
 3. calendarPage (2 fields):
-   - headline: Calendar booking page headline
+   - headline: Calendar booking page headline (8-15 words)
    - calendar_embedded_code: Leave as-is (embed code)
 
 4. thankYouPage (3 fields):
-   - headline: Thank you page headline
-   - subheadline: Thank you page subheadline
+   - headline: Thank you page headline (8-12 words)
+   - subheadline: Thank you page subheadline (15-25 words)
    - video_link: Leave as-is (video reference)
 
 YOUR APPROACH:
@@ -253,9 +255,11 @@ YOUR APPROACH:
 
 CRITICAL RULES:
 - Fill ALL fields in the requested page(s) - NEVER leave any field empty
-- Use short, punchy headlines (max 15 words)
-- Include benefit-driven subheadlines (max 25 words)
-- CTA buttons should be action-oriented (max 5 words)
+- STRICTLY follow word count limits:
+  * Optin headline: 6-10 words (short and punchy)
+  * Optin subheadline: 12-16 words (specific benefits)
+  * CTA buttons: 2-3 words MAX (action-oriented)
+- For/Not For bullets: ALL must be 10-15 words and SAME structure/length
 - FAQ answers should be concise but complete (2-3 sentences)
 - Maintain consistency with ideal client's language and pain points`,
         fields: ['optinPage', 'salesPage', 'calendarPage', 'thankYouPage']
