@@ -3,7 +3,12 @@ import { v2 as cloudinary } from 'cloudinary';
 
 // File upload configuration
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+// Expanded image types to prevent 400 errors - includes less common but valid types
+const ALLOWED_IMAGE_TYPES = [
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
+    'image/svg+xml', 'image/avif', 'image/bmp', 'image/tiff', 'image/x-icon',
+    'image/heic', 'image/heif'  // iOS formats
+];
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime', 'video/x-msvideo'];
 
 // Configure Cloudinary
@@ -18,7 +23,7 @@ export async function POST(request) {
         // Check if Cloudinary is configured
         if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
             return NextResponse.json(
-                { 
+                {
                     error: 'Cloudinary not configured. Please add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET to your .env file.',
                     hint: 'Get free credentials at cloudinary.com'
                 },
@@ -38,13 +43,13 @@ export async function POST(request) {
         }
 
         // Validate file type
-        const allowedTypes = fileType === 'video' 
-            ? ALLOWED_VIDEO_TYPES 
+        const allowedTypes = fileType === 'video'
+            ? ALLOWED_VIDEO_TYPES
             : ALLOWED_IMAGE_TYPES;
 
         if (!allowedTypes.includes(file.type)) {
             return NextResponse.json(
-                { 
+                {
                     error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}`,
                     receivedType: file.type
                 },
@@ -55,7 +60,7 @@ export async function POST(request) {
         // Validate file size
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json(
-                { 
+                {
                     error: `File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
                     fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`
                 },
@@ -115,9 +120,9 @@ export async function POST(request) {
     } catch (error) {
         console.error('[Upload] Error:', error);
         return NextResponse.json(
-            { 
+            {
                 error: 'Failed to upload file',
-                details: error.message 
+                details: error.message
             },
             { status: 500 }
         );
@@ -127,8 +132,8 @@ export async function POST(request) {
 // GET endpoint to check upload status
 export async function GET() {
     const isConfigured = Boolean(
-        process.env.CLOUDINARY_CLOUD_NAME && 
-        process.env.CLOUDINARY_API_KEY && 
+        process.env.CLOUDINARY_CLOUD_NAME &&
+        process.env.CLOUDINARY_API_KEY &&
         process.env.CLOUDINARY_API_SECRET
     );
 

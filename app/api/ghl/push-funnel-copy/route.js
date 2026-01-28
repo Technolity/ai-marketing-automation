@@ -115,39 +115,52 @@ export async function POST(req) {
 
         console.log('[PushFunnelCopy] Reconstructed content from', Object.keys(content).length, 'parent fields:', Object.keys(content));
 
-        // Get user's company email from user_profiles
+        // Get user's company info from user_profiles (match deploy-workflow logic)
         const { data: userProfile } = await supabaseAdmin
             .from('user_profiles')
-            .select('business_email')
-            .eq('user_id', userId)
+            .select('business_name, email')
+            .eq('id', userId)  // Use 'id' column (matches deploy-workflow)
             .single();
 
-        const companyEmail = userProfile?.business_email || '';
-        console.log('[PushFunnelCopy] Company email from user_profiles:', companyEmail || '(not set)');
+        const companyName = userProfile?.business_name || '';
+        const companyEmail = userProfile?.email || '';
+        console.log('[PushFunnelCopy] Company info from user_profiles:', {
+            business_name: companyName || '(not set)',
+            email: companyEmail || '(not set)'
+        });
 
         // Build custom values payload using customValuesMap
         const customValues = [];
 
-        // Add universal fields first (company_email, etc.)
+        // Add universal fields first (company_name and company_email)
         console.log('[PushFunnelCopy] ========== UNIVERSAL FIELDS ==========');
-        for (const [field, ghlKey] of Object.entries(UNIVERSAL_MAP)) {
-            let value = null;
-            if (field === 'company_email') {
-                value = companyEmail;
-            }
-            // company_name and logo_image are handled elsewhere
 
-            if (value) {
-                const existingId = findExistingId(ghlKey);
-
-                customValues.push({
-                    key: ghlKey,
-                    value: value,
-                    existingId: existingId || null
-                });
-                console.log(`[PushFunnelCopy]   ✓ ${field} → ${ghlKey} = ${value}`);
-            }
+        // Push company_name
+        if (companyName) {
+            const companyNameKey = UNIVERSAL_MAP.company_name; // 'company_name'
+            const match = findExistingId(existingMap, companyNameKey);
+            customValues.push({
+                key: companyNameKey,
+                value: companyName,
+                existingId: match?.id || null,
+                ghlName: match?.name || companyNameKey
+            });
+            console.log(`[PushFunnelCopy]   ✓ company_name → ${companyNameKey} = ${companyName}`);
         }
+
+        // Push company_email
+        if (companyEmail) {
+            const companyEmailKey = UNIVERSAL_MAP.company_email; // '03_company_email'
+            const match = findExistingId(existingMap, companyEmailKey);
+            customValues.push({
+                key: companyEmailKey,
+                value: companyEmail,
+                existingId: match?.id || null,
+                ghlName: match?.name || companyEmailKey
+            });
+            console.log(`[PushFunnelCopy]   ✓ company_email → ${companyEmailKey} = ${companyEmail}`);
+        }
+
 
         console.log('[PushFunnelCopy] ========== MAPPING PAGES ==========');
         console.log('[PushFunnelCopy] Available pages in FUNNEL_COPY_MAP:', Object.keys(FUNNEL_COPY_MAP));

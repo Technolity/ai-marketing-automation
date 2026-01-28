@@ -14,6 +14,19 @@ import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/l
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 60 seconds timeout
 
+// Default media values (used when user hasn't uploaded their own)
+// High-quality placeholder images from Unsplash
+const DEFAULT_MEDIA_VALUES = {
+    logo: 'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=200&h=60&fit=crop&q=80',
+    profile_photo: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop&q=80',
+    banner_image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=600&fit=crop&q=80',
+    vsl_video: '', // No default for video
+    testimonial_review_1_image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&q=80',
+    testimonial_review_2_image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&q=80',
+    testimonial_review_3_image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&q=80',
+    testimonial_review_4_image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&q=80'
+};
+
 export async function POST(req) {
     const { userId } = auth();
     if (!userId) {
@@ -93,15 +106,20 @@ export async function POST(req) {
             });
         }
 
-        if (!mediaFields || mediaFields.length === 0) {
-            return Response.json({ error: 'No media content found. Please upload media first.' }, { status: 404 });
-        }
+        // Build media content map (use defaults for missing fields)
+        const mediaContent = { ...DEFAULT_MEDIA_VALUES }; // Start with defaults
 
-        // Build media content map
-        const mediaContent = {};
-        mediaFields.forEach(field => {
-            mediaContent[field.field_id] = field.field_value;
-        });
+        // Override with actual uploaded values
+        if (mediaFields && mediaFields.length > 0) {
+            mediaFields.forEach(field => {
+                if (field.field_value && field.field_value.trim()) {
+                    mediaContent[field.field_id] = field.field_value;
+                }
+            });
+            console.log('[PushMedia] Media fields from vault:', mediaFields.length, '- merged with defaults');
+        } else {
+            console.log('[PushMedia] No media fields in vault - using ALL defaults');
+        }
 
         // Build custom values using MEDIA_MAP (flat structure)
         const customValues = [];
