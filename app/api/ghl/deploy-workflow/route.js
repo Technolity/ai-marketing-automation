@@ -656,8 +656,9 @@ export async function POST(req) {
             if (existingMap.has('02 ' + titleCaseNoPrefix)) return existingMap.get('02 ' + titleCaseNoPrefix);
 
             // 9. Handle GHL's hyphenated naming: "subheadline" → "Sub-Headline"
-            // GHL uses: "03 Optin Sub-Headline Text", "03 VSL hero Sub-Headline Text"
-            // Also handles double underscore: "sub__headline" → "Sub - Headline" (space-dash-space)
+            // Based on actual GHL custom value names:
+            // - "03 Optin Sub-Headline Text" (Optin as one word)
+            // - "03 VSL hero Sub-Headline Text" (hero lowercase)
             const toGhlFormat = (key) => {
                 return key
                     // First handle double underscores → space-dash-space (like "Sub - Headline")
@@ -666,15 +667,18 @@ export async function POST(req) {
                     .replace(/_/g, ' ')
                     .replace(/\b\w/g, c => c.toUpperCase())
                     // Specific word transforms for GHL naming
-                    .replace(/Subheadline/gi, 'sub-Headline')  // Note: lowercase 'sub'
-                    .replace(/Subtext/gi, 'Sub-text')
+                    .replace(/Subheadline/gi, 'Sub-Headline')  // Hyphenated Sub-Headline
+                    .replace(/Subtext/gi, 'Sub-Text')
                     .replace(/Thankyou/gi, 'Thankyou')
-                    .replace(/Optin/gi, 'Opt In')  // GHL uses "Opt In" with space
+                    // Keep Optin as one word (NOT "Opt In") based on actual GHL names
+                    .replace(/Opt In/gi, 'Optin')
                     .replace(/Vsl/gi, 'VSL')
                     .replace(/Cta/gi, 'CTA')
                     .replace(/Faq/gi, 'FAQ')
                     .replace(/Calender/gi, 'Calender')  // GHL spelling
-                    .replace(/\bAbove\b/g, 'above');  // GHL uses lowercase 'above'
+                    .replace(/\bAbove\b/g, 'above')  // GHL uses lowercase 'above'
+                    // GHL uses lowercase 'hero' in "03 VSL hero Sub-Headline Text"
+                    .replace(/\bHero\b/g, 'hero');
             };
 
             const ghlFormat = toGhlFormat(ghlKey);
