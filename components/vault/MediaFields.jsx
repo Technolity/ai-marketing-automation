@@ -103,47 +103,13 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
     const handleFileUpload = async (field_id, file) => {
         if (!file) return;
 
-        // Validate file type and size
+        // Validate file size only (no format or dimension restrictions)
         const fieldDef = predefinedFields.find(f => f.field_id === field_id);
         const maxSize = fieldDef?.field_metadata?.maxSize || 10485760; // 10MB default
-        const accept = fieldDef?.field_metadata?.accept || 'image/*';
-        const maxWidth = fieldDef?.field_metadata?.maxWidth;
-        const maxHeight = fieldDef?.field_metadata?.maxHeight;
 
-        // File size validation
         if (file.size > maxSize) {
             toast.error(`File size must be under ${maxSize / 1024 / 1024}MB`);
             return;
-        }
-
-        // File type validation
-        if (accept !== 'image/*') {
-            const acceptedTypes = accept.split(',').map(t => t.trim());
-            if (!acceptedTypes.includes(file.type)) {
-                const formatNames = acceptedTypes.map(t => t.split('/')[1]?.toUpperCase() || t).join(', ');
-                toast.error(`Only ${formatNames} formats are accepted for this field`);
-                return;
-            }
-        }
-
-        // Dimension validation for images (if maxWidth or maxHeight specified)
-        if ((maxWidth || maxHeight) && file.type.startsWith('image/')) {
-            try {
-                const dimensions = await getImageDimensions(file);
-
-                if (maxWidth && dimensions.width > maxWidth) {
-                    toast.error(`Image width must be ${maxWidth}px or less. Your image is ${dimensions.width}px wide.`);
-                    return;
-                }
-
-                if (maxHeight && dimensions.height > maxHeight) {
-                    toast.error(`Image height must be ${maxHeight}px or less. Your image is ${dimensions.height}px tall.`);
-                    return;
-                }
-            } catch (err) {
-                console.error('[MediaFields] Error checking dimensions:', err);
-                // Allow upload to continue if dimension check fails
-            }
         }
 
         setUploadingFields(prev => ({ ...prev, [field_id]: true }));
@@ -175,19 +141,6 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
         } finally {
             setUploadingFields(prev => ({ ...prev, [field_id]: false }));
         }
-    };
-
-    // Get image dimensions from file
-    const getImageDimensions = (file) => {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                resolve({ width: img.width, height: img.height });
-                URL.revokeObjectURL(img.src);
-            };
-            img.onerror = reject;
-            img.src = URL.createObjectURL(file);
-        });
     };
 
     // Handle field save (both uploads and manual URL entry)
