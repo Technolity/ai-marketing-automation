@@ -1,14 +1,13 @@
 /**
  * Push Emails to GHL Custom Values
  * Uses OAuth via ghl_subaccounts with automatic token refresh
- * Uses customValuesMap.js for correct GHL key mapping
  * Uses contentPolisher.js for AI polishing
  * Uses ghlKeyMatcher.js for enhanced 11-level key matching
+ * Direct vault-to-GHL key mapping for 19 emails
  */
 
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-import { EMAIL_MAP } from '@/lib/ghl/customValuesMap';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
@@ -84,49 +83,83 @@ export async function POST(req) {
             content[field.field_id] = parsedValue;
         }
 
-        // Build custom values using EMAIL_MAP
+        // Get the emailSequence object (may be nested or flat)
+        const emailSequence = content.emailSequence || content;
+        console.log('[PushEmails] Email content keys:', Object.keys(emailSequence).filter(k => k.startsWith('email')));
+
+        // DIRECT MAPPING: Vault email keys → GHL custom value keys
+        // Based on extracted_values.txt GHL naming convention
+        const VAULT_TO_GHL_MAP = {
+            // Days 1-7 (single emails)
+            email1: { subject: 'optin_email_subject_1', preheader: 'optin_email_preheader_1', body: 'optin_email_body_1' },
+            email2: { subject: 'optin_email_subject_2', preheader: 'optin_email_preheader_2', body: 'optin_email_body_2' },
+            email3: { subject: 'optin_email_subject_3', preheader: 'optin_email_preheader_3', body: 'optin_email_body_3' },
+            email4: { subject: 'optin_email_subject_4', preheader: 'optin_email_preheader_4', body: 'optin_email_body_4' },
+            email5: { subject: 'optin_email_subject_5', preheader: 'optin_email_preheader_5', body: 'optin_email_body_5' },
+            email6: { subject: 'optin_email_subject_6', preheader: 'optin_email_preheader_6', body: 'optin_email_body_6' },
+            email7: { subject: 'optin_email_subject_7', preheader: 'optin_email_preheader_7', body: 'optin_email_body_7' },
+            // Day 8 (3 emails: morning, afternoon, evening)
+            email8a: { subject: 'optin_email_subject_8_morning', preheader: 'optin_email_preheader_8_morning', body: 'optin_email_body_8_morning' },
+            email8b: { subject: 'optin_email_subject_8_afternoon', preheader: 'optin_email_preheader_8_afternoon', body: 'optin_email_body_8_afternoon' },
+            email8c: { subject: 'optin_email_subject_8_evening', preheader: 'optin_email_preheader_8_evening', body: 'optin_email_body_8_evening' },
+            // Days 9-14 (single emails)
+            email9: { subject: 'optin_email_subject_9', preheader: 'optin_email_preheader_9', body: 'optin_email_body_9' },
+            email10: { subject: 'optin_email_subject_10', preheader: 'optin_email_preheader_10', body: 'optin_email_body_10' },
+            email11: { subject: 'optin_email_subject_11', preheader: 'optin_email_preheader_11', body: 'optin_email_body_11' },
+            email12: { subject: 'optin_email_subject_12', preheader: 'optin_email_preheader_12', body: 'optin_email_body_12' },
+            email13: { subject: 'optin_email_subject_13', preheader: 'optin_email_preheader_13', body: 'optin_email_body_13' },
+            email14: { subject: 'optin_email_subject_14', preheader: 'optin_email_preheader_14', body: 'optin_email_body_14' },
+            // Day 15 (3 emails: morning, afternoon, evening)
+            email15a: { subject: 'optin_email_subject_15_morning', preheader: 'optin_email_preheader_15_morning', body: 'optin_email_body_15_morning' },
+            email15b: { subject: 'optin_email_subject_15_afternoon', preheader: 'optin_email_preheader_15_afternoon', body: 'optin_email_body_15_afternoon' },
+            email15c: { subject: 'optin_email_subject_15_evening', preheader: 'optin_email_preheader_15_evening', body: 'optin_email_body_15_evening' },
+        };
+
+        // Build custom values using direct mapping
         const customValues = [];
 
-        for (const [sequence, emails] of Object.entries(EMAIL_MAP)) {
-            const sequenceContent = content[sequence] || {};
+        for (const [vaultKey, ghlKeys] of Object.entries(VAULT_TO_GHL_MAP)) {
+            const emailContent = emailSequence[vaultKey];
+            if (!emailContent) {
+                console.log(`[PushEmails] No content for ${vaultKey}`);
+                continue;
+            }
 
-            for (const [emailKey, ghlKeys] of Object.entries(emails)) {
-                const emailContent = sequenceContent[emailKey] || content[emailKey] || {};
+            // Subject
+            if (emailContent.subject) {
+                const polished = await polishTextContent(emailContent.subject, 'headline');
+                const match = findExistingId(existingMap, ghlKeys.subject);
+                customValues.push({
+                    key: ghlKeys.subject,
+                    value: polished,
+                    existingId: match?.id || null,
+                    ghlName: match?.name || ghlKeys.subject
+                });
+            }
 
-                if (typeof ghlKeys === 'object') {
-                    if (ghlKeys.subject && emailContent.subject) {
-                        const polished = await polishTextContent(emailContent.subject, 'headline');
-                        const match = findExistingId(existingMap, ghlKeys.subject);
-                        customValues.push({
-                            key: ghlKeys.subject,
-                            value: polished,
-                            existingId: match?.id || null,
-                            ghlName: match?.name || ghlKeys.subject
-                        });
-                    }
-                    // Handle both 'preheader' and 'previewText' field names
-                    const preheaderValue = emailContent.preheader || emailContent.previewText || emailContent.preview;
-                    if (ghlKeys.preheader && preheaderValue) {
-                        const polished = await polishTextContent(preheaderValue, 'paragraph');
-                        const match = findExistingId(existingMap, ghlKeys.preheader);
-                        customValues.push({
-                            key: ghlKeys.preheader,
-                            value: polished,
-                            existingId: match?.id || null,
-                            ghlName: match?.name || ghlKeys.preheader
-                        });
-                    }
-                    if (ghlKeys.body && emailContent.body) {
-                        const polished = await polishTextContent(emailContent.body, 'email');
-                        const match = findExistingId(existingMap, ghlKeys.body);
-                        customValues.push({
-                            key: ghlKeys.body,
-                            value: polished,
-                            existingId: match?.id || null,
-                            ghlName: match?.name || ghlKeys.body
-                        });
-                    }
-                }
+            // Preheader/Preview (vault uses 'preview', GHL uses 'preheader')
+            const preheaderValue = emailContent.preview || emailContent.preheader || emailContent.previewText;
+            if (preheaderValue) {
+                const polished = await polishTextContent(preheaderValue, 'paragraph');
+                const match = findExistingId(existingMap, ghlKeys.preheader);
+                customValues.push({
+                    key: ghlKeys.preheader,
+                    value: polished,
+                    existingId: match?.id || null,
+                    ghlName: match?.name || ghlKeys.preheader
+                });
+            }
+
+            // Body
+            if (emailContent.body) {
+                const polished = await polishTextContent(emailContent.body, 'email');
+                const match = findExistingId(existingMap, ghlKeys.body);
+                customValues.push({
+                    key: ghlKeys.body,
+                    value: polished,
+                    existingId: match?.id || null,
+                    ghlName: match?.name || ghlKeys.body
+                });
             }
         }
 

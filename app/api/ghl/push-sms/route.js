@@ -1,14 +1,13 @@
 /**
  * Push SMS to GHL Custom Values
  * Uses OAuth via ghl_subaccounts with automatic token refresh
- * Uses customValuesMap.js for correct GHL key mapping
  * Uses contentPolisher.js for AI polishing
  * Uses ghlKeyMatcher.js for enhanced 11-level key matching
+ * Direct vault-to-GHL key mapping for SMS
  */
 
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-import { SMS_MAP } from '@/lib/ghl/customValuesMap';
 import { polishSMSContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
@@ -84,33 +83,64 @@ export async function POST(req) {
             content[field.field_id] = parsedValue;
         }
 
-        // Build custom values using SMS_MAP
+        // Get the smsSequence object (may be nested or flat)
+        const smsSequence = content.smsSequence || content;
+        console.log('[PushSMS] SMS content keys:', Object.keys(smsSequence).filter(k => k.startsWith('sms')));
+
+        // DIRECT MAPPING: Vault SMS keys → GHL custom value keys
+        // Based on extracted_values.txt GHL naming convention
+        // Vault generates 10 SMS; we map them to GHL's first 7 days
+        const VAULT_TO_GHL_MAP = {
+            // Days 1-7 (single messages)
+            sms1: 'optin_sms_1',
+            sms2: 'optin_sms_2',
+            sms3: 'optin_sms_3',
+            sms4: 'optin_sms_4',
+            sms5: 'optin_sms_5',
+            sms6: 'optin_sms_6',
+            // Day 7 (vault uses sms7a, sms7b for morning/evening)
+            sms7a: 'optin_sms_7',  // Map to sms_7 or could be _8_morning
+            sms7b: 'optin_sms_8_evening',  // Map to day 8 evening as closing push
+            // Alternative: Map day 8 variants if needed
+            sms8a: 'optin_sms_8_morning',
+            sms8b: 'optin_sms_8_afternoon',
+            sms8c: 'optin_sms_8_evening',
+            // Days 9-14 (if generated)
+            sms9: 'optin_sms_9',
+            sms10: 'optin_sms_10',
+            sms11: 'optin_sms_11',
+            sms12: 'optin_sms_12',
+            sms13: 'optin_sms_13',
+            sms14: 'optin_sms_14',
+            // Day 15 (if generated)
+            sms15a: 'optin_sms_15_morning',
+            sms15b: 'optin_sms_15_afternoon',
+            sms15c: 'optin_sms_15_evening',
+        };
+
+        // Build custom values using direct mapping
         const customValues = [];
 
-        for (const [sequence, messages] of Object.entries(SMS_MAP)) {
-            const sequenceContent = content[sequence] || {};
+        for (const [vaultKey, ghlKey] of Object.entries(VAULT_TO_GHL_MAP)) {
+            const smsContent = smsSequence[vaultKey];
+            if (!smsContent) continue;
 
-            for (const [msgKey, ghlKey] of Object.entries(messages)) {
-                const rawValue = sequenceContent[msgKey] || content[msgKey];
-                if (rawValue) {
-                    // Extract SMS text from various formats
-                    let smsText = rawValue;
-                    if (typeof rawValue === 'object') {
-                        smsText = rawValue.message || rawValue.body || rawValue.text || JSON.stringify(rawValue);
-                    }
-
-                    // Polish SMS content
-                    const polished = await polishSMSContent(smsText);
-                    const match = findExistingId(existingMap, ghlKey);
-
-                    customValues.push({
-                        key: ghlKey,
-                        value: polished.message || polished,
-                        existingId: match?.id || null,
-                        ghlName: match?.name || ghlKey
-                    });
-                }
+            // Extract SMS text from various formats
+            let smsText = smsContent;
+            if (typeof smsContent === 'object') {
+                smsText = smsContent.message || smsContent.body || smsContent.text || JSON.stringify(smsContent);
             }
+
+            // Polish SMS content
+            const polished = await polishSMSContent(smsText);
+            const match = findExistingId(existingMap, ghlKey);
+
+            customValues.push({
+                key: ghlKey,
+                value: polished.message || polished,
+                existingId: match?.id || null,
+                ghlName: match?.name || ghlKey
+            });
         }
 
         console.log('[PushSMS] Pushing', customValues.length, 'values');
