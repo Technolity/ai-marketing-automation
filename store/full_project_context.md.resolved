@@ -198,6 +198,7 @@
 
 ### Strict Update Policy
 *   The system **NEVER creates** new Custom Values. It expects the GHL Snapshot to be pre-loaded.
+*   **CRITICAL**: The Snapshot MUST use `03_` prefix for all custom values. Older snapshots with `02_` prefix will fail to match.
 *   It only **UPDATES** values that it finds in the account. This prevents polluting the user's GHL account with junk data.
 
 ---
