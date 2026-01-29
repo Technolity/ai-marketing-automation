@@ -50,19 +50,9 @@ export async function GET(req) {
         }
 
         // 2. Fetch all responses for this funnel
-        // We join with questions_master to get the field_name (key) for each answer
         const { data: responses, error: responsesError } = await supabaseAdmin
             .from('questionnaire_responses')
-            .select(`
-                answer_text,
-                answer_selection,
-                answer_selections,
-                answer_json,
-                question_id,
-                questions_master!inner (
-                    field_name
-                )
-            `)
+            .select('*')
             .eq('funnel_id', funnelId)
             .eq('user_id', userId);
 
@@ -71,12 +61,41 @@ export async function GET(req) {
             throw responsesError;
         }
 
-        // 3. Reconstruct answers object using field names from master table
+        // 3. Fetch questions master to map question_id to field_name
+        const { data: questionsMaster, error: masterError } = await supabaseAdmin
+            .from('questions_master')
+            .select('id, step_number, field_name');
+
+        if (masterError) {
+            console.error('[IntakeFormGet] Error fetching questions master:', masterError);
+            // Don't fail completely, just log error. We might fail to map keys efficiently.
+        }
+
+        // Create a map of question_id -> field_name
+        const questionIdToField = {};
+        const stepToField = {};
+
+        if (questionsMaster) {
+            questionsMaster.forEach(q => {
+                questionIdToField[q.id] = q.field_name;
+                stepToField[q.step_number] = q.field_name;
+            });
+        }
+
+        // 4. Reconstruct answers object using field names from master table
         const answers = {};
 
         if (responses && responses.length > 0) {
             responses.forEach(r => {
-                const key = r.questions_master?.field_name;
+                // Try to resolve field name via question_id first, then step_number
+                let key = questionIdToField[r.question_id];
+
+                // Fallback: if we can't find by ID, try step number if available
+                if (!key && r.step_number) {
+                    key = stepToField[r.step_number];
+                }
+
+                // If still no key, we can't map this answer to a state field
                 if (!key) return;
 
                 // Determine value based on populated columns (priority: structural -> explicit -> json)
