@@ -238,15 +238,68 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                     }
                 }
 
-                // PRIORITY 2: Fresh intake data from wizard_answers (editable by user)
-                // This ensures edited intake answers reflect immediately
+                // PRIORITY 2: Vault Content (AI-generated snapshot)
+                // We check this BEFORE raw intake data so users see the smart AI result first
+                try {
+                    const vaultResponse = await fetch(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=colors`);
+                    if (vaultResponse.ok) {
+                        const vaultData = await vaultResponse.json();
+                        console.log('[ColorsFields] Vault data (AI source):', vaultData);
+
+                        if (vaultData.fields && vaultData.fields.length > 0) {
+                            const colorsField = vaultData.fields.find(f => f.field_id === 'colorPalette');
+
+                            if (colorsField?.field_value) {
+                                let generatedColors;
+                                try {
+                                    if (typeof colorsField.field_value === 'object' && colorsField.field_value !== null) {
+                                        generatedColors = colorsField.field_value;
+                                    } else if (typeof colorsField.field_value === 'string') {
+                                        const trimmed = colorsField.field_value.trim();
+                                        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                                            generatedColors = JSON.parse(trimmed);
+                                        } else {
+                                            // Plain text in vault - treat as raw answer but from vault
+                                            // This is rare but possible if AI failed to generate JSON
+                                            console.log('[ColorsFields] Vault value is plain text. Using as raw answer.');
+                                        }
+                                    }
+
+                                    if (generatedColors) {
+                                        console.log('[ColorsFields] Using AI-generated colors from vault:', generatedColors);
+                                        const displayColors = [];
+                                        const primary = generatedColors.primaryColor || generatedColors.primary;
+                                        if (primary) displayColors.push({ name: primary.name, hex: primary.hex });
+
+                                        const secondary = generatedColors.secondaryColor || generatedColors.secondary;
+                                        if (secondary) displayColors.push({ name: secondary.name, hex: secondary.hex });
+
+                                        const tertiary = generatedColors.accentColor || generatedColors.tertiary;
+                                        if (tertiary) displayColors.push({ name: tertiary.name, hex: tertiary.hex });
+
+                                        setParsedColors(displayColors);
+                                        setRawAnswer(generatedColors.reasoning || 'AI-generated professional color palette');
+                                        setLoading(false);
+                                        return; // STOP HERE if we found valid AI content
+                                    }
+                                } catch (parseError) {
+                                    console.warn('[ColorsFields] Error parsing vault colors, falling back to questionnaire:', parseError);
+                                }
+                            }
+                        }
+                    }
+                } catch (vError) {
+                    console.log('[ColorsFields] Vault fetch failed, continuing to questionnaire:', vError);
+                }
+
+                // PRIORITY 3: Fresh intake data from wizard_answers (editable by user)
+                // Fallback if no AI content exists yet
                 try {
                     const questionnaireResponse = await fetch(`/api/intake-form/answers?funnel_id=${funnelId}`);
                     if (questionnaireResponse.ok) {
                         const questionnaireData = await questionnaireResponse.json();
-                        console.log('[ColorsFields] Questionnaire data (priority source):', questionnaireData);
+                        console.log('[ColorsFields] Questionnaire data (fallback source):', questionnaireData);
 
-                        // Check for brandColors in the answers
                         const colorAnswer = questionnaireData.answers?.brandColors ||
                             questionnaireData.answers?.['21'] ||
                             questionnaireData.answers?.['15'] ||
@@ -258,7 +311,6 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                             setBrandColorsText(colorAnswer);
 
                             const colors = parseColorsFromText(colorAnswer);
-                            console.log('[ColorsFields] Parsed colors from text:', colors);
                             setParsedColors(colors);
                             setLoading(false);
                             return;
@@ -266,99 +318,6 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                     }
                 } catch (qError) {
                     console.log('[ColorsFields] Questionnaire fetch failed:', qError.message);
-                }
-
-                // PRIORITY 3: Fallback to vault_content (AI-generated snapshot)
-                // Only used if no questionnaire data exists
-                const vaultResponse = await fetch(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=colors`);
-
-                if (vaultResponse.ok) {
-                    const vaultData = await vaultResponse.json();
-                    console.log('[ColorsFields] Vault data (fallback):', vaultData);
-
-                    // If we have generated colors in vault, use those
-                    if (vaultData.fields && vaultData.fields.length > 0) {
-                        // Look specifically for the colorPalette field
-                        const colorsField = vaultData.fields.find(f => f.field_id === 'colorPalette');
-
-                        if (colorsField?.field_value) {
-                            // AI-generated color palette
-                            let generatedColors;
-                            try {
-                                // Check if it's already an object
-                                if (typeof colorsField.field_value === 'object' && colorsField.field_value !== null) {
-                                    generatedColors = colorsField.field_value;
-                                } else if (typeof colorsField.field_value === 'string') {
-                                    // Try to parse as JSON
-                                    const trimmed = colorsField.field_value.trim();
-
-                                    // Check if it's actually JSON
-                                    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-                                        generatedColors = JSON.parse(trimmed);
-                                    } else {
-                                        // It's plain text, not JSON - treat as questionnaire answer
-                                        console.log('[ColorsFields] Field value is plain text, not JSON. Using as questionnaire answer.');
-                                        setRawAnswer(colorsField.field_value);
-                                        setBrandColorsText(colorsField.field_value);
-                                        const colors = parseColorsFromText(colorsField.field_value);
-                                        setParsedColors(colors);
-                                        setLoading(false);
-                                        return;
-                                    }
-                                } else {
-                                    throw new Error('Invalid field_value type: ' + typeof colorsField.field_value);
-                                }
-                            } catch (parseError) {
-                                console.error('[ColorsFields] Error processing vault colors:', parseError);
-                                console.log('[ColorsFields] Invalid value type:', typeof colorsField.field_value);
-                                console.log('[ColorsFields] Invalid value preview:', String(colorsField.field_value).substring(0, 200));
-
-                                // Store debug info
-                                setDebugInfo({
-                                    error: parseError.message,
-                                    valueType: typeof colorsField.field_value,
-                                    valuePreview: String(colorsField.field_value).substring(0, 200)
-                                });
-
-                                // Skip to fallback if JSON is invalid
-                                throw parseError;
-                            }
-
-                            console.log('[ColorsFields] Using AI-generated colors from vault:', generatedColors);
-
-                            // Convert to display format
-                            const displayColors = [];
-                            // Handle "primaryColor" (legacy) AND "primary" (new) keys
-                            const primary = generatedColors.primaryColor || generatedColors.primary;
-                            if (primary) {
-                                displayColors.push({
-                                    name: primary.name,
-                                    hex: primary.hex
-                                });
-                            }
-
-                            const secondary = generatedColors.secondaryColor || generatedColors.secondary;
-                            if (secondary) {
-                                displayColors.push({
-                                    name: secondary.name,
-                                    hex: secondary.hex
-                                });
-                            }
-
-                            const tertiary = generatedColors.accentColor || generatedColors.tertiary;
-                            if (tertiary) {
-                                displayColors.push({
-                                    name: tertiary.name,
-                                    hex: tertiary.hex
-                                });
-                            }
-
-                            setParsedColors(displayColors);
-                            setRawAnswer(generatedColors.reasoning || 'AI-generated professional color palette');
-                            setLoading(false);
-                            return;
-                        }
-                    }
                 }
 
                 // PRIORITY 4: Final fallback - user profile

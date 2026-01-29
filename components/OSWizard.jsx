@@ -1415,7 +1415,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             // Find steps that need to be regenerated (all steps after the edited one)
             const affectedSteps = completedSteps.filter(s => s > editingStep);
 
-            // For now, regenerate the preview for the current step
+            // 1. Regenerate PREVIEW for the current step (this gets the AI content)
             const res = await fetchWithAuth("/api/os/generate", {
                 method: "POST",
                 body: JSON.stringify({
@@ -1426,6 +1426,58 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             });
 
             const data = await res.json();
+
+            // =========================================================
+            // REACTIVE REGENERATION: Save AI result to Vault immediately
+            // =========================================================
+            if (data.result && data.result.content) {
+                // Map Step ID to Vault Section ID
+                const stepToSectionId = {
+                    15: 'colors',
+                    // Add other mappings as needed:
+                    // 1: 'industry_analysis', 2: 'ideal_client', etc. 
+                    // For now, focusing on the user's reported issue with colors
+                };
+
+                const sectionId = stepToSectionId[editingStep];
+
+                if (sectionId && funnelId) {
+                    try {
+                        console.log(`[OSWizard] Reactive Regeneration: Saving Step ${editingStep} result to Vault Section '${sectionId}'...`);
+
+                        // Save to vault_content via the API
+                        await fetchWithAuth('/api/os/vault-section', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                sectionId: sectionId,
+                                funnelId: funnelId,
+                                content: data.result.content // The AI JSON output
+                            })
+                        });
+
+                        // Also save to vault_content_fields for UI consistency
+                        // This handles the "Fields" view in the Vault
+                        await fetchWithAuth('/api/os/vault-section-save', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                sectionId: sectionId,
+                                funnelId: funnelId,
+                                fields: [{
+                                    field_id: 'colorPalette', // Standard key for colors
+                                    field_value: data.result.content
+                                }]
+                            })
+                        });
+
+                        toast.success("Updated your Vault with new AI content!");
+                    } catch (saveErr) {
+                        console.error('[OSWizard] Reactive Regeneration Failed:', saveErr);
+                        // Don't block flow, just log
+                    }
+                }
+            }
 
             // Update saved content
             const newSavedContent = {
