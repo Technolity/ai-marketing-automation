@@ -277,6 +277,44 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                     console.error('[OSWizard] localStorage check error:', e);
                 }
 
+                // PRIORITY: Load wizard_answers from database if funnelId is provided
+                // This ensures "Edit Intake Answers" flow pre-populates existing answers
+                if (funnelId) {
+                    try {
+                        console.log('[OSWizard] Fetching wizard_answers for funnel:', funnelId);
+                        const answersRes = await fetchWithAuth(`/api/intake-form/answers?funnel_id=${funnelId}`);
+
+                        if (!mounted) return;
+
+                        if (answersRes.ok) {
+                            const answersData = await answersRes.json();
+                            console.log('[OSWizard] wizard_answers response:', answersData);
+
+                            if (answersData.answers && Object.keys(answersData.answers).length > 0) {
+                                console.log('[OSWizard] Loaded', Object.keys(answersData.answers).length, 'answers from wizard_answers');
+                                setStepData(answersData.answers);
+
+                                // Mark questionnaire as complete if answers exist
+                                if (answersData.questionnaire_completed) {
+                                    setIsWizardComplete(true);
+                                    // Set all steps as completed based on existing answers
+                                    const completedStepIds = [];
+                                    for (let i = 1; i <= 20; i++) {
+                                        completedStepIds.push(i);
+                                    }
+                                    setCompletedSteps(completedStepIds);
+                                }
+
+                                toast.info('Loaded your previous intake answers');
+                            } else {
+                                console.log('[OSWizard] No wizard_answers found for this funnel');
+                            }
+                        }
+                    } catch (answersError) {
+                        console.error('[OSWizard] Could not fetch wizard_answers:', answersError);
+                    }
+                }
+
 
                 // Try to fetch saved sessions from database
                 try {
