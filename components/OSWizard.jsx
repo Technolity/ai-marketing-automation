@@ -305,6 +305,21 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                     setCompletedSteps(completedStepIds);
                                 }
 
+                                // Populate inputs for the current step if we're in step view
+                                if (currentStep) {
+                                    const stepInputs = STEP_INPUTS[currentStep];
+                                    if (stepInputs) {
+                                        const loadedInput = {};
+                                        stepInputs.forEach(input => {
+                                            if (answersData.answers[input.name]) {
+                                                loadedInput[input.name] = answersData.answers[input.name];
+                                            }
+                                        });
+                                        setCurrentInput(loadedInput);
+                                        console.log('[OSWizard] Populated inputs for step', currentStep);
+                                    }
+                                }
+
                                 toast.info('Loaded your previous intake answers');
                             } else {
                                 console.log('[OSWizard] No wizard_answers found for this funnel');
