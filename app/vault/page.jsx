@@ -2716,6 +2716,17 @@ export default function VaultPage() {
                         Back to Dashboard
                     </button>
 
+                    <button
+                        onClick={() => {
+                            const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                            router.push(`/intake_form?funnel_id=${funnelId}`);
+                        }}
+                        className="w-fit p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
+                    >
+                        <Edit3 className="w-4 h-4" />
+                        Edit Intake Answers
+                    </button>
+
                     <div className="flex items-center gap-2 bg-[#131314] p-1.5 rounded-xl border border-[#2a2a2d]">
                         <button
                             onClick={() => { setActiveTab('dna'); setShowMediaLibrary(false); }}

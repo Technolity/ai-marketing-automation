@@ -4,6 +4,11 @@ import { streamWithProvider } from '@/lib/ai/sharedAiUtils';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 import { getFullContextPrompt, buildEnhancedFeedbackPrompt } from '@/lib/prompts/fullContextPrompts';
 import { encode } from 'gpt-tokenizer';
+import { mergeEmailChunks } from '@/lib/prompts/emailMerger';
+import { mergeVslChunks } from '@/lib/prompts/vslMerger';
+import { mergeCloserChunks } from '@/lib/prompts/closerScriptMerger';
+import { mergeSetterChunks } from '@/lib/prompts/setterScriptMerger';
+import { mergeSmsChunks } from '@/lib/prompts/smsMerger';
 
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +20,7 @@ export const dynamic = 'force-dynamic';
  * Streams AI tokens as they arrive (ChatGPT-style) with multi-turn conversation support.
  */
 
-const STREAM_TIMEOUT = 60000; // 60 seconds max
+const STREAM_TIMEOUT = 300000; // 5 minutes max for large sections
 const TOKEN_BUFFER_SIZE = 3; // Send every 3 tokens for smooth rendering
 
 /**
@@ -63,6 +68,245 @@ function generateSchemaExample(zodSchema, depth = 0) {
 
 // NOTE: Section-specific prompts are now in /lib/prompts/fullContextPrompts.js
 // This provides complete original generation instructions to the AI
+
+/**
+ * Parallel Refinement Handler
+ * Splits large section refinements into chunks, processes in parallel, and merges results
+ */
+async function handleParallelRefinement({
+    sectionId,
+    currentContent,
+    messageHistory,
+    intakeData,
+    leadMagnetTitle,
+    companyName,
+    brandColors,
+    sendEvent
+}) {
+    console.log('[ParallelRefinement] Starting parallel refinement for:', sectionId);
+
+    // Define chunking strategies for each section type
+    const chunkingStrategies = {
+        emails: {
+            numChunks: 4,
+            chunkNames: ['Emails 1-4', 'Emails 5-8c', 'Emails 9-12', 'Emails 13-15c'],
+            splitContent: (content) => {
+                const seq = content?.emailSequence || content;
+                return [
+                    { email1: seq.email1, email2: seq.email2, email3: seq.email3, email4: seq.email4 },
+                    { email5: seq.email5, email6: seq.email6, email7: seq.email7, email8a: seq.email8a, email8b: seq.email8b, email8c: seq.email8c },
+                    { email9: seq.email9, email10: seq.email10, email11: seq.email11, email12: seq.email12 },
+                    { email13: seq.email13, email14: seq.email14, email15a: seq.email15a, email15b: seq.email15b, email15c: seq.email15c }
+                ];
+            },
+            merger: mergeEmailChunks
+        },
+        vsl: {
+            numChunks: 2,
+            chunkNames: ['Steps 1-4 (Hook/Problem)', 'Steps 5-10 (Solution/Offer)'],
+            splitContent: (content) => {
+                const vslData = content?.vsl || content;
+                const chunk1Fields = [
+                    'step1_patternInterrupt', 'step1_characterIntro', 'step1_problemStatement', 'step1_emotionalConnection',
+                    'step2_benefitLead', 'step2_uniqueSolution', 'step2_benefitsHighlight', 'step2_problemAgitation',
+                    'step3_nightmareStory', 'step3_clientTestimonials', 'step3_dataPoints', 'step3_expertEndorsements',
+                    'step4_detailedDescription', 'step4_demonstration', 'step4_psychologicalTriggers'
+                ];
+                const chunk2Fields = [
+                    'step5_intro', 'step5_tips', 'step5_transition',
+                    'step6_directEngagement', 'step6_urgencyCreation', 'step6_clearOffer', 'step6_stepsToSuccess',
+                    'step7_recap', 'step7_primaryCTA', 'step7_offerFeaturesAndPrice', 'step7_bonuses', 'step7_secondaryCTA', 'step7_guarantee',
+                    'step8_theClose', 'step8_addressObjections', 'step8_reiterateValue',
+                    'step9_followUpStrategy', 'step9_finalPersuasion',
+                    'step10_hardClose', 'step10_handleObjectionsAgain', 'step10_scarcityClose', 'step10_inspirationClose', 'step10_speedUpAction'
+                ];
+
+                const chunk1 = {};
+                const chunk2 = {};
+                chunk1Fields.forEach(field => { if (vslData[field] !== undefined) chunk1[field] = vslData[field]; });
+                chunk2Fields.forEach(field => { if (vslData[field] !== undefined) chunk2[field] = vslData[field]; });
+
+                return [chunk1, chunk2];
+            },
+            merger: mergeVslChunks
+        },
+        salesScripts: {
+            numChunks: 2,
+            chunkNames: ['Discovery & Stakes', 'Pitch & Close'],
+            splitContent: (content) => {
+                const scripts = content?.salesScripts || content;
+                return [
+                    {
+                        agendaPermission: scripts.agendaPermission,
+                        discoveryQuestions: scripts.discoveryQuestions,
+                        stakesImpact: scripts.stakesImpact,
+                        commitmentScale: scripts.commitmentScale,
+                        decisionGate: scripts.decisionGate,
+                        recapConfirmation: scripts.recapConfirmation
+                    },
+                    {
+                        pitchScript: scripts.pitchScript,
+                        proofLine: scripts.proofLine,
+                        investmentClose: scripts.investmentClose,
+                        nextSteps: scripts.nextSteps,
+                        objectionHandling: scripts.objectionHandling
+                    }
+                ];
+            },
+            merger: mergeCloserChunks
+        },
+        setterScript: {
+            numChunks: 2,
+            chunkNames: ['Call Flow (Opening-Goal)', 'Qualification & Booking'],
+            splitContent: (content) => {
+                const script = content?.setterScript || content;
+                return [
+                    {
+                        callGoal: script.callGoal,
+                        setterMindset: script.setterMindset,
+                        openingOptIn: script.openingOptIn,
+                        permissionPurpose: script.permissionPurpose,
+                        currentSituation: script.currentSituation,
+                        primaryGoal: script.primaryGoal
+                    },
+                    {
+                        primaryObstacle: script.primaryObstacle,
+                        authorityDrop: script.authorityDrop,
+                        fitReadiness: script.fitReadiness,
+                        bookCall: script.bookCall,
+                        confirmShowUp: script.confirmShowUp,
+                        objectionHandling: script.objectionHandling
+                    }
+                ];
+            },
+            merger: mergeSetterChunks
+        },
+        sms: {
+            numChunks: 2,
+            chunkNames: ['SMS 1-5', 'SMS 6-7b + No-Shows'],
+            splitContent: (content) => {
+                const seq = content?.smsSequence || content;
+                return [
+                    { sms1: seq.sms1, sms2: seq.sms2, sms3: seq.sms3, sms4: seq.sms4, sms5: seq.sms5 },
+                    { sms6: seq.sms6, sms7a: seq.sms7a, sms7b: seq.sms7b, smsNoShow1: seq.smsNoShow1, smsNoShow2: seq.smsNoShow2 }
+                ];
+            },
+            merger: mergeSmsChunks
+        }
+    };
+
+    const strategy = chunkingStrategies[sectionId];
+    if (!strategy) {
+        throw new Error(`No chunking strategy defined for section: ${sectionId}`);
+    }
+
+    // Split content into chunks
+    const chunks = strategy.splitContent(currentContent);
+    console.log('[ParallelRefinement] Split into', chunks.length, 'chunks');
+
+    // Get latest user instruction
+    const latestUserMessage = messageHistory
+        .filter(m => m.role === 'user')
+        .pop()?.content || '';
+
+    // Build context for all chunks
+    const contextParts = [];
+    if (intakeData.idealClient) contextParts.push(`Ideal Client: ${intakeData.idealClient}`);
+    if (intakeData.message) contextParts.push(`Core Message: ${intakeData.message}`);
+    if (intakeData.businessName) contextParts.push(`Business: ${intakeData.businessName}`);
+    if (intakeData.niche) contextParts.push(`Niche: ${intakeData.niche}`);
+    if (companyName) contextParts.push(`Company Name: ${companyName}`);
+    if (leadMagnetTitle) contextParts.push(`Lead Magnet Title: ${leadMagnetTitle}`);
+
+    const businessContext = contextParts.length > 0
+        ? `\n\nBUSINESS CONTEXT:\n${contextParts.join('\n')}`
+        : '';
+
+    // Get full context prompt for this section
+    const fullContextInfo = getFullContextPrompt(sectionId);
+
+    // Process chunks in parallel
+    const chunkPromises = chunks.map(async (chunkContent, index) => {
+        const chunkName = strategy.chunkNames[index];
+
+        await sendEvent('progress', {
+            message: `Refining ${chunkName}...`,
+            chunk: index + 1,
+            total: chunks.length
+        });
+
+        const systemPrompt = `You are an expert marketing and sales consultant with FULL CONTEXT of this project.
+
+🎯 ORIGINAL GENERATION INSTRUCTIONS FOR THIS SECTION:
+${fullContextInfo.originalGenerationPrompt}
+
+📋 REFINEMENT CONTEXT:
+${fullContextInfo.refinementContext}
+
+YOUR ROLE:
+You are refining PART ${index + 1}/${chunks.length} of the ${sectionId} section (${chunkName}).
+- Make targeted improvements based on user feedback
+- Maintain consistency with the overall section style
+- Return ONLY the fields relevant to this chunk
+- Keep the same schema structure and field names
+
+CRITICAL: Return valid JSON matching the chunk structure. Do NOT wrap in markdown code blocks.`;
+
+        const userPrompt = `CURRENT CONTENT (${chunkName}):
+${JSON.stringify(chunkContent, null, 2)}
+${businessContext}
+
+USER REQUEST:
+${latestUserMessage}
+
+INSTRUCTIONS:
+1. Apply the user's feedback to ONLY the content in this chunk
+2. Maintain the exact field names and structure
+3. Return ONLY valid JSON for this chunk
+4. Do NOT include fields from other chunks
+5. First character must be { and last character must be }`;
+
+        // Stream the chunk (non-interactive, just get result)
+        const chunkResult = await streamWithProvider(
+            systemPrompt,
+            userPrompt,
+            () => {}, // No token callback for parallel chunks
+            {
+                temperature: 0.7,
+                maxTokens: 3000,
+                jsonMode: true
+            }
+        );
+
+        // Parse the chunk result
+        let cleanedText = chunkResult
+            .replace(/^```(?:json)?[\s\n]*/gi, '')
+            .replace(/[\s\n]*```$/gi, '')
+            .trim();
+
+        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            cleanedText = jsonMatch[0];
+        }
+
+        const parsedChunk = JSON.parse(cleanedText);
+
+        console.log(`[ParallelRefinement] Chunk ${index + 1} completed:`, Object.keys(parsedChunk));
+
+        return parsedChunk;
+    });
+
+    // Wait for all chunks to complete
+    await sendEvent('progress', { message: 'Merging refined chunks...' });
+    const refinedChunks = await Promise.all(chunkPromises);
+
+    // Merge chunks using the appropriate merger
+    const mergedResult = strategy.merger(...refinedChunks);
+
+    console.log('[ParallelRefinement] Merge complete. Final keys:', Object.keys(mergedResult));
+
+    return mergedResult;
+}
 
 export async function POST(req) {
     const { userId } = auth();
@@ -123,10 +367,22 @@ export async function POST(req) {
 
     const sendEvent = async (event, data) => {
         try {
+            // Check if stream is locked or closed before writing
+            if (writer.desiredSize === null) {
+                console.warn('[RefineStream] Attempted to write to closed stream, ignoring');
+                return;
+            }
             const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
             await writer.write(encoder.encode(message));
         } catch (e) {
-            console.error('[RefineStream] Write error:', e.message);
+            // Retrieve specific error codes if available
+            const code = e.code || 'UNKNOWN';
+            // Ignore stream closed errors specifically
+            if (code === 'ERR_INVALID_STATE' || e.message.includes('closed')) {
+                console.warn('[RefineStream] Stream closed during write, stopping');
+            } else {
+                console.error('[RefineStream] Write error:', e.message);
+            }
         }
     };
 
@@ -239,6 +495,92 @@ export async function POST(req) {
                     }
                 } catch (colorsError) {
                     console.log('[RefineStream] No brand colors found:', colorsError.message);
+                }
+            }
+
+            // PARALLEL REFINEMENT ROUTING: Detect large section updates
+            const parallelSections = ['emails', 'vsl', 'salesScripts', 'setterScript', 'sms'];
+            const isFullSectionUpdate = !subSection || subSection === 'all';
+            const shouldUseParallel = parallelSections.includes(sectionId) && isFullSectionUpdate;
+
+            if (shouldUseParallel) {
+                console.log('[RefineStream] 🚀 ROUTING TO PARALLEL REFINEMENT:', sectionId);
+                await sendEvent('status', { message: `Smart parallel refinement activated for ${sectionId}...` });
+
+                try {
+                    const mergedResult = await handleParallelRefinement({
+                        sectionId,
+                        currentContent,
+                        messageHistory,
+                        intakeData,
+                        leadMagnetTitle,
+                        companyName,
+                        brandColors,
+                        sendEvent
+                    });
+
+                    // Validate merged result
+                    const validation = validateVaultContent(sectionId, mergedResult);
+                    let finalContent = mergedResult;
+                    let validationSuccess = true;
+                    let validationWarning = null;
+
+                    if (!validation.success) {
+                        console.warn('[ParallelRefinement] Schema validation failed:', validation.errors);
+                        finalContent = stripExtraFields(sectionId, mergedResult);
+                        validationSuccess = false;
+                        validationWarning = 'Output adjusted to match schema requirements';
+                    } else {
+                        finalContent = validation.data;
+                    }
+
+                    // Send the final merged result
+                    await sendEvent('validated', {
+                        refinedContent: finalContent,
+                        rawText: JSON.stringify(mergedResult, null, 2),
+                        validationSuccess,
+                        validationWarning,
+                        parallelMode: true
+                    });
+
+                    // Log to content_edit_history
+                    try {
+                        const latestUserMessage = messageHistory.filter(m => m.role === 'user').pop();
+                        await supabaseAdmin.from('content_edit_history').insert({
+                            user_id: userId,
+                            vault_content_id: sessionId || null,
+                            funnel_id: sessionId || null,
+                            user_feedback_type: 'parallel_refinement',
+                            user_feedback_text: latestUserMessage?.content || 'Parallel Refinement',
+                            content_before: currentContent,
+                            content_after: finalContent,
+                            sections_modified: [sectionId],
+                            edit_applied: false
+                        });
+
+                        await supabaseAdmin.from('feedback_logs').insert({
+                            user_id: userId,
+                            funnel_id: sessionId || null,
+                            section_id: sectionId,
+                            session_id: sessionId,
+                            user_message: latestUserMessage?.content || 'Parallel Refinement',
+                            ai_response: JSON.stringify(mergedResult),
+                            applied_changes: finalContent
+                        });
+                    } catch (historyError) {
+                        console.log('[ParallelRefinement] Could not log to history:', historyError.message);
+                    }
+
+                    await sendEvent('complete', { success: true, parallelMode: true });
+
+                    console.log('[ParallelRefinement] ========== PARALLEL REFINEMENT COMPLETE ==========');
+                    clearTimeout(timeout);
+                    await writer.close();
+                    return; // Exit early - parallel path complete
+                } catch (parallelError) {
+                    console.error('[ParallelRefinement] Error in parallel mode:', parallelError.message);
+                    // Fall through to normal streaming as fallback
+                    await sendEvent('status', { message: 'Falling back to standard refinement...' });
                 }
             }
 
@@ -630,7 +972,9 @@ function unwrapSubSection(wrappedContent, sectionId, subSection) {
     }
 
     console.log('[UnwrapSubSection] Unwrapped to:', { type: typeof current });
-    return { [subSection]: current };
+    // CRITICAL FIX: Return the raw content value, do NOT wrap it in the key
+    // The frontend expects the direct value (string, object, array) to replace the field
+    return current;
 }
 
 async function parseAndValidate(fullText, sectionId, subSection) {

@@ -17,9 +17,9 @@ export const maxDuration = 60; // 60 seconds timeout
 // Default media values (used when user hasn't uploaded their own)
 // High-quality placeholder images from Unsplash
 const DEFAULT_MEDIA_VALUES = {
-    logo: 'https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=200&h=60&fit=crop&q=80',
-    profile_photo: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop&q=80',
-    banner_image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=600&fit=crop&q=80',
+    logo: 'https://www.traffictsunami.com/wp-content/uploads/2019/07/Ted-Mcgrath-Review-Logo.png',
+    profile_photo: 'https://homebusinessmag.com/wp-content/uploads/2019/09/IMG_2881-R1-1.jpg',
+    banner_image: 'https://th.bing.com/th/id/OIG2.kX3.hgnDlu_Rylv2WA4L?pid=ImgGn',
     vsl_video: '', // No default for video
     testimonial_review_1_image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&q=80',
     testimonial_review_2_image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&q=80',

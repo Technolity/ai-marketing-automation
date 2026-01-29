@@ -30,7 +30,7 @@ import { SAMPLE_DATA, SAMPLE_DATA_OPTIONS } from "@/lib/sampleData";
 // Import modular components and utilities
 import { QuestionProgressBar } from "./OSWizard/components";
 import BuildingAnimation from "./BuildingAnimation";
-import BuilderSetupStep from "./OSWizard/BuilderSetupStep";
+// BuilderSetupStep import removed as step 0 is deprecated
 import { formatFieldName, formatValue, formatContentForDisplay } from "./OSWizard/utils/formatters";
 import { validateStepInputs as validateInputs } from "./OSWizard/utils/validators";
 import {
@@ -61,9 +61,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     // View Management - initialize based on mode prop
     const [viewMode, setViewMode] = useState(mode === 'intake' ? 'step' : 'dashboard'); // 'dashboard' or 'step'
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    // Initialize currentStep to 0 if in intake mode (Builder Setup is Step 0)
+    // Initialize currentStep to 1 if in intake mode (Builder Setup Step 0 is deprecated)
     const [currentStep, setCurrentStep] = useState(() => {
-        const initialStep = mode === 'intake' ? 0 : null;
+        const initialStep = mode === 'intake' ? 1 : null;
         console.log('[OSWizard] Initial currentStep:', initialStep, 'mode:', mode);
         return initialStep;
     });
@@ -2120,32 +2120,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                     <p className="text-gray-400 text-lg font-light leading-relaxed">{currentStepConfig?.description || ''}</p>
                                 </div>
                                 {(() => {
-                                    // Special handling for Step 0 (Builder Setup)
-                                    if (currentStep === 0 || currentStepConfig?.isBuilderSetup) {
-                                        return (
-                                            <BuilderSetupStep
-                                                currentInput={currentInput}
-                                                onInputChange={handleInputChange}
-                                                onComplete={(data) => {
-                                                    // Mark step 0 as complete and move to step 1
-                                                    const newCompletedSteps = [...new Set([...completedSteps, 0])];
-                                                    setCompletedSteps(newCompletedSteps);
-
-                                                    // Save business name to stepData for use in other steps
-                                                    setStepData(prev => ({
-                                                        ...prev,
-                                                        0: { businessName: data.businessName, phone: data.phone, locationId: data.locationId }
-                                                    }));
-
-                                                    // Move to step 1
-                                                    setCurrentStep(1);
-                                                    setCurrentInput({});
-                                                    toast.success('Builder setup complete!');
-                                                }}
-                                                existingBusinessName={stepData[0]?.businessName}
-                                            />
-                                        );
-                                    }
+                                    // Special handling for Step 0 (Builder Setup) REMOVED
+                                    // if (currentStep === 0 || currentStepConfig?.isBuilderSetup) { ... } logic removed
 
                                     const stepInputs = STEP_INPUTS[currentStep] || [];
                                     const filteredInputs = stepInputs.filter((input) => {

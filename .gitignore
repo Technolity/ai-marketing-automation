@@ -51,3 +51,4 @@ database/
 # system files
 nul
 supabase/.temp/
+app/api/os/refine-section/implementation_plan.md.resolved

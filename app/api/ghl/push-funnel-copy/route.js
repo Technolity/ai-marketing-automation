@@ -180,7 +180,16 @@ export async function POST(req) {
 
             let pageMapped = 0;
             for (const [field, ghlKey] of Object.entries(fieldMap)) {
-                const rawValue = pageContent[field];
+                let rawValue = pageContent[field];
+
+                // Force Title Case for Hero Headline
+                if (field === 'hero_headline_text' && typeof rawValue === 'string') {
+                    rawValue = rawValue.replace(
+                        /\w\S*/g,
+                        text => text.charAt(0).toUpperCase() + text.substring(1).toLowerCase()
+                    );
+                }
+
                 if (rawValue) {
                     // Polish content with AI (skip for calendar_embedded_code and image fields)
                     const skipPolish = field.includes('calendar_embedded') || field.includes('_image') || field.includes('video_link');
