@@ -21,10 +21,10 @@ const DEFAULT_MEDIA_VALUES = {
     profile_photo: 'https://homebusinessmag.com/wp-content/uploads/2019/09/IMG_2881-R1-1.jpg',
     banner_image: 'https://th.bing.com/th/id/OIG2.kX3.hgnDlu_Rylv2WA4L?pid=ImgGn',
     vsl_video: '', // No default for video
-    testimonial_review_1_image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&q=80',
-    testimonial_review_2_image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop&q=80',
-    testimonial_review_3_image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&q=80',
-    testimonial_review_4_image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&q=80'
+    testimonial_review_1_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
+    testimonial_review_2_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
+    testimonial_review_3_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
+    testimonial_review_4_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png'
 };
 
 export async function POST(req) {
