@@ -447,7 +447,16 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
         });
 
         // Populate granular fields for UI editing
-        await populateVaultFields(funnelId, sectionId, parsed, userId);
+        console.log(`[STREAM] Calling populateVaultFields for ${sectionId}...`);
+        const fieldResult = await populateVaultFields(funnelId, sectionId, parsed, userId);
+
+        if (!fieldResult.success) {
+            console.error(`[STREAM] ⚠️ populateVaultFields failed for ${sectionId}:`, fieldResult.error);
+            console.error(`[STREAM] Section ${sectionId} generated but fields not populated - vault_content_fields may be stale`);
+            // Continue anyway - vault_content was saved successfully
+        } else {
+            console.log(`[STREAM] ✓ populateVaultFields succeeded for ${sectionId}: ${fieldResult.fieldsInserted || 0} fields inserted, ${fieldResult.fieldsPreserved || 0} preserved`);
+        }
 
         await sendEvent('section', { key, name: displayName, success: true });
         return { key, success: true };
