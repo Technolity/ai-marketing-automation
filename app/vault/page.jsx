@@ -743,9 +743,25 @@ export default function VaultPage() {
                     const newSectionCount = Object.keys(normalizedData).length;
 
                     // Check if new sections have been generated
-                    if (newSectionCount > lastSectionCount) {
-                        console.log(`[Vault] 🎉 New sections detected! ${lastSectionCount} → ${newSectionCount}`);
-                        lastSectionCount = newSectionCount;
+                    const isNewSections = newSectionCount > lastSectionCount;
+
+                    // REGENERATION FIX: During regeneration, check if data actually changed
+                    // Compare stringified data to detect content changes without section count increase
+                    let dataChanged = isNewSections;
+                    if (isGeneratingMode && !isNewSections) {
+                        // Simple comparison - check if content is different
+                        const currentDataStr = JSON.stringify(vaultData);
+                        const newDataStr = JSON.stringify(normalizedData);
+                        dataChanged = currentDataStr !== newDataStr;
+                    }
+
+                    if (dataChanged) {
+                        if (isNewSections) {
+                            console.log(`[Vault] 🎉 New sections detected! ${lastSectionCount} → ${newSectionCount}`);
+                            lastSectionCount = newSectionCount;
+                        } else if (isGeneratingMode) {
+                            console.log(`[Vault] 🔄 Regeneration mode: content updated, refreshing vault data`);
+                        }
 
                         const withFreeGift = applyFreeGiftReplacement(normalizedData);
                         setVaultData(withFreeGift);
@@ -757,10 +773,22 @@ export default function VaultPage() {
                         // Refresh approvals to update section status
                         await loadApprovals(funnelId);
 
-                        // Show a toast notification
-                        toast.success('New sections generated!');
+                        // Show a toast notification only for new sections (not every refresh during regen)
+                        if (isNewSections) {
+                            toast.success('New sections generated!');
+                        }
                     } else {
-                        console.log(`[Vault] No new sections (current: ${newSectionCount})`);
+                        console.log(`[Vault] No changes detected (sections: ${newSectionCount})`);
+
+                        // REGENERATION FIX: If in generating mode but no changes for multiple polls,
+                        // generation is complete - remove the ?generating=true parameter
+                        if (isGeneratingMode && newSectionCount >= 4) {
+                            // At least 4 sections (Phase 1 complete) and no changes means generation done
+                            console.log('[Vault] 🔄 Generation complete - removing generating=true parameter');
+                            const url = new URL(window.location.href);
+                            url.searchParams.delete('generating');
+                            window.history.replaceState({}, '', url.toString());
+                        }
                     }
                 }
             } catch (error) {
@@ -770,8 +798,10 @@ export default function VaultPage() {
             }
         };
 
-        // Poll every 3 seconds for faster updates during generation
-        pollInterval = setInterval(checkForNewSections, 3000);
+        // Poll every 2 seconds during regeneration mode for faster updates, otherwise 3 seconds
+        const pollIntervalMs = isGeneratingMode ? 2000 : 3000;
+        pollInterval = setInterval(checkForNewSections, pollIntervalMs);
+        console.log(`[Vault] Polling started: every ${pollIntervalMs}ms (generating mode: ${isGeneratingMode})`);
 
         // Initial check
         checkForNewSections();
@@ -779,7 +809,7 @@ export default function VaultPage() {
         return () => {
             if (pollInterval) clearInterval(pollInterval);
         };
-    }, [searchParams, session, initialLoadComplete, vaultData]);
+    }, [searchParams, session, initialLoadComplete]); // Removed vaultData - it was causing infinite re-renders
 
 
     const loadApprovals = async (sId = null) => {
@@ -877,13 +907,19 @@ export default function VaultPage() {
     };
 
     const getSectionStatus = (sectionId, phaseNumber, approvedList, index) => {
+        // Log when in generating mode for debugging
+        if (isGeneratingMode && index === 0) {
+            console.log('[Vault] In GENERATING MODE - sections will show as generating until approved');
+        }
+
         // 1. Already approved sections stay approved (check approvedList first)
         if (approvedList.includes(sectionId)) return 'approved';
 
         // 1b. CRITICAL FIX: Also check vault_content.status for database-persisted approvals
         // This handles cases where Media/Colors were approved but not in approvedList
+        // HOWEVER: During regeneration mode, ignore old cached status (it's stale)
         const sectionData = vaultData?.[sectionId];
-        if (sectionData?._status === 'approved') {
+        if (!isGeneratingMode && sectionData?._status === 'approved') {
             console.log(`[Vault] Section ${sectionId} approved via vault_content.status`);
             return 'approved';
         }
@@ -920,7 +956,15 @@ export default function VaultPage() {
             return 'generating';
         }
 
+        // 6b. REGENERATION MODE: Only show as generating if content doesn't exist yet
+        // If content exists, fall through to normal sequence logic below
+        if (isGeneratingMode && !approvedList.includes(sectionId) && !hasContent) {
+            console.log(`[Vault] Section ${sectionId} showing as generating (waiting for content)`);
+            return 'generating';
+        }
+
         // 7. CONTENT EXISTS - determine if current or locked based on sequence
+        // This applies to both normal mode and regeneration mode (sequential approval enforced)
         const sections = phaseNumber === 1 ? PHASE_1_SECTIONS
             : phaseNumber === 2 ? PHASE_2_SECTIONS
                 : PHASE_3_SECTIONS;
@@ -2277,14 +2321,6 @@ export default function VaultPage() {
         return (
             <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8">
                 <div className="max-w-4xl mx-auto">
-                    <button
-                        onClick={() => router.push('/dashboard')}
-                        className="mb-6 p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back to Dashboard
-                    </button>
-
                     <div className="text-center mb-10">
                         <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
                             <PartyPopper className="w-10 h-10 text-white" />
@@ -2306,10 +2342,15 @@ export default function VaultPage() {
                                 Build Your Funnel
                             </button>
                             <button
-                                onClick={() => router.push('/dashboard')}
-                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-xl font-medium text-white transition-all border border-[#2a2a2d]"
+                                onClick={() => {
+                                    const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                                    console.log('[Vault] Edit Intake Answers clicked - redirecting with edit_mode=true for funnel:', funnelId);
+                                    router.push(`/intake_form?funnel_id=${funnelId}&edit_mode=true`);
+                                }}
+                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-xl font-medium text-white transition-all border border-[#2a2a2d] flex items-center gap-2"
                             >
-                                Back to Dashboard
+                                <Edit3 className="w-5 h-5" />
+                                Edit Intake Answers
                             </button>
                         </div>
                     </div>
@@ -2709,17 +2750,10 @@ export default function VaultPage() {
                 {/* Navigation & Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-12">
                     <button
-                        onClick={() => router.push('/dashboard')}
-                        className="w-fit p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                        Back to Dashboard
-                    </button>
-
-                    <button
                         onClick={() => {
                             const funnelId = searchParams.get('funnel_id') || dataSource?.id;
-                            router.push(`/intake_form?funnel_id=${funnelId}`);
+                            console.log('[Vault] Edit Intake Answers clicked - redirecting with edit_mode=true for funnel:', funnelId);
+                            router.push(`/intake_form?funnel_id=${funnelId}&edit_mode=true`);
                         }}
                         className="w-fit p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors flex items-center gap-2 text-gray-400 hover:text-white text-sm"
                     >

@@ -8,15 +8,11 @@ import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { exportToPDF, exportToDOCX } from '@/lib/exportUtils';
 import { toast } from 'sonner';
+import { fieldGroups } from '@/lib/vault/fieldGroups';
 
 /**
  * SalesScriptsFields - Granular field-level editing for Closer Script section
- *
- * Props:
- * - funnelId: Funnel ID
- * - onApprove: Callback when section is approved
- * - onUnapprove: Callback when section becomes unapproved
- * - refreshTrigger: Triggers refresh when value changes
+ * Uses expandable groups (accordions) to organize fields.
  */
 export default function SalesScriptsFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
@@ -26,13 +22,26 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
     const [sectionApproved, setSectionApproved] = useState(false);
     const [forceRenderKey, setForceRenderKey] = useState(0);
 
+    // Grouping state
+    const [expandedGroup, setExpandedGroup] = useState('Opening');
+
     // AI Feedback modal state
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
 
     const sectionId = 'salesScripts';
-    const predefinedFields = getFieldsForSection(sectionId);
+
+    // Augment fields with group information
+    const predefinedFields = getFieldsForSection(sectionId).map(field => ({
+        ...field,
+        group: fieldGroups.salesScripts[field.field_id] || 'Other'
+    }));
+
+    // Define group order explicitly
+    const groupOrder = ['Opening', 'Discovery', 'The Pitch', 'The Close'];
+
+
     const previousApprovalRef = useRef(false);
 
     // Fetch fields from database
@@ -47,7 +56,6 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
             // Update fields state
             setFields(data.fields || []);
 
-            // Calculate approval state
             // Calculate approval state
             const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
@@ -97,18 +105,12 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {
         console.log('[SalesScriptsFields] Field saved:', field_id, 'version:', result.version);
-
-        // Update local state
         setFields(prev => prev.map(f =>
             f.field_id === field_id
                 ? { ...f, field_value: value, version: result.version, is_approved: false }
                 : f
         ));
-
-        // Mark section as unapproved
         setSectionApproved(false);
-
-        // DON'T increment forceRenderKey here - FieldEditor updates via initialValue prop
     };
 
     // Handle AI feedback request
@@ -122,8 +124,6 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
     // Handle AI feedback save
     const handleFeedbackSave = async (saveData) => {
         if (!selectedField) return;
-
-        // FeedbackChatModal passes { refinedContent, subSection }
         const refinedContent = saveData?.refinedContent || saveData;
 
         try {
@@ -139,28 +139,18 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
             });
 
             if (!response.ok) throw new Error('Failed to save AI feedback');
-
             const result = await response.json();
-
             console.log('[SalesScriptsFields] AI feedback saved for field:', selectedField.field_id);
 
-            // Update local state with new content
             setFields(prev => prev.map(f =>
                 f.field_id === selectedField.field_id
                     ? { ...f, field_value: refinedContent, version: result.version, is_approved: false }
                     : f
             ));
-
-            // Mark section as unapproved
             setSectionApproved(false);
-
-            // DON'T increment forceRenderKey here - FieldEditor updates via initialValue prop
-
-            // Close modal
             setFeedbackModalOpen(false);
             setSelectedField(null);
             setSelectedFieldValue(null);
-
             toast.success('Changes saved and applied!');
         } catch (error) {
             console.error('[SalesScriptsFields] AI feedback save error:', error);
@@ -179,7 +169,6 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
     const handleApproveSection = async () => {
         setIsApproving(true);
         try {
-            // Approve all fields in this section
             const response = await fetchWithAuth('/api/os/vault-section-approve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -191,14 +180,9 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
 
             if (!response.ok) throw new Error('Failed to approve section');
 
-            // Update local state
             setFields(prev => prev.map(f => ({ ...f, is_approved: true })));
             setSectionApproved(true);
-
-            // Callback to parent
-            if (onApprove) {
-                onApprove(sectionId);
-            }
+            if (onApprove) onApprove(sectionId);
 
         } catch (error) {
             console.error('[SalesScriptsFields] Approve error:', error);
@@ -207,55 +191,78 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
         }
     };
 
-    const handleRegenerateSection = async () => {
-        setIsRegenerating(true);
-        try {
-            const response = await fetch('/api/os/regenerate-section', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_key: 5 })
-            });
-            if (!response.ok) throw new Error('Failed to regenerate');
-            await fetchFields();
-            setSectionApproved(false);
-        } catch (error) {
-            console.error('[SalesScriptsFields] Regenerate error:', error);
-        } finally {
-            setIsRegenerating(false);
-        }
-    };
-
     const getFieldValue = (field_id) => {
         const field = fields.find(f => f.field_id === field_id);
         return field ? field.field_value : null;
     };
 
-    // Expose approve button for parent to render in header
-    const approveButton = !sectionApproved ? (
-        <button
-            onClick={handleApproveSection}
-            disabled={isApproving}
-            className="bg-gradient-to-r from-cyan to-cyan/80 text-white font-bold px-6 py-2.5 rounded-xl hover:from-cyan/90 hover:to-cyan/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-            {isApproving ? (
-                <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Approving...
-                </>
-            ) : (
-                <>
-                    <CheckCircle className="w-4 h-4" />
-                    Approve Section
-                </>
-            )}
-        </button>
-    ) : null;
+    // Grouping helper
+    const renderGroupedFields = () => {
+        // Group fields
+        const groupedFields = predefinedFields.reduce((acc, field) => {
+            const group = field.group;
+            if (!acc[group]) acc[group] = [];
+            acc[group].push(field);
+            return acc;
+        }, {});
+
+        // Get groups present in data, preserving desired order
+        const definedGroupsInOrder = groupOrder.filter(g => groupedFields[g]);
+        // Add any 'Other' or undefined groups at the end
+        Object.keys(groupedFields).forEach(g => {
+            if (!definedGroupsInOrder.includes(g)) {
+                definedGroupsInOrder.push(g);
+            }
+        });
+
+        return definedGroupsInOrder.map((groupName) => {
+            const isExpanded = expandedGroup === groupName;
+            const groupFields = groupedFields[groupName];
+
+            return (
+                <div key={groupName} className="border border-white/10 rounded-2xl overflow-hidden bg-white/5">
+                    <button
+                        onClick={() => setExpandedGroup(isExpanded ? null : groupName)}
+                        className={`w-full flex items-center justify-between p-4 transition-all ${isExpanded ? 'bg-white/10' : 'hover:bg-white/10'
+                            }`}
+                    >
+                        <div className="flex items-center gap-3">
+                            <h3 className="font-semibold text-lg text-white">{groupName}</h3>
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/10 text-white/50 border border-white/5">
+                                {groupFields.length}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {isExpanded ? <ChevronUp className="w-5 h-5 text-white/50" /> : <ChevronDown className="w-5 h-5 text-white/50" />}
+                        </div>
+                    </button>
+
+                    {isExpanded && (
+                        <div className="p-6 space-y-8 border-t border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                            {groupFields.map((fieldDef) => {
+                                const currentValue = getFieldValue(fieldDef.field_id);
+                                return (
+                                    <FieldEditor
+                                        key={`${fieldDef.field_id}-${forceRenderKey}`}
+                                        fieldDef={fieldDef}
+                                        initialValue={currentValue}
+                                        readOnly={sectionApproved}
+                                        sectionId={sectionId}
+                                        funnelId={funnelId}
+                                        onSave={handleFieldSave}
+                                        onAIFeedback={handleAIFeedback}
+                                    />
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        });
+    };
 
     return (
         <>
-            {/* Expose approve button via onRenderApproveButton callback */}
-            {/* Approve button removed (handled by Vault header) */}
-
             <div className="space-y-6">
                 {isLoading ? (
                     <div className="flex items-center justify-center py-12">
@@ -263,43 +270,44 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
                     </div>
                 ) : (
                     <>
-                        {/* Predefined Fields */}
-                        {predefinedFields.map((fieldDef) => {
-                            const currentValue = getFieldValue(fieldDef.field_id);
-                            return (
-                                <FieldEditor
-                                    key={`${fieldDef.field_id}-${forceRenderKey}`}
-                                    fieldDef={fieldDef}
-                                    initialValue={currentValue}
-                                    readOnly={sectionApproved}
-                                    sectionId={sectionId}
-                                    funnelId={funnelId}
-                                    onSave={handleFieldSave}
-                                    onAIFeedback={handleAIFeedback}
-                                />
-                            );
-                        })}
+                        {renderGroupedFields()}
 
                         {/* Custom Fields */}
-                        {fields
-                            .filter(f => f.is_custom)
-                            .map((customField) => (
-                                <FieldEditor
-                                    key={`${customField.field_id}-${forceRenderKey}`}
-                                    fieldDef={{
-                                        field_id: customField.field_id,
-                                        field_label: customField.field_label,
-                                        field_type: customField.field_type,
-                                        field_metadata: customField.field_metadata || {}
-                                    }}
-                                    initialValue={customField.field_value}
-                                    readOnly={sectionApproved}
-                                    sectionId={sectionId}
-                                    funnelId={funnelId}
-                                    onSave={handleFieldSave}
-                                    onAIFeedback={handleAIFeedback}
-                                />
-                            ))}
+                        {fields.filter(f => f.is_custom).length > 0 && (
+                            <div className="border border-white/10 rounded-2xl overflow-hidden bg-white/5">
+                                <button
+                                    onClick={() => setExpandedGroup(expandedGroup === 'Custom Fields' ? null : 'Custom Fields')}
+                                    className={`w-full flex items-center justify-between p-4 transition-all ${expandedGroup === 'Custom Fields' ? 'bg-white/10' : 'hover:bg-white/10'
+                                        }`}
+                                >
+                                    <h3 className="font-semibold text-lg text-white">Custom Fields</h3>
+                                    {expandedGroup === 'Custom Fields' ? <ChevronUp className="w-5 h-5 text-white/50" /> : <ChevronDown className="w-5 h-5 text-white/50" />}
+                                </button>
+                                {expandedGroup === 'Custom Fields' && (
+                                    <div className="p-6 space-y-8 border-t border-white/10">
+                                        {fields
+                                            .filter(f => f.is_custom)
+                                            .map((customField) => (
+                                                <FieldEditor
+                                                    key={`${customField.field_id}-${forceRenderKey}`}
+                                                    fieldDef={{
+                                                        field_id: customField.field_id,
+                                                        field_label: customField.field_label,
+                                                        field_type: customField.field_type,
+                                                        field_metadata: customField.field_metadata || {}
+                                                    }}
+                                                    initialValue={customField.field_value}
+                                                    readOnly={sectionApproved}
+                                                    sectionId={sectionId}
+                                                    funnelId={funnelId}
+                                                    onSave={handleFieldSave}
+                                                    onAIFeedback={handleAIFeedback}
+                                                />
+                                            ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </>
                 )}
             </div>
@@ -318,7 +326,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
                                 className="px-5 py-2.5 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/30 rounded-xl font-semibold flex items-center gap-2 transition-all"
                             >
                                 <FileDown className="w-4 h-4" />
-                                Export PDF
+                                export PDF
                             </button>
                             <button
                                 onClick={() => exportToDOCX(fields, 'Closer Script')}
@@ -353,4 +361,3 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
         </>
     );
 }
-

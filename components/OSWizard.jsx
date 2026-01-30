@@ -43,10 +43,17 @@ import {
     BUSINESS_CORE_KEYS
 } from "@/lib/utils/contentInventory";
 
-export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, funnelId = null }) {
+export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, funnelId = null, isRegenerationMode = false }) {
     const router = useRouter();
     const { session, user, loading: authLoading } = useAuth();
     const { getToken } = useClerkAuth();
+
+    // Log regeneration mode for debugging
+    useEffect(() => {
+        if (isRegenerationMode) {
+            console.log('[OSWizard] 🔄 REGENERATION MODE ACTIVE - Wizard will remain unlocked for editing');
+        }
+    }, [isRegenerationMode]);
 
     // Helper to get funnel-specific localStorage key
     const getStorageKey = (key) => {
@@ -198,11 +205,18 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         }
 
         // PREVENT RE-INITIALIZATION: Only run once per mount
-        // If already initialized, just make sure loading is false and return
+        // EXCEPTION: In regeneration mode with funnelId, always try to load wizard_answers
         if (hasInitializedRef.current) {
             console.log('[OSWizard] Already initialized, skipping re-initialization');
-            setIsLoading(false); // CRITICAL: Ensure loading is false even on re-renders
-            return;
+
+            // Special case: If regeneration mode and we have a funnelId but no step data loaded yet
+            if (isRegenerationMode && funnelId && Object.keys(stepData).length === 0) {
+                console.log('[OSWizard] 🔄 Regeneration mode: Re-attempting to load wizard_answers');
+                // Don't return - let it continue to fetch wizard_answers
+            } else {
+                setIsLoading(false); // CRITICAL: Ensure loading is false even on re-renders
+                return;
+            }
         }
 
         console.log('[OSWizard] Starting initialization for mode:', mode);
@@ -263,8 +277,13 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             }
                         }
                         if (savedProgress.isComplete) {
-                            console.log('[OSWizard] Wizard marked as complete');
-                            setIsWizardComplete(true);
+                            console.log('[OSWizard] Wizard marked as complete in localStorage');
+                            // Don't lock wizard if in regeneration mode
+                            if (!isRegenerationMode) {
+                                setIsWizardComplete(true);
+                            } else {
+                                console.log('[OSWizard] 🔄 Regeneration mode: keeping wizard unlocked despite complete status');
+                            }
                         }
                         if (savedProgress.isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') {
                             setIsSampleDataLoaded(true);
@@ -289,14 +308,25 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                         if (answersRes.ok) {
                             const answersData = await answersRes.json();
                             console.log('[OSWizard] wizard_answers response:', answersData);
+                            console.log('[OSWizard] answersData.answers:', answersData.answers);
+                            console.log('[OSWizard] answers keys:', answersData.answers ? Object.keys(answersData.answers) : 'null/undefined');
 
                             if (answersData.answers && Object.keys(answersData.answers).length > 0) {
                                 console.log('[OSWizard] Loaded', Object.keys(answersData.answers).length, 'answers from wizard_answers');
                                 setStepData(answersData.answers);
 
                                 // Mark questionnaire as complete if answers exist
+                                // UNLESS we're in regeneration mode (user wants to edit and regenerate)
                                 if (answersData.questionnaire_completed) {
-                                    setIsWizardComplete(true);
+                                    console.log('[OSWizard] Questionnaire marked as completed in database');
+
+                                    if (!isRegenerationMode) {
+                                        console.log('[OSWizard] Locking wizard (questionnaire complete)');
+                                        setIsWizardComplete(true);
+                                    } else {
+                                        console.log('[OSWizard] 🔄 Regeneration mode: keeping wizard unlocked for editing and regeneration');
+                                    }
+
                                     // Set all steps as completed based on existing answers
                                     const completedStepIds = [];
                                     for (let i = 1; i <= 20; i++) {
@@ -324,6 +354,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             } else {
                                 console.log('[OSWizard] No wizard_answers found for this funnel');
                             }
+                        } else {
+                            // Log when API returns error response
+                            const errorText = await answersRes.text();
+                            console.error('[OSWizard] Failed to fetch wizard_answers:', answersRes.status, answersRes.statusText, errorText);
                         }
                     } catch (answersError) {
                         console.error('[OSWizard] Could not fetch wizard_answers:', answersError);
@@ -416,6 +450,70 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             mounted = false;
         };
     }, [session, authLoading, router]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // SEPARATE EFFECT: Load wizard_answers in regeneration mode
+    // This runs independently to avoid mounted flag issues from main initialization
+    useEffect(() => {
+        if (!isRegenerationMode || !funnelId || !session) return;
+
+        // Only load if we don't have data yet
+        if (Object.keys(stepData).length > 0) {
+            console.log('[OSWizard] 🔄 Regeneration mode: wizard_answers already loaded, skipping');
+            return;
+        }
+
+        console.log('[OSWizard] 🔄 Regeneration mode: Loading wizard_answers from database');
+
+        const loadWizardAnswers = async () => {
+            try {
+                const answersRes = await fetchWithAuth(`/api/intake-form/answers?funnel_id=${funnelId}`);
+
+                if (answersRes.ok) {
+                    const answersData = await answersRes.json();
+                    console.log('[OSWizard] 🔄 Regeneration wizard_answers response:', answersData);
+                    console.log('[OSWizard] 🔄 Answers keys:', answersData.answers ? Object.keys(answersData.answers).length : 0);
+
+                    if (answersData.answers && Object.keys(answersData.answers).length > 0) {
+                        console.log('[OSWizard] 🔄 Loading', Object.keys(answersData.answers).length, 'answers from database');
+                        setStepData(answersData.answers);
+
+                        // Mark all steps as completed
+                        const completedStepIds = [];
+                        for (let i = 1; i <= 20; i++) {
+                            completedStepIds.push(i);
+                        }
+                        setCompletedSteps(completedStepIds);
+
+                        // Populate inputs for the current step
+                        if (currentStep) {
+                            const stepInputs = STEP_INPUTS[currentStep];
+                            if (stepInputs) {
+                                const loadedInput = {};
+                                stepInputs.forEach(input => {
+                                    if (answersData.answers[input.name]) {
+                                        loadedInput[input.name] = answersData.answers[input.name];
+                                    }
+                                });
+                                setCurrentInput(loadedInput);
+                                console.log('[OSWizard] 🔄 Populated inputs for step', currentStep);
+                            }
+                        }
+
+                        toast.info('Loaded your previous intake answers');
+                    } else {
+                        console.log('[OSWizard] 🔄 No wizard_answers found in database');
+                    }
+                } else {
+                    const errorText = await answersRes.text();
+                    console.error('[OSWizard] 🔄 Failed to fetch wizard_answers:', answersRes.status, errorText);
+                }
+            } catch (error) {
+                console.error('[OSWizard] 🔄 Error loading wizard_answers:', error);
+            }
+        };
+
+        loadWizardAnswers();
+    }, [isRegenerationMode, funnelId, session, currentStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Save progress to both localStorage and API
     const saveProgressToStorage = async (newCompletedSteps, newAnswers, newContent, overrides = {}) => {
@@ -1005,7 +1103,14 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
     const handleGenerate = async () => {
         console.log('[Generate] 🚀 Button clicked - isGenerating:', isGenerating);
+        console.log('[Generate] 🔄 Regeneration mode:', isRegenerationMode);
         if (isGenerating) return;
+
+        if (isRegenerationMode) {
+            console.log('[Generate] 🔄 This is a REGENERATION - existing vault content will be versioned and new content will be created');
+        } else {
+            console.log('[Generate] ✨ This is a NEW generation - creating initial vault content');
+        }
 
         setIsGenerating(true);
         setShowProcessingAnimation(true);
@@ -1045,6 +1150,44 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             });
 
             console.log('[Generate] 📡 Starting SSE streaming for funnel:', funnelId);
+
+            // REGENERATION: Reset all section approvals before generating new content
+            // This ensures vault shows "unapproved" status and displays loading states properly
+            if (isRegenerationMode) {
+                console.log('[Generate] 🔄 Resetting all section approvals to unapproved state...');
+                try {
+                    const resetResponse = await fetch('/api/os/approvals', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            sessionId: funnelId,
+                            businessCoreApprovals: [],
+                            funnelAssetsApprovals: [],
+                            scriptsApprovals: [],
+                            funnelApproved: false
+                        })
+                    });
+
+                    if (resetResponse.ok) {
+                        console.log('[Generate] ✅ All section approvals reset - vault will show pending status');
+
+                        // Also clear localStorage cache for approvals to prevent stale UI
+                        if (session?.user?.id && funnelId) {
+                            const cacheKey = `vault_approvals_${session.user.id}_${funnelId}`;
+                            localStorage.removeItem(cacheKey);
+                            console.log('[Generate] 🗑️ Cleared approval cache from localStorage');
+                        }
+                    } else {
+                        console.warn('[Generate] ⚠️ Failed to reset approvals, but continuing with regeneration');
+                    }
+                } catch (resetError) {
+                    console.error('[Generate] ❌ Error resetting approvals:', resetError);
+                    // Don't fail the entire regeneration - just log and continue
+                }
+            }
 
             // IMPORTANT: Save questionnaire answers to database BEFORE generation
             // This ensures we have persistent data for regenerations and ColorsFields
@@ -1174,12 +1317,19 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                 console.log('[Generate] ✅ All sections complete!', data);
                             } else if (currentEvent === 'complete') {
                                 console.log('[Generate] ✅ Generation complete!', data.metadata);
+                                if (isRegenerationMode) {
+                                    console.log('[Generate] 🔄 Regeneration completed - vault has been updated with new content');
+                                }
 
                                 // Show success message
                                 if (data.metadata?.failed > 0) {
-                                    toast.warning(`Generated ${data.metadata.successful}/${data.metadata.total} sections`);
+                                    const actionText = isRegenerationMode ? 'Regenerated' : 'Generated';
+                                    toast.warning(`${actionText} ${data.metadata.successful}/${data.metadata.total} sections`);
                                 } else {
-                                    toast.success("All content generated successfully!");
+                                    const successText = isRegenerationMode
+                                        ? "Vault regenerated successfully!"
+                                        : "All content generated successfully!";
+                                    toast.success(successText);
                                 }
                             } else if (currentEvent === 'error') {
                                 console.error('[Generate] Stream error:', data.message);
@@ -1195,12 +1345,18 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
             // Show completion state
             console.log('[Generate] Stream finished. Setting final completion state.');
+            if (isRegenerationMode) {
+                console.log('[Generate] 🔄 Regeneration complete - updated vault content with new versions');
+            }
             setGenerationProgress(prev => ({
                 ...prev,
                 completedCount: 13,
                 currentSection: null
             }));
-            setProcessingMessage("Complete! Opening your vault...");
+            const completionMessage = isRegenerationMode
+                ? "Regeneration complete! Opening your updated vault..."
+                : "Complete! Opening your vault...";
+            setProcessingMessage(completionMessage);
 
             // Brief delay to show completion, then redirect
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -1218,7 +1374,11 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
         } catch (error) {
             console.error('[Generate] ❌ Error:', error);
-            toast.error(`Failed to generate content: ${error.message}`);
+            if (isRegenerationMode) {
+                console.error('[Generate] 🔄 Regeneration failed:', error.message);
+            }
+            const errorAction = isRegenerationMode ? 'regenerate' : 'generate';
+            toast.error(`Failed to ${errorAction} content: ${error.message}`);
             setIsGenerating(false);
             setShowProcessingAnimation(false);
         }
@@ -2208,6 +2368,23 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                     onDotClick={handleProgressDotClick}
                                     stepData={stepData}
                                 />
+
+                                {/* Regeneration Mode Indicator */}
+                                {isRegenerationMode && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="mt-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-xl p-4 flex items-center gap-3"
+                                    >
+                                        <RefreshCw className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                                        <div className="flex-1">
+                                            <p className="text-amber-400 font-semibold text-sm">Regeneration Mode Active</p>
+                                            <p className="text-amber-200/70 text-xs mt-0.5">
+                                                Edit your answers and regenerate. Your existing vault content will be preserved as previous versions.
+                                            </p>
+                                        </div>
+                                    </motion.div>
+                                )}
                             </div>
 
                             {/* Info Box removed */}
@@ -2575,12 +2752,12 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                 {isGenerating ? (
                                                     <>
                                                         <Loader2 className="w-5 h-5 animate-spin" />
-                                                        Generating All Assets...
+                                                        {isRegenerationMode ? 'Regenerating All Assets...' : 'Generating All Assets...'}
                                                     </>
                                                 ) : (
                                                     <>
                                                         <Sparkles className="w-5 h-5" />
-                                                        Generate My Vault
+                                                        {isRegenerationMode ? 'Regenerate My Vault' : 'Generate My Vault'}
                                                     </>
                                                 )}
                                             </button>

@@ -11,14 +11,16 @@ export default function IntakeFormPage() {
     const { session, authLoading } = useAuth();
     const [isLoading, setIsLoading] = useState(true);
 
-    // Get funnel_id from URL params
+    // Get funnel_id and edit_mode from URL params
     const funnelId = searchParams.get('funnel_id');
+    const isRegenerationMode = searchParams.get('edit_mode') === 'true';
 
     useEffect(() => {
         console.log('[IntakeForm] Page mounted');
         console.log('[IntakeForm] Auth loading:', authLoading);
         console.log('[IntakeForm] Session:', session ? 'Authenticated' : 'Not authenticated');
         console.log('[IntakeForm] Funnel ID:', funnelId);
+        console.log('[IntakeForm] Regeneration Mode:', isRegenerationMode);
 
         if (authLoading) {
             console.log('[IntakeForm] Waiting for auth to complete...');
@@ -40,7 +42,7 @@ export default function IntakeFormPage() {
 
         console.log('[IntakeForm] User authenticated, showing intake form for funnel:', funnelId);
         setIsLoading(false);
-    }, [session, authLoading, router, funnelId]);
+    }, [session, authLoading, router, funnelId, isRegenerationMode]);
 
     if (authLoading || isLoading) {
         return (
@@ -52,7 +54,11 @@ export default function IntakeFormPage() {
 
     return (
         <div className="h-[calc(100vh-5rem)] bg-[#0e0e0f] overflow-hidden">
-            <OSWizard mode="intake" funnelId={funnelId} />
+            <OSWizard
+                mode="intake"
+                funnelId={funnelId}
+                isRegenerationMode={isRegenerationMode}
+            />
         </div>
     );
 }

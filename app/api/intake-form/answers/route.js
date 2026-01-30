@@ -46,6 +46,11 @@ export async function GET(req) {
             });
         }
 
+        console.log('[IntakeFormGet] Found funnel data');
+        console.log('[IntakeFormGet] wizard_answers type:', typeof funnel.wizard_answers);
+        console.log('[IntakeFormGet] wizard_answers keys:', funnel.wizard_answers ? Object.keys(funnel.wizard_answers).length : 'null/undefined');
+        console.log('[IntakeFormGet] questionnaire_completed:', funnel.questionnaire_completed);
+
         return new Response(JSON.stringify({
             success: true,
             answers: funnel.wizard_answers || {},

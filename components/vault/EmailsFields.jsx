@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle, Mail } from 'lucide-react';
+import { CheckCircle, Mail, ChevronDown, ChevronUp } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
+import { fieldGroups } from '@/lib/vault/fieldGroups';
 
 export default function EmailsFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
@@ -18,8 +19,26 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
     const [forceRenderKey, setForceRenderKey] = useState(0);
 
+    // Grouping state
+    const [expandedGroup, setExpandedGroup] = useState('Day 1: Welcome');
+
     const sectionId = 'emails';
-    const predefinedFields = getFieldsForSection(sectionId);
+
+    // Augment fields with group information
+    const predefinedFields = getFieldsForSection(sectionId).map(field => ({
+        ...field,
+        group: fieldGroups.emails[field.field_id] || 'Other'
+    }));
+
+    // Define group order explicitly
+    const groupOrder = [
+        'Day 1: Welcome',
+        'Days 2-7: Nurture & Value',
+        'Day 8: First Offer',
+        'Days 9-14: Advanced Value',
+        'Day 15: Final Offer'
+    ];
+
     const previousApprovalRef = useRef(false);
 
     const fetchFields = useCallback(async (silent = false) => {
@@ -84,7 +103,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
         const refinedContent = saveData?.refinedContent || saveData;
 
         try {
-            const response = await fetch('/api/os/vault-field', {
+            const response = await fetchWithAuth('/api/os/vault-field', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, field_id: selectedField.field_id, field_value: refinedContent })
@@ -126,85 +145,86 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
         }
     };
 
-    const handleRegenerateSection = async () => {
-        setIsRegenerating(true);
-        try {
-            const response = await fetch('/api/os/regenerate-section', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_key: 8 })
-            });
-            if (!response.ok) throw new Error('Failed to regenerate');
-            await fetchFields();
-            setSectionApproved(false);
-        } catch (error) {
-            console.error('[EmailsFields] Regenerate error:', error);
-        } finally {
-            setIsRegenerating(false);
-        }
-    };
-
     const getFieldValue = (field_id) => {
         const field = fields.find(f => f.field_id === field_id);
         const value = field?.field_value || null;
-        // Debug: Log first few field lookups
-        if (field_id === 'email1' || field_id === 'email2') {
-            console.log(`[EmailsFields] getFieldValue('${field_id}'):`, {
-                found: !!field,
-                hasValue: !!value,
-                valueType: typeof value,
-                valuePreview: typeof value === 'string' ? value.substring(0, 100) : value
-            });
-        }
         return value;
     };
 
 
-    // Expose approve button for parent to render in header
-    const approveButton = !sectionApproved ? (
-        <button
-            onClick={handleApproveSection}
-            disabled={isApproving}
-            className="bg-gradient-to-r from-cyan to-cyan/80 text-white font-bold px-6 py-2.5 rounded-xl hover:from-cyan/90 hover:to-cyan/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-            {isApproving ? (
-                <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Approving...
-                </>
-            ) : (
-                <>
-                    <CheckCircle className="w-4 h-4" />
-                    Approve Section
-                </>
-            )}
-        </button>
-    ) : null;
+    // Grouping helper
+    const renderGroupedFields = () => {
+        // Group fields
+        const groupedFields = predefinedFields.reduce((acc, field) => {
+            const group = field.group;
+            if (!acc[group]) acc[group] = [];
+            acc[group].push(field);
+            return acc;
+        }, {});
+
+        // Get groups present in data, preserving desired order
+        const definedGroupsInOrder = groupOrder.filter(g => groupedFields[g]);
+        // Add any 'Other' or undefined groups at the end
+        Object.keys(groupedFields).forEach(g => {
+            if (!definedGroupsInOrder.includes(g)) {
+                definedGroupsInOrder.push(g);
+            }
+        });
+
+        return definedGroupsInOrder.map((groupName) => {
+            const isExpanded = expandedGroup === groupName;
+            const groupFields = groupedFields[groupName];
+
+            return (
+                <div key={groupName} className="border border-white/10 rounded-2xl overflow-hidden bg-white/5">
+                    <button
+                        onClick={() => setExpandedGroup(isExpanded ? null : groupName)}
+                        className={`w-full flex items-center justify-between p-4 transition-all ${isExpanded ? 'bg-white/10' : 'hover:bg-white/10'
+                            }`}
+                    >
+                        <div className="flex items-center gap-3">
+                            <h3 className="font-semibold text-lg text-white">{groupName}</h3>
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/10 text-white/50 border border-white/5">
+                                {groupFields.length} Emails
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {isExpanded ? <ChevronUp className="w-5 h-5 text-white/50" /> : <ChevronDown className="w-5 h-5 text-white/50" />}
+                        </div>
+                    </button>
+
+                    {isExpanded && (
+                        <div className="p-6 space-y-8 border-t border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                            {groupFields.map((fieldDef) => (
+                                <FieldEditor
+                                    key={`${fieldDef.field_id}-${forceRenderKey}`}
+                                    fieldDef={fieldDef}
+                                    initialValue={getFieldValue(fieldDef.field_id)}
+                                    readOnly={sectionApproved}
+                                    sectionId={sectionId}
+                                    funnelId={funnelId}
+                                    onSave={handleFieldSave}
+                                    onAIFeedback={handleAIFeedback}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        });
+    };
+
 
     return (
         <>
-            {/* Expose approve button via onRenderApproveButton callback */}
-            {/* Approve button removed (handled by Vault header) */}
-
             <div className="space-y-6">
                 {isLoading ? (
                     <div className="flex items-center justify-center py-12">
-                        <div className="w-8 h-8 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                        <div className="w-8 h-8 border-4 border-cyan/30 border-t-cyan rounded-full animate-spin" />
                     </div>
                 ) : (
                     <>
-                        {predefinedFields.map((fieldDef) => (
-                            <FieldEditor
-                                key={`${fieldDef.field_id}-${forceRenderKey}`}
-                                fieldDef={fieldDef}
-                                initialValue={getFieldValue(fieldDef.field_id)}
-                                readOnly={sectionApproved}
-                                sectionId={sectionId}
-                                funnelId={funnelId}
-                                onSave={handleFieldSave}
-                                onAIFeedback={handleAIFeedback}
-                            />
-                        ))}
+                        {renderGroupedFields()}
                     </>
                 )}
             </div>
@@ -228,4 +248,3 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
         </>
     );
 }
-
