@@ -13,11 +13,13 @@ export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (cu
 
 // === DEFAULT MEDIA VALUES (fallback when user hasn't uploaded) ===
 const DEFAULT_MEDIA_VALUES = {
-    logo: 'https://www.traffictsunami.com/wp-content/uploads/2019/07/Ted-Mcgrath-Review-Logo.png',
-    bio_author: 'https://homebusinessmag.com/wp-content/uploads/2019/09/IMG_2881-R1-1.jpg',
-    product_mockup: 'https://th.bing.com/th/id/OIG2.kX3.hgnDlu_Rylv2WA4L?pid=ImgGn',
-    main_vsl: '', // No default for video - user must provide
-    thankyou_video: '', // No default for video - user must provide
+    logo: 'https://res.cloudinary.com/df3br07tk/image/upload/v1769618595/ai-marketing-uploads/1769618595666_TMB_Logo.png.png',
+    profile_photo: 'https://homebusinessmag.com/wp-content/uploads/2019/09/IMG_2881-R1-1.jpg',
+    bio_author: 'https://homebusinessmag.com/wp-content/uploads/2019/09/IMG_2881-R1-1.jpg', // Alias for profile_photo
+    product_mockup: 'https://res.cloudinary.com/df3br07tk/image/upload/v1769624666/ai-marketing-uploads/1769624666701_TedOS_Frame_1__2_.png.png',
+    vsl_video: '', // No default for video
+    main_vsl: '', // Alias - no default for video
+    thankyou_video: '', // No default for video
     testimonial_review_1_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
     testimonial_review_2_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
     testimonial_review_3_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
