@@ -13,7 +13,61 @@ import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120; // 2 minutes for email processing
+export const maxDuration = 300; // 5 minutes for email processing with batching
+
+/**
+ * Validate email content before pushing
+ * @param {string} content - Content to validate
+ * @param {string} type - Type of content ('subject', 'preheader', 'body')
+ * @returns {boolean} Whether content is valid
+ */
+function validateEmailContent(content, type) {
+    if (!content || typeof content !== 'string') return false;
+    if (content.trim().length < 3) return false; // Too short
+
+    // Type-specific validation
+    if (type === 'subject' && content.length > 200) return false; // Subject too long
+    if (type === 'body' && content.length > 50000) return false; // Body too long
+    if (type === 'preheader' && content.length > 300) return false; // Preheader too long
+
+    return true;
+}
+
+/**
+ * Push to GHL with retry logic and exponential backoff
+ * @param {string} url - GHL API URL
+ * @param {object} options - Fetch options
+ * @param {number} maxRetries - Maximum retry attempts
+ * @returns {Promise<Response>} Fetch response
+ */
+async function pushWithRetry(url, options, maxRetries = 3) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, options);
+
+            // Success
+            if (response.ok) return response;
+
+            // Retry on 5xx errors or 429 (rate limit)
+            if (response.status >= 500 || response.status === 429) {
+                if (attempt < maxRetries - 1) {
+                    const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+                    console.log(`[PushEmails] Retry attempt ${attempt + 1} after ${delay}ms`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+            }
+
+            // Don't retry 4xx errors (except 429)
+            return response;
+        } catch (error) {
+            if (attempt === maxRetries - 1) throw error;
+            const delay = Math.pow(2, attempt) * 1000;
+            console.log(`[PushEmails] Network error, retry attempt ${attempt + 1} after ${delay}ms`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
 
 export async function POST(req) {
     const { userId } = auth();
@@ -115,8 +169,8 @@ export async function POST(req) {
             email15c: { subject: 'optin_email_subject_15_evening', preheader: 'optin_email_preheader_15_evening', body: 'optin_email_body_15_evening' },
         };
 
-        // Build custom values using direct mapping
-        const customValues = [];
+        // Build items to push WITHOUT polishing first (for batch processing)
+        const itemsToPush = [];
 
         for (const [vaultKey, ghlKeys] of Object.entries(VAULT_TO_GHL_MAP)) {
             const emailContent = emailSequence[vaultKey];
@@ -126,87 +180,148 @@ export async function POST(req) {
             }
 
             // Subject
-            if (emailContent.subject) {
-                const polished = await polishTextContent(emailContent.subject, 'headline');
+            if (emailContent.subject && validateEmailContent(emailContent.subject, 'subject')) {
                 const match = findExistingId(existingMap, ghlKeys.subject);
-                customValues.push({
-                    key: ghlKeys.subject,
-                    value: polished,
-                    existingId: match?.id || null,
-                    ghlName: match?.name || ghlKeys.subject
+                itemsToPush.push({
+                    vaultKey,
+                    contentType: 'subject',
+                    raw: emailContent.subject,
+                    polishType: 'headline',
+                    ghlKey: ghlKeys.subject,
+                    match: match,
                 });
             }
 
             // Preheader/Preview (vault uses 'preview', GHL uses 'preheader')
             const preheaderValue = emailContent.preview || emailContent.preheader || emailContent.previewText;
-            if (preheaderValue) {
-                const polished = await polishTextContent(preheaderValue, 'paragraph');
+            if (preheaderValue && validateEmailContent(preheaderValue, 'preheader')) {
                 const match = findExistingId(existingMap, ghlKeys.preheader);
-                customValues.push({
-                    key: ghlKeys.preheader,
-                    value: polished,
-                    existingId: match?.id || null,
-                    ghlName: match?.name || ghlKeys.preheader
+                itemsToPush.push({
+                    vaultKey,
+                    contentType: 'preheader',
+                    raw: preheaderValue,
+                    polishType: 'paragraph',
+                    ghlKey: ghlKeys.preheader,
+                    match: match,
                 });
             }
 
             // Body
-            if (emailContent.body) {
-                const polished = await polishTextContent(emailContent.body, 'email');
+            if (emailContent.body && validateEmailContent(emailContent.body, 'body')) {
                 const match = findExistingId(existingMap, ghlKeys.body);
-                customValues.push({
-                    key: ghlKeys.body,
-                    value: polished,
-                    existingId: match?.id || null,
-                    ghlName: match?.name || ghlKeys.body
+                itemsToPush.push({
+                    vaultKey,
+                    contentType: 'body',
+                    raw: emailContent.body,
+                    polishType: 'email',
+                    ghlKey: ghlKeys.body,
+                    match: match,
                 });
             }
         }
 
-        console.log('[PushEmails] Pushing', customValues.length, 'values');
+        console.log('[PushEmails] Prepared', itemsToPush.length, 'items to push');
 
-        // Push to GHL (ONLY UPDATE, never create)
-        const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
+        // Process in concurrent batches (polish + push together)
+        const BATCH_SIZE = 5;
+        const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [], validated: itemsToPush.length };
 
-        for (const { key, value, existingId, ghlName } of customValues) {
-            try {
-                // ONLY UPDATE existing values (never create)
-                if (!existingId) {
-                    results.skipped++;
-                    console.log(`[PushEmails] SKIPPED: ${key} (not found in GHL)`);
-                    continue;
-                }
+        const totalBatches = Math.ceil(itemsToPush.length / BATCH_SIZE);
 
-                const response = await fetch(
-                    `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
-                    {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json',
-                            'Version': '2021-07-28',
-                        },
-                        // GHL API requires both 'name' and 'value' for PUT requests
-                        body: JSON.stringify({ name: ghlName, value }),
+        for (let i = 0; i < itemsToPush.length; i += BATCH_SIZE) {
+            const batch = itemsToPush.slice(i, i + BATCH_SIZE);
+            const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+
+            console.log(`[PushEmails] Processing batch ${batchNumber}/${totalBatches} (${batch.length} items)`);
+
+            // Process batch: Polish + Push in parallel
+            const batchResults = await Promise.allSettled(
+                batch.map(async (item) => {
+                    try {
+                        // Skip if not in GHL
+                        if (!item.match?.id) {
+                            return {
+                                status: 'skipped',
+                                key: item.ghlKey,
+                                vaultKey: item.vaultKey,
+                                reason: 'Not found in GHL'
+                            };
+                        }
+
+                        // Polish content (AI call)
+                        const polished = await polishTextContent(item.raw, item.polishType);
+
+                        // Push to GHL with retry (API call)
+                        const response = await pushWithRetry(
+                            `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${item.match.id}`,
+                            {
+                                method: 'PUT',
+                                headers: {
+                                    'Authorization': `Bearer ${accessToken}`,
+                                    'Content-Type': 'application/json',
+                                    'Version': '2021-07-28',
+                                },
+                                body: JSON.stringify({ name: item.match.name, value: polished }),
+                            }
+                        );
+
+                        if (!response.ok) {
+                            const err = await response.json().catch(() => ({ message: 'Unknown error' }));
+                            throw new Error(JSON.stringify(err));
+                        }
+
+                        return {
+                            status: 'success',
+                            key: item.ghlKey,
+                            vaultKey: item.vaultKey
+                        };
+
+                    } catch (error) {
+                        return {
+                            status: 'failed',
+                            key: item.ghlKey,
+                            vaultKey: item.vaultKey,
+                            error: error.message
+                        };
                     }
-                );
+                })
+            );
 
-                if (response.ok) {
-                    results.updated++;
-                    results.pushed++;
-                    console.log(`[PushEmails] UPDATED: ${key}`);
+            // Aggregate results from this batch
+            for (const result of batchResults) {
+                if (result.status === 'fulfilled') {
+                    const value = result.value;
+                    if (value.status === 'success') {
+                        results.pushed++;
+                        results.updated++;
+                        console.log(`[PushEmails] ✓ UPDATED: ${value.vaultKey} → ${value.key}`);
+                    } else if (value.status === 'skipped') {
+                        results.skipped++;
+                        console.log(`[PushEmails] ⊘ SKIPPED: ${value.vaultKey} → ${value.key} (${value.reason})`);
+                    } else if (value.status === 'failed') {
+                        results.failed++;
+                        results.errors.push({
+                            key: value.key,
+                            vaultKey: value.vaultKey,
+                            error: value.error
+                        });
+                        console.error(`[PushEmails] ✗ FAILED: ${value.vaultKey} → ${value.key} -`, value.error);
+                    }
                 } else {
+                    // Promise rejected
                     results.failed++;
-                    const err = await response.json().catch(() => ({ message: 'Unknown error' }));
-                    results.errors.push({ key, error: err });
-                    console.error(`[PushEmails] FAILED: ${key} -`, err);
+                    results.errors.push({ error: result.reason });
+                    console.error(`[PushEmails] ✗ BATCH ERROR:`, result.reason);
                 }
-            } catch (err) {
-                results.failed++;
-                results.errors.push({ key, error: err.message });
-                console.error(`[PushEmails] ERROR: ${key} -`, err.message);
+            }
+
+            // Small delay between batches to respect rate limits
+            if (i + BATCH_SIZE < itemsToPush.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
         }
+
+        console.log(`[PushEmails] Complete: ${results.pushed} pushed, ${results.skipped} skipped, ${results.failed} failed`);
 
         results.success = results.failed === 0;
 
