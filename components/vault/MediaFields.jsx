@@ -23,7 +23,6 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
     const [isLoading, setIsLoading] = useState(true);
     const [isApproving, setIsApproving] = useState(false);
     const [sectionApproved, setSectionApproved] = useState(false);
-    const [forceRenderKey, setForceRenderKey] = useState(0);
     const [uploadingFields, setUploadingFields] = useState({});
 
     // AI Feedback modal state
@@ -57,9 +56,6 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
             // Priority: 1. Parent isApproved, 2. vault_content.status, 3. All fields approved
             const computedApproved = isApproved || sectionStatusApproved || allFieldsApproved;
             setSectionApproved(computedApproved);
-
-            // Force re-render to update components
-            setForceRenderKey(prev => prev + 1);
 
             console.log(`[MediaFields] Fetched ${data.fields.length} fields, sectionStatus:`, data.sectionStatus, 'allFieldsApproved:', allFieldsApproved);
         } catch (error) {
@@ -293,7 +289,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
         const isVideo = fieldDef.field_type === 'video_url';
 
         return (
-            <div key={`${fieldDef.field_id}-${forceRenderKey}`} className="bg-[#18181b] border border-[#2a2a2d] rounded-xl p-6">
+            <div key={fieldDef.field_id} className="bg-[#18181b] border border-[#2a2a2d] rounded-xl p-6">
                 {/* Field Header */}
                 <div className="flex items-start justify-between mb-4">
                     <div>

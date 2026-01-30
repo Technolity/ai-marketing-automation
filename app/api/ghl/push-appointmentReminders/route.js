@@ -8,10 +8,76 @@ import { auth } from '@clerk/nextjs';
 import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
-import { buildExistingMap, findExistingId, fetchExistingCustomValues, updateCustomValue } from '@/lib/ghl/ghlKeyMatcher';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120; // 2 minutes timeout
+export const maxDuration = 180; // 3 minutes timeout for appointment reminders with batching
+
+/**
+ * Validate email content before pushing
+ * @param {string} content - Content to validate
+ * @param {string} type - Type of content ('subject', 'preheader', 'body')
+ * @returns {boolean} Whether content is valid
+ */
+function validateEmailContent(content, type) {
+    if (!content || typeof content !== 'string') return false;
+    if (content.trim().length < 3) return false; // Too short
+
+    // Type-specific validation
+    if (type === 'subject' && content.length > 200) return false; // Subject too long
+    if (type === 'body' && content.length > 50000) return false; // Body too long
+    if (type === 'preheader' && content.length > 300) return false; // Preheader too long
+
+    return true;
+}
+
+/**
+ * Validate SMS content before pushing
+ * @param {string} content - Content to validate
+ * @returns {boolean} Whether content is valid
+ */
+function validateSMSContent(content) {
+    if (!content || typeof content !== 'string') return false;
+    if (content.trim().length < 3) return false; // Too short
+    if (content.length > 300) return false; // Too long
+    return true;
+}
+
+/**
+ * Push to GHL with retry logic and exponential backoff
+ * @param {string} url - GHL API URL
+ * @param {object} options - Fetch options
+ * @param {number} maxRetries - Maximum retry attempts
+ * @returns {Promise<Response>} Fetch response
+ */
+async function pushWithRetry(url, options, maxRetries = 3) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, options);
+
+            // Success
+            if (response.ok) return response;
+
+            // Retry on 5xx errors or 429 (rate limit)
+            if (response.status >= 500 || response.status === 429) {
+                if (attempt < maxRetries - 1) {
+                    const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+                    console.log(`[PushAppointmentReminders] Retry attempt ${attempt + 1} after ${delay}ms`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+            }
+
+            // Don't retry 4xx errors (except 429)
+            return response;
+        } catch (error) {
+            if (attempt === maxRetries - 1) throw error;
+            const delay = Math.pow(2, attempt) * 1000;
+            console.log(`[PushAppointmentReminders] Network error, retry attempt ${attempt + 1} after ${delay}ms`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
 
 // GHL key mappings for appointment reminders
 const APPOINTMENT_EMAIL_MAP = {
@@ -101,93 +167,191 @@ export async function POST(req) {
     const emails = appointmentReminders.emails || [];
     const smsReminders = appointmentReminders.smsReminders || {};
 
-    let pushed = 0;
-    let notFound = 0;
+    // Build items to push WITHOUT processing first (for batch processing)
+    const itemsToPush = [];
 
-    // Push emails using enhanced key matching
+    // Collect email items
     for (const [index, mapping] of Object.entries(APPOINTMENT_EMAIL_MAP)) {
         const email = emails[parseInt(index)];
         if (!email) continue;
 
-        if (email.subject) {
+        // Subject
+        if (email.subject && validateEmailContent(email.subject, 'subject')) {
             const match = findExistingId(existingMap, mapping.subject);
-            if (match) {
-                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, match.id, match.name, email.subject);
-                if (result.success) {
-                    pushed++;
-                    console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.subject}`);
-                }
-            } else {
-                notFound++;
-                console.log(`[PushAppointmentReminders] ⚠ Not found: ${mapping.subject}`);
-            }
+            itemsToPush.push({
+                type: 'email',
+                contentType: 'subject',
+                emailIndex: index,
+                raw: email.subject,
+                ghlKey: mapping.subject,
+                match: match,
+            });
         }
-        // Handle both 'preheader' and 'preview' field names
+
+        // Preheader/Preview
         const preheaderValue = email.preheader || email.previewText || email.preview;
-        if (preheaderValue) {
+        if (preheaderValue && validateEmailContent(preheaderValue, 'preheader')) {
             const match = findExistingId(existingMap, mapping.preheader);
-            if (match) {
-                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, match.id, match.name, preheaderValue);
-                if (result.success) {
-                    pushed++;
-                    console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.preheader}`);
-                }
-            } else {
-                notFound++;
-            }
+            itemsToPush.push({
+                type: 'email',
+                contentType: 'preheader',
+                emailIndex: index,
+                raw: preheaderValue,
+                ghlKey: mapping.preheader,
+                match: match,
+            });
         }
-        if (email.body) {
+
+        // Body
+        if (email.body && validateEmailContent(email.body, 'body')) {
             const match = findExistingId(existingMap, mapping.body);
-            if (match) {
-                const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, match.id, match.name, email.body);
-                if (result.success) {
-                    pushed++;
-                    console.log(`[PushAppointmentReminders] ✓ Updated: ${mapping.body}`);
-                }
-            } else {
-                notFound++;
-            }
+            itemsToPush.push({
+                type: 'email',
+                contentType: 'body',
+                emailIndex: index,
+                raw: email.body,
+                ghlKey: mapping.body,
+                match: match,
+            });
         }
     }
 
-    // Push SMS using enhanced key matching
+    // Collect SMS items
     for (const [vaultKey, ghlKey] of Object.entries(APPOINTMENT_SMS_MAP)) {
-        let value = smsReminders[vaultKey];
-        if (!value) continue;
+        let smsValue = smsReminders[vaultKey];
+        if (!smsValue) continue;
 
         // Extract SMS text from various formats
-        if (typeof value === 'object') {
-            value = value.message || value.body || value.text || JSON.stringify(value);
+        if (typeof smsValue === 'object') {
+            smsValue = smsValue.message || smsValue.body || smsValue.text || JSON.stringify(smsValue);
         }
 
-        const match = findExistingId(existingMap, ghlKey);
-        if (match) {
-            const result = await updateCustomValue(subaccount.location_id, tokenResult.access_token, match.id, match.name, value);
-            if (result.success) {
-                pushed++;
-                console.log(`[PushAppointmentReminders] ✓ Updated: ${ghlKey}`);
-            }
-        } else {
-            notFound++;
-            console.log(`[PushAppointmentReminders] ⚠ Not found: ${ghlKey}`);
+        if (validateSMSContent(smsValue)) {
+            const match = findExistingId(existingMap, ghlKey);
+            itemsToPush.push({
+                type: 'sms',
+                vaultKey: vaultKey,
+                raw: smsValue,
+                ghlKey: ghlKey,
+                match: match,
+            });
         }
     }
 
-    console.log('[PushAppointmentReminders] Complete:', pushed, 'values pushed,', notFound, 'not found');
+    console.log('[PushAppointmentReminders] Prepared', itemsToPush.length, 'items to push');
+
+    // Process in concurrent batches (no polishing needed for appointment reminders, just push)
+    const BATCH_SIZE = 5;
+    const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [], validated: itemsToPush.length };
+
+    const totalBatches = Math.ceil(itemsToPush.length / BATCH_SIZE);
+
+    for (let i = 0; i < itemsToPush.length; i += BATCH_SIZE) {
+        const batch = itemsToPush.slice(i, i + BATCH_SIZE);
+        const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+
+        console.log(`[PushAppointmentReminders] Processing batch ${batchNumber}/${totalBatches} (${batch.length} items)`);
+
+        // Process batch: Push in parallel
+        const batchResults = await Promise.allSettled(
+            batch.map(async (item) => {
+                try {
+                    // Skip if not in GHL
+                    if (!item.match?.id) {
+                        return {
+                            status: 'skipped',
+                            key: item.ghlKey,
+                            identifier: item.emailIndex || item.vaultKey,
+                            reason: 'Not found in GHL'
+                        };
+                    }
+
+                    // Push to GHL with retry (API call) - no polishing for appointment reminders
+                    const response = await pushWithRetry(
+                        `https://services.leadconnectorhq.com/locations/${subaccount.location_id}/customValues/${item.match.id}`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `Bearer ${tokenResult.access_token}`,
+                                'Content-Type': 'application/json',
+                                'Version': '2021-07-28',
+                            },
+                            body: JSON.stringify({ name: item.match.name, value: item.raw }),
+                        }
+                    );
+
+                    if (!response.ok) {
+                        const err = await response.json().catch(() => ({ message: 'Unknown error' }));
+                        throw new Error(JSON.stringify(err));
+                    }
+
+                    return {
+                        status: 'success',
+                        key: item.ghlKey,
+                        identifier: item.emailIndex || item.vaultKey
+                    };
+
+                } catch (error) {
+                    return {
+                        status: 'failed',
+                        key: item.ghlKey,
+                        identifier: item.emailIndex || item.vaultKey,
+                        error: error.message
+                    };
+                }
+            })
+        );
+
+        // Aggregate results from this batch
+        for (const result of batchResults) {
+            if (result.status === 'fulfilled') {
+                const value = result.value;
+                if (value.status === 'success') {
+                    results.pushed++;
+                    results.updated++;
+                    console.log(`[PushAppointmentReminders] ✓ UPDATED: ${value.identifier} → ${value.key}`);
+                } else if (value.status === 'skipped') {
+                    results.skipped++;
+                    console.log(`[PushAppointmentReminders] ⊘ SKIPPED: ${value.identifier} → ${value.key} (${value.reason})`);
+                } else if (value.status === 'failed') {
+                    results.failed++;
+                    results.errors.push({
+                        key: value.key,
+                        identifier: value.identifier,
+                        error: value.error
+                    });
+                    console.error(`[PushAppointmentReminders] ✗ FAILED: ${value.identifier} → ${value.key} -`, value.error);
+                }
+            } else {
+                // Promise rejected
+                results.failed++;
+                results.errors.push({ error: result.reason });
+                console.error(`[PushAppointmentReminders] ✗ BATCH ERROR:`, result.reason);
+            }
+        }
+
+        // Small delay between batches to respect rate limits
+        if (i + BATCH_SIZE < itemsToPush.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+
+    console.log(`[PushAppointmentReminders] Complete: ${results.pushed} pushed, ${results.skipped} skipped, ${results.failed} failed`);
+
+    results.success = results.failed === 0;
 
     // Log push operation
     await supabaseAdmin.from('ghl_push_logs').insert({
         user_id: userId,
         funnel_id: funnelId,
         section: 'appointmentReminders',
-        values_pushed: pushed,
-        success: true,
+        values_pushed: results.pushed,
+        success: results.success,
     });
 
     return NextResponse.json({
         success: true,
-        pushed,
-        notFound,
-        message: `${pushed} appointment reminder values pushed to Builder${notFound > 0 ? ` (${notFound} not found in GHL)` : ''}`,
+        ...results,
+        message: `${results.pushed} appointment reminder values pushed to Builder${results.skipped > 0 ? ` (${results.skipped} not found in GHL)` : ''}`,
     });
 }

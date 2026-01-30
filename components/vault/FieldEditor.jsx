@@ -6,6 +6,35 @@ import { getSyncPreviewMessage } from '@/lib/vault/fieldSync';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
+// Helper to generate stable IDs for array items
+const generateId = () => `_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+
+// Helper to wrap array items with stable IDs for React keys
+const wrapArrayWithIds = (arr) => {
+    if (!Array.isArray(arr)) return [];
+    return arr.map(item => {
+        // If already wrapped, return as-is
+        if (item && typeof item === 'object' && item._id) {
+            return item;
+        }
+        // Wrap with new ID
+        return { _id: generateId(), value: item };
+    });
+};
+
+// Helper to unwrap array items before saving (remove _id, extract value)
+const unwrapArrayIds = (arr) => {
+    if (!Array.isArray(arr)) return [];
+    return arr.map(item => {
+        // If wrapped, extract value
+        if (item && typeof item === 'object' && item._id) {
+            return item.value;
+        }
+        // Already unwrapped
+        return item;
+    });
+};
+
 // Custom debounce function
 const debounce = (func, wait) => {
     let timeout;
@@ -60,35 +89,39 @@ export default function FieldEditor({
     const parseValue = (val, fieldType) => {
         if (val === null || val === undefined) return fieldType === 'array' ? [] : '';
         if (fieldType === 'array') {
+            let arrayResult = [];
+
             if (Array.isArray(val)) {
                 // Sanitize each string item in array
-                return val.map(item => typeof item === 'string' ? sanitizeDisplayContent(item) : item);
-            }
-            if (typeof val === 'string') {
+                arrayResult = val.map(item => typeof item === 'string' ? sanitizeDisplayContent(item) : item);
+            } else if (typeof val === 'string') {
                 try {
                     const parsed = JSON.parse(val);
                     if (Array.isArray(parsed)) {
-                        return parsed.map(item => typeof item === 'string' ? sanitizeDisplayContent(item) : item);
-                    }
-                    // If parsed JSON is not an array, check if it's a string we can split
-                    if (typeof parsed === 'string') {
-                        return parsed.split('\n')
+                        arrayResult = parsed.map(item => typeof item === 'string' ? sanitizeDisplayContent(item) : item);
+                    } else if (typeof parsed === 'string') {
+                        // If parsed JSON is not an array, check if it's a string we can split
+                        arrayResult = parsed.split('\n')
                             .map(line => line.replace(/^[\s•\-\*]+/, '').trim())
                             .filter(line => line.length > 0);
+                    } else {
+                        arrayResult = [];
                     }
-                    return [];
                 } catch {
                     // Fallback: If JSON parse fails, try splitting by newlines
                     // This handles AI output that is just a bulleted list string
                     if (val.trim()) {
-                        return val.split('\n')
+                        arrayResult = val.split('\n')
                             .map(line => line.replace(/^[\s•\-\*]+/, '').trim())
                             .filter(line => line.length > 0);
+                    } else {
+                        arrayResult = [];
                     }
-                    return [];
                 }
             }
-            return [];
+
+            // Wrap array items with stable IDs for React keys
+            return wrapArrayWithIds(arrayResult);
         }
         // Sanitize text values
         if (typeof val === 'string') {
@@ -133,8 +166,15 @@ export default function FieldEditor({
     );
 
     const handleSave = async (newValue = value) => {
+        // Unwrap array IDs before saving
+        let saveValue = newValue;
+        if (field_type === 'array' && Array.isArray(newValue)) {
+            saveValue = unwrapArrayIds(newValue);
+            console.log('[FieldEditor] Unwrapping array for save:', { field_id, wrapped: newValue.length, unwrapped: saveValue.length });
+        }
+
         // Validate before save
-        const validation = validateFieldValue(fieldDef, newValue);
+        const validation = validateFieldValue(fieldDef, saveValue);
         if (!validation.valid) {
             setValidationErrors(validation.errors);
             return;
@@ -151,7 +191,7 @@ export default function FieldEditor({
                     funnel_id: funnelId,
                     section_id: sectionId,
                     field_id,
-                    field_value: newValue
+                    field_value: saveValue
                 })
             });
 
@@ -300,41 +340,46 @@ export default function FieldEditor({
             if (itemType === 'text') {
                 return (
                     <div className="w-full space-y-3">
-                        {arrayValue.map((item, idx) => (
-                            <div key={idx} className="flex items-start gap-2 group relative">
-                                <span className="mt-3 text-sm text-gray-500 font-medium">{idx + 1}.</span>
-                                <div className="flex-1 relative">
-                                    <textarea
-                                        ref={(el) => el && autoResizeTextarea(el, 192)}
-                                        value={item || ''}
-                                        onChange={(e) => {
-                                            const newArray = [...arrayValue];
-                                            newArray[idx] = e.target.value;
-                                            setValue(newArray);
-                                            autoResizeTextarea(e.target, 192);
-                                        }}
-                                        onBlur={handleBlur}
-                                        placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
-                                        maxLength={field_metadata.itemMaxLength}
-                                        disabled={readOnly}
-                                        style={{ minHeight: '3.5rem', maxHeight: '12rem', height: 'auto' }}
-                                        className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
-                                    />
+                        {arrayValue.map((item, idx) => {
+                            const itemId = item._id || generateId();
+                            const itemValue = item.value !== undefined ? item.value : item;
+
+                            return (
+                                <div key={itemId} className="flex items-start gap-2 group relative">
+                                    <span className="mt-3 text-sm text-gray-500 font-medium">{idx + 1}.</span>
+                                    <div className="flex-1 relative">
+                                        <textarea
+                                            ref={(el) => el && autoResizeTextarea(el, 192)}
+                                            value={itemValue || ''}
+                                            onChange={(e) => {
+                                                const newArray = [...arrayValue];
+                                                newArray[idx] = { _id: itemId, value: e.target.value };
+                                                setValue(newArray);
+                                                autoResizeTextarea(e.target, 192);
+                                            }}
+                                            onBlur={handleBlur}
+                                            placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
+                                            maxLength={field_metadata.itemMaxLength}
+                                            disabled={readOnly}
+                                            style={{ minHeight: '3.5rem', maxHeight: '12rem', height: 'auto' }}
+                                            className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                                        />
+                                    </div>
+                                    {arrayValue.length > minItems && !readOnly && (
+                                        <button
+                                            onClick={() => {
+                                                const newArray = arrayValue.filter(arrItem => arrItem._id !== itemId);
+                                                setValue(newArray);
+                                                handleSave(newArray); // Immediate save on delete
+                                            }}
+                                            className="mt-2 p-2 text-gray-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    )}
                                 </div>
-                                {arrayValue.length > minItems && !readOnly && (
-                                    <button
-                                        onClick={() => {
-                                            const newArray = arrayValue.filter((_, i) => i !== idx);
-                                            setValue(newArray);
-                                            handleSave(newArray); // Immediate save on delete
-                                        }}
-                                        className="mt-2 p-2 text-gray-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                )}
-                            </div>
-                        ))}
+                            );
+                        })}
                         {/* Add item button removed */}
                     </div>
                 );
@@ -347,16 +392,23 @@ export default function FieldEditor({
                 return (
                     <div className="w-full space-y-4">
                         {arrayValue.map((item, idx) => {
-                            const itemValue = typeof item === 'object' ? item : {};
+                            // Handle wrapped items: { _id, value: {...} } or unwrapped: {...}
+                            const itemId = item._id || generateId();
+                            const itemValue = item.value !== undefined
+                                ? (typeof item.value === 'object' ? item.value : {})
+                                : (typeof item === 'object' ? item : {});
 
                             return (
-                                <div key={idx} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-3 relative group">
+                                <div key={itemId} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-3 relative group">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-sm font-medium text-gray-400">Item {idx + 1}</span>
                                         {arrayValue.length > minItems && !readOnly && (
                                             <button
                                                 onClick={() => {
-                                                    const newArray = arrayValue.filter((_, i) => i !== idx);
+                                                    const newArray = arrayValue.filter(arrItem => {
+                                                        const checkId = arrItem._id || arrItem;
+                                                        return checkId !== itemId;
+                                                    });
                                                     setValue(newArray);
                                                     handleSave(newArray);
                                                 }}
@@ -382,7 +434,8 @@ export default function FieldEditor({
                                                         value={subfieldValue}
                                                         onChange={(e) => {
                                                             const newArray = [...arrayValue];
-                                                            newArray[idx] = { ...itemValue, [subfield.field_id]: e.target.value };
+                                                            const updatedValue = { ...itemValue, [subfield.field_id]: e.target.value };
+                                                            newArray[idx] = { _id: itemId, value: updatedValue };
                                                             setValue(newArray);
                                                             autoResizeTextarea(e.target, 160);
                                                         }}
@@ -399,7 +452,8 @@ export default function FieldEditor({
                                                         value={subfieldValue}
                                                         onChange={(e) => {
                                                             const newArray = [...arrayValue];
-                                                            newArray[idx] = { ...itemValue, [subfield.field_id]: e.target.value };
+                                                            const updatedValue = { ...itemValue, [subfield.field_id]: e.target.value };
+                                                            newArray[idx] = { _id: itemId, value: updatedValue };
                                                             setValue(newArray);
                                                         }}
                                                         onBlur={handleBlur}

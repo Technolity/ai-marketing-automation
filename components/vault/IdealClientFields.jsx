@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect } from 'react';
-import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
@@ -296,15 +296,21 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
         return (
             <div className="space-y-4">
                 {orderedGroups.map((groupName) => {
+                    const groupFields = groups[groupName];
                     const isExpanded = expandedGroup === groupName;
+
                     return (
-                        <div key={groupName} className="bg-[#1a1a1d] border border-white/5 rounded-2xl overflow-hidden transition-all duration-300">
+                        <div key={groupName} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl overflow-hidden">
                             {/* Group Header */}
                             <button
                                 onClick={() => setExpandedGroup(isExpanded ? null : groupName)}
-                                className={`w-full flex items-center justify-between px-6 py-4 bg-white/5 hover:bg-white/10 transition-colors text-left ${isExpanded ? 'border-b border-white/5' : ''}`}
+                                className="w-full px-6 py-4 flex items-center justify-between bg-[#1a1a1d] hover:bg-[#1f1f22] transition-colors"
                             >
-                                <h3 className="text-lg font-bold text-cyan">{groupName}</h3>
+                                <div className="flex items-center gap-3">
+                                    <Users className="w-5 h-5 text-cyan" />
+                                    <h3 className="text-lg font-semibold text-white">{groupName}</h3>
+                                    <span className="text-sm text-gray-500">({groupFields.length} field{groupFields.length > 1 ? 's' : ''})</span>
+                                </div>
                                 {isExpanded ? (
                                     <ChevronUp className="w-5 h-5 text-gray-400" />
                                 ) : (
@@ -314,10 +320,10 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
 
                             {/* Group Fields */}
                             {isExpanded && (
-                                <div className="p-6 space-y-6 animate-in slide-in-from-top-2 duration-200">
-                                    {groups[groupName].map((field) => (
+                                <div className="p-6 space-y-6 bg-[#0e0e0f]">
+                                    {groupFields.map((field) => (
                                         <FieldEditor
-                                            key={`${field.field_id}`}
+                                            key={field.field_id}
                                             fieldDef={field}
                                             initialValue={field.value}
                                             readOnly={sectionApproved}

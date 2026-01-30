@@ -7,6 +7,7 @@ import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
+import { fieldGroups } from '@/lib/vault/fieldGroups';
 
 export default function AppointmentRemindersFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
@@ -17,10 +18,26 @@ export default function AppointmentRemindersFields({ funnelId, onApprove, onRend
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
-    const [forceRenderKey, setForceRenderKey] = useState(0);
+
+    // Grouping state
+    const [expandedGroup, setExpandedGroup] = useState('Prep & Confirmation');
 
     const sectionId = 'appointmentReminders';
-    const predefinedFields = getFieldsForSection(sectionId);
+
+    // Augment fields with group information
+    const predefinedFields = getFieldsForSection(sectionId).map(field => ({
+        ...field,
+        group: fieldGroups.appointmentReminders[field.field_id] || 'Other'
+    }));
+
+    // Define group order explicitly
+    const groupOrder = [
+        'Prep & Confirmation',
+        'Day of Call',
+        'No-Show Protocol',
+        'SMS Reminders'
+    ];
+
     const previousApprovalRef = useRef(false);
 
     const fetchFields = useCallback(async (silent = false) => {
@@ -36,9 +53,6 @@ export default function AppointmentRemindersFields({ funnelId, onApprove, onRend
             // Calculate approval state
             const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
-
-            // Force re-render to update FieldEditor components with fresh data
-            setForceRenderKey(prev => prev + 1);
 
             console.log(`[AppointmentRemindersFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
@@ -206,18 +220,51 @@ export default function AppointmentRemindersFields({ funnelId, onApprove, onRend
                     <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" /></div>
                 ) : (
                     <>
-                        {predefinedFields.map((fieldDef) => (
-                            <FieldEditor
-                                key={`${fieldDef.field_id}-${forceRenderKey}`}
-                                fieldDef={fieldDef}
-                                initialValue={getFieldValue(fieldDef.field_id)}
-                                readOnly={sectionApproved}
-                                sectionId={sectionId}
-                                funnelId={funnelId}
-                                onSave={handleFieldSave}
-                                onAIFeedback={handleAIFeedback}
-                            />
-                        ))}
+                        {groupOrder.map((groupName) => {
+                            const groupFields = predefinedFields.filter(f => f.group === groupName);
+                            if (groupFields.length === 0) return null;
+
+                            const isExpanded = expandedGroup === groupName;
+
+                            return (
+                                <div key={groupName} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl overflow-hidden">
+                                    {/* Group Header */}
+                                    <button
+                                        onClick={() => setExpandedGroup(isExpanded ? null : groupName)}
+                                        className="w-full px-6 py-4 flex items-center justify-between bg-[#1a1a1d] hover:bg-[#1f1f22] transition-colors"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <Bell className="w-5 h-5 text-cyan" />
+                                            <h3 className="text-lg font-semibold text-white">{groupName}</h3>
+                                            <span className="text-sm text-gray-500">({groupFields.length} reminder{groupFields.length > 1 ? 's' : ''})</span>
+                                        </div>
+                                        {isExpanded ? (
+                                            <ChevronUp className="w-5 h-5 text-gray-400" />
+                                        ) : (
+                                            <ChevronDown className="w-5 h-5 text-gray-400" />
+                                        )}
+                                    </button>
+
+                                    {/* Group Content */}
+                                    {isExpanded && (
+                                        <div className="p-6 space-y-6 bg-[#0e0e0f]">
+                                            {groupFields.map((fieldDef) => (
+                                                <FieldEditor
+                                                    key={fieldDef.field_id}
+                                                    fieldDef={fieldDef}
+                                                    initialValue={getFieldValue(fieldDef.field_id)}
+                                                    readOnly={sectionApproved}
+                                                    sectionId={sectionId}
+                                                    funnelId={funnelId}
+                                                    onSave={handleFieldSave}
+                                                    onAIFeedback={handleAIFeedback}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </>
                 )}
             </div>

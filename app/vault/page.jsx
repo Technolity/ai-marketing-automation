@@ -585,6 +585,9 @@ export default function VaultPage() {
     const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
     const [regeneratingSection, setRegeneratingSection] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [isSettingUpAccount, setIsSettingUpAccount] = useState(false);
+    const [accountSetupError, setAccountSetupError] = useState(null);
+    const [accountSetupSuccess, setAccountSetupSuccess] = useState(false);
 
     // Ref to track completed job IDs we've already processed (prevents duplicate refreshes)
     const previouslyCompletedJobsRef = useRef(new Set());
@@ -597,6 +600,34 @@ export default function VaultPage() {
     const phase1FullyApproved = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const phase2FullyApproved = approvedPhase2.length >= PHASE_2_SECTIONS.length;
     const phase3FullyApproved = approvedPhase3.length >= PHASE_3_SECTIONS.length;
+
+    // Handler for automated account setup
+    const handleSetupAccount = async () => {
+        setIsSettingUpAccount(true);
+        setAccountSetupError(null);
+
+        try {
+            const response = await fetchWithAuth('/api/ghl/ensure-subaccount', {
+                method: 'POST',
+            });
+
+            const result = await response.json();
+
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to setup account');
+            }
+
+            setAccountSetupSuccess(true);
+            toast.success('Account Setup Complete! Check your email.');
+
+        } catch (error) {
+            console.error('Account setup failed:', error);
+            setAccountSetupError(error.message);
+            toast.error(`Setup Failed: ${error.message}`);
+        } finally {
+            setIsSettingUpAccount(false);
+        }
+    };
 
     // Computed states
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
@@ -2423,18 +2454,49 @@ export default function VaultPage() {
                                         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
                                             <CheckCircle className="w-10 h-10 text-green-500" />
                                         </div>
-                                        <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
-                                        <p className="text-gray-400 mb-4">Your content is now live in Builder.</p>
-                                        <button
-                                            onClick={() => {
-                                                setShowDeployModal(false);
-                                                const funnelId = dataSource?.id || searchParams.get('funnel_id');
-                                                router.push(`/vault/deployed-assets${funnelId ? `?funnel_id=${funnelId}` : ''}`);
-                                            }}
-                                            className="px-6 py-2 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-medium transition-colors"
-                                        >
-                                            View Deployed Assets
-                                        </button>
+                                        <h3 className="text-xl font-bold mb-2">
+                                            {accountSetupSuccess ? 'Account Ready!' : 'Deployment Complete!'}
+                                        </h3>
+                                        <p className="text-gray-400 mb-4">
+                                            {accountSetupSuccess
+                                                ? 'Check your email to set your password, then login to Builder.'
+                                                : isSettingUpAccount
+                                                    ? 'Setting up your secure login...'
+                                                    : 'Your content is now live. Set up your login to access Builder.'
+                                            }
+                                        </p>
+
+                                        {accountSetupError && (
+                                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
+                                                {accountSetupError}
+                                            </div>
+                                        )}
+
+                                        {accountSetupSuccess ? (
+                                            <a
+                                                href="https://app.tedos.ai"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center px-6 py-2 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-medium transition-colors text-white"
+                                            >
+                                                Login to Builder <ExternalLink className="w-4 h-4 ml-2" />
+                                            </a>
+                                        ) : (
+                                            <button
+                                                onClick={handleSetupAccount}
+                                                disabled={isSettingUpAccount}
+                                                className="px-6 py-2 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center mx-auto"
+                                            >
+                                                {isSettingUpAccount ? (
+                                                    <>
+                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                        Setting up...
+                                                    </>
+                                                ) : (
+                                                    'Setup My Login'
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="text-center py-4">

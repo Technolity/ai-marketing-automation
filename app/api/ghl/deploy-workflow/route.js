@@ -11,6 +11,19 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 export const dynamic = 'force_dynamic';
 export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (current deployment takes ~74s)
 
+// === DEFAULT MEDIA VALUES (fallback when user hasn't uploaded) ===
+const DEFAULT_MEDIA_VALUES = {
+    logo: 'https://www.traffictsunami.com/wp-content/uploads/2019/07/Ted-Mcgrath-Review-Logo.png',
+    bio_author: 'https://homebusinessmag.com/wp-content/uploads/2019/09/IMG_2881-R1-1.jpg',
+    product_mockup: 'https://th.bing.com/th/id/OIG2.kX3.hgnDlu_Rylv2WA4L?pid=ImgGn',
+    main_vsl: '', // No default for video - user must provide
+    thankyou_video: '', // No default for video - user must provide
+    testimonial_review_1_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
+    testimonial_review_2_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
+    testimonial_review_3_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
+    testimonial_review_4_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png'
+};
+
 // === CALENDAR PAGE MAPPINGS (2 fields) ===
 const CALENDAR_PAGE_MAP = {
     'headline': '03_calender_page_headline',
@@ -914,10 +927,23 @@ export async function POST(req) {
         log('[Deploy] Processing media with STRICT MAPPING...');
         const mediaLibraryContent = vaultContent.mediaLibrary || vaultContent.media || {};
 
-        // Combine with uploaded fields if any (mediaFromFields was fetched earlier in this function)
-        const combinedMedia = { ...mediaLibraryContent, ...mediaFromFields };
+        // Start with defaults, then override with vault content, then with uploaded fields
+        // This ensures we always have a value for critical media fields
+        const combinedMedia = {
+            ...DEFAULT_MEDIA_VALUES,  // Fallback defaults
+            ...mediaLibraryContent,   // Vault content overrides
+            ...mediaFromFields        // Uploaded fields take priority
+        };
 
         log(`[Deploy] Combined Media keys: ${Object.keys(combinedMedia).join(', ')}`);
+        log(`[Deploy] Media source breakdown:`);
+        for (const [key, val] of Object.entries(combinedMedia)) {
+            if (!val) continue;
+            const isDefault = DEFAULT_MEDIA_VALUES[key] === val;
+            const isUploaded = mediaFromFields[key] === val;
+            const source = isUploaded ? 'UPLOADED' : (isDefault ? 'DEFAULT' : 'VAULT');
+            log(`[Deploy]   ${key}: ${source} (${val?.substring(0, 50)}...)`);
+        }
 
         // Strict Mapping Definition - using ACTUAL vault field names
         // Vault fields: logo, bio_author, product_mockup, main_vsl, thankyou_video
@@ -937,20 +963,21 @@ export async function POST(req) {
             // Thank You Video -> 03 Thank You Page Video Link
             '03_thankyou_page_video_link': combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video,
 
-            // Testimonials (if present)
-            '03_vsl_testimonial_review_1_image': combinedMedia.testimonial1Photo || combinedMedia.testimonial_1_photo,
-            '03_vsl_testimonial_review_2_image': combinedMedia.testimonial2Photo || combinedMedia.testimonial_2_photo,
-            '03_vsl_testimonial_review_3_image': combinedMedia.testimonial3Photo || combinedMedia.testimonial_3_photo,
-            '03_vsl_testimonial_review_4_image': combinedMedia.testimonial4Photo || combinedMedia.testimonial_4_photo
+            // Testimonials (from defaults or user uploads)
+            '03_vsl_testimonial_review_1_image': combinedMedia.testimonial_review_1_image || combinedMedia.testimonial1Photo || combinedMedia.testimonial_1_photo,
+            '03_vsl_testimonial_review_2_image': combinedMedia.testimonial_review_2_image || combinedMedia.testimonial2Photo || combinedMedia.testimonial_2_photo,
+            '03_vsl_testimonial_review_3_image': combinedMedia.testimonial_review_3_image || combinedMedia.testimonial3Photo || combinedMedia.testimonial_3_photo,
+            '03_vsl_testimonial_review_4_image': combinedMedia.testimonial_review_4_image || combinedMedia.testimonial4Photo || combinedMedia.testimonial_4_photo
         };
 
         // Log each media field attempt for debugging
         log(`[Deploy] Media mapping attempts:`);
-        log(`[Deploy]   logo: ${combinedMedia.logo ? '✓' : '✗'}`);
-        log(`[Deploy]   bio_author: ${combinedMedia.bio_author ? '✓' : '✗'}`);
-        log(`[Deploy]   product_mockup: ${combinedMedia.product_mockup ? '✓' : '✗'}`);
-        log(`[Deploy]   main_vsl: ${combinedMedia.main_vsl ? '✓' : '✗'}`);
-        log(`[Deploy]   thankyou_video: ${combinedMedia.thankyou_video ? '✓' : '✗'}`);
+        log(`[Deploy]   logo: ${strictMediaMap['logo_image'] ? '✓' : '✗'}`);
+        log(`[Deploy]   bio_author: ${strictMediaMap['03_vsl_bio_image'] ? '✓' : '✗'}`);
+        log(`[Deploy]   product_mockup: ${strictMediaMap['03_optin_mockup_image'] ? '✓' : '✗'}`);
+        log(`[Deploy]   main_vsl: ${strictMediaMap['03_vsl_video_link'] ? '✓' : '✗'}`);
+        log(`[Deploy]   thankyou_video: ${strictMediaMap['03_thankyou_page_video_link'] ? '✓' : '✗'}`);
+
 
         for (const [ghlKey, val] of Object.entries(strictMediaMap)) {
             if (!val) continue;

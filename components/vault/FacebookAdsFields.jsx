@@ -17,7 +17,6 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
-    const [forceRenderKey, setForceRenderKey] = useState(0);
     const previousApprovalRef = useRef(false);
 
     const sectionId = 'facebookAds';
@@ -32,7 +31,6 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
             setFields(data.fields || []);
             const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
-            setForceRenderKey(prev => prev + 1);
             console.log(`[FacebookAdsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
             console.error('[FacebookAdsFields] Fetch error:', error);
@@ -68,7 +66,7 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
         console.log('[FacebookAdsFields] Field saved:', field_id, 'version:', result.version);
         setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version, is_approved: false } : f));
         setSectionApproved(false);
-        setForceRenderKey(prev => prev + 1);
+        // FieldEditor will re-render automatically when initialValue prop changes
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -106,7 +104,7 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
                 await fetchFields();
             }
             setSectionApproved(false);
-            setForceRenderKey(prev => prev + 1);
+            // FieldEditor will re-render automatically when initialValue prop changes
             setFeedbackModalOpen(false);
             setSelectedField(null);
             setSelectedFieldValue(null);
@@ -189,7 +187,7 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
                     <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" /></div>
                 ) : (
                     <>
-                        {predefinedFields.map((fieldDef) => (<FieldEditor key={`${fieldDef.field_id}-${forceRenderKey}`} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} readOnly={sectionApproved} />))}
+                        {predefinedFields.map((fieldDef) => (<FieldEditor key={fieldDef.field_id} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} readOnly={sectionApproved} />))}
                     </>
                 )}
             </div>

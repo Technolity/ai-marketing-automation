@@ -17,7 +17,6 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
-    const [forceRenderKey, setForceRenderKey] = useState(0);
     const previousApprovalRef = useRef(false);
 
     const sectionId = 'leadMagnet';
@@ -33,7 +32,6 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
             // Check if all fields are approved
             const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
-            setForceRenderKey(prev => prev + 1);
             console.log(`[LeadMagnetFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
             console.error('[LeadMagnetFields] Fetch error:', error);
@@ -69,7 +67,7 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
         console.log('[LeadMagnetFields] Field saved:', field_id, 'version:', result.version);
         setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version, is_approved: false } : f));
         setSectionApproved(false);
-        setForceRenderKey(prev => prev + 1);
+        // FieldEditor will re-render automatically when initialValue prop changes
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -95,7 +93,7 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
             console.log('[LeadMagnetFields] AI feedback saved for field:', selectedField.field_id);
             setFields(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version, is_approved: false } : f));
             setSectionApproved(false);
-            setForceRenderKey(prev => prev + 1);
+            // FieldEditor will re-render automatically when initialValue prop changes
             setFeedbackModalOpen(false);
             setSelectedField(null);
             setSelectedFieldValue(null);
@@ -178,7 +176,7 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
                     <div className="flex items-center justify-center py-12"><div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" /></div>
                 ) : (
                     <>
-                        {predefinedFields.map((fieldDef) => (<FieldEditor key={`${fieldDef.field_id}-${forceRenderKey}`} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} readOnly={sectionApproved} />))}
+                        {predefinedFields.map((fieldDef) => (<FieldEditor key={fieldDef.field_id} fieldDef={fieldDef} initialValue={getFieldValue(fieldDef.field_id)} sectionId={sectionId} funnelId={funnelId} onSave={handleFieldSave} onAIFeedback={handleAIFeedback} readOnly={sectionApproved} />))}
                     </>
                 )}
             </div>

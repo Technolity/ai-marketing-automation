@@ -13,7 +13,55 @@ import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // 60 seconds timeout
+export const maxDuration = 120; // 2 minutes for SMS processing with batching
+
+/**
+ * Validate SMS content before pushing
+ * @param {string} content - Content to validate
+ * @returns {boolean} Whether content is valid
+ */
+function validateSMSContent(content) {
+    if (!content || typeof content !== 'string') return false;
+    if (content.trim().length < 3) return false; // Too short
+    if (content.length > 300) return false; // Too long (SMS should be concise)
+    return true;
+}
+
+/**
+ * Push to GHL with retry logic and exponential backoff
+ * @param {string} url - GHL API URL
+ * @param {object} options - Fetch options
+ * @param {number} maxRetries - Maximum retry attempts
+ * @returns {Promise<Response>} Fetch response
+ */
+async function pushWithRetry(url, options, maxRetries = 3) {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, options);
+
+            // Success
+            if (response.ok) return response;
+
+            // Retry on 5xx errors or 429 (rate limit)
+            if (response.status >= 500 || response.status === 429) {
+                if (attempt < maxRetries - 1) {
+                    const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+                    console.log(`[PushSMS] Retry attempt ${attempt + 1} after ${delay}ms`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                }
+            }
+
+            // Don't retry 4xx errors (except 429)
+            return response;
+        } catch (error) {
+            if (attempt === maxRetries - 1) throw error;
+            const delay = Math.pow(2, attempt) * 1000;
+            console.log(`[PushSMS] Network error, retry attempt ${attempt + 1} after ${delay}ms`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
 
 export async function POST(req) {
     const { userId } = auth();
@@ -118,8 +166,8 @@ export async function POST(req) {
             sms15c: 'optin_sms_15_evening',
         };
 
-        // Build custom values using direct mapping
-        const customValues = [];
+        // Build items to push WITHOUT polishing first (for batch processing)
+        const itemsToPush = [];
 
         for (const [vaultKey, ghlKey] of Object.entries(VAULT_TO_GHL_MAP)) {
             const smsContent = smsSequence[vaultKey];
@@ -131,62 +179,124 @@ export async function POST(req) {
                 smsText = smsContent.message || smsContent.body || smsContent.text || JSON.stringify(smsContent);
             }
 
-            // Polish SMS content
-            const polished = await polishSMSContent(smsText);
-            const match = findExistingId(existingMap, ghlKey);
+            // Validate SMS content
+            if (!validateSMSContent(smsText)) {
+                console.log(`[PushSMS] Invalid content for ${vaultKey}, skipping`);
+                continue;
+            }
 
-            customValues.push({
-                key: ghlKey,
-                value: polished.message || polished,
-                existingId: match?.id || null,
-                ghlName: match?.name || ghlKey
+            const match = findExistingId(existingMap, ghlKey);
+            itemsToPush.push({
+                vaultKey,
+                raw: smsText,
+                ghlKey: ghlKey,
+                match: match,
             });
         }
 
-        console.log('[PushSMS] Pushing', customValues.length, 'values');
+        console.log('[PushSMS] Prepared', itemsToPush.length, 'items to push');
 
-        // Push to GHL (ONLY UPDATE, never create)
-        const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
+        // Process in concurrent batches (polish + push together)
+        const BATCH_SIZE = 5;
+        const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [], validated: itemsToPush.length };
 
-        for (const { key, value, existingId, ghlName } of customValues) {
-            try {
-                // ONLY UPDATE existing values (never create)
-                if (!existingId) {
-                    results.skipped++;
-                    console.log(`[PushSMS] SKIPPED: ${key} (not found in GHL)`);
-                    continue;
-                }
+        const totalBatches = Math.ceil(itemsToPush.length / BATCH_SIZE);
 
-                const response = await fetch(
-                    `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${existingId}`,
-                    {
-                        method: 'PUT',
-                        headers: {
-                            'Authorization': `Bearer ${accessToken}`,
-                            'Content-Type': 'application/json',
-                            'Version': '2021-07-28',
-                        },
-                        // GHL API requires both 'name' and 'value' for PUT requests
-                        body: JSON.stringify({ name: ghlName, value }),
+        for (let i = 0; i < itemsToPush.length; i += BATCH_SIZE) {
+            const batch = itemsToPush.slice(i, i + BATCH_SIZE);
+            const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+
+            console.log(`[PushSMS] Processing batch ${batchNumber}/${totalBatches} (${batch.length} items)`);
+
+            // Process batch: Polish + Push in parallel
+            const batchResults = await Promise.allSettled(
+                batch.map(async (item) => {
+                    try {
+                        // Skip if not in GHL
+                        if (!item.match?.id) {
+                            return {
+                                status: 'skipped',
+                                key: item.ghlKey,
+                                vaultKey: item.vaultKey,
+                                reason: 'Not found in GHL'
+                            };
+                        }
+
+                        // Polish SMS content (AI call)
+                        const polished = await polishSMSContent(item.raw);
+                        const smsValue = polished.message || polished;
+
+                        // Push to GHL with retry (API call)
+                        const response = await pushWithRetry(
+                            `https://services.leadconnectorhq.com/locations/${locationId}/customValues/${item.match.id}`,
+                            {
+                                method: 'PUT',
+                                headers: {
+                                    'Authorization': `Bearer ${accessToken}`,
+                                    'Content-Type': 'application/json',
+                                    'Version': '2021-07-28',
+                                },
+                                body: JSON.stringify({ name: item.match.name, value: smsValue }),
+                            }
+                        );
+
+                        if (!response.ok) {
+                            const err = await response.json().catch(() => ({ message: 'Unknown error' }));
+                            throw new Error(JSON.stringify(err));
+                        }
+
+                        return {
+                            status: 'success',
+                            key: item.ghlKey,
+                            vaultKey: item.vaultKey
+                        };
+
+                    } catch (error) {
+                        return {
+                            status: 'failed',
+                            key: item.ghlKey,
+                            vaultKey: item.vaultKey,
+                            error: error.message
+                        };
                     }
-                );
+                })
+            );
 
-                if (response.ok) {
-                    results.updated++;
-                    results.pushed++;
-                    console.log(`[PushSMS] UPDATED: ${key}`);
+            // Aggregate results from this batch
+            for (const result of batchResults) {
+                if (result.status === 'fulfilled') {
+                    const value = result.value;
+                    if (value.status === 'success') {
+                        results.pushed++;
+                        results.updated++;
+                        console.log(`[PushSMS] ✓ UPDATED: ${value.vaultKey} → ${value.key}`);
+                    } else if (value.status === 'skipped') {
+                        results.skipped++;
+                        console.log(`[PushSMS] ⊘ SKIPPED: ${value.vaultKey} → ${value.key} (${value.reason})`);
+                    } else if (value.status === 'failed') {
+                        results.failed++;
+                        results.errors.push({
+                            key: value.key,
+                            vaultKey: value.vaultKey,
+                            error: value.error
+                        });
+                        console.error(`[PushSMS] ✗ FAILED: ${value.vaultKey} → ${value.key} -`, value.error);
+                    }
                 } else {
+                    // Promise rejected
                     results.failed++;
-                    const err = await response.json().catch(() => ({ message: 'Unknown error' }));
-                    results.errors.push({ key, error: err });
-                    console.error(`[PushSMS] FAILED: ${key} -`, err);
+                    results.errors.push({ error: result.reason });
+                    console.error(`[PushSMS] ✗ BATCH ERROR:`, result.reason);
                 }
-            } catch (err) {
-                results.failed++;
-                results.errors.push({ key, error: err.message });
-                console.error(`[PushSMS] ERROR: ${key} -`, err.message);
+            }
+
+            // Small delay between batches to respect rate limits
+            if (i + BATCH_SIZE < itemsToPush.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
         }
+
+        console.log(`[PushSMS] Complete: ${results.pushed} pushed, ${results.skipped} skipped, ${results.failed} failed`);
 
         results.success = results.failed === 0;
 

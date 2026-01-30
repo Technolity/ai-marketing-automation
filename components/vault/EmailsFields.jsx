@@ -17,7 +17,6 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
-    const [forceRenderKey, setForceRenderKey] = useState(0);
 
     // Grouping state
     const [expandedGroup, setExpandedGroup] = useState('Day 1: Welcome');
@@ -51,7 +50,6 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
             // Check if all fields are approved
             const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
-            setForceRenderKey(prev => prev + 1);
             console.log(`[EmailsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
             console.error('[EmailsFields] Fetch error:', error);
@@ -87,7 +85,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
         console.log('[EmailsFields] Field saved:', field_id, 'version:', result.version);
         setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version, is_approved: false } : f));
         setSectionApproved(false);
-        setForceRenderKey(prev => prev + 1);
+        // FieldEditor will re-render automatically when initialValue prop changes
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -113,7 +111,6 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
             console.log('[EmailsFields] AI feedback saved for field:', selectedField.field_id);
             setFields(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version, is_approved: false } : f));
             setSectionApproved(false);
-            setForceRenderKey(prev => prev + 1);
             setFeedbackModalOpen(false);
             setSelectedField(null);
             setSelectedFieldValue(null);
@@ -197,7 +194,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
                         <div className="p-6 space-y-8 border-t border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
                             {groupFields.map((fieldDef) => (
                                 <FieldEditor
-                                    key={`${fieldDef.field_id}-${forceRenderKey}`}
+                                    key={fieldDef.field_id}
                                     fieldDef={fieldDef}
                                     initialValue={getFieldValue(fieldDef.field_id)}
                                     readOnly={sectionApproved}

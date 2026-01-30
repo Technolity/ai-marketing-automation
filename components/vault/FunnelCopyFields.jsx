@@ -17,7 +17,6 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
     const [activeTab, setActiveTab] = useState('optin'); // optin, sales, calendar, thankyou
-    const [forceRenderKey, setForceRenderKey] = useState(0);
 
     const sectionId = 'funnelCopy';
     const predefinedFields = getFieldsForSection(sectionId);
@@ -41,12 +40,8 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
             setFields(data.fields || []);
 
             // Calculate approval state
-            // Calculate approval state
             const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
-
-            // Force re-render to update FieldEditor components with fresh data
-            setForceRenderKey(prev => prev + 1);
 
             console.log(`[FunnelCopyFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
@@ -349,7 +344,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
 
                                     return (
                                         <FieldEditor
-                                            key={`${subfieldDef.field_id}-${forceRenderKey}`}
+                                            key={subfieldDef.field_id}
                                             fieldDef={subfieldDef}
                                             initialValue={subfieldValue}
                                             readOnly={sectionApproved}

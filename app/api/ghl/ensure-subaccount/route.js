@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createClient } from '@supabase/supabase-js';
-import { createGHLSubAccount, importSnapshotToSubAccount } from '@/lib/integrations/ghl';
+import { createGHLSubAccount, importSnapshotToSubAccount, createGHLUser, sendGHLWelcomeEmail } from '@/lib/integrations/ghl';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,12 +35,62 @@ export async function POST(req) {
 
         if (existingSubaccount) {
             console.log('[Ensure SubAccount] User already has sub-account:', existingSubaccount.location_id);
+
+            // Check if GHL user account has been created
+            let userCreated = existingSubaccount.ghl_user_created || false;
+            let ghlUserId = existingSubaccount.ghl_user_id;
+
+            if (!userCreated) {
+                console.log('[Ensure SubAccount] GHL user not created yet, creating now...');
+
+                // Get user profile for user creation
+                const { data: profile } = await supabase
+                    .from('user_profiles')
+                    .select('first_name, last_name, email')
+                    .eq('id', userId)
+                    .single();
+
+                if (profile && profile.email) {
+                    // Create GHL user account
+                    const userResult = await createGHLUser({
+                        firstName: profile.first_name,
+                        lastName: profile.last_name || '',
+                        email: profile.email,
+                        locationId: existingSubaccount.location_id
+                    });
+
+                    if (userResult.success) {
+                        console.log('[Ensure SubAccount] GHL user created:', userResult.userId);
+
+                        // Send welcome email
+                        await sendGHLWelcomeEmail(profile.email, profile.first_name);
+
+                        // Update database
+                        await supabase
+                            .from('ghl_subaccounts')
+                            .update({
+                                ghl_user_created: true,
+                                ghl_user_id: userResult.userId,
+                                user_created_at: new Date().toISOString()
+                            })
+                            .eq('id', existingSubaccount.id);
+
+                        userCreated = true;
+                        ghlUserId = userResult.userId;
+                    } else {
+                        console.error('[Ensure SubAccount] Failed to create GHL user:', userResult.error);
+                    }
+                }
+            }
+
             return NextResponse.json({
                 success: true,
                 exists: true,
                 locationId: existingSubaccount.location_id,
                 locationName: existingSubaccount.location_name,
-                snapshotImported: existingSubaccount.snapshot_imported
+                snapshotImported: existingSubaccount.snapshot_imported,
+                userCreated: userCreated,
+                ghlUserId: ghlUserId
             });
         }
 
@@ -112,7 +162,42 @@ export async function POST(req) {
             }
         }
 
-        // 5. Update profile to mark GHL as setup
+        // 5. Create GHL user account
+        let userCreated = false;
+        let ghlUserId = null;
+
+        console.log('[Ensure SubAccount] Creating GHL user account...');
+        const userResult = await createGHLUser({
+            firstName: profile.first_name,
+            lastName: profile.last_name || '',
+            email: profile.email,
+            locationId: ghlResult.locationId
+        });
+
+        if (userResult.success) {
+            console.log('[Ensure SubAccount] GHL user created:', userResult.userId);
+            ghlUserId = userResult.userId;
+            userCreated = true;
+
+            // Send welcome email
+            const emailSent = await sendGHLWelcomeEmail(profile.email, profile.first_name);
+            console.log('[Ensure SubAccount] Welcome email sent:', emailSent);
+
+            // Update subaccount record with user info
+            await supabase
+                .from('ghl_subaccounts')
+                .update({
+                    ghl_user_created: true,
+                    ghl_user_id: userResult.userId,
+                    user_created_at: new Date().toISOString()
+                })
+                .eq('user_id', userId)
+                .eq('location_id', ghlResult.locationId);
+        } else {
+            console.error('[Ensure SubAccount] Failed to create GHL user:', userResult.error);
+        }
+
+        // 6. Update profile to mark GHL as setup
         await supabase
             .from('user_profiles')
             .update({ ghl_setup_triggered_at: new Date().toISOString() })
@@ -124,7 +209,9 @@ export async function POST(req) {
             created: true,
             locationId: ghlResult.locationId,
             locationName: ghlResult.locationName,
-            snapshotImported: snapshotImported
+            snapshotImported: snapshotImported,
+            userCreated: userCreated,
+            ghlUserId: ghlUserId
         });
 
     } catch (error) {

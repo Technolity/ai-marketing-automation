@@ -20,7 +20,6 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
     const [isApproving, setIsApproving] = useState(false);
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [sectionApproved, setSectionApproved] = useState(false);
-    const [forceRenderKey, setForceRenderKey] = useState(0);
 
     // Grouping state
     const [expandedGroup, setExpandedGroup] = useState('Opening');
@@ -59,9 +58,6 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
             // Calculate approval state
             const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
-
-            // Force re-render to update FieldEditor components with fresh data
-            setForceRenderKey(prev => prev + 1);
 
             console.log(`[SalesScriptsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
@@ -216,34 +212,36 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
         });
 
         return definedGroupsInOrder.map((groupName) => {
-            const isExpanded = expandedGroup === groupName;
             const groupFields = groupedFields[groupName];
+            const isExpanded = expandedGroup === groupName;
 
             return (
-                <div key={groupName} className="border border-white/10 rounded-2xl overflow-hidden bg-white/5">
+                <div key={groupName} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl overflow-hidden">
+                    {/* Group Header */}
                     <button
                         onClick={() => setExpandedGroup(isExpanded ? null : groupName)}
-                        className={`w-full flex items-center justify-between p-4 transition-all ${isExpanded ? 'bg-white/10' : 'hover:bg-white/10'
-                            }`}
+                        className="w-full px-6 py-4 flex items-center justify-between bg-[#1a1a1d] hover:bg-[#1f1f22] transition-colors"
                     >
                         <div className="flex items-center gap-3">
-                            <h3 className="font-semibold text-lg text-white">{groupName}</h3>
-                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-white/10 text-white/50 border border-white/5">
-                                {groupFields.length}
-                            </span>
+                            <Sparkles className="w-5 h-5 text-cyan" />
+                            <h3 className="text-lg font-semibold text-white">{groupName}</h3>
+                            <span className="text-sm text-gray-500">({groupFields.length} field{groupFields.length > 1 ? 's' : ''})</span>
                         </div>
-                        <div className="flex items-center gap-3">
-                            {isExpanded ? <ChevronUp className="w-5 h-5 text-white/50" /> : <ChevronDown className="w-5 h-5 text-white/50" />}
-                        </div>
+                        {isExpanded ? (
+                            <ChevronUp className="w-5 h-5 text-gray-400" />
+                        ) : (
+                            <ChevronDown className="w-5 h-5 text-gray-400" />
+                        )}
                     </button>
 
+                    {/* Group Content */}
                     {isExpanded && (
-                        <div className="p-6 space-y-8 border-t border-white/10 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="p-6 space-y-6 bg-[#0e0e0f]">
                             {groupFields.map((fieldDef) => {
                                 const currentValue = getFieldValue(fieldDef.field_id);
                                 return (
                                     <FieldEditor
-                                        key={`${fieldDef.field_id}-${forceRenderKey}`}
+                                        key={fieldDef.field_id}
                                         fieldDef={fieldDef}
                                         initialValue={currentValue}
                                         readOnly={sectionApproved}
@@ -289,7 +287,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
                                             .filter(f => f.is_custom)
                                             .map((customField) => (
                                                 <FieldEditor
-                                                    key={`${customField.field_id}-${forceRenderKey}`}
+                                                    key={customField.field_id}
                                                     fieldDef={{
                                                         field_id: customField.field_id,
                                                         field_label: customField.field_label,
