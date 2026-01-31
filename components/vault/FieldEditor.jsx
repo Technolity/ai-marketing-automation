@@ -5,6 +5,7 @@ import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { getSyncPreviewMessage } from '@/lib/vault/fieldSync';
 import { toast } from 'sonner';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import HtmlEditor from './HtmlEditor';
 
 // Helper to generate stable IDs for array items
 const generateId = () => `_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
@@ -265,8 +266,17 @@ export default function FieldEditor({
         debouncedSave(newValue);
     };
 
+    // Helper to detect if content contains HTML tags
+    const containsHtml = (str) => {
+        if (!str || typeof str !== 'string') return false;
+        return /<[a-z][\s\S]*>/i.test(str);
+    };
+
     const renderFieldInput = () => {
         if (field_type === 'text' || field_type === 'textarea') {
+            // Check if textarea content contains HTML (for email bodies, etc.)
+            const isHtmlContent = field_type === 'textarea' && containsHtml(value);
+
             return (
                 <div className="w-full relative group">
                     {field_type === 'text' ? (
@@ -278,6 +288,15 @@ export default function FieldEditor({
                             maxLength={field_metadata.maxLength}
                             disabled={readOnly}
                             className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                        />
+                    ) : isHtmlContent ? (
+                        <HtmlEditor
+                            value={value || ''}
+                            onChange={handleChange}
+                            onBlur={handleBlur}
+                            placeholder={field_metadata.placeholder || field_label}
+                            maxLength={field_metadata.maxLength}
+                            disabled={readOnly}
                         />
                     ) : (
                         <textarea
