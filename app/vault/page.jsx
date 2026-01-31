@@ -752,6 +752,7 @@ export default function VaultPage() {
         let pollInterval;
         let isPolling = false;
         let lastSectionCount = Object.keys(vaultData).length;
+        let unchangedPollCount = 0; // Track consecutive polls with no changes
 
         const checkForNewSections = async () => {
             if (isPolling) return; // Prevent concurrent polls
@@ -780,45 +781,63 @@ export default function VaultPage() {
                     // Compare stringified data to detect content changes without section count increase
                     let dataChanged = isNewSections;
                     if (isGeneratingMode && !isNewSections) {
-                        // Simple comparison - check if content is different
-                        const currentDataStr = JSON.stringify(vaultData);
-                        const newDataStr = JSON.stringify(normalizedData);
+                        // Compare only the actual content, not the entire object structure
+                        // This prevents false positives from object reference changes
+                        const currentDataStr = JSON.stringify(vaultData, Object.keys(vaultData).sort());
+                        const newDataStr = JSON.stringify(normalizedData, Object.keys(normalizedData).sort());
                         dataChanged = currentDataStr !== newDataStr;
+
+                        if (dataChanged) {
+                            console.log('[Vault] 🔄 Content change detected during regeneration');
+                        }
                     }
 
                     if (dataChanged) {
                         if (isNewSections) {
                             console.log(`[Vault] 🎉 New sections detected! ${lastSectionCount} → ${newSectionCount}`);
                             lastSectionCount = newSectionCount;
-                        } else if (isGeneratingMode) {
-                            console.log(`[Vault] 🔄 Regeneration mode: content updated, refreshing vault data`);
                         }
 
                         const withFreeGift = applyFreeGiftReplacement(normalizedData);
-                        setVaultData(withFreeGift);
-                        console.log('[Vault] Vault data refreshed, sections:', Object.keys(normalizedData));
 
-                        // Trigger refresh of field components
-                        setRefreshTrigger(prev => prev + 1);
+                        // Only update state if data actually changed (deep comparison)
+                        const currentStateStr = JSON.stringify(vaultData, Object.keys(vaultData).sort());
+                        const newStateStr = JSON.stringify(withFreeGift, Object.keys(withFreeGift).sort());
 
-                        // Refresh approvals to update section status
-                        await loadApprovals(funnelId);
+                        if (currentStateStr !== newStateStr) {
+                            setVaultData(withFreeGift);
+                            console.log('[Vault] Vault data refreshed, sections:', Object.keys(normalizedData));
 
-                        // Show a toast notification only for new sections (not every refresh during regen)
-                        if (isNewSections) {
-                            toast.success('New sections generated!');
+                            // Reset unchanged counter on actual changes
+                            unchangedPollCount = 0;
+
+                            // Only trigger refresh if we actually updated vaultData
+                            setRefreshTrigger(prev => prev + 1);
+
+                            // Refresh approvals to update section status
+                            await loadApprovals(funnelId);
+
+                            // Show a toast notification only for new sections (not every refresh during regen)
+                            if (isNewSections) {
+                                toast.success('New sections generated!');
+                            }
+                        } else {
+                            unchangedPollCount++;
+                            console.log('[Vault] Data unchanged after normalization, skipping state update');
                         }
                     } else {
+                        unchangedPollCount++;
                         console.log(`[Vault] No changes detected (sections: ${newSectionCount})`);
 
                         // REGENERATION FIX: If in generating mode but no changes for multiple polls,
                         // generation is complete - remove the ?generating=true parameter
-                        if (isGeneratingMode && newSectionCount >= 4) {
-                            // At least 4 sections (Phase 1 complete) and no changes means generation done
+                        if (isGeneratingMode && newSectionCount >= 4 && unchangedPollCount >= 3) {
+                            // At least 4 sections (Phase 1 complete) and no changes for 3 polls means generation done
                             console.log('[Vault] 🔄 Generation complete - removing generating=true parameter');
                             const url = new URL(window.location.href);
                             url.searchParams.delete('generating');
                             window.history.replaceState({}, '', url.toString());
+                            unchangedPollCount = 0; // Reset counter
                         }
                     }
                 }
@@ -839,8 +858,9 @@ export default function VaultPage() {
 
         return () => {
             if (pollInterval) clearInterval(pollInterval);
+            console.log('[Vault] Polling stopped');
         };
-    }, [searchParams, session, initialLoadComplete]); // Removed vaultData - it was causing infinite re-renders
+    }, [searchParams, session, initialLoadComplete, isGeneratingMode]); // Added isGeneratingMode to restart polling with correct interval
 
 
     const loadApprovals = async (sId = null) => {
