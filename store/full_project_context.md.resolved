@@ -1,6 +1,6 @@
 # 🧠 TedOS / AI Marketing Automation - Full Project Context
 
-> **Last Updated**: 2026-01-28
+> **Last Updated**: 2026-02-02
 > **Purpose**: Definitive technical guide for developers. Covers architecture, data flow, API inventory, and integration logic.
 
 ---
@@ -214,6 +214,9 @@
 | `lib/prompts/emailChunks.js` | **Chunk Logic**. Splits email gen into 4 parts. | `generate-stream` |
 | `lib/prompts/funnelCopyChunks.js` | **Funnel Copy**. 4 parallel chunks with unified `buildGlobalContext()` helper. Debug logging. | `generate-stream` |
 | `lib/prompts/*Merger.js` | **Assembler**. Stitches chunks back together. | `generate-stream` |
+| `lib/vault/dependencyGraph.js` | **Dep Graph**. Reverse map of section dependencies for auto-propagation. | `atomicUpdater.js` |
+| `lib/vault/atomicUpdater.js` | **Auto-Update**. Find/replace for atomic field changes across dependents. | `vault-section/route.js` |
+| `lib/hooks/useDependencyUpdates.js` | **UI Hook**. Toast notifications for auto-update status. | `LeadMagnetFields.jsx` |
 
 ### B. The Vault UI (Display & Edit)
 | File | Component | Properties Displayed |

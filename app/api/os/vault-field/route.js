@@ -3,6 +3,8 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getFieldDefinition, validateFieldValue } from '@/lib/vault/fieldStructures';
 import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
+import { performFieldAtomicUpdate } from '@/lib/vault/atomicUpdater';
+import { isAtomicField } from '@/lib/vault/dependencyGraph';
 
 
 export const dynamic = 'force-dynamic';
@@ -215,6 +217,7 @@ export async function PATCH(req) {
     try {
         body = await req.json();
     } catch (e) {
+        console.error('[VaultField PATCH] Invalid JSON body:', e.message);
         return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' }
@@ -230,7 +233,14 @@ export async function PATCH(req) {
 
     // Validation
     if (!funnel_id || !section_id || !field_id || field_value === undefined) {
-        return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        console.error('[VaultField PATCH] Missing required fields:', {
+            has_funnel_id: !!funnel_id,
+            has_section_id: !!section_id,
+            has_field_id: !!field_id,
+            has_field_value: field_value !== undefined,
+            body_keys: Object.keys(body)
+        });
+        return new Response(JSON.stringify({ error: 'Missing required fields', details: { funnel_id: !!funnel_id, section_id: !!section_id, field_id: !!field_id, field_value: field_value !== undefined } }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' }
         });
@@ -446,6 +456,36 @@ export async function PATCH(req) {
             });
         }
 
+        // ATOMIC UPDATE: Check if this is an atomic field and trigger propagation (fire-and-forget)
+        if (currentField && currentField.field_value !== undefined) {
+            const oldFieldValue = typeof currentField.field_value === 'string'
+                ? currentField.field_value
+                : JSON.stringify(currentField.field_value);
+            const newFieldValue = typeof actualFieldValue === 'string'
+                ? actualFieldValue
+                : JSON.stringify(actualFieldValue);
+
+            if (isAtomicField(section_id, actualFieldId) && oldFieldValue !== newFieldValue) {
+                console.log('[VaultField PATCH] Triggering atomic dependency update for:', section_id, actualFieldId);
+
+                // Fire and forget - don't await
+                performFieldAtomicUpdate(funnel_id, section_id, actualFieldId, oldFieldValue, newFieldValue)
+                    .then(result => {
+                        if (result.updatedFields?.length > 0) {
+                            console.log('[VaultField PATCH] Atomic update completed:', {
+                                updated: result.updatedFields.length,
+                                duration: result.duration + 'ms'
+                            });
+                        } else {
+                            console.log('[VaultField PATCH] No downstream fields needed atomic update');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('[VaultField PATCH] Atomic update failed:', err);
+                    });
+            }
+        }
+
         return new Response(JSON.stringify({
             success: true,
             field: newVersion,
@@ -463,4 +503,3 @@ export async function PATCH(req) {
         });
     }
 }
-

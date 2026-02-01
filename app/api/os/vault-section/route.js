@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { validateVaultContent, stripExtraFields } from '@/lib/schemas/vaultSchemas';
+import { performAtomicUpdate } from '@/lib/vault/atomicUpdater';
 
 
 export const dynamic = 'force-dynamic';
@@ -210,6 +211,26 @@ export async function PATCH(req) {
             }
 
             console.log(`[VaultSection] Updated section ${sectionId} in funnel ${targetFunnelId}`);
+
+            // ATOMIC UPDATE: Trigger dependency propagation (async, don't block response)
+            if (existing.content) {
+                console.log('[VaultSection] Triggering atomic dependency update...');
+                // Fire and forget - don't await, let it run in background
+                performAtomicUpdate(targetFunnelId, sectionId, existing.content, validatedContent)
+                    .then(result => {
+                        if (result.updatedSections.length > 0) {
+                            console.log('[VaultSection] Atomic update completed:', {
+                                updated: result.updatedSections,
+                                duration: result.duration + 'ms'
+                            });
+                        } else {
+                            console.log('[VaultSection] No downstream sections needed atomic update');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('[VaultSection] Atomic update failed:', err);
+                    });
+            }
         } else {
             // Insert new record (shouldn't happen often, but handle gracefully)
             const { error: insertError } = await supabaseAdmin

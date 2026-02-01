@@ -7,6 +7,7 @@ import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
+import { useDependencyUpdates } from '@/lib/hooks/useDependencyUpdates';
 
 export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
@@ -21,6 +22,9 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
 
     const sectionId = 'leadMagnet';
     const predefinedFields = getFieldsForSection(sectionId);
+
+    // Hook for dependency update notifications
+    const { scheduleCheck } = useDependencyUpdates(funnelId);
 
     const fetchFields = useCallback(async (silent = false) => {
         if (!silent) setIsLoading(true);
@@ -67,7 +71,8 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
         console.log('[LeadMagnetFields] Field saved:', field_id, 'version:', result.version);
         setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version, is_approved: false } : f));
         setSectionApproved(false);
-        // FieldEditor will re-render automatically when initialValue prop changes
+        // Schedule check for dependency updates (show toast if related sections were auto-updated)
+        scheduleCheck(2500);
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -98,6 +103,8 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
             setSelectedField(null);
             setSelectedFieldValue(null);
             toast.success('Changes saved and applied!');
+            // Schedule check for dependency updates
+            scheduleCheck(2500);
         } catch (error) {
             console.error('[LeadMagnetFields] Save error:', error);
             toast.error('Failed to save changes');
