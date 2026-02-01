@@ -3,6 +3,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { streamWithProvider } from '@/lib/ai/sharedAiUtils';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 import { getFullContextPrompt, buildEnhancedFeedbackPrompt } from '@/lib/prompts/fullContextPrompts';
+import { buildGlobalContext, getContextString, buildSectionContext } from '@/lib/prompts/contextHelper';
 import { encode } from 'gpt-tokenizer';
 import { mergeEmailChunks } from '@/lib/prompts/emailMerger';
 import { mergeVslChunks } from '@/lib/prompts/vslMerger';
@@ -209,18 +210,18 @@ async function handleParallelRefinement({
         .filter(m => m.role === 'user')
         .pop()?.content || '';
 
-    // Build context for all chunks
-    const contextParts = [];
-    if (intakeData.idealClient) contextParts.push(`Ideal Client: ${intakeData.idealClient}`);
-    if (intakeData.message) contextParts.push(`Core Message: ${intakeData.message}`);
-    if (intakeData.businessName) contextParts.push(`Business: ${intakeData.businessName}`);
-    if (intakeData.niche) contextParts.push(`Niche: ${intakeData.niche}`);
-    if (companyName) contextParts.push(`Company Name: ${companyName}`);
-    if (leadMagnetTitle) contextParts.push(`Lead Magnet Title: ${leadMagnetTitle}`);
-
-    const businessContext = contextParts.length > 0
-        ? `\n\nBUSINESS CONTEXT:\n${contextParts.join('\n')}`
-        : '';
+    // Build unified context using contextHelper (aligned with generate-stream)
+    const globalContext = buildGlobalContext({
+        ...intakeData,
+        businessName: companyName || intakeData.businessName,
+        leadMagnetTitle: leadMagnetTitle || intakeData.freeGiftName
+    });
+    const businessContext = getContextString(globalContext);
+    console.log('[ParallelRefinement] Using unified context:', {
+        contextLength: businessContext.length,
+        hasBusinessName: !!globalContext.businessName,
+        hasFreeGift: !!globalContext.freeGiftName
+    });
 
     // Get full context prompt for this section
     const fullContextInfo = getFullContextPrompt(sectionId);
@@ -270,7 +271,7 @@ INSTRUCTIONS:
         const chunkResult = await streamWithProvider(
             systemPrompt,
             userPrompt,
-            () => {}, // No token callback for parallel chunks
+            () => { }, // No token callback for parallel chunks
             {
                 temperature: 0.7,
                 maxTokens: 3000,
@@ -1339,31 +1340,20 @@ CONVERSATION STYLE:
 - Suggest improvements proactively when you see opportunities
 - Remember and reference previous refinements in this conversation`;
 
-    // Build business context
-    const contextParts = [];
-    if (intakeData.idealClient) contextParts.push(`Ideal Client: ${intakeData.idealClient}`);
-    if (intakeData.message) contextParts.push(`Core Message: ${intakeData.message}`);
-    if (intakeData.businessName) contextParts.push(`Business: ${intakeData.businessName}`);
-    if (intakeData.niche) contextParts.push(`Niche: ${intakeData.niche}`);
+    // Build unified business context using contextHelper (aligned with generate-stream)
+    const globalContext = buildGlobalContext({
+        ...intakeData,
+        businessName: companyName || intakeData.businessName,
+        leadMagnetTitle: leadMagnetTitle || intakeData.freeGiftName
+    });
+    const businessContext = getContextString(globalContext);
 
-    // CRITICAL: Add Company Name from user_profiles for funnel copy
-    if (companyName) {
-        contextParts.push(`Company Name: ${companyName}`);
-        console.log('[BuildContext] Added Company Name from user_profiles:', companyName);
-    }
-
-    // CRITICAL: Add Lead Magnet Title for dependent sections (Ad Copy, Emails, SMS, etc.)
-    if (leadMagnetTitle) {
-        contextParts.push(`Lead Magnet Title (Free Gift): ${leadMagnetTitle}`);
-        console.log('[BuildContext] Added Lead Magnet Title to context:', leadMagnetTitle);
-    }
-
-    // REMOVED: Brand Colors injection for funnelCopy per user request
-    // User wants pure copy generation without color context
-
-    const businessContext = contextParts.length > 0
-        ? `\n\nBUSINESS CONTEXT:\n${contextParts.join('\n')}`
-        : '';
+    console.log('[BuildContext] Using unified context:', {
+        contextLength: businessContext.length,
+        hasBusinessName: !!globalContext.businessName,
+        hasFreeGift: !!globalContext.freeGiftName,
+        hasPainPoints: globalContext.painPoints?.length > 0
+    });
 
     // Get schema information with FULL nested structure
     const schema = VAULT_SCHEMAS[sectionId];

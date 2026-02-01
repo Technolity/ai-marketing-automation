@@ -209,8 +209,10 @@
 | File | Role | Connected To |
 | :--- | :--- | :--- |
 | `app/api/os/generate-stream/route.js` | **Orchestrator**. Calls prompts, manages batches. | `lib/prompts/*`, `vault_content` (DB) |
+| `lib/prompts/contextHelper.js` | **Unified Context**. Shared `buildGlobalContext()` + `getContextString()` for all prompts. | `generate-stream`, `refine-section-stream` |
 | `lib/prompts/masterPrompt.js` | **Legacy/Fallback**. Old single-prompt logic. | (Mostly Unused) |
 | `lib/prompts/emailChunks.js` | **Chunk Logic**. Splits email gen into 4 parts. | `generate-stream` |
+| `lib/prompts/funnelCopyChunks.js` | **Funnel Copy**. 4 parallel chunks with unified `buildGlobalContext()` helper. Debug logging. | `generate-stream` |
 | `lib/prompts/*Merger.js` | **Assembler**. Stitches chunks back together. | `generate-stream` |
 
 ### B. The Vault UI (Display & Edit)
