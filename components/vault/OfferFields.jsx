@@ -6,6 +6,7 @@ import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import { useDependencyUpdates } from '@/lib/hooks/useDependencyUpdates';
 
 /**
  * OfferFields - Granular field-level editing for Signature Offer section
@@ -28,6 +29,9 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
 
     const sectionId = 'offer';
     const predefinedFields = getFieldsForSection(sectionId);
+
+    // Hook for dependency update notifications
+    const { scheduleCheck } = useDependencyUpdates(funnelId);
 
     // Fetch fields from database
     const fetchFields = async () => {
@@ -74,6 +78,9 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
 
         // Reset section approval if any field changes
         setSectionApproved(false);
+
+        // Schedule check for dependency updates (show toast if related sections were auto-updated)
+        scheduleCheck(2500);
     };
 
     // Handle AI feedback request
