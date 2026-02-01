@@ -220,6 +220,9 @@
 | `components/FeedbackChatModal.jsx` | **Refinement Chat** | Chat history, Streaming Feedback, Partial Recovery |
 | `components/vault/FunnelCopyFields.jsx` | Editor | `optinPage`, `salesPage`, `thankYouPage` |
 | `components/vault/EmailFields.jsx` | Editor | `email1`...`email15` (Subject, Body) |
+| `components/vault/PhaseWarningBanner.jsx` | **UX: Warning** | Prominent warning banner for Phase 3 |
+| `components/vault/ActionModal.jsx` | **UX: Step Modal** | Step-by-step modal for deployment & instructions |
+| `components/vault/EmergencyHelpButton.jsx` | **UX: Help** | Floating help button with contextual guidance |
 | `lib/vault/fieldStructures.js` | **Schema Def** | Defines *which* fields exist for each section. |
 
 ### C. GHL Architecture

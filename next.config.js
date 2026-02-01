@@ -32,7 +32,7 @@ const nextConfig = {
                     // Prevent clickjacking
                     {
                         key: 'X-Frame-Options',
-                        value: 'DENY'
+                        value: 'SAMEORIGIN'
                     },
                     // Prevent MIME type sniffing
                     {
@@ -86,10 +86,10 @@ const nextConfig = {
                             // Connect sources - include all tedos.ai subdomains
                             "connect-src 'self' http://localhost:* https://tedos.ai https://*.tedos.ai https://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://rest.gohighlevel.com https://services.leadconnectorhq.com https://api.cloudinary.com https://*.clerk.accounts.dev wss://*.clerk.accounts.dev https://*.clerk.tedos.ai wss://*.clerk.tedos.ai",
                             "frame-src 'self' https://*.tedos.ai https://*.clerk.tedos.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com",
-                            "object-src 'none'",
+                            "object-src 'self'",
                             "base-uri 'self'",
                             "form-action 'self'",
-                            "frame-ancestors 'none'"
+                            "frame-ancestors 'self'"
                         ].join('; ')
                     }
                 ]

@@ -35,12 +35,20 @@ export default function AppNavbar() {
         <div className="flex gap-4 items-center">
           <SignedIn>
             {/* Dashboard Link */}
-            {/* Dashboard Link */}
             <Link
               href="/dashboard"
               className="text-sm font-bold text-gray-400 hover:text-white transition-all duration-300"
             >
               <span>Dashboard</span>
+            </Link>
+
+            {/* Guide Link */}
+            <Link
+              href="/guide"
+              className="text-sm font-bold text-gray-400 hover:text-white transition-all duration-300"
+              onClick={() => console.log("[AppNavbar] Navigating to /guide")}
+            >
+              <span>Guide</span>
             </Link>
 
             {/* Admin Link - Only visible if admin */}

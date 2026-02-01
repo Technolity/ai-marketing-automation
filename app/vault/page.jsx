@@ -65,6 +65,11 @@ import ColorsFields from "@/components/vault/ColorsFields";
 import ApprovalWatcher from "@/components/vault/ApprovalWatcher";
 import PushToGHLButton from "@/components/vault/PushToGHLButton";
 
+// UX Enhancement Components
+import PhaseWarningBanner from "@/components/vault/PhaseWarningBanner";
+import ActionModal from "@/components/vault/ActionModal";
+import EmergencyHelpButton from "@/components/vault/EmergencyHelpButton";
+
 // Map section IDs to granular field components (all 13 sections)
 const GRANULAR_FIELD_COMPONENTS = {
     idealClient: IdealClientFields,
@@ -589,6 +594,10 @@ export default function VaultPage() {
     const [accountSetupError, setAccountSetupError] = useState(null);
     const [accountSetupSuccess, setAccountSetupSuccess] = useState(false);
 
+    // UX Enhancement States
+    const [showPhase2Instructions, setShowPhase2Instructions] = useState(false);
+    const [deploymentStep, setDeploymentStep] = useState(0); // 0 = not started, 1-3 = in progress
+
     // Ref to track completed job IDs we've already processed (prevents duplicate refreshes)
     const previouslyCompletedJobsRef = useRef(new Set());
 
@@ -637,6 +646,53 @@ export default function VaultPage() {
 
     // Check if we came from early redirect (still generating in background)
     const isGeneratingMode = searchParams.get('generating') === 'true';
+
+    // Phase 2 Instructions Popup - Show once when entering Phase 2
+    useEffect(() => {
+        if (activeTab === 'assets' && hasFunnelChoice) {
+            // Check if user has seen the instructions before
+            const storageKey = `vault_phase2_instructions_seen_${session?.user?.id}`;
+            const hasSeen = localStorage.getItem(storageKey);
+
+            if (!hasSeen) {
+                setShowPhase2Instructions(true);
+            }
+        }
+    }, [activeTab, hasFunnelChoice, session?.user?.id]);
+
+    // Handler for dismissing Phase 2 instructions
+    const handleDismissPhase2Instructions = () => {
+        const storageKey = `vault_phase2_instructions_seen_${session?.user?.id}`;
+        localStorage.setItem(storageKey, 'true');
+        setShowPhase2Instructions(false);
+    };
+
+    // Navigation handler for EmergencyHelpButton
+    const handleEmergencyNavigate = (destination) => {
+        switch (destination) {
+            case 'dna':
+                setActiveTab('dna');
+                break;
+            case 'assets':
+                setActiveTab('assets');
+                break;
+            case 'scripts':
+                setActiveTab('scripts');
+                break;
+            case 'funnel-recommendation':
+                const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                router.push(`/funnel-recommendation?funnel_id=${funnelId}`);
+                break;
+            case 'deploy':
+                setShowDeployModal(true);
+                break;
+            case 'guide':
+                router.push('/guide');
+                break;
+            default:
+                break;
+        }
+    };
 
     // Load vault data from database - ONLY on initial mount
     useEffect(() => {
@@ -1066,7 +1122,11 @@ export default function VaultPage() {
             await saveApprovals(approvedPhase1, newApprovals, approvedPhase3);
 
             if (newApprovals.length >= PHASE_2_SECTIONS.length) {
-                toast.success("🎉 Phase 2 Complete! Unlock Sales Scripts.");
+                toast.success("🎉 Phase 2 Complete! Proceeding to Sales Scripts...");
+                // Smart Redirect: Auto-switch to Phase 3 after a brief delay
+                setTimeout(() => {
+                    setActiveTab('scripts');
+                }, 1500);
             } else {
                 toast.success("Section approved!");
             }
@@ -1297,7 +1357,7 @@ export default function VaultPage() {
         console.log('[Vault] showDeployModal state set');
     };
 
-    // Handle GHL Deployment (Pabbly Workflow)
+    // Handle GHL Deployment (Pabbly Workflow) with step visualization
     const handleDeployToGHL = async () => {
         const funnelId = dataSource?.id || searchParams.get('funnel_id');
 
@@ -1307,9 +1367,14 @@ export default function VaultPage() {
         }
 
         setIsDeploying(true);
+        setDeploymentStep(1); // Step 1: Preparing funnel
         console.log('[Vault] Starting Pabbly deployment workflow...');
 
         try {
+            // Simulate step progression for better UX
+            await new Promise(resolve => setTimeout(resolve, 800));
+            setDeploymentStep(2); // Step 2: Deploying pages
+
             const res = await fetchWithAuth('/api/ghl/deploy-workflow', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1319,15 +1384,19 @@ export default function VaultPage() {
             const result = await res.json();
 
             if (res.ok && result.success) {
+                setDeploymentStep(3); // Step 3: Creating builder access
+                await new Promise(resolve => setTimeout(resolve, 600));
                 setDeploymentComplete(true);
                 toast.success('Pushed your Funnel Content Successfully');
             } else {
                 console.error('[Vault] Deployment error:', result);
                 toast.error(result.error || 'Failed to start deployment');
+                setDeploymentStep(0);
             }
         } catch (error) {
             console.error('[Vault] Deployment error:', error);
             toast.error('Failed to trigger deployment');
+            setDeploymentStep(0);
         } finally {
             setIsDeploying(false);
         }
@@ -3039,6 +3108,15 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
+                                {/* Phase 3 Warning Banner */}
+                                <PhaseWarningBanner
+                                    type="warning"
+                                    title="Before Deploying Any Assets"
+                                    message="We encourage you to go through our guide and review all your approved content across all phases. This ensures everything is perfect before going live."
+                                    linkText="Open the Guide"
+                                    linkHref="/guide"
+                                />
+
                                 <div className="grid gap-3">
                                     {PHASE_3_SECTIONS.map((section, index) => {
                                         const status = getSectionStatus(section.id, 3, approvedPhase3, index);
@@ -3133,91 +3211,58 @@ export default function VaultPage() {
 
 
 
-                {/* GHL Deployment Modal */}
-                <AnimatePresence>
-                    {showDeployModal && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-                            onClick={() => !isDeploying && setShowDeployModal(false)}
-                        >
-                            <motion.div
-                                initial={{ scale: 0.9, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0.9, opacity: 0 }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="bg-[#131314] border border-[#2a2a2d] rounded-2xl p-8 max-w-md w-full"
-                            >
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold">Build Your Funnel</h2>
-                                    {!isDeploying && (
-                                        <button
-                                            onClick={() => setShowDeployModal(false)}
-                                            className="p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors"
-                                        >
-                                            <X className="w-5 h-5" />
-                                        </button>
-                                    )}
-                                </div>
-
-                                {deploymentComplete ? (
-                                    <div className="text-center py-8">
-                                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
-                                            <CheckCircle className="w-10 h-10 text-green-500" />
-                                        </div>
-                                        <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
-                                        <p className="text-gray-400 mb-4">Your content is now live in Builder.</p>
-                                        <button
-                                            onClick={() => setShowDeployModal(false)}
-                                            className="px-6 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors"
-                                        >
-                                            Close
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-4">
-                                        <div className="w-16 h-16 bg-gradient-to-br from-cyan/20 to-blue-500/20 rounded-full flex items-center justify-center mb-6 mx-auto">
-                                            <Rocket className="w-8 h-8 text-cyan" />
-                                        </div>
-                                        <h3 className="text-xl font-bold text-white mb-2">Ready to Deploy?</h3>
-                                        <p className="text-gray-400 max-w-sm mx-auto mb-8">
-                                            This will push all your approved content to your connected account.
-                                        </p>
-
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={() => setShowDeployModal(false)}
-                                                disabled={isDeploying}
-                                                className="flex-1 px-4 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg font-medium transition-colors disabled:opacity-50"
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                onClick={handleDeployToGHL}
-                                                disabled={isDeploying}
-                                                className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                                            >
-                                                {isDeploying ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                        Deploying...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <ExternalLink className="w-4 h-4" />
-                                                        Start Deployment
-                                                    </>
-                                                )}
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </motion.div>
-                        </motion.div>
+                {/* GHL Deployment Modal with Step Visualization */}
+                <ActionModal
+                    isOpen={showDeployModal}
+                    onClose={() => {
+                        if (!isDeploying) {
+                            setShowDeployModal(false);
+                            setDeploymentStep(0);
+                            setDeploymentComplete(false);
+                        }
+                    }}
+                    title={deploymentComplete ? "Deployment Complete!" : "Build Your Funnel"}
+                    subtitle={deploymentComplete ? "Your content is live" : "Deploy to your builder"}
+                    icon={deploymentComplete ? CheckCircle : Rocket}
+                    steps={!deploymentComplete ? [
+                        { title: 'Preparing Funnel', description: 'Gathering your approved content', time: '5s' },
+                        { title: 'Deploying Pages', description: 'Pushing content to builder', time: '10s' },
+                        { title: 'Creating Access', description: 'Setting up your builder login', time: '3s' }
+                    ] : []}
+                    currentStep={deploymentStep}
+                    isProcessing={isDeploying}
+                    processingText="Deploying..."
+                    primaryAction={deploymentComplete ? () => {
+                        setShowDeployModal(false);
+                        setDeploymentStep(0);
+                        setDeploymentComplete(false);
+                    } : handleDeployToGHL}
+                    primaryActionText={deploymentComplete ? "Close" : "Start Deployment"}
+                    secondaryAction={!deploymentComplete && !isDeploying ? () => setShowDeployModal(false) : null}
+                    secondaryActionText="Cancel"
+                    showCloseButton={!isDeploying}
+                >
+                    {deploymentComplete && (
+                        <div className="text-center py-4">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <CheckCircle className="w-10 h-10 text-green-500" />
+                            </div>
+                            <p className="text-gray-400 text-sm">
+                                Your content is now live in Builder. Check your email for login instructions.
+                            </p>
+                        </div>
                     )}
-                </AnimatePresence>
+                    {!deploymentComplete && !isDeploying && (
+                        <div className="text-center py-2">
+                            <p className="text-gray-400 text-sm">
+                                This will push all your approved content to your connected account.
+                            </p>
+                            <p className="text-gray-500 text-xs mt-2">
+                                Estimated time: ~20 seconds
+                            </p>
+                        </div>
+                    )}
+                </ActionModal>
             </div>
 
             <FeedbackChatModal
@@ -3232,6 +3277,47 @@ export default function VaultPage() {
 
             {/* ApprovalWatcher: Monitors approvals and auto-triggers Funnel Copy generation */}
             <ApprovalWatcher funnelId={searchParams.get('funnel_id')} userId={session?.userId} />
+
+            {/* Phase 2 Instructions Modal */}
+            <ActionModal
+                isOpen={showPhase2Instructions}
+                onClose={handleDismissPhase2Instructions}
+                title="Welcome to Phase 2!"
+                subtitle="Marketing Assets"
+                icon={Rocket}
+                primaryAction={handleDismissPhase2Instructions}
+                primaryActionText="Got It, Let's Go!"
+            >
+                <div className="text-center py-4 space-y-4">
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                        We encourage you to <strong className="text-cyan">approve all 3 Phases first</strong> before
+                        deploying any assets to your builder.
+                    </p>
+                    <div className="bg-[#1b1b1d] rounded-xl p-4 border border-[#2a2a2d]">
+                        <p className="text-gray-400 text-xs">
+                            💡 <strong>Pro Tip:</strong> After your initial deployment, use the
+                            <span className="text-cyan font-semibold"> "Push to Builder"</span> buttons
+                            to update individual sections without re-deploying everything.
+                        </p>
+                    </div>
+                </div>
+            </ActionModal>
+
+            {/* Emergency Help Button - Always Visible */}
+            <EmergencyHelpButton
+                activeTab={activeTab}
+                phase1Complete={isPhase1Complete}
+                phase2Complete={isPhase2Complete}
+                phase3Complete={isPhase3Complete}
+                hasFunnelChoice={hasFunnelChoice}
+                onNavigate={handleEmergencyNavigate}
+                approvedPhase1Count={approvedPhase1.length}
+                approvedPhase2Count={approvedPhase2.length}
+                approvedPhase3Count={approvedPhase3.length}
+                totalPhase1={PHASE_1_SECTIONS.length}
+                totalPhase2={PHASE_2_SECTIONS.length}
+                totalPhase3={PHASE_3_SECTIONS.length}
+            />
         </div>
     );
 }
