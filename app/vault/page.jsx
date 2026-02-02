@@ -1270,6 +1270,9 @@ export default function VaultPage() {
 
                 setSectionStatuses(prev => ({ ...prev, [sectionId]: 'generated' }));
 
+                // Trigger granular field components to refetch
+                setRefreshTrigger(prev => prev + 1);
+
                 // Reset approval status since content has changed
                 setApprovedPhase1(prev => prev.filter(id => id !== sectionId));
                 setApprovedPhase2(prev => prev.filter(id => id !== sectionId));
@@ -2802,6 +2805,30 @@ export default function VaultPage() {
                                     </button>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Stuck Section Recovery - Show retry button for generating status */}
+                    {status === 'generating' && (
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-500 hidden sm:inline">Generating...</span>
+                            <button
+                                onClick={() => {
+                                    const numericKey = section.numericKey;
+                                    if (numericKey) {
+                                        handleRegenerateSection(section.id, numericKey);
+                                    } else {
+                                        toast.error('Cannot retry this section');
+                                    }
+                                }}
+                                disabled={regeneratingSection === section.id}
+                                className="px-2 py-1.5 sm:px-3 sm:py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-2 transition-all disabled:opacity-50"
+                                title="Taking too long? Click to retry"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${regeneratingSection === section.id ? 'animate-spin' : ''}`} />
+                                <span className="hidden sm:inline">Stuck? Retry</span>
+                                <span className="sm:hidden">Retry</span>
+                            </button>
                         </div>
                     )}
 
