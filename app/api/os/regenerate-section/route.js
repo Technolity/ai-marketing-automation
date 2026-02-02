@@ -1,202 +1,193 @@
+import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-import { getPromptByKey } from '@/lib/prompts';
+
+// Import multi-provider AI config
+import { AI_PROVIDERS, getOpenAIClient, getClaudeClient, getGeminiClient } from '@/lib/ai/providerConfig';
 import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
+
+// Import JSON parser
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
-import { populateVaultFields } from '@/lib/vault/fieldMapper';
 
-// Content mappings (same as generate-stream)
-const CONTENT_NAMES = {
-    1: 'idealClient',
-    2: 'message',
-    3: 'story',
-    4: 'offer',
-    5: 'salesScripts',
-    6: 'leadMagnet',
-    7: 'vsl',
-    8: 'emails',
-    9: 'facebookAds',
-    10: 'funnelCopy',
-    15: 'bio',
-    16: 'appointmentReminders',
-    17: 'setterScript',
-    19: 'sms'
-};
+// Import all prompts
+import { idealClientPrompt } from '@/lib/prompts/idealClient';
+import { messagePrompt } from '@/lib/prompts/message';
+import { storyPrompt } from '@/lib/prompts/story';
+import { offerPrompt } from '@/lib/prompts/offer';
+import { closerScriptPrompt } from '@/lib/prompts/closerScript';
+import { leadMagnetPrompt } from '@/lib/prompts/leadMagnet';
+import { vslPrompt } from '@/lib/prompts/vsl';
+import { emailsPrompt } from '@/lib/prompts/emails';
+import { facebookAdsPrompt } from '@/lib/prompts/facebookAds';
+import { funnelCopyPrompt } from '@/lib/prompts/funnelCopy';
+import { bioPrompt } from '@/lib/prompts/bio';
+import { contentIdeasPrompt } from '@/lib/prompts/contentIdeas';
+import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
 
-const DISPLAY_NAMES = {
-    1: 'Ideal Client',
-    2: 'Message',
-    3: 'Story',
-    4: 'Offer & Pricing',
-    5: 'Closer Script',
-    6: 'Free Gift',
-    7: 'Video Script',
-    8: 'Email Sequences',
-    9: 'Ad Copy',
-    10: 'Funnel Page Copy',
-    15: 'Professional Bio',
-    16: 'Appointment Reminders',
-    17: 'Setter Script',
-    19: 'SMS Sequences'
-};
+// Import Chunk Prompts & Mergers
+import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
+import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
+import { smsChunk1Prompt, smsChunk2Prompt } from '@/lib/prompts/smsChunks';
+import { mergeSmsChunks, validateMergedSms } from '@/lib/prompts/smsMerger';
+import { setterChunk1Prompt, setterChunk2Prompt } from '@/lib/prompts/setterScriptChunks';
+import { mergeSetterChunks, validateMergedSetter } from '@/lib/prompts/setterScriptMerger';
+import { closerChunk1Prompt, closerChunk2Prompt } from '@/lib/prompts/closerScriptChunks';
+import { mergeCloserChunks, validateMergedCloser } from '@/lib/prompts/closerScriptMerger';
+import { funnelCopyChunks } from '@/lib/prompts/funnelCopyChunks';
+import { mergeFunnelCopyChunks, validateMergedFunnelCopy } from '@/lib/prompts/funnelCopyMerger';
+import { resolveDependencies, buildEnrichedData, buildCoreContext, formatContextForPrompt } from '@/lib/vault/dependencyResolver';
 
-// Phase mapping
-const PHASE_1_KEYS = [1, 2, 3, 4, 5, 17];
+export const dynamic = 'force-dynamic';
 
-// Section timeouts
-const SECTION_TIMEOUTS = {
-    4: 150000,
-    5: 180000,
-    7: 150000,
-    8: 150000,
-    10: 120000,
-    17: 120000
+// Map phase IDs to their prompt functions and names
+const SECTION_PROMPTS = {
+    idealClient: { fn: idealClientPrompt, name: 'Ideal Client Profile', key: 1 },
+    message: { fn: messagePrompt, name: 'Million-Dollar Message', key: 2 },
+    story: { fn: storyPrompt, name: 'Personal Story', key: 3 },
+    offer: { fn: offerPrompt, name: 'Offer & Program', key: 4 },
+    salesScripts: { fn: closerScriptPrompt, name: 'Sales Scripts', key: 5 },
+    leadMagnet: { fn: leadMagnetPrompt, name: 'Lead Magnet', key: 6 },
+    vsl: { fn: vslPrompt, name: 'VSL Script', key: 7 },
+    emails: { fn: emailsPrompt, name: 'Email Sequence', key: 8 },
+    facebookAds: { fn: facebookAdsPrompt, name: 'Facebook Ads', key: 9 },
+    funnelCopy: { fn: funnelCopyPrompt, name: 'Funnel Copy', key: 10 }, // Default fn used for key lookup
+    contentIdeas: { fn: contentIdeasPrompt, name: 'Content Ideas', key: 11 },
+    program12Month: { fn: (data) => `Please generate a 12-month program blueprint based on: ${JSON.stringify(data)}`, name: '12-Month Program', key: 12 },
+    youtubeShow: { fn: (data) => `Please generate a YouTube show strategy based on: ${JSON.stringify(data)}`, name: 'YouTube Show', key: 13 },
+    personalBrandBio: { fn: bioPrompt, name: 'Personal Brand Bio', key: 14 },
+    bio: { fn: bioPrompt, name: 'Professional Bio', key: 15 },
+    appointmentReminders: { fn: appointmentRemindersPrompt, name: 'Appointment Reminders', key: 16 },
+    setterScript: { fn: setterChunk1Prompt, name: 'Setter Script', key: 17 }, // Key 17
+    sms: { fn: smsChunk1Prompt, name: 'SMS Sequences', key: 19 }, // Key 19
+    colors: { fn: (data) => `Generate brand colors for ${data.businessName}`, name: 'Brand Colors', key: 20 }
 };
 
 /**
- * POST /api/os/regenerate-section
- * Regenerate a single failed section without re-running the entire flow
+ * POST /api/os/regenerate
+ * Regenerate a specific content section
  */
 export async function POST(req) {
-    const { userId } = auth();
-    if (!userId) {
-        return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    let body;
     try {
-        body = await req.json();
-    } catch (e) {
-        return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
-
-    const { funnel_id: funnelId, section_key: sectionKey, feedback } = body;
-
-    if (!funnelId || !sectionKey) {
-        return Response.json({ error: 'funnel_id and section_key are required' }, { status: 400 });
-    }
-
-    // Validate section key
-    if (!CONTENT_NAMES[sectionKey]) {
-        return Response.json({ error: 'Invalid section_key' }, { status: 400 });
-    }
-
-    // Verify funnel ownership AND get wizard answers
-    const { data: funnel, error: funnelError } = await supabaseAdmin
-        .from('user_funnels')
-        .select('id, funnel_name, wizard_answers')
-        .eq('id', funnelId)
-        .eq('user_id', userId)
-        .single();
-
-    if (funnelError || !funnel) {
-        return Response.json({ error: 'Funnel not found' }, { status: 404 });
-    }
-
-    // Use wizard_answers directly
-    const data = funnel.wizard_answers || {};
-
-    /* REMOVED: Legacy questionnaire_responses and wizard_progress logic
-       Data is now centralized in user_funnels.wizard_answers
-    */
-
-    console.log('[REGENERATE] Mapped data keys:', Object.keys(data));
-
-    // FETCH LEAD MAGNET TITLE (Approved/Edited version)
-    // This ensures Scripts and Emails reference the actual Free Gift name
-    try {
-        const { data: lmField } = await supabaseAdmin
-            .from('vault_content_fields')
-            .select('field_value')
-            .eq('funnel_id', funnelId)
-            .eq('section_id', 'leadMagnet')
-            .eq('field_id', 'mainTitle')
-            .maybeSingle();
-
-        if (lmField?.field_value) {
-            console.log('[REGENERATE] Found Lead Magnet Title:', lmField.field_value);
-            data.leadMagnetTitle = lmField.field_value;
+        const { userId } = auth();
+        if (!userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-    } catch (lmError) {
-        console.warn('[REGENERATE] Failed to fetch Lead Magnet Title:', lmError);
-    }
 
-    const sectionId = CONTENT_NAMES[sectionKey];
-    const displayName = DISPLAY_NAMES[sectionKey];
+        const body = await req.json();
+        const { section, sessionId } = body; // section is the ID string (e.g., 'funnelCopy')
 
-    // DEPENDENCY RESOLUTION: Import and resolve dependencies
-    const { resolveDependencies, buildEnrichedData, validateCoreSections, buildCoreContext, formatContextForPrompt } = await import('@/lib/vault/dependencyResolver');
+        console.log(`[Regenerate] User: ${userId}, Section: ${section}, Session: ${sessionId || 'current'}`);
 
-    // CORE SECTION VALIDATION: Require Ideal Client + Message for most sections
-    // Skip validation for core sections themselves (keys 1, 2, 3)
-    const coreSectionKeys = [1, 2, 3]; // idealClient, message, story
-    if (!coreSectionKeys.includes(sectionKey)) {
-        console.log(`[REGENERATE] Validating core sections before regenerating ${displayName}...`);
-        const validation = await validateCoreSections(funnelId);
-
-        if (!validation.isValid) {
-            console.log(`[REGENERATE] ✗ Core section validation failed:`, validation.missing);
-            return Response.json({
-                error: validation.message,
-                code: 'MISSING_CORE_SECTIONS',
-                missing: validation.missing
+        // Validate section
+        if (!section || !SECTION_PROMPTS[section]) {
+            return NextResponse.json({
+                error: 'Invalid section',
+                availableSections: Object.keys(SECTION_PROMPTS)
             }, { status: 400 });
         }
-        console.log(`[REGENERATE] ✓ Core sections validated`);
-    }
 
-    console.log(`[REGENERATE] Resolving dependencies for ${sectionId} (key: ${sectionKey})...`);
-    const resolvedDeps = await resolveDependencies(funnelId, sectionKey, data);
-    const enrichedData = buildEnrichedData(data, resolvedDeps);
-    console.log(`[REGENERATE] Enriched data ready. Free Gift Name: "${enrichedData.freeGiftName || 'not set'}"`);
+        const promptConfig = SECTION_PROMPTS[section];
+        const key = promptConfig.key;
 
-    // BUILD CORE CONTEXT: Fetch field-level data from approved sections
-    const coreContext = await buildCoreContext(funnelId);
-    const formattedContext = formatContextForPrompt(coreContext);
-    console.log(`[REGENERATE] Core context ready (${formattedContext.length} chars)`);
+        // Fetch dependencies using shared resolver (ensure consistent context)
+        // Uses sessionId as funnelId for context resolution
+        let enrichedData = {};
+        try {
+            const checklistMap = await resolveDependencies(sessionId, key, {});
+            // Fetch intake answers as base
+            const { data: intakeAnswers } = await supabaseAdmin
+                .from('intake_answers')
+                .select('answers')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
 
-    try {
-        console.log(`[REGENERATE] Starting regeneration of ${displayName} (key: ${sectionKey})`);
-        if (feedback) console.log(`[REGENERATE] Including feedback: ${feedback.substring(0, 50)}...`);
-
-        const promptFn = getPromptByKey(sectionKey);
-        if (!promptFn) {
-            return Response.json({ error: `Prompt ${sectionKey} not found` }, { status: 500 });
+            const baseData = intakeAnswers?.answers || {};
+            enrichedData = buildEnrichedData(baseData, checklistMap);
+        } catch (depError) {
+            console.error('[Regenerate] Dependency resolution failed, falling back to basic intake:', depError);
+            // Fallback: Try latest session or intake
+            const { data: latestSession } = await supabaseAdmin
+                .from('saved_sessions')
+                .select('intake_data, answers')
+                .eq('user_id', userId)
+                .order('updated_at', { ascending: false })
+                .limit(1)
+                .single();
+            enrichedData = latestSession?.intake_data || latestSession?.answers || {};
         }
 
-        // Use enrichedData with resolved dependencies
-        let rawPrompt = promptFn(enrichedData);
-
-        // INJECT CORE CONTEXT at the beginning of the prompt
-        rawPrompt = formattedContext + '\n\n' + rawPrompt;
-
-        // Append feedback if provided
-        if (feedback) {
-            rawPrompt += `\n\nCRITICAL USER FEEDBACK - PLEASE IMPLEMENT:\n${feedback}\n\nStrictly adhere to the above feedback while maintaining the overall high-quality standard required.`;
+        if (Object.keys(enrichedData).length === 0) {
+            return NextResponse.json({
+                error: 'No intake data found. Please complete the intake form first.'
+            }, { status: 404 });
         }
 
-        const sectionTimeout = SECTION_TIMEOUTS[sectionKey] || 90000;
+        console.log(`[Regenerate] Generating ${promptConfig.name} (Key: ${key})...`);
 
-        // Token allocation
-        let maxTokens = 4000;
-        if (sectionKey === 8) maxTokens = 8000;
-        if (sectionKey === 7) maxTokens = 7000;
-        if (sectionKey === 5) maxTokens = 12000;
-        if (sectionKey === 4) maxTokens = 5000;
-        if (sectionKey === 10) maxTokens = 5000;
+        let parsedContent;
+        let promptUsed = "";
 
-        let parsed;
+        // CHUNKED GENERATION LOGIC
+        if (key === 10) { // Funnel Copy (Key 10)
+            console.log('[Regenerate] Using CHUNKED generation for Funnel Copy (4 chunks)');
 
-        // SPECIAL HANDLING: Emails use parallel chunked generation
-        if (sectionKey === 8) {
-            console.log('[REGENERATE] Using CHUNKED parallel generation for emails (19 emails in 4 chunks)');
+            const chunkTimeout = 90000;
+            const chunkMaxTokens = 4000;
+            promptUsed = "[CHUNKED GENERATION] Funnel Copy: Optin, Sales Part 1, Sales Part 2, Sales Part 3";
 
-            const { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } = await import('@/lib/prompts/emailChunks');
-            const { mergeEmailChunks, validateMergedEmails } = await import('@/lib/prompts/emailMerger');
-            const { smsChunk1Prompt, smsChunk2Prompt } = await import('@/lib/prompts/smsChunks');
-            const { mergeSmsChunks, validateMergedSms } = await import('@/lib/prompts/smsMerger');
+            try {
+                const [chunk1, chunk2, chunk3, chunk4] = await Promise.all([
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are an elite funnel copywriter. Return ONLY valid JSON.",
+                            funnelCopyChunks.chunk1_optinPage(enrichedData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are an elite funnel copywriter. Return ONLY valid JSON.",
+                            funnelCopyChunks.chunk2_salesPart1(enrichedData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are an elite funnel copywriter. Return ONLY valid JSON.",
+                            funnelCopyChunks.chunk3_salesPart2(enrichedData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are an elite funnel copywriter. Return ONLY valid JSON.",
+                            funnelCopyChunks.chunk4_salesPart3(enrichedData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
+                    })
+                ]);
 
-            // Format data for chunk prompts (using enrichedData with resolved dependencies)
+                parsedContent = mergeFunnelCopyChunks(chunk1, chunk2, chunk3, chunk4);
+                const validation = validateMergedFunnelCopy(parsedContent);
+                console.log(`[Regenerate] Funnel Copy merge validation: ${validation.valid ? 'VALID' : 'INVALID'} (${validation.fieldCount}/81 fields)`);
+
+            } catch (err) {
+                console.error('[Regenerate] Funnel Copy chunking failed:', err);
+                throw err;
+            }
+
+        } else if (key === 8) { // Emails (Key 8)
+            console.log('[Regenerate] Using CHUNKED generation for Emails');
+            const chunkTimeout = 90000;
+            const chunkMaxTokens = 4000;
+            promptUsed = "[CHUNKED GENERATION] Emails: 4 Chunks";
+
             const emailData = {
                 idealClient: enrichedData.idealClient || '',
                 coreProblem: enrichedData.coreProblem || '',
@@ -206,78 +197,21 @@ export async function POST(req) {
                 testimonials: enrichedData.testimonials || '',
                 leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || '[Free Gift Name]'
             };
-            console.log(`[REGENERATE] Email regeneration using Free Gift Name: "${emailData.leadMagnetTitle}"`);
 
-            const chunkTimeout = 120000; // 120s per chunk (complex generation)
-            const chunkMaxTokens = 4000;
-
-            // Generate all 4 chunks in parallel
-            console.log('[REGENERATE] Starting 4 parallel chunk generations...');
-            const startTime = Date.now();
-
-            const [chunk1Result, chunk2Result, chunk3Result, chunk4Result] = await Promise.all([
-                retryWithBackoff(async () => {
-                    console.log('[REGENERATE] Chunk 1 starting...');
-                    const raw = await generateWithProvider(
-                        "You are TED-OS Email Engine. Return ONLY valid JSON.",
-                        emailChunk1Prompt(emailData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    console.log('[REGENERATE] Chunk 1 complete');
-                    return parseJsonSafe(raw);
-                }),
-                retryWithBackoff(async () => {
-                    console.log('[REGENERATE] Chunk 2 starting...');
-                    const raw = await generateWithProvider(
-                        "You are TED-OS Email Engine. Return ONLY valid JSON.",
-                        emailChunk2Prompt(emailData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    console.log('[REGENERATE] Chunk 2 complete');
-                    return parseJsonSafe(raw);
-                }),
-                retryWithBackoff(async () => {
-                    console.log('[REGENERATE] Chunk 3 starting...');
-                    const raw = await generateWithProvider(
-                        "You are TED-OS Email Engine. Return ONLY valid JSON.",
-                        emailChunk3Prompt(emailData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    console.log('[REGENERATE] Chunk 3 complete');
-                    return parseJsonSafe(raw);
-                }),
-                retryWithBackoff(async () => {
-                    console.log('[REGENERATE] Chunk 4 starting...');
-                    const raw = await generateWithProvider(
-                        "You are TED-OS Email Engine. Return ONLY valid JSON.",
-                        emailChunk4Prompt(emailData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    console.log('[REGENERATE] Chunk 4 complete');
-                    return parseJsonSafe(raw);
-                })
+            const [c1, c2, c3, c4] = await Promise.all([
+                retryWithBackoff(() => generateWithProvider("You are TED-OS Email Engine. Return ONLY valid JSON.", emailChunk1Prompt(emailData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe)),
+                retryWithBackoff(() => generateWithProvider("You are TED-OS Email Engine. Return ONLY valid JSON.", emailChunk2Prompt(emailData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe)),
+                retryWithBackoff(() => generateWithProvider("You are TED-OS Email Engine. Return ONLY valid JSON.", emailChunk3Prompt(emailData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe)),
+                retryWithBackoff(() => generateWithProvider("You are TED-OS Email Engine. Return ONLY valid JSON.", emailChunk4Prompt(emailData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe))
             ]);
 
-            const elapsed = Date.now() - startTime;
-            console.log(`[REGENERATE] All 4 chunks complete in ${elapsed}ms`);
+            parsedContent = mergeEmailChunks(c1, c2, c3, c4);
 
-            // Merge chunks
-            parsed = mergeEmailChunks(chunk1Result, chunk2Result, chunk3Result, chunk4Result);
-
-            // Validate merged result
-            const validation = validateMergedEmails(parsed);
-            console.log('[REGENERATE] Email merge validation:', validation);
-
-            if (!validation.valid) {
-                console.warn('[REGENERATE] Email merge has issues:', validation);
-            }
-
-        } else if (sectionKey === 19) {
-            // SPECIAL HANDLING: SMS use parallel chunked generation (10 SMS in 2 chunks)
-            console.log('[REGENERATE] Using CHUNKED parallel generation for SMS (10 SMS in 2 chunks)');
-
-            const { smsChunk1Prompt, smsChunk2Prompt } = await import('@/lib/prompts/smsChunks');
-            const { mergeSmsChunks, validateMergedSms } = await import('@/lib/prompts/smsMerger');
+        } else if (key === 19) { // SMS (Key 19)
+            console.log('[Regenerate] Using CHUNKED generation for SMS');
+            const chunkTimeout = 30000;
+            const chunkMaxTokens = 2000;
+            promptUsed = "[CHUNKED GENERATION] SMS: 2 Chunks";
 
             const smsData = {
                 idealClient: enrichedData.idealClient || '',
@@ -287,49 +221,19 @@ export async function POST(req) {
                 offerProgram: enrichedData.offerProgram || '',
                 leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || '[Free Gift Name]'
             };
-            console.log(`[REGENERATE] SMS regeneration using Free Gift Name: "${smsData.leadMagnetTitle}"`);
 
-            const chunkTimeout = 30000; // 30s per chunk
-            const chunkMaxTokens = 2000;
-
-            console.log('[REGENERATE] Starting 2 parallel SMS chunk generations...');
-            const startTime = Date.now();
-
-            const [chunk1Result, chunk2Result] = await Promise.all([
-                retryWithBackoff(async () => {
-                    const raw = await generateWithProvider(
-                        "You are TED-OS SMS Engine. Return ONLY valid JSON.",
-                        smsChunk1Prompt(smsData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    return parseJsonSafe(raw);
-                }),
-                retryWithBackoff(async () => {
-                    const raw = await generateWithProvider(
-                        "You are TED-OS SMS Engine. Return ONLY valid JSON.",
-                        smsChunk2Prompt(smsData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    return parseJsonSafe(raw);
-                })
+            const [c1, c2] = await Promise.all([
+                retryWithBackoff(() => generateWithProvider("You are TED-OS SMS Engine. Return ONLY valid JSON.", smsChunk1Prompt(smsData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe)),
+                retryWithBackoff(() => generateWithProvider("You are TED-OS SMS Engine. Return ONLY valid JSON.", smsChunk2Prompt(smsData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe))
             ]);
 
-            const elapsed = Date.now() - startTime;
-            console.log(`[REGENERATE] SMS chunks complete in ${elapsed}ms`);
+            parsedContent = mergeSmsChunks(c1, c2);
 
-            parsed = mergeSmsChunks(chunk1Result, chunk2Result);
-
-            const validation = validateMergedSms(parsed);
-            if (!validation.valid) {
-                console.warn('[REGENERATE] SMS merge has issues:', validation);
-            }
-
-        } else if (sectionKey === 17) {
-            // SPECIAL HANDLING: Setter Script uses parallel chunked generation (2 chunks)
-            console.log('[REGENERATE] Using CHUNKED parallel generation for Setter Script (2 chunks)');
-
-            const { setterChunk1Prompt, setterChunk2Prompt } = await import('@/lib/prompts/setterScriptChunks');
-            const { mergeSetterChunks, validateMergedSetter } = await import('@/lib/prompts/setterScriptMerger');
+        } else if (key === 17) { // Setter Script (Key 17)
+            console.log('[Regenerate] Using CHUNKED generation for Setter Script');
+            const chunkTimeout = 45000;
+            const chunkMaxTokens = 3500;
+            promptUsed = "[CHUNKED GENERATION] Setter Script: 2 Chunks";
 
             const scriptData = {
                 idealClient: enrichedData.idealClient || '',
@@ -340,49 +244,19 @@ export async function POST(req) {
                 leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || 'Free Training',
                 callToAction: enrichedData.callToAction || 'Book a strategy call'
             };
-            console.log(`[REGENERATE] Setter Script regeneration using Free Gift Name: "${scriptData.leadMagnetTitle}"`);
 
-            const chunkTimeout = 45000; // 45s per chunk
-            const chunkMaxTokens = 3500;
-
-            console.log('[REGENERATE] Starting 2 parallel Setter Script chunk generations...');
-            const startTime = Date.now();
-
-            const [chunk1Result, chunk2Result] = await Promise.all([
-                retryWithBackoff(async () => {
-                    const raw = await generateWithProvider(
-                        "You are TED-OS Setter Script Engine. Return ONLY valid JSON.",
-                        setterChunk1Prompt(scriptData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    return parseJsonSafe(raw);
-                }),
-                retryWithBackoff(async () => {
-                    const raw = await generateWithProvider(
-                        "You are TED-OS Setter Script Engine. Return ONLY valid JSON.",
-                        setterChunk2Prompt(scriptData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    return parseJsonSafe(raw);
-                })
+            const [c1, c2] = await Promise.all([
+                retryWithBackoff(() => generateWithProvider("You are TED-OS Setter Script Engine. Return ONLY valid JSON.", setterChunk1Prompt(scriptData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe)),
+                retryWithBackoff(() => generateWithProvider("You are TED-OS Setter Script Engine. Return ONLY valid JSON.", setterChunk2Prompt(scriptData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe))
             ]);
 
-            const elapsed = Date.now() - startTime;
-            console.log(`[REGENERATE] Setter Script chunks complete in ${elapsed}ms`);
+            parsedContent = mergeSetterChunks(c1, c2);
 
-            parsed = mergeSetterChunks(chunk1Result, chunk2Result);
-
-            const validation = validateMergedSetter(parsed);
-            if (!validation.valid) {
-                console.warn('[REGENERATE] Setter Script merge has issues:', validation);
-            }
-
-        } else if (sectionKey === 5) {
-            // SPECIAL HANDLING: Closer Script uses parallel chunked generation (2 chunks)
-            console.log('[REGENERATE] Using CHUNKED parallel generation for Closer Script (2 chunks)');
-
-            const { closerChunk1Prompt, closerChunk2Prompt } = await import('@/lib/prompts/closerScriptChunks');
-            const { mergeCloserChunks, validateMergedCloser } = await import('@/lib/prompts/closerScriptMerger');
+        } else if (key === 5) { // Closer Script (Key 5)
+            console.log('[Regenerate] Using CHUNKED generation for Closer Script');
+            const chunkTimeout = 90000;
+            const chunkMaxTokens = 4000;
+            promptUsed = "[CHUNKED GENERATION] Closer Script: 2 Chunks";
 
             const scriptData = {
                 industry: enrichedData.industry || '',
@@ -394,127 +268,100 @@ export async function POST(req) {
                 pricing: enrichedData.offerContext?.pricing || enrichedData.pricing || '',
                 brandVoice: enrichedData.brandVoice || 'Professional but friendly',
                 targetAudience: 'warm',
-                // Inject offer context for closer script
                 offerBlueprint: enrichedData.offerContext?.blueprint || '',
                 offerPromise: enrichedData.offerContext?.tier1Promise || ''
             };
-            console.log(`[REGENERATE] Closer Script regeneration using Offer: "${scriptData.offerName}", Pricing: "${scriptData.pricing}"`);
 
-            const chunkTimeout = 120000; // 120s per chunk (complex generation) for closer (longer content)
-            const chunkMaxTokens = 4000;
-
-            console.log('[REGENERATE] Starting 2 parallel Closer Script chunk generations...');
-            const startTime = Date.now();
-
-            const [chunk1Result, chunk2Result] = await Promise.all([
-                retryWithBackoff(async () => {
-                    const raw = await generateWithProvider(
-                        "You are TED-OS Closer Script Engine. Return ONLY valid JSON.",
-                        closerChunk1Prompt(scriptData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    return parseJsonSafe(raw);
-                }),
-                retryWithBackoff(async () => {
-                    const raw = await generateWithProvider(
-                        "You are TED-OS Closer Script Engine. Return ONLY valid JSON.",
-                        closerChunk2Prompt(scriptData),
-                        { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
-                    );
-                    return parseJsonSafe(raw);
-                })
+            const [c1, c2] = await Promise.all([
+                retryWithBackoff(() => generateWithProvider("You are TED-OS Closer Script Engine. Return ONLY valid JSON.", closerChunk1Prompt(scriptData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe)),
+                retryWithBackoff(() => generateWithProvider("You are TED-OS Closer Script Engine. Return ONLY valid JSON.", closerChunk2Prompt(scriptData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe))
             ]);
 
-            const elapsed = Date.now() - startTime;
-            console.log(`[REGENERATE] Closer Script chunks complete in ${elapsed}ms`);
-
-            parsed = mergeCloserChunks(chunk1Result, chunk2Result);
-
-            const validation = validateMergedCloser(parsed);
-            if (!validation.valid) {
-                console.warn('[REGENERATE] Closer Script merge has issues:', validation);
-            }
+            parsedContent = mergeCloserChunks(c1, c2);
 
         } else {
-            // Standard single-call generation for other sections
-            const rawContent = await retryWithBackoff(async () => {
-                return await generateWithProvider(
-                    "You are an elite business growth strategist. Return ONLY valid JSON.",
-                    rawPrompt,
-                    {
-                        jsonMode: true,
-                        maxTokens,
-                        timeout: sectionTimeout
-                    }
-                );
-            });
+            // STANDARD GENERATION
+            const promptFn = promptConfig.fn;
+            let prompt = promptFn(enrichedData);
 
-            parsed = parseJsonSafe(rawContent);
+            // Inject core context if needed (Key > 3)
+            if (key > 3) {
+                const coreContext = await buildCoreContext(sessionId);
+                const formattedContext = formatContextForPrompt(coreContext);
+                prompt = formattedContext + '\n\n' + prompt;
+            }
+
+            promptUsed = prompt;
+
+            // Only add constraints if supported
+            let systemPrompt = "You are an elite business growth strategist. Return ONLY valid JSON. CRITICAL: Your response must start with { and end with }. NO conversational text.";
+
+            let maxTokens = 4000;
+            if (key === 7) maxTokens = 7000; // VSL
+            if (key === 4) maxTokens = 5000; // Offer
+
+            const rawContent = await retryWithBackoff(async () => {
+                return await generateWithProvider(systemPrompt, prompt, {
+                    jsonMode: true,
+                    maxTokens: maxTokens,
+                    temperature: 0.7
+                });
+            });
+            parsedContent = parseJsonSafe(rawContent);
         }
 
+        // Save to database
+        const funnelId = sessionId;
+        if (funnelId) {
+            // Archive old version
+            await supabaseAdmin
+                .from('vault_content')
+                .update({ is_current_version: false })
+                .eq('funnel_id', funnelId)
+                .eq('section_id', section);
 
-        // Get current version to increment
-        const { data: currentVersionData } = await supabaseAdmin
-            .from('vault_content')
-            .select('version')
-            .eq('funnel_id', funnelId)
-            .eq('section_id', sectionId)
-            .order('version', { ascending: false })
-            .limit(1)
-            .single();
+            // Get version
+            const { data: currentVersionData } = await supabaseAdmin
+                .from('vault_content')
+                .select('version')
+                .eq('funnel_id', funnelId)
+                .eq('section_id', section)
+                .order('version', { ascending: false })
+                .limit(1)
+                .single();
+            const newVersion = (currentVersionData?.version || 0) + 1;
 
-        const newVersion = (currentVersionData?.version || 0) + 1;
-
-        // Archive old version
-        await supabaseAdmin
-            .from('vault_content')
-            .update({ is_current_version: false })
-            .eq('funnel_id', funnelId)
-            .eq('section_id', sectionId);
-
-        // Insert new version
-        const { data: newContent, error: insertError } = await supabaseAdmin
-            .from('vault_content')
-            .insert({
+            // Insert new version
+            const { error: insertError } = await supabaseAdmin.from('vault_content').insert({
                 funnel_id: funnelId,
                 user_id: userId,
-                section_id: sectionId,
-                section_title: displayName,
-                content: parsed,
-                prompt_used: rawPrompt,
-                phase: PHASE_1_KEYS.includes(sectionKey) ? 1 : 2,
-                status: 'generated',
-                numeric_key: sectionKey,
+                section_id: section,
+                section_title: promptConfig.name,
+                content: parsedContent,
+                prompt_used: promptUsed,
+                phase: [1, 2, 3, 4, 5, 17].includes(key) ? 1 : 2,
+                status: 'generated', // Explicitly generated so it needs approval
+                numeric_key: key,
                 is_current_version: true,
-                version: newVersion
-            })
-            .select()
-            .single();
+                version: newVersion,
+                updated_at: new Date().toISOString()
+            });
 
-        if (insertError) {
-            throw insertError;
+            if (insertError) console.error('[Regenerate] DB Insert Error:', insertError);
         }
 
-        // Populate granular fields for UI editing
-        await populateVaultFields(funnelId, sectionId, parsed, userId);
-
-        console.log(`[REGENERATE] Successfully regenerated ${displayName}`);
-
-        return Response.json({
+        return NextResponse.json({
             success: true,
-            section: {
-                key: sectionKey,
-                name: displayName,
-                sectionId,
-                content: parsed
-            }
+            section: section,
+            sectionName: promptConfig.name,
+            content: parsedContent
         });
 
     } catch (error) {
-        console.error(`[REGENERATE] Error regenerating ${displayName}:`, error);
-        return Response.json({
-            error: `Failed to regenerate ${displayName}: ${error.message}`
+        console.error('[Regenerate] Unexpected error:', error);
+        return NextResponse.json({
+            error: 'Internal server error',
+            details: error.message
         }, { status: 500 });
     }
 }
-
