@@ -28,8 +28,11 @@ import {
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { createLogger } from '@/lib/logger';
 import { applyFreeGiftReplacement } from "@/lib/vault/freeGiftReplacer";
 
+// Initialize logger
+const logger = createLogger('VaultPage');
 
 // Helper component for safe hydration-friendly portaling
 const SafePortal = ({ children, targetId }) => {
@@ -589,7 +592,7 @@ export default function VaultPage() {
     const [sectionStatuses, setSectionStatuses] = useState({});
     const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
     const [regeneratingSection, setRegeneratingSection] = useState(null);
-    const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [refreshTriggers, setRefreshTriggers] = useState({}); // { [sectionId]: timestamp }
     const [isSettingUpAccount, setIsSettingUpAccount] = useState(false);
     const [accountSetupError, setAccountSetupError] = useState(null);
     const [accountSetupSuccess, setAccountSetupSuccess] = useState(false);
@@ -892,8 +895,12 @@ export default function VaultPage() {
 
                             if (hasActualChanges) {
                                 console.log('[Vault] Sections updated:', changedSections);
-                                // Trigger granular field components (like SalesScriptsFields) to refetch
-                                setRefreshTrigger(prev => prev + 1);
+                                // Trigger ONLY the changed granular field components to refetch
+                                setRefreshTriggers(prev => {
+                                    const next = { ...prev };
+                                    changedSections.forEach(id => { next[id] = Date.now(); });
+                                    return next;
+                                });
                                 return newState;
                             } else {
                                 console.log('[Vault] No section changes detected, preserving state');
@@ -924,6 +931,17 @@ export default function VaultPage() {
                             url.searchParams.delete('generating');
                             window.history.replaceState({}, '', url.toString());
                             unchangedPollCount = 0; // Reset counter
+                        }
+
+                        // PERFORMANCE FIX: Stop polling after prolonged inactivity when NOT generating
+                        // 100 polls * 3s = 5 minutes of no changes - stop wasting resources
+                        const MAX_UNCHANGED_POLLS = 100;
+                        if (!isGeneratingMode && unchangedPollCount >= MAX_UNCHANGED_POLLS) {
+                            console.log('[Vault] ⏹️ Stopping polling - no changes for 5 minutes');
+                            if (pollInterval) {
+                                clearInterval(pollInterval);
+                                pollInterval = null;
+                            }
                         }
                     }
                 }
@@ -2858,7 +2876,7 @@ export default function VaultPage() {
                                                 isApproved={status === 'approved'}
                                                 onApprove={(sectionId) => handleApprove(sectionId, phase)}
                                                 onUnapprove={handleUnapprove}
-                                                refreshTrigger={refreshTrigger}
+                                                refreshTrigger={refreshTriggers[section.id]}
                                                 onRenderApproveButton={(btn) => (
                                                     <SafePortal targetId={`section-header-actions-${section.id}`}>
                                                         {btn}
@@ -3345,16 +3363,18 @@ export default function VaultPage() {
                 primaryAction={handleDismissPhase2Instructions}
                 primaryActionText="Got It, Let's Go!"
             >
-                <div className="text-center py-4 space-y-4">
+                <div className="text-left py-4 space-y-4">
                     <p className="text-gray-300 text-sm leading-relaxed">
-                        We encourage you to <strong className="text-cyan">approve all 3 Phases first</strong> before
-                        deploying any assets to your builder.
+                        We strongly recommend <strong className="text-cyan">approving all content in Phase 1, 2 & 3</strong> before
+                        running your initial deployment via <strong className="text-white">"Build Your Funnel"</strong> in Phase 3.
                     </p>
-                    <div className="bg-[#1b1b1d] rounded-xl p-4 border border-[#2a2a2d]">
+                    <div className="bg-[#1b1b1d] rounded-xl p-4 border border-[#2a2a2d] space-y-2">
                         <p className="text-gray-400 text-xs">
-                            💡 <strong>Pro Tip:</strong> After your initial deployment, use the
-                            <span className="text-cyan font-semibold"> "Push to Builder"</span> buttons
-                            to update individual sections without re-deploying everything.
+                            <strong className="text-cyan">💡 After your initial deployment:</strong>
+                        </p>
+                        <p className="text-gray-400 text-xs">
+                            Use the <span className="text-cyan font-semibold">"Push to Builder"</span> button on any section
+                            to update just that specific asset — without re-deploying your entire funnel.
                         </p>
                     </div>
                 </div>

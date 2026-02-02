@@ -29,8 +29,22 @@
 
 ### Performance Optimizations
 *   **Vault Polling**: Uses **granular state updates** to prevent unnecessary re-renders. When polling for new sections, only sections with actual content changes are updated, preserving object references for unchanged sections. This prevents UI flashing during background generation.
-*   **Granular Field Refresh**: Polling now increments `refreshTrigger` when data changes, signaling granular field components (like `SalesScriptsFields`) to refetch their data. This prevents "stuck loading" states.
+*   **Smart Polling Stop**: Polling automatically stops after **100 consecutive polls with no changes** (~5 minutes at 3s interval) when not in generating mode. This prevents unnecessary server load.
+*   **Targeted Section Refresh**: `refreshTriggers` is now a **per-section map** (`{ [sectionId]: timestamp }`). Only *changed* sections trigger their granular field components to refetch, preventing loaders and scroll jumps in unchanged sections.
+*   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
+
+### Recent Modifications (2026-02-02)
+| File | Change |
+| :--- | :--- |
+| `app/vault/page.jsx` | Changed `refreshTrigger` to per-section `refreshTriggers` map; Updated Phase 2 instructions popup text |
+| `components/vault/FieldEditor.jsx` | Added React.memo with custom arePropsEqual; Added `html` field type support for object subfields |
+| `lib/vault/fieldStructures.js` | Changed all email (19) and appointment reminder (5) body subfields from `textarea` to `html` |
+| `lib/logger.js` | Added `step()` method and `correlationId` for tracing |
+| `app/api/os/generate-stream/route.js` | Added structured logging with logger.step() |
+| `app/dashboard/page.jsx` | Fixed approval percentage denominator (13→16) |
+
+---
 
 ## 👥 2. Core Workflows
 

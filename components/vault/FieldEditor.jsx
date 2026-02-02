@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon, Info, RefreshCw } from 'lucide-react';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { getSyncPreviewMessage } from '@/lib/vault/fieldSync';
@@ -75,7 +75,7 @@ const sanitizeDisplayContent = (text) => {
  * - onSave: Callback after successful save
  * - onAIFeedback: Callback to open AI feedback modal for this field
  */
-export default function FieldEditor({
+function FieldEditor({
     fieldDef,
     initialValue,
     sectionId,
@@ -84,8 +84,9 @@ export default function FieldEditor({
     onAIFeedback,
     readOnly = false
 }) {
-    // Debug logging
-    console.log('[FieldEditor] Rendering:', { field: fieldDef.field_id, readOnly, sectionId });
+    // DEBUG: Commented out to reduce console spam (uncomment if debugging)
+    // console.log('[FieldEditor] Rendering:', { field: fieldDef.field_id, readOnly, sectionId });
+
     // Parse value - handle JSON strings for array fields
     const parseValue = (val, fieldType) => {
         if (val === null || val === undefined) return fieldType === 'array' ? [] : '';
@@ -282,13 +283,17 @@ export default function FieldEditor({
     };
 
     const renderFieldInput = () => {
-        if (field_type === 'text' || field_type === 'textarea') {
-            // Check if textarea content contains HTML (for email bodies, etc.)
-            const isHtmlContent = field_type === 'textarea' && containsHtml(value);
+        // Handle explicit 'html' field type OR textarea with detected HTML content
+        if (field_type === 'html' || field_type === 'text' || field_type === 'textarea') {
+            // Check if this should use HtmlEditor:
+            // 1. Explicit 'html' field type always uses HtmlEditor
+            // 2. Textarea with detected HTML content uses HtmlEditor (fallback for legacy data)
+            const isHtmlField = field_type === 'html' || (field_type === 'textarea' && containsHtml(value));
 
-            return (
-                <div className="w-full relative group">
-                    {field_type === 'text' ? (
+            // Plain text input
+            if (field_type === 'text') {
+                return (
+                    <div className="w-full relative group">
                         <input
                             type="text"
                             value={value || ''}
@@ -298,7 +303,26 @@ export default function FieldEditor({
                             disabled={readOnly}
                             className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                         />
-                    ) : isHtmlContent ? (
+                        {field_metadata.maxLength && (
+                            <div className="mt-1 flex items-center justify-between">
+                                <p className={`text-xs ${(value || '').length > field_metadata.maxLength
+                                    ? 'text-red-400'
+                                    : (value || '').length > field_metadata.maxLength * 0.9
+                                        ? 'text-yellow-400'
+                                        : 'text-gray-600'
+                                    }`}>
+                                    {(value || '').length} / {field_metadata.maxLength}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            // HTML Editor for 'html' type or textarea with HTML content
+            if (isHtmlField) {
+                return (
+                    <div className="w-full relative group">
                         <HtmlEditor
                             value={value || ''}
                             onChange={handleChange}
@@ -307,21 +331,58 @@ export default function FieldEditor({
                             maxLength={field_metadata.maxLength}
                             disabled={readOnly}
                         />
-                    ) : (
-                        <textarea
-                            ref={(el) => el && autoResizeTextarea(el)}
-                            value={value || ''}
-                            onChange={(e) => {
-                                handleChange(e.target.value);
-                                autoResizeTextarea(e.target);
-                            }}
-                            placeholder={field_metadata.placeholder || field_label}
-                            maxLength={field_metadata.maxLength}
-                            disabled={readOnly}
-                            style={{ minHeight: '4.5rem', maxHeight: '18rem', height: 'auto' }}
-                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
-                        />
-                    )}
+                        {field_metadata.maxLength && (
+                            <div className="mt-1 flex items-center justify-between">
+                                <p className={`text-xs ${(value || '').length > field_metadata.maxLength
+                                    ? 'text-red-400'
+                                    : (value || '').length > field_metadata.maxLength * 0.9
+                                        ? 'text-yellow-400'
+                                        : 'text-gray-600'
+                                    }`}>
+                                    {(value || '').length} / {field_metadata.maxLength}
+                                    {(value || '').length > field_metadata.maxLength * 0.9 &&
+                                        (value || '').length <= field_metadata.maxLength && (
+                                            <span className="ml-2 text-yellow-400">
+                                                ({field_metadata.maxLength - (value || '').length} remaining)
+                                            </span>
+                                        )}
+                                </p>
+                                {/* Visual progress bar */}
+                                <div className="flex-1 max-w-[100px] ml-3 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full transition-all ${(value || '').length > field_metadata.maxLength
+                                            ? 'bg-red-500'
+                                            : (value || '').length > field_metadata.maxLength * 0.9
+                                                ? 'bg-yellow-500'
+                                                : 'bg-cyan'
+                                            }`}
+                                        style={{
+                                            width: `${Math.min(100, ((value || '').length / field_metadata.maxLength) * 100)}%`
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            // Regular textarea (no HTML)
+            return (
+                <div className="w-full relative group">
+                    <textarea
+                        ref={(el) => el && autoResizeTextarea(el)}
+                        value={value || ''}
+                        onChange={(e) => {
+                            handleChange(e.target.value);
+                            autoResizeTextarea(e.target);
+                        }}
+                        placeholder={field_metadata.placeholder || field_label}
+                        maxLength={field_metadata.maxLength}
+                        disabled={readOnly}
+                        style={{ minHeight: '4.5rem', maxHeight: '18rem', height: 'auto' }}
+                        className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
                     {field_metadata.maxLength && (
                         <div className="mt-1 flex items-center justify-between">
                             <p className={`text-xs ${(value || '').length > field_metadata.maxLength
@@ -450,13 +511,28 @@ export default function FieldEditor({
                                     {subfields.map((subfield, sfIdx) => {
                                         const subfieldValue = itemValue[subfield.field_id] || '';
                                         const isTextarea = subfield.field_type === 'textarea';
+                                        const isHtmlField = subfield.field_type === 'html' || (isTextarea && containsHtml(subfieldValue));
 
                                         return (
                                             <div key={sfIdx} className="space-y-1 relative group/sub">
                                                 <label className="text-xs font-medium text-gray-500">
                                                     {subfield.field_label}
                                                 </label>
-                                                {isTextarea ? (
+                                                {isHtmlField ? (
+                                                    <HtmlEditor
+                                                        value={subfieldValue}
+                                                        onChange={(newVal) => {
+                                                            const newArray = [...arrayValue];
+                                                            const updatedValue = { ...itemValue, [subfield.field_id]: newVal };
+                                                            newArray[idx] = { _id: itemId, value: updatedValue };
+                                                            setValue(newArray);
+                                                        }}
+                                                        onBlur={handleBlur}
+                                                        placeholder={subfield.placeholder}
+                                                        maxLength={subfield.maxLength}
+                                                        disabled={readOnly}
+                                                    />
+                                                ) : isTextarea ? (
                                                     <textarea
                                                         ref={(el) => el && autoResizeTextarea(el, 160)}
                                                         value={subfieldValue}
@@ -602,6 +678,8 @@ export default function FieldEditor({
                 <div className="w-full space-y-3">
                     {subfields.map((subfield, idx) => {
                         const subfieldValue = objectValue[subfield.field_id] || '';
+                        const isTextarea = subfield.field_type === 'textarea';
+                        const isHtmlField = subfield.field_type === 'html' || (isTextarea && containsHtml(subfieldValue));
 
                         return (
                             <div key={idx} className="space-y-1">
@@ -609,7 +687,19 @@ export default function FieldEditor({
                                     {subfield.field_label}
                                 </label>
                                 <div className="relative group">
-                                    {subfield.field_type === 'textarea' ? (
+                                    {isHtmlField ? (
+                                        <HtmlEditor
+                                            value={subfieldValue}
+                                            onChange={(newVal) => {
+                                                const newObj = { ...objectValue, [subfield.field_id]: newVal };
+                                                setValue(newObj);
+                                            }}
+                                            onBlur={handleBlur}
+                                            placeholder={subfield.placeholder}
+                                            maxLength={subfield.maxLength}
+                                            disabled={readOnly}
+                                        />
+                                    ) : isTextarea ? (
                                         <textarea
                                             ref={(el) => el && autoResizeTextarea(el)}
                                             value={subfieldValue}
@@ -887,3 +977,17 @@ export default function FieldEditor({
         </div>
     );
 }
+
+// PERFORMANCE FIX: Memoize to prevent re-renders when parent state changes but props are same
+function arePropsEqual(prevProps, nextProps) {
+    // Only re-render if these specific props change
+    return (
+        prevProps.fieldDef?.field_id === nextProps.fieldDef?.field_id &&
+        prevProps.sectionId === nextProps.sectionId &&
+        prevProps.funnelId === nextProps.funnelId &&
+        prevProps.readOnly === nextProps.readOnly &&
+        JSON.stringify(prevProps.initialValue) === JSON.stringify(nextProps.initialValue)
+    );
+}
+
+export default memo(FieldEditor, arePropsEqual);

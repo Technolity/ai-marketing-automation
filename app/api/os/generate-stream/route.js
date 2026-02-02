@@ -79,12 +79,30 @@ const PHASE_1_KEYS = [1, 2, 3]; // Still includes Story for status tracking
 const PHASE_2_KEYS = [4, 6, 7, 9, 8, 16, 15, 5, 17]; // Reordered to match UI + scripts (10=Funnel Copy removed - now generated separately)
 
 
+import { createLogger } from '@/lib/logger';
+
+// ... other imports
+
+// Initialize logger for this component
+const logger = createLogger('GenerateStream');
+
+// ...
+
 /**
  * Generate a single section
  */
 async function generateSection(key, data, funnelId, userId, sendEvent) {
     const sectionId = CONTENT_NAMES[key];
     const displayName = DISPLAY_NAMES[key];
+
+    // Set correlation ID for this request trace
+    logger.setCorrelationId(funnelId);
+
+    logger.step(`start_generation_${sectionId}`, 'started', {
+        key,
+        userId,
+        displayName
+    });
 
     // Heavy sections that need more time (in ms)
     const SECTION_TIMEOUTS = {
@@ -104,10 +122,13 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
         });
 
         // DEPENDENCY RESOLUTION: Fetch approved content from upstream sections
-        console.log(`[GenerateStream] Resolving dependencies for ${sectionId} (key: ${key})...`);
+        logger.step(`resolve_dependencies_${sectionId}`, 'started');
         const resolvedDeps = await resolveDependencies(funnelId, key, data);
         const enrichedData = buildEnrichedData(data, resolvedDeps);
-        console.log(`[GenerateStream] Enriched data ready for ${sectionId}. Free Gift Name: "${enrichedData.freeGiftName || 'not set'}"`);
+        logger.step(`resolve_dependencies_${sectionId}`, 'completed', {
+            dependencyCount: Object.keys(resolvedDeps || {}).length,
+            freeGiftName: enrichedData.freeGiftName || 'not set'
+        });
 
         let parsed;
         let rawPrompt = null; // Declare at function scope for database save
@@ -132,6 +153,11 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
 
             // Store combined prompt info for logging
             rawPrompt = `[CHUNKED GENERATION - 4 parallel chunks]\nChunk 1: Emails 1-4\nChunk 2: Emails 5-8c\nChunk 3: Emails 9-12\nChunk 4: Emails 13-15c`;
+
+            logger.step(`generate_chunks_${sectionId}`, 'started', {
+                chunkCount: 4,
+                strategy: 'parallel'
+            });
 
             try {
                 // Generate all 4 chunks in parallel (4x faster!)
@@ -235,6 +261,9 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
                 }
 
                 console.log(`[GenerateStream] SMS chunking completed successfully (${validation.smsCount || 0}/10 SMS)`);
+                logger.step(`generate_chunks_${sectionId}`, 'completed', {
+                    smsCount: validation.smsCount
+                });
                 parsed = mergedContent;
 
             } catch (chunkError) {
@@ -291,6 +320,9 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
                 }
 
                 console.log(`[GenerateStream] Setter Script chunking completed successfully (${validation.fieldCount || 0}/12 fields)`);
+                logger.step(`generate_chunks_${sectionId}`, 'completed', {
+                    fieldCount: validation.fieldCount
+                });
                 parsed = mergedContent;
 
             } catch (chunkError) {
@@ -352,6 +384,9 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
                 }
 
                 console.log(`[GenerateStream] Closer Script chunking completed successfully (${validation.fieldCount || 0}/11 fields)`);
+                logger.step(`generate_chunks_${sectionId}`, 'completed', {
+                    fieldCount: validation.fieldCount
+                });
                 parsed = mergedContent;
 
             } catch (chunkError) {
@@ -370,7 +405,6 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             }
 
             // Use enrichedData with resolved dependencies
-            console.log(`[GenerateStream] Generating ${displayName} with enriched context...`);
             rawPrompt = promptFn(enrichedData);
 
             // INJECT CORE CONTEXT for non-core sections (key > 3)
@@ -381,6 +415,8 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
                 console.log(`[GenerateStream] Injecting core context (${formattedContext.length} chars) for ${displayName}`);
                 rawPrompt = formattedContext + '\n\n' + rawPrompt;
             }
+
+            logger.step(`generate_standard_${sectionId}`, 'started', { rawPromptLength: rawPrompt.length });
 
             const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
 
@@ -406,9 +442,14 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             // Parse with better error handling
             try {
                 parsed = parseJsonSafe(rawContent, { throwOnError: true });
+                logger.step(`generate_standard_${sectionId}`, 'completed', {
+                    contentLength: JSON.stringify(parsed).length
+                });
             } catch (parseError) {
-                console.error(`[STREAM] JSON parse error for ${sectionId}:`, parseError.message);
-                console.error(`[STREAM] Raw content preview (first 500 chars):`, rawContent?.substring(0, 500));
+                logger.step(`generate_standard_${sectionId}`, 'failed', {
+                    error: parseError.message,
+                    rawPreview: rawContent?.substring(0, 200)
+                });
                 throw new Error(`Failed to parse ${sectionId}: ${parseError.message}`);
             }
         }
@@ -446,16 +487,19 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             version: newVersion
         });
 
+        logger.step(`save_db_${sectionId}`, 'completed', { version: newVersion });
+
         // Populate granular fields for UI editing
-        console.log(`[STREAM] Calling populateVaultFields for ${sectionId}...`);
         const fieldResult = await populateVaultFields(funnelId, sectionId, parsed, userId);
 
         if (!fieldResult.success) {
-            console.error(`[STREAM] ⚠️ populateVaultFields failed for ${sectionId}:`, fieldResult.error);
-            console.error(`[STREAM] Section ${sectionId} generated but fields not populated - vault_content_fields may be stale`);
+            logger.step(`populate_fields_${sectionId}`, 'failed', { error: fieldResult.error });
             // Continue anyway - vault_content was saved successfully
         } else {
-            console.log(`[STREAM] ✓ populateVaultFields succeeded for ${sectionId}: ${fieldResult.fieldsInserted || 0} fields inserted, ${fieldResult.fieldsPreserved || 0} preserved`);
+            logger.step(`populate_fields_${sectionId}`, 'completed', {
+                inserted: fieldResult.fieldsInserted,
+                preserved: fieldResult.fieldsPreserved
+            });
         }
 
         await sendEvent('section', { key, name: displayName, success: true });
