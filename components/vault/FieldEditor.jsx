@@ -146,9 +146,18 @@ export default function FieldEditor({
         field_metadata = {}  // Default to empty object to prevent null access errors
     } = fieldDef;
 
-    // Sync with external changes
+    // Sync with external changes - ONLY if the parsed value is actually different
     useEffect(() => {
-        setValue(parseValue(initialValue, field_type));
+        const newParsedValue = parseValue(initialValue, field_type);
+        const currentStr = JSON.stringify(value);
+        const newStr = JSON.stringify(newParsedValue);
+
+        // Skip update if content is identical - prevents unnecessary re-renders/loader flashes
+        if (currentStr === newStr) {
+            return;
+        }
+
+        setValue(newParsedValue);
     }, [initialValue, field_type]);
 
     // Validate on value change

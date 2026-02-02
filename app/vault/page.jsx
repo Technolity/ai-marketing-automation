@@ -856,30 +856,58 @@ export default function VaultPage() {
 
                         const withFreeGift = applyFreeGiftReplacement(normalizedData);
 
-                        // Only update state if data actually changed (deep comparison)
-                        const currentStateStr = JSON.stringify(vaultData, Object.keys(vaultData).sort());
-                        const newStateStr = JSON.stringify(withFreeGift, Object.keys(withFreeGift).sort());
+                        // SMART UPDATE: Only update sections that have actually changed
+                        // This preserves object references for unchanged sections, preventing child re-renders
+                        setVaultData(prev => {
+                            const newState = { ...prev };
+                            let hasActualChanges = false;
+                            const changedSections = [];
 
-                        if (currentStateStr !== newStateStr) {
-                            setVaultData(withFreeGift);
-                            console.log('[Vault] Vault data refreshed, sections:', Object.keys(normalizedData));
+                            // Check each section in the new data
+                            for (const sectionId of Object.keys(withFreeGift)) {
+                                const prevSection = prev[sectionId];
+                                const newSection = withFreeGift[sectionId];
 
-                            // Reset unchanged counter on actual changes
-                            unchangedPollCount = 0;
+                                // Compare section content (stringify for deep comparison)
+                                const prevStr = JSON.stringify(prevSection);
+                                const newStr = JSON.stringify(newSection);
 
-                            // Only trigger refresh if we actually updated vaultData
-                            setRefreshTrigger(prev => prev + 1);
-
-                            // Refresh approvals to update section status
-                            await loadApprovals(funnelId);
-
-                            // Show a toast notification only for new sections (not every refresh during regen)
-                            if (isNewSections) {
-                                toast.success('New sections generated!');
+                                if (prevStr !== newStr) {
+                                    // This section has changed - update it
+                                    newState[sectionId] = newSection;
+                                    hasActualChanges = true;
+                                    changedSections.push(sectionId);
+                                }
+                                // If unchanged, newState[sectionId] keeps the old reference from spread
                             }
-                        } else {
-                            unchangedPollCount++;
-                            console.log('[Vault] Data unchanged after normalization, skipping state update');
+
+                            // Check for new sections that don't exist in prev
+                            for (const sectionId of Object.keys(withFreeGift)) {
+                                if (!(sectionId in prev)) {
+                                    newState[sectionId] = withFreeGift[sectionId];
+                                    hasActualChanges = true;
+                                    changedSections.push(sectionId);
+                                }
+                            }
+
+                            if (hasActualChanges) {
+                                console.log('[Vault] Sections updated:', changedSections);
+                                return newState;
+                            } else {
+                                console.log('[Vault] No section changes detected, preserving state');
+                                return prev; // Return same reference to prevent re-render
+                            }
+                        });
+
+                        // Reset unchanged counter on actual changes
+                        unchangedPollCount = 0;
+
+                        // Refresh approvals to update section status
+                        await loadApprovals(funnelId);
+
+                        // Show a toast notification only for new sections (not every refresh during regen)
+                        if (isNewSections) {
+                            toast.success('New sections generated!');
                         }
                     } else {
                         unchangedPollCount++;

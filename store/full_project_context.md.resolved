@@ -27,7 +27,9 @@
 | `lib/` | Utilities. `lib/ghl` (Integration), `lib/ai` (LLM logic), `lib/supabase` (DB). |
 | `lib/prompts` | **AI Brain**: Centralized prompt templates for all content generation. |
 
----
+### Performance Optimizations
+*   **Vault Polling**: Uses **granular state updates** to prevent unnecessary re-renders. When polling for new sections, only sections with actual content changes are updated, preserving object references for unchanged sections. This prevents UI flashing during background generation.
+*   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
 ## 👥 2. Core Workflows
 
