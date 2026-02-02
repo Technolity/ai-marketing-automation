@@ -93,14 +93,16 @@ export async function GET(req) {
       query = query.eq('ghl_sync_status', statusFilter);
     }
 
-    // Profile/Snapshot filter - applied via post-processing for complex conditions
-    // For now we filter in enrichment phase below
+    // Profile/Snapshot filter - requires post-processing
+    // When filter is active, fetch all data first, then paginate after filtering
+    const hasComplexFilter = !!filter;
 
-    // Pagination
+    // Pagination - only apply at DB level if no complex filter
     const offset = (page - 1) * limit;
-    query = query
-      .range(offset, offset + limit - 1)
-      .order('created_at', { ascending: false });
+    if (!hasComplexFilter) {
+      query = query.range(offset, offset + limit - 1);
+    }
+    query = query.order('created_at', { ascending: false });
 
     const { data: accounts, error: queryError, count } = await query;
 
@@ -246,14 +248,25 @@ export async function GET(req) {
     }
 
     // 7. Return response
+    // When filter is active, we need to paginate the filtered results
+    let finalAccounts = enrichedAccounts;
+    let totalCount = count || 0;
+
+    if (hasComplexFilter) {
+      // Total is the filtered count, not the DB count
+      totalCount = enrichedAccounts.length;
+      // Apply pagination to filtered results
+      finalAccounts = enrichedAccounts.slice(offset, offset + limit);
+    }
+
     return NextResponse.json({
-      accounts: enrichedAccounts,
+      accounts: finalAccounts,
       stats,
       pagination: {
         page,
         limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit)
+        total: totalCount,
+        totalPages: Math.ceil(totalCount / limit)
       }
     });
 
