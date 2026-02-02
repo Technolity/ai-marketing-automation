@@ -54,6 +54,7 @@ export async function GET(req) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const search = searchParams.get('search') || '';
     const statusFilter = searchParams.get('status') || '';
+    const filter = searchParams.get('filter') || ''; // New filter parameter
 
     // 3. Build query with filters
     let query = supabase
@@ -65,6 +66,9 @@ export async function GET(req) {
         first_name,
         last_name,
         address,
+        city,
+        country,
+        phone,
         business_name,
         ghl_sync_status,
         ghl_location_id,
@@ -81,13 +85,16 @@ export async function GET(req) {
 
     // Search filter
     if (search) {
-      query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
+      query = query.or(`email.ilike.%${search}%,full_name.ilike.%${search}%,business_name.ilike.%${search}%`);
     }
 
     // Status filter
     if (statusFilter) {
       query = query.eq('ghl_sync_status', statusFilter);
     }
+
+    // Profile/Snapshot filter - applied via post-processing for complex conditions
+    // For now we filter in enrichment phase below
 
     // Pagination
     const offset = (page - 1) * limit;
@@ -125,7 +132,7 @@ export async function GET(req) {
     }
 
     // 5. Enrich accounts with subaccount info
-    const enrichedAccounts = accounts?.map(account => {
+    let enrichedAccounts = accounts?.map(account => {
       const subaccount = subaccountsMap[account.id];
 
       // Determine effective location ID (OAuth or legacy)
@@ -142,6 +149,15 @@ export async function GET(req) {
         snapshotStatus = 'in_progress';
       }
 
+      // Profile completeness check
+      const profileComplete = !!(
+        account.first_name &&
+        account.last_name &&
+        account.email &&
+        account.address &&
+        account.business_name
+      );
+
       // GHL User status (NEW)
       const hasGHLUser = !!subaccount?.ghl_user_created;
       const canCreateUser = hasSubaccount && subaccount?.snapshot_imported && !hasGHLUser;
@@ -153,6 +169,7 @@ export async function GET(req) {
         ghl_location_name: subaccount?.location_name || account.ghl_location_name,
         // Add new fields
         has_subaccount: hasSubaccount,
+        profile_complete: profileComplete,
         snapshot_imported: subaccount?.snapshot_imported || false,
         snapshot_status: snapshotStatus,
         snapshot_import_error: subaccount?.snapshot_import_error || null,
@@ -169,6 +186,33 @@ export async function GET(req) {
         can_create_user: canCreateUser
       };
     }) || [];
+
+    // Apply filter post-enrichment (for complex cross-table conditions)
+    if (filter) {
+      enrichedAccounts = enrichedAccounts.filter(acc => {
+        switch (filter) {
+          case 'profile_complete':
+            return acc.profile_complete;
+          case 'profile_incomplete':
+            return !acc.profile_complete;
+          case 'snapshot_imported':
+            return acc.snapshot_imported;
+          case 'snapshot_pending':
+            return acc.has_subaccount && !acc.snapshot_imported;
+          case 'no_subaccount':
+            return !acc.has_subaccount;
+          case 'has_subaccount':
+            return acc.has_subaccount;
+          case 'user_created':
+            return acc.has_ghl_user;
+          case 'user_pending':
+            return acc.has_subaccount && !acc.has_ghl_user;
+          default:
+            return true;
+        }
+      });
+    }
+
 
     // 6. Get statistics
     const { data: statsData } = await supabase

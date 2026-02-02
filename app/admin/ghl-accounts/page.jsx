@@ -31,7 +31,9 @@ import {
     CheckSquare,
     FileCheck,
     FileX,
-    Download
+    Download,
+    Edit,
+    Filter
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
@@ -71,11 +73,20 @@ export default function AdminGHLAccounts() {
     const [isBulkCreating, setIsBulkCreating] = useState(false);
     const [bulkProgress, setBulkProgress] = useState(null); // { total, completed, failed, results }
 
+    // Filter state
+    const [activeFilter, setActiveFilter] = useState('');
+
+    // Edit Profile Modal state
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
+    const [editFormData, setEditFormData] = useState({});
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+
     useEffect(() => {
         if (!authLoading && session) {
             fetchAccounts();
         }
-    }, [authLoading, session, pagination.page, globalFilter]);
+    }, [authLoading, session, pagination.page, globalFilter, activeFilter]);
 
     const fetchAccounts = async () => {
         if (!session) return;
@@ -85,7 +96,8 @@ export default function AdminGHLAccounts() {
             const params = new URLSearchParams({
                 page: pagination.page.toString(),
                 limit: pagination.limit.toString(),
-                search: globalFilter
+                search: globalFilter,
+                ...(activeFilter && { filter: activeFilter })
             });
 
             const response = await fetchWithAuth(`/api/admin/ghl-accounts?${params}`);
@@ -425,6 +437,79 @@ export default function AdminGHLAccounts() {
         setSelectedUsers([]);
     };
 
+    // Edit Profile Modal handlers
+    const openEditModal = (user) => {
+        setEditingUser(user);
+        setEditFormData({
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            email: user.email || '',
+            business_name: user.business_name || '',
+            address: user.address || '',
+            city: user.city || '',
+            country: user.country || '',
+            phone: user.phone || ''
+        });
+        setEditModalOpen(true);
+    };
+
+    const closeEditModal = () => {
+        setEditModalOpen(false);
+        setEditingUser(null);
+        setEditFormData({});
+    };
+
+    const handleSaveProfile = async (createAccount = false) => {
+        if (!editingUser) return;
+        setIsSavingProfile(true);
+
+        try {
+            // Update profile
+            const response = await fetchWithAuth('/api/admin/users', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    userId: editingUser.id,
+                    action: 'update_profile',
+                    profileData: editFormData
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to update profile');
+            }
+
+            toast.success('Profile updated successfully!');
+
+            // Optionally create sub-account after saving
+            if (createAccount && !editingUser.has_subaccount) {
+                toast.info('Creating sub-account...');
+                await handleRetry(editingUser.id);
+            }
+
+            closeEditModal();
+            fetchAccounts();
+        } catch (err) {
+            console.error('Save profile error:', err);
+            toast.error(err.message || 'Failed to save profile');
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
+
+    // Filter options
+    const filterOptions = [
+        { value: '', label: 'All Users' },
+        { value: 'profile_complete', label: 'Profile Complete' },
+        { value: 'profile_incomplete', label: 'Profile Incomplete' },
+        { value: 'has_subaccount', label: 'Has Sub-Account' },
+        { value: 'no_subaccount', label: 'No Sub-Account' },
+        { value: 'snapshot_imported', label: 'Snapshot Imported' },
+        { value: 'snapshot_pending', label: 'Snapshot Pending' },
+        { value: 'user_created', label: 'Builder Login Created' },
+        { value: 'user_pending', label: 'Builder Login Pending' }
+    ];
+
     const columns = useMemo(
         () => [
             {
@@ -456,9 +541,9 @@ export default function AdminGHLAccounts() {
                 header: "Profile",
                 cell: ({ row }) => {
                     const hasRequiredFields = row.original.first_name &&
-                                             row.original.last_name &&
-                                             row.original.address &&
-                                             row.original.email;
+                        row.original.last_name &&
+                        row.original.address &&
+                        row.original.email;
 
                     if (hasRequiredFields) {
                         return (
@@ -707,6 +792,15 @@ export default function AdminGHLAccounts() {
                                 </button>
                             )}
 
+                            {/* Edit Profile button - always show */}
+                            <button
+                                onClick={() => openEditModal(row.original)}
+                                className="p-2 hover:bg-blue-500/10 text-blue-400 rounded-lg transition-colors"
+                                title="Edit Profile"
+                            >
+                                <Edit className="w-4 h-4" />
+                            </button>
+
                             {/* Show checkmark if everything is done */}
                             {hasSubaccount && snapshotImported && hasGHLUser && (
                                 <span className="text-green-400 p-2">
@@ -718,7 +812,7 @@ export default function AdminGHLAccounts() {
                 },
             },
         ],
-        [isRetrying, isImportingSnapshot, isMarkingSnapshot, isCreatingUser, isRetryingUser, selectedUsers, accounts]
+        [isRetrying, isImportingSnapshot, isMarkingSnapshot, isCreatingUser, isRetryingUser, selectedUsers, accounts, openEditModal]
     );
 
     const table = useReactTable({
@@ -799,16 +893,30 @@ export default function AdminGHLAccounts() {
                     </div>
                 </div>
 
-                {/* Search */}
-                <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Search by user, email, or location ID..."
-                        value={globalFilter ?? ""}
-                        onChange={(e) => setGlobalFilter(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors"
-                    />
+                {/* Search and Filter */}
+                <div className="flex flex-col md:flex-row gap-4">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Search by user, email, or location ID..."
+                            value={globalFilter ?? ""}
+                            onChange={(e) => setGlobalFilter(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors"
+                        />
+                    </div>
+                    <div className="relative min-w-[200px]">
+                        <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <select
+                            value={activeFilter}
+                            onChange={(e) => setActiveFilter(e.target.value)}
+                            className="w-full pl-12 pr-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-white focus:outline-none focus:border-cyan transition-colors appearance-none cursor-pointer"
+                        >
+                            {filterOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 {/* Table */}
@@ -1037,6 +1145,151 @@ export default function AdminGHLAccounts() {
                                     className="w-full mt-4 px-4 py-3 bg-gradient-to-r from-cyan to-blue-500 text-black font-bold rounded-lg hover:brightness-110 transition-all"
                                 >
                                     Close
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Profile Modal */}
+            {editModalOpen && editingUser && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-white">Edit Profile</h3>
+                            <button
+                                onClick={closeEditModal}
+                                className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-gray-400" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-2">First Name</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.first_name}
+                                        onChange={(e) => setEditFormData(prev => ({ ...prev, first_name: e.target.value }))}
+                                        className="w-full px-4 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-2">Last Name</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.last_name}
+                                        onChange={(e) => setEditFormData(prev => ({ ...prev, last_name: e.target.value }))}
+                                        className="w-full px-4 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Email</label>
+                                <input
+                                    type="email"
+                                    value={editFormData.email}
+                                    onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
+                                    className="w-full px-4 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Business Name *</label>
+                                <input
+                                    type="text"
+                                    value={editFormData.business_name}
+                                    onChange={(e) => setEditFormData(prev => ({ ...prev, business_name: e.target.value }))}
+                                    className="w-full px-4 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Address *</label>
+                                <input
+                                    type="text"
+                                    value={editFormData.address}
+                                    onChange={(e) => setEditFormData(prev => ({ ...prev, address: e.target.value }))}
+                                    className="w-full px-4 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-2">City</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.city}
+                                        onChange={(e) => setEditFormData(prev => ({ ...prev, city: e.target.value }))}
+                                        className="w-full px-4 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm text-gray-400 mb-2">Country</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.country}
+                                        onChange={(e) => setEditFormData(prev => ({ ...prev, country: e.target.value }))}
+                                        className="w-full px-4 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Phone</label>
+                                <input
+                                    type="tel"
+                                    value={editFormData.phone}
+                                    onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                                    className="w-full px-4 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Profile completeness indicator */}
+                        <div className="mt-6 p-3 bg-[#0e0e0f] rounded-lg">
+                            <p className="text-sm text-gray-400">
+                                Profile Status: {' '}
+                                {editFormData.first_name && editFormData.last_name && editFormData.email && editFormData.business_name && editFormData.address ? (
+                                    <span className="text-green-400 font-medium">Complete ✓</span>
+                                ) : (
+                                    <span className="text-orange-400 font-medium">Incomplete (missing: {[
+                                        !editFormData.first_name && 'First Name',
+                                        !editFormData.last_name && 'Last Name',
+                                        !editFormData.email && 'Email',
+                                        !editFormData.business_name && 'Business Name',
+                                        !editFormData.address && 'Address'
+                                    ].filter(Boolean).join(', ')})</span>
+                                )}
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={closeEditModal}
+                                className="flex-1 px-4 py-3 bg-[#2a2a2d] text-white font-medium rounded-lg hover:bg-[#3a3a3d] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handleSaveProfile(false)}
+                                disabled={isSavingProfile}
+                                className="flex-1 px-4 py-3 bg-cyan text-black font-bold rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                            >
+                                {isSavingProfile ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Save'}
+                            </button>
+                            {!editingUser.has_subaccount && (
+                                <button
+                                    onClick={() => handleSaveProfile(true)}
+                                    disabled={isSavingProfile || !editFormData.business_name || !editFormData.address}
+                                    className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan to-blue-500 text-black font-bold rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
+                                    title="Save profile and create GHL sub-account"
+                                >
+                                    {isSavingProfile ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Save & Create'}
                                 </button>
                             )}
                         </div>

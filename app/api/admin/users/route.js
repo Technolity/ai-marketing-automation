@@ -102,6 +102,45 @@ export async function PUT(req) {
             return NextResponse.json({ success: true, user: data });
         }
 
+        // Update profile action - for admin editing user profiles
+        if (action === 'update_profile') {
+            const { profileData } = body;
+            if (!profileData) {
+                return NextResponse.json({ error: 'Profile data required' }, { status: 400 });
+            }
+
+            // Allowed fields for admin to update
+            const allowedFields = [
+                'first_name', 'last_name', 'full_name', 'email',
+                'business_name', 'address', 'city', 'state',
+                'postal_code', 'country', 'phone', 'timezone'
+            ];
+
+            // Filter only allowed fields
+            const updateData = {};
+            for (const field of allowedFields) {
+                if (profileData[field] !== undefined) {
+                    updateData[field] = profileData[field];
+                }
+            }
+
+            if (Object.keys(updateData).length === 0) {
+                return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+            }
+
+            updateData.updated_at = new Date().toISOString();
+
+            const { data, error } = await supabase
+                .from('user_profiles')
+                .update(updateData)
+                .eq('id', targetUserId)
+                .select()
+                .single();
+
+            if (error) throw error;
+            return NextResponse.json({ success: true, user: data });
+        }
+
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
     } catch (error) {
