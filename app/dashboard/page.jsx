@@ -160,7 +160,8 @@ export default function Dashboard() {
     const getProgressPercentage = (business) => {
         if (business.vault_generated) {
             const approvedCount = business.approved_count || 0;
-            return Math.min(100, Math.round((approvedCount / 13) * 100));
+            // Total sections: Phase 1 (4) + Phase 2 (10) + Phase 3 (2) = 16
+            return Math.min(100, Math.round((approvedCount / 16) * 100));
         }
         const completedSteps = business.completed_steps_count || 0;
         return Math.min(100, Math.round((completedSteps / 20) * 100));

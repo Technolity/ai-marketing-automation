@@ -892,6 +892,8 @@ export default function VaultPage() {
 
                             if (hasActualChanges) {
                                 console.log('[Vault] Sections updated:', changedSections);
+                                // Trigger granular field components (like SalesScriptsFields) to refetch
+                                setRefreshTrigger(prev => prev + 1);
                                 return newState;
                             } else {
                                 console.log('[Vault] No section changes detected, preserving state');
