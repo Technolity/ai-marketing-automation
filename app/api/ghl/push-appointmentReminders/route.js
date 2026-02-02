@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { replaceCustomValues } from '@/lib/ghl/contentPolisher';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180; // 3 minutes timeout for appointment reminders with batching
@@ -266,7 +267,8 @@ export async function POST(req) {
                         };
                     }
 
-                    // Push to GHL with retry (API call) - no polishing for appointment reminders
+                    // Push to GHL with retry (API call) - apply GHL custom value replacements
+                    const processedContent = replaceCustomValues(item.raw, 'appointment');
                     const response = await pushWithRetry(
                         `https://services.leadconnectorhq.com/locations/${subaccount.location_id}/customValues/${item.match.id}`,
                         {
@@ -276,7 +278,7 @@ export async function POST(req) {
                                 'Content-Type': 'application/json',
                                 'Version': '2021-07-28',
                             },
-                            body: JSON.stringify({ name: item.match.name, value: item.raw }),
+                            body: JSON.stringify({ name: item.match.name, value: processedContent }),
                         }
                     );
 
