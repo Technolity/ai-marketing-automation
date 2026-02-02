@@ -459,12 +459,12 @@ export default function AdminGHLAccounts() {
         setEditFormData({});
     };
 
-    const handleSaveProfile = async (createAccount = false) => {
+    const handleSaveProfile = async (triggerOnboarding = false) => {
         if (!editingUser) return;
         setIsSavingProfile(true);
 
         try {
-            // Update profile
+            // Step 1: Update profile
             const response = await fetchWithAuth('/api/admin/users', {
                 method: 'PUT',
                 body: JSON.stringify({
@@ -481,10 +481,25 @@ export default function AdminGHLAccounts() {
 
             toast.success('Profile updated successfully!');
 
-            // Optionally create sub-account after saving
-            if (createAccount && !editingUser.has_subaccount) {
-                toast.info('Creating sub-account...');
-                await handleRetry(editingUser.id);
+            // Step 2: Smart onboarding workflow
+            if (triggerOnboarding) {
+                const hasSubaccount = editingUser.has_subaccount;
+                const snapshotImported = editingUser.snapshot_imported;
+
+                if (!hasSubaccount) {
+                    // No sub-account: Create sub-account (which will auto-trigger snapshot import)
+                    toast.info('Creating sub-account...');
+                    await handleRetry(editingUser.id);
+                    // Note: handleRetry triggers the GHL sync which creates sub-account
+                    // Snapshot import will need to be triggered after sub-account is ready
+                } else if (!snapshotImported) {
+                    // Has sub-account but no snapshot: Import snapshot
+                    toast.info('Importing snapshot...');
+                    await handleImportSnapshot(editingUser.id);
+                } else {
+                    // Both done - nothing more to do
+                    toast.success('User already fully onboarded!');
+                }
             }
 
             closeEditModal();
@@ -1250,20 +1265,32 @@ export default function AdminGHLAccounts() {
                             </div>
                         </div>
 
-                        {/* Profile completeness indicator */}
-                        <div className="mt-6 p-3 bg-[#0e0e0f] rounded-lg">
+                        {/* Profile & Onboarding status indicator */}
+                        <div className="mt-6 p-3 bg-[#0e0e0f] rounded-lg space-y-2">
                             <p className="text-sm text-gray-400">
-                                Profile Status: {' '}
+                                Profile: {' '}
                                 {editFormData.first_name && editFormData.last_name && editFormData.email && editFormData.business_name && editFormData.address ? (
                                     <span className="text-green-400 font-medium">Complete ✓</span>
                                 ) : (
-                                    <span className="text-orange-400 font-medium">Incomplete (missing: {[
-                                        !editFormData.first_name && 'First Name',
-                                        !editFormData.last_name && 'Last Name',
-                                        !editFormData.email && 'Email',
-                                        !editFormData.business_name && 'Business Name',
-                                        !editFormData.address && 'Address'
-                                    ].filter(Boolean).join(', ')})</span>
+                                    <span className="text-orange-400 font-medium">Incomplete</span>
+                                )}
+                            </p>
+                            <p className="text-sm text-gray-400">
+                                Sub-Account: {' '}
+                                {editingUser.has_subaccount ? (
+                                    <span className="text-green-400 font-medium">Created ✓</span>
+                                ) : (
+                                    <span className="text-orange-400 font-medium">Not Created</span>
+                                )}
+                            </p>
+                            <p className="text-sm text-gray-400">
+                                Snapshot: {' '}
+                                {editingUser.snapshot_imported ? (
+                                    <span className="text-green-400 font-medium">Imported ✓</span>
+                                ) : editingUser.has_subaccount ? (
+                                    <span className="text-orange-400 font-medium">Pending Import</span>
+                                ) : (
+                                    <span className="text-gray-500 font-medium">Waiting for Sub-Account</span>
                                 )}
                             </p>
                         </div>
@@ -1282,14 +1309,25 @@ export default function AdminGHLAccounts() {
                             >
                                 {isSavingProfile ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Save'}
                             </button>
-                            {!editingUser.has_subaccount && (
+                            {/* Smart onboarding button - shows only when there's work to do */}
+                            {(!editingUser.has_subaccount || !editingUser.snapshot_imported) && (
                                 <button
                                     onClick={() => handleSaveProfile(true)}
                                     disabled={isSavingProfile || !editFormData.business_name || !editFormData.address}
                                     className="flex-1 px-4 py-3 bg-gradient-to-r from-cyan to-blue-500 text-black font-bold rounded-lg hover:brightness-110 transition-all disabled:opacity-50"
-                                    title="Save profile and create GHL sub-account"
+                                    title={
+                                        !editingUser.has_subaccount
+                                            ? "Save profile and create GHL sub-account"
+                                            : "Save profile and import snapshot"
+                                    }
                                 >
-                                    {isSavingProfile ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Save & Create'}
+                                    {isSavingProfile ? (
+                                        <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                                    ) : !editingUser.has_subaccount ? (
+                                        'Save & Create'
+                                    ) : (
+                                        'Save & Import'
+                                    )}
                                 </button>
                             )}
                         </div>
