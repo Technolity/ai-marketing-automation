@@ -1246,8 +1246,8 @@ export default function VaultPage() {
             await saveApprovals(approvedPhase1, approvedPhase2, newApprovals);
         }
 
-        // Trigger refresh of field components
-        setRefreshTrigger(prev => prev + 1);
+        // Trigger refresh of field components - use sectionId to refresh only the unapproved section
+        // Note: This currently refreshes all components; ideally should target specific section
     };
 
     // REMOVED: handleRegenerate function - replaced by AI Feedback Chat
@@ -1438,6 +1438,7 @@ export default function VaultPage() {
                 setDeploymentStep(3); // Step 3: Creating builder access
                 await new Promise(resolve => setTimeout(resolve, 600));
                 setDeploymentComplete(true);
+                setShowDeployModal(true); // Show success modal for one-click deployment
                 toast.success('Pushed your Funnel Content Successfully');
             } else {
                 console.error('[Vault] Deployment error:', result);
@@ -1751,8 +1752,8 @@ export default function VaultPage() {
 
             toast.success('Changes saved!');
 
-            // CRITICAL: Increment refreshTrigger for real-time UI updates
-            setRefreshTrigger(prev => prev + 1);
+            // CRITICAL: Update refreshTrigger for this specific section to trigger UI updates
+            setRefreshTriggers(prev => ({ ...prev, [feedbackSection.id]: Date.now() }));
 
             // Reset approval since content changed
             handleUnapprove(feedbackSection.id);
@@ -2503,14 +2504,23 @@ export default function VaultPage() {
                         <div className="flex gap-4 justify-center">
                             <button
                                 onClick={() => {
-                                    console.log('[Vault] Deploy to Builder clicked!');
-                                    window.alert('Deploy to Builder button clicked!');
-                                    handleOpenDeployModal();
+                                    console.log('[Vault] Build Your Funnel clicked - starting one-click deployment');
+                                    handleDeployToGHL();
                                 }}
-                                className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-cyan/30 transition-all hover:scale-105 flex items-center gap-2"
+                                disabled={isDeploying}
+                                className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-cyan/30 transition-all hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                             >
-                                <ExternalLink className="w-5 h-5" />
-                                Build Your Funnel
+                                {isDeploying ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Deploying...
+                                    </>
+                                ) : (
+                                    <>
+                                        <ExternalLink className="w-5 h-5" />
+                                        Build Your Funnel
+                                    </>
+                                )}
                             </button>
                             <button
                                 onClick={() => {
@@ -2594,49 +2604,18 @@ export default function VaultPage() {
                                         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
                                             <CheckCircle className="w-10 h-10 text-green-500" />
                                         </div>
-                                        <h3 className="text-xl font-bold mb-2">
-                                            {accountSetupSuccess ? 'Account Ready!' : 'Deployment Complete!'}
-                                        </h3>
-                                        <p className="text-gray-400 mb-4">
-                                            {accountSetupSuccess
-                                                ? 'Check your email to set your password, then login to Builder.'
-                                                : isSettingUpAccount
-                                                    ? 'Setting up your secure login...'
-                                                    : 'Your content is now live. Set up your login to access Builder.'
-                                            }
+                                        <h3 className="text-xl font-bold mb-2">Deployment Complete!</h3>
+                                        <p className="text-gray-400 mb-6">
+                                            Your content is now live in Builder. Check your email for login instructions.
                                         </p>
-
-                                        {accountSetupError && (
-                                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
-                                                {accountSetupError}
-                                            </div>
-                                        )}
-
-                                        {accountSetupSuccess ? (
-                                            <a
-                                                href="https://app.tedos.ai"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="inline-flex items-center px-6 py-2 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-medium transition-colors text-white"
-                                            >
-                                                Login to Builder <ExternalLink className="w-4 h-4 ml-2" />
-                                            </a>
-                                        ) : (
-                                            <button
-                                                onClick={handleSetupAccount}
-                                                disabled={isSettingUpAccount}
-                                                className="px-6 py-2 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center mx-auto"
-                                            >
-                                                {isSettingUpAccount ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                        Setting up...
-                                                    </>
-                                                ) : (
-                                                    'Setup My Login'
-                                                )}
-                                            </button>
-                                        )}
+                                        <a
+                                            href="https://app.tedos.ai"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center px-8 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold transition-all text-white shadow-lg shadow-cyan/30 hover:scale-105"
+                                        >
+                                            Go to Builder Login <ExternalLink className="w-4 h-4 ml-2" />
+                                        </a>
                                     </div>
                                 ) : (
                                     <div className="text-center py-4">
@@ -3197,30 +3176,6 @@ export default function VaultPage() {
                                         const status = getSectionStatus(section.id, 3, approvedPhase3, index);
                                         return renderSection(section, status, index, 3);
                                     })}
-
-                                    {phase3FullyApproved && (
-                                        <motion.div
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-green-500/20 text-center shadow-2xl shadow-green-500/5"
-                                        >
-                                            <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                <CheckCircle className="w-8 h-8 text-green-500" />
-                                            </div>
-                                            <h3 className="text-xl font-bold mb-2">🎉 All Phases Complete!</h3>
-                                            <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                Your vault is fully approved. Deploy to Builder to activate your marketing system.
-                                            </p>
-                                            <button
-                                                onClick={() => setShowDeployModal(true)}
-                                                className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
-                                            >
-                                                <ExternalLink className="w-5 h-5" />
-                                                Build Your Funnel
-                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                            </button>
-                                        </motion.div>
-                                    )}
                                 </div>
                             </motion.div>
                         )}
