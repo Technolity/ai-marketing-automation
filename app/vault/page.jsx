@@ -1419,13 +1419,55 @@ export default function VaultPage() {
         }
 
         setIsDeploying(true);
-        setDeploymentStep(1); // Step 1: Preparing funnel
-        console.log('[Vault] Starting Pabbly deployment workflow...');
+        setDeploymentStep(1); // Step 1: Creating Account
+        console.log('[Vault] ========================================');
+        console.log('[Vault] Starting full lifecycle deployment...');
+        console.log('[Vault] Funnel ID:', funnelId);
+        console.log('[Vault] Step 1: Ensuring account setup (subaccount, snapshot, user)');
 
         try {
-            // Simulate step progression for better UX
-            await new Promise(resolve => setTimeout(resolve, 800));
-            setDeploymentStep(2); // Step 2: Deploying pages
+            // ===== PHASE 1: Ensure Account Setup =====
+            // This handles: Subaccount creation, Snapshot import, User creation, Welcome email
+            console.log('[Vault] 📦 Calling ensure-subaccount API...');
+            const accountRes = await fetchWithAuth('/api/ghl/ensure-subaccount', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const accountResult = await accountRes.json();
+            console.log('[Vault] Account setup response:', JSON.stringify(accountResult, null, 2));
+
+            if (!accountRes.ok) {
+                // Check for specific error cases
+                if (accountResult.needsOwnerSetup) {
+                    toast.error('Your workspace owner needs to set up the Builder integration first.');
+                    setDeploymentStep(0);
+                    return;
+                }
+                if (accountResult.needsOnboarding) {
+                    toast.error('Please complete your profile first.');
+                    setDeploymentStep(0);
+                    return;
+                }
+                // Generic account setup failure
+                console.error('[Vault] Account setup failed:', accountResult.error);
+                toast.error(accountResult.error || 'Account setup failed');
+                setDeploymentStep(0);
+                return;
+            }
+
+            // Log account status for debugging
+            console.log('[Vault] ✅ Account setup complete:', {
+                locationId: accountResult.locationId,
+                snapshotImported: accountResult.snapshotImported,
+                userCreated: accountResult.userCreated,
+                wasExisting: accountResult.exists
+            });
+
+            // ===== PHASE 2: Deploy Assets (Custom Values) =====
+            setDeploymentStep(2); // Step 2: Deploying Assets
+            console.log('[Vault] Step 2: Deploying funnel assets to Builder...');
+            await new Promise(resolve => setTimeout(resolve, 400)); // Brief pause for step visibility
 
             const res = await fetchWithAuth('/api/ghl/deploy-workflow', {
                 method: 'POST',
@@ -1434,24 +1476,32 @@ export default function VaultPage() {
             });
 
             const result = await res.json();
+            console.log('[Vault] Deployment response:', JSON.stringify({
+                success: result.success,
+                updated: result.summary?.updated,
+                failed: result.summary?.failed,
+                duration: result.duration
+            }));
 
             if (res.ok && result.success) {
-                setDeploymentStep(3); // Step 3: Creating builder access
-                await new Promise(resolve => setTimeout(resolve, 600));
+                setDeploymentStep(3); // Step 3: Complete
+                console.log('[Vault] ✅ Deployment complete! Values updated:', result.summary?.updated);
+                await new Promise(resolve => setTimeout(resolve, 500));
                 setDeploymentComplete(true);
-                setShowDeployModal(true); // Show success modal for one-click deployment
+                setShowDeployModal(true); // Show success modal
                 toast.success('Pushed your Funnel Content Successfully');
             } else {
                 console.error('[Vault] Deployment error:', result);
-                toast.error(result.error || 'Failed to start deployment');
+                toast.error(result.error || 'Failed to deploy assets');
                 setDeploymentStep(0);
             }
         } catch (error) {
-            console.error('[Vault] Deployment error:', error);
-            toast.error('Failed to trigger deployment');
+            console.error('[Vault] ❌ Deployment flow error:', error);
+            toast.error('Failed to complete deployment');
             setDeploymentStep(0);
         } finally {
             setIsDeploying(false);
+            console.log('[Vault] ========================================');
         }
     };
 
@@ -3264,9 +3314,9 @@ export default function VaultPage() {
                     subtitle={deploymentComplete ? "Your content is live" : "Deploy to your builder"}
                     icon={deploymentComplete ? CheckCircle : Rocket}
                     steps={!deploymentComplete ? [
-                        { title: 'Preparing Funnel', description: 'Gathering your approved content', time: '5s' },
-                        { title: 'Deploying Pages', description: 'Pushing content to builder', time: '10s' },
-                        { title: 'Creating Access', description: 'Setting up your builder login', time: '3s' }
+                        { title: 'Creating Account', description: 'Setting up your builder account', time: '~15s' },
+                        { title: 'Deploying Assets', description: 'Pushing your funnel content', time: '~20s' },
+                        { title: 'Complete', description: 'Your funnel is live!', time: '' }
                     ] : []}
                     currentStep={deploymentStep}
                     isProcessing={isDeploying}

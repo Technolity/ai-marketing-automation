@@ -64,6 +64,7 @@ export async function POST(req) {
 
                 if (profile && profile.email) {
                     // Create GHL user account
+                    console.log('[Ensure SubAccount Phase: User Creation] Attempting GHL user creation for:', profile.email);
                     const userResult = await createGHLUser({
                         firstName: profile.first_name,
                         lastName: profile.last_name || '',
@@ -72,25 +73,34 @@ export async function POST(req) {
                     });
 
                     if (userResult.success) {
-                        console.log('[Ensure SubAccount] GHL user created:', userResult.userId);
+                        // Check if user was just created vs already existed
+                        if (userResult.userAlreadyExists) {
+                            console.log('[Ensure SubAccount Phase: User Creation] GHL user already exists, skipping email');
+                            userCreated = true; // Treat as created for flow purposes
+                        } else {
+                            console.log('[Ensure SubAccount Phase: User Creation] GHL user created:', userResult.userId);
 
-                        // Send welcome email
-                        await sendGHLWelcomeEmail(profile.email, profile.first_name);
+                            // Send welcome email ONLY for newly created users
+                            console.log('[Ensure SubAccount Phase: Email] Sending welcome email...');
+                            await sendGHLWelcomeEmail(profile.email, profile.first_name);
+                            console.log('[Ensure SubAccount Phase: Email] Welcome email sent!');
 
-                        // Update database
-                        await supabase
-                            .from('ghl_subaccounts')
-                            .update({
-                                ghl_user_created: true,
-                                ghl_user_id: userResult.userId,
-                                user_created_at: new Date().toISOString()
-                            })
-                            .eq('id', existingSubaccount.id);
+                            // Update database
+                            await supabase
+                                .from('ghl_subaccounts')
+                                .update({
+                                    ghl_user_created: true,
+                                    ghl_user_id: userResult.userId,
+                                    user_created_at: new Date().toISOString()
+                                })
+                                .eq('id', existingSubaccount.id);
 
-                        userCreated = true;
-                        ghlUserId = userResult.userId;
+                            userCreated = true;
+                            ghlUserId = userResult.userId;
+                        }
                     } else {
-                        console.error('[Ensure SubAccount] Failed to create GHL user:', userResult.error);
+                        console.error('[Ensure SubAccount Phase: User Creation] Failed to create GHL user:', userResult.error);
+                        // Continue anyway - don't block the flow
                     }
                 }
             }
@@ -189,7 +199,7 @@ export async function POST(req) {
         let userCreated = false;
         let ghlUserId = null;
 
-        console.log('[Ensure SubAccount] Creating GHL user account...');
+        console.log('[Ensure SubAccount Phase: User Creation] Creating GHL user account...');
         const userResult = await createGHLUser({
             firstName: profile.first_name,
             lastName: profile.last_name || '',
@@ -198,26 +208,34 @@ export async function POST(req) {
         });
 
         if (userResult.success) {
-            console.log('[Ensure SubAccount] GHL user created:', userResult.userId);
-            ghlUserId = userResult.userId;
-            userCreated = true;
+            // Check if user was just created vs already existed
+            if (userResult.userAlreadyExists) {
+                console.log('[Ensure SubAccount Phase: User Creation] GHL user already exists, skipping email');
+                userCreated = true; // Treat as created for flow purposes
+            } else {
+                console.log('[Ensure SubAccount Phase: User Creation] GHL user created:', userResult.userId);
+                ghlUserId = userResult.userId;
+                userCreated = true;
 
-            // Send welcome email
-            const emailSent = await sendGHLWelcomeEmail(profile.email, profile.first_name);
-            console.log('[Ensure SubAccount] Welcome email sent:', emailSent);
+                // Send welcome email ONLY for newly created users
+                console.log('[Ensure SubAccount Phase: Email] Sending welcome email...');
+                const emailSent = await sendGHLWelcomeEmail(profile.email, profile.first_name);
+                console.log('[Ensure SubAccount Phase: Email] Welcome email sent:', emailSent);
 
-            // Update subaccount record with user info
-            await supabase
-                .from('ghl_subaccounts')
-                .update({
-                    ghl_user_created: true,
-                    ghl_user_id: userResult.userId,
-                    user_created_at: new Date().toISOString()
-                })
-                .eq('user_id', userId)
-                .eq('location_id', ghlResult.locationId);
+                // Update subaccount record with user info
+                await supabase
+                    .from('ghl_subaccounts')
+                    .update({
+                        ghl_user_created: true,
+                        ghl_user_id: userResult.userId,
+                        user_created_at: new Date().toISOString()
+                    })
+                    .eq('user_id', userId)
+                    .eq('location_id', ghlResult.locationId);
+            }
         } else {
-            console.error('[Ensure SubAccount] Failed to create GHL user:', userResult.error);
+            console.error('[Ensure SubAccount Phase: User Creation] Failed to create GHL user:', userResult.error);
+            // Continue anyway - don't block the flow since subaccount was created
         }
 
         // 6. Update profile to mark GHL as setup

@@ -34,6 +34,13 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-02-05)
+| File | Change |
+| :--- | :--- |
+| `lib/integrations/ghl.js` | `createGHLUser` now returns `userAlreadyExists: true` on 409/duplicate errors instead of failing |
+| `app/api/ghl/ensure-subaccount/route.js` | Enhanced to skip email sending if user already exists; continues flow on errors instead of blocking |
+| `app/vault/page.jsx` | `handleDeployToGHL` now calls `ensure-subaccount` FIRST (handles subaccount/snapshot/user/email), THEN `deploy-workflow`. ActionModal steps updated to 'Creating Account' → 'Deploying Assets' |
+
 ### Recent Modifications (2026-02-03)
 | File | Change |
 | :--- | :--- |
