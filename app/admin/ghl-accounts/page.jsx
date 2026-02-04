@@ -82,6 +82,9 @@ export default function AdminGHLAccounts() {
     const [editFormData, setEditFormData] = useState({});
     const [isSavingProfile, setIsSavingProfile] = useState(false);
 
+    // Token refresh state
+    const [isRefreshingToken, setIsRefreshingToken] = useState(null); // userId for token refresh
+
     useEffect(() => {
         if (!authLoading && session) {
             fetchAccounts();
@@ -268,6 +271,41 @@ export default function AdminGHLAccounts() {
             toast.error(err.message || "Failed to retry creation");
         } finally {
             setIsRetryingUser(null);
+        }
+    };
+
+    const handleRefreshToken = async (userId, companyId) => {
+        if (isRefreshingToken) return;
+        setIsRefreshingToken(userId);
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-accounts/refresh-token', {
+                method: 'POST',
+                body: JSON.stringify({ userId, companyId })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+
+                // Check if re-authorization is required
+                if (error.reauthorizeRequired) {
+                    toast.error("Token expired. User needs to re-authorize their GHL account.");
+                } else {
+                    throw new Error(error.error || 'Token refresh failed');
+                }
+                return;
+            }
+
+            const result = await response.json();
+            toast.success(`✅ Token refreshed! Expires: ${new Date(result.expiresAt).toLocaleString()}`);
+
+            // Refresh list to show updated status
+            fetchAccounts();
+        } catch (err) {
+            console.error('Token refresh error:', err);
+            toast.error(err.message || "Failed to refresh token");
+        } finally {
+            setIsRefreshingToken(null);
         }
     };
 
@@ -804,6 +842,18 @@ export default function AdminGHLAccounts() {
                                     title="Retry Builder Login Creation"
                                 >
                                     <RotateCcw className={`w-4 h-4 ${isRetryingUser === row.original.id ? 'animate-spin' : ''}`} />
+                                </button>
+                            )}
+
+                            {/* Refresh Token button - show if has GHL credentials */}
+                            {hasSubaccount && (
+                                <button
+                                    onClick={() => handleRefreshToken(row.original.id, row.original.company_id)}
+                                    disabled={isRefreshingToken === row.original.id}
+                                    className="p-2 hover:bg-green-500/10 text-green-400 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Refresh OAuth Token"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${isRefreshingToken === row.original.id ? 'animate-spin' : ''}`} />
                                 </button>
                             )}
 

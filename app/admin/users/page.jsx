@@ -20,9 +20,12 @@ import {
     ArrowUpDown,
     User,
     Loader2,
-    RefreshCw
+    RefreshCw,
+    FolderKanban
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
+import EditableCell from "@/components/admin/EditableCell";
 
 const tierColors = {
     starter: "bg-gray-500/20 text-gray-400",
@@ -31,6 +34,7 @@ const tierColors = {
 };
 
 export default function AdminUsers() {
+    const router = useRouter();
     const { session, loading: authLoading } = useAuth();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -38,6 +42,7 @@ export default function AdminUsers() {
     const [sorting, setSorting] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
     const [tierStats, setTierStats] = useState({ starter: 0, growth: 0, scale: 0 });
+    const [savingFields, setSavingFields] = useState({});
 
     useEffect(() => {
         if (!authLoading && session) {
@@ -83,6 +88,53 @@ export default function AdminUsers() {
         }
     };
 
+    // Handle field updates via inline editing
+    const handleFieldUpdate = async (field, value, userId) => {
+        setSavingFields(prev => ({ ...prev, [`${userId}-${field}`]: true }));
+
+        try {
+            const response = await fetchWithAuth('/api/admin/users', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId,
+                    action: 'update_field',
+                    field,
+                    value
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update field');
+            }
+
+            const data = await response.json();
+
+            // Optimistic update: update local state
+            setUsers(prev => prev.map(user =>
+                user.id === userId ? { ...user, [field]: value } : user
+            ));
+
+            console.log(`✓ Updated ${field} for user ${userId}:`, value);
+            return data;
+
+        } catch (error) {
+            console.error(`Error updating ${field}:`, error);
+            throw error;
+        } finally {
+            setSavingFields(prev => {
+                const newState = { ...prev };
+                delete newState[`${userId}-${field}`];
+                return newState;
+            });
+        }
+    };
+
+    const handleViewFunnels = (userId) => {
+        router.push(`/admin/funnels?userId=${userId}`);
+    };
+
     const columns = useMemo(
         () => [
             {
@@ -116,9 +168,50 @@ export default function AdminUsers() {
                 accessorKey: "subscription_tier",
                 header: "Tier",
                 cell: ({ row }) => (
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${tierColors[row.original.subscription_tier] || tierColors.starter}`}>
-                        {row.original.subscription_tier || 'starter'}
-                    </span>
+                    <EditableCell
+                        value={row.original.subscription_tier || 'starter'}
+                        type="select"
+                        field="subscription_tier"
+                        userId={row.original.id}
+                        onSave={handleFieldUpdate}
+                        validation={{ required: true }}
+                    />
+                ),
+            },
+            {
+                accessorKey: "max_funnels",
+                header: "Max Funnels",
+                cell: ({ row }) => (
+                    <EditableCell
+                        value={row.original.max_funnels}
+                        type="number"
+                        field="max_funnels"
+                        userId={row.original.id}
+                        onSave={handleFieldUpdate}
+                        validation={{
+                            required: true,
+                            min: 0,
+                            max: 1000,
+                            integer: true
+                        }}
+                        displayFormatter={(val) => val !== null && val !== undefined ? val : 'Unlimited'}
+                    />
+                ),
+            },
+            {
+                accessorKey: "current_funnel_count",
+                header: "Funnels",
+                cell: ({ row }) => (
+                    <div className="flex items-center gap-2">
+                        <span className="text-gray-400">
+                            {row.original.current_funnel_count || 0}
+                        </span>
+                        {row.original.max_funnels && (
+                            <span className="text-xs text-gray-500">
+                                / {row.original.max_funnels}
+                            </span>
+                        )}
+                    </div>
                 ),
             },
             {
@@ -148,17 +241,21 @@ export default function AdminUsers() {
                 header: "",
                 cell: ({ row }) => (
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handleViewFunnels(row.original.id)}
+                            className="p-2 hover:bg-purple-500/10 rounded-lg transition-colors group"
+                            title="View user's funnels"
+                        >
+                            <FolderKanban className="w-4 h-4 text-gray-400 group-hover:text-purple-400" />
+                        </button>
                         <button className="p-2 hover:bg-cyan/10 rounded-lg transition-colors group">
                             <Eye className="w-4 h-4 text-gray-400 group-hover:text-cyan" />
-                        </button>
-                        <button className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors">
-                            <MoreHorizontal className="w-4 h-4 text-gray-400" />
                         </button>
                     </div>
                 ),
             },
         ],
-        []
+        [handleFieldUpdate, handleViewFunnels]
     );
 
     const table = useReactTable({
