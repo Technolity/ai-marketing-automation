@@ -2,11 +2,13 @@
  * GHL Deploy Workflow - Strict Update-Only Mode
  * ONLY updates existing custom values, never creates new ones
  * Uses exact key names from Custom Values.xlsx
+ * Team members can deploy using their owner's GHL sub-account
  */
 
 import { auth } from '@clerk/nextjs';
 import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force_dynamic';
 export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (current deployment takes ~74s)
@@ -465,6 +467,13 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
         const body = await req.json();
         const funnelId = body.funnelId || body.funnel_id;
 
@@ -474,13 +483,14 @@ export async function POST(req) {
 
         log(`[Deploy] ========== STARTING DEPLOY ==========`);
         log(`[Deploy] Funnel ID: ${funnelId}`);
-        log(`[Deploy] User ID: ${userId}`);
+        log(`[Deploy] Auth User ID: ${userId}`);
+        log(`[Deploy] Target User ID: ${targetUserId}`);
 
-        // 1. Get sub-account
+        // 1. Get sub-account (use targetUserId for owner's sub-account)
         const { data: subaccount } = await supabaseAdmin
             .from('ghl_subaccounts')
             .select('location_id, snapshot_id')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_active', true)
             .single();
 
@@ -491,8 +501,8 @@ export async function POST(req) {
         log(`[Deploy] Location ID: ${subaccount.location_id}`);
         log(`[Deploy] Snapshot ID: ${subaccount.snapshot_id || 'none'}`);
 
-        // 2. Get OAuth token
-        const tokenResult = await getLocationToken(userId, subaccount.location_id);
+        // 2. Get OAuth token (use targetUserId for owner's token)
+        const tokenResult = await getLocationToken(targetUserId, subaccount.location_id);
         if (!tokenResult.success) {
             return NextResponse.json({ error: tokenResult.error }, { status: 401 });
         }
@@ -576,11 +586,12 @@ export async function POST(req) {
             bioPhotoValues.forEach(v => log(`[Deploy]   - "${v.name}" (ID: ${v.id})`));
         }
 
-        // 4. Fetch vault content
+        // 4. Fetch vault content (use targetUserId for owner's vault)
         const { data: vaultSections } = await supabaseAdmin
             .from('vault_content')
             .select('section_id, content')
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('is_current_version', true);
 
         const vaultContent = {};
@@ -612,6 +623,7 @@ export async function POST(req) {
             .from('vault_content_fields')
             .select('field_id, field_value')
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'media')
             .eq('is_current_version', true);
 
@@ -827,7 +839,7 @@ export async function POST(req) {
         const { data: userProfile, error: profileError } = await supabaseAdmin
             .from('user_profiles')
             .select('business_name, email')
-            .eq('id', userId)  // Note: column is 'id' not 'user_id'
+            .eq('id', targetUserId)  // Use targetUserId for owner's profile
             .single();
 
         if (profileError) {
@@ -1390,13 +1402,26 @@ export async function POST(req) {
             log(`[Deploy] Keys not found in GHL: ${notFoundKeys.join(', ')}`);
         }
 
-        // Log deployment
+        // Log deployment (use targetUserId for owner's logs)
         await supabaseAdmin.from('ghl_oauth_logs').insert({
-            user_id: userId,
+            user_id: targetUserId,
             event_type: 'deploy_completed',
             location_id: subaccount.location_id,
-            metadata: { funnel_id: funnelId, ...results, duration_seconds: duration, updatedKeys, notFoundKeys }
+            metadata: { funnel_id: funnelId, ...results, duration_seconds: duration, updatedKeys, notFoundKeys, deployed_by: userId }
         });
+
+        // Update funnel with deployed timestamp (use targetUserId for owner's funnel)
+        await supabaseAdmin
+            .from('user_funnels')
+            .update({
+                deployed_at: new Date().toISOString(),
+                vault_generation_status: 'completed',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', funnelId)
+            .eq('user_id', targetUserId);
+
+        log(`[Deploy] ✓ Marked funnel ${funnelId} as deployed`);
 
         return NextResponse.json({
             success: results.updated > 0,

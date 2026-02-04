@@ -4,6 +4,7 @@
  * Uses contentPolisher.js for AI polishing
  * Uses ghlKeyMatcher.js for enhanced 11-level key matching
  * Direct vault-to-GHL key mapping for 19 emails
+ * Team members can push to their owner's GHL account
  */
 
 import { auth } from '@clerk/nextjs';
@@ -11,6 +12,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes for email processing with batching
@@ -75,6 +77,13 @@ export async function POST(req) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Resolve workspace (Team Member support)
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+    if (workspaceError) {
+        return Response.json({ error: workspaceError }, { status: 403 });
+    }
+
     try {
         const { funnelId } = await req.json();
 
@@ -82,13 +91,13 @@ export async function POST(req) {
             return Response.json({ error: 'funnelId is required' }, { status: 400 });
         }
 
-        console.log('[PushEmails] Starting push for funnel:', funnelId);
+        console.log(`[PushEmails] Starting push for target user ${targetUserId} (Auth: ${userId})`);
 
-        // Get user's location ID
+        // Get target user's location ID (owner if team member)
         const { data: subaccount } = await supabaseAdmin
             .from('ghl_subaccounts')
             .select('location_id')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_active', true)
             .single();
 
@@ -96,8 +105,8 @@ export async function POST(req) {
             return Response.json({ error: 'GHL sub-account not found' }, { status: 400 });
         }
 
-        // Get OAuth token
-        const tokenResult = await getLocationToken(userId, subaccount.location_id);
+        // Get OAuth token (use targetUserId for owner's token)
+        const tokenResult = await getLocationToken(targetUserId, subaccount.location_id);
         if (!tokenResult.success) {
             return Response.json({ error: tokenResult.error }, { status: 401 });
         }
@@ -111,11 +120,12 @@ export async function POST(req) {
         // Build enhanced lookup map with 11-level matching
         const existingMap = buildExistingMap(existingValues);
 
-        // Get email content from vault_content_fields (granular storage)
+        // Get email content from vault_content_fields (use targetUserId for owner's vault)
         const { data: fields, error: fieldsError } = await supabaseAdmin
             .from('vault_content_fields')
             .select('field_id, field_value')
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'emails')
             .eq('is_current_version', true);
 
@@ -325,13 +335,14 @@ export async function POST(req) {
 
         results.success = results.failed === 0;
 
-        // Log push
+        // Log push (use targetUserId for owner's logs)
         await supabaseAdmin.from('ghl_push_logs').insert({
-            user_id: userId,
+            user_id: targetUserId,
             funnel_id: funnelId,
             section: 'emails',
             values_pushed: results.pushed,
             success: results.success,
+            pushed_by: userId
         });
 
         return Response.json({ success: true, ...results });

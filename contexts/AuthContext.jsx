@@ -7,8 +7,15 @@ const AuthContext = createContext({
     session: null,
     isAdmin: false,
     loading: false,
-    licenseAccepted: true, // Default to true to avoid flash
+    licenseAccepted: true,
     isProfileComplete: true,
+    // Team/Workspace context
+    role: 'owner',
+    isTeamMember: false,
+    activeWorkspaceId: null,
+    workspaceOwnerId: null,
+    workspaceName: null,
+    // Functions
     switchUser: () => { },
     signOut: () => { },
     acceptLicense: () => { },
@@ -24,8 +31,13 @@ function ClerkAuthProvider({ children }) {
     const { signOut: clerkSignOut } = useClerk();
     const [isAdmin, setIsAdmin] = useState(false);
     const [userSynced, setUserSynced] = useState(false);
-    const [licenseAccepted, setLicenseAccepted] = useState(true); // Default true to avoid flash
-    const [isProfileComplete, setIsProfileComplete] = useState(true); // Default true to avoid flash
+    const [licenseAccepted, setLicenseAccepted] = useState(true);
+    const [isProfileComplete, setIsProfileComplete] = useState(true);
+
+    // Team/Workspace state
+    const [role, setRole] = useState('owner');
+    const [workspaceOwnerId, setWorkspaceOwnerId] = useState(null);
+    const [workspaceName, setWorkspaceName] = useState(null);
 
     // Map Clerk user to our AuthContext shape
     const user = clerkUser ? {
@@ -41,8 +53,12 @@ function ClerkAuthProvider({ children }) {
     const session = clerkUser ? {
         user,
         access_token: 'clerk-managed',
-        expires_at: Date.now() + 86400000 // Clerk handles expiry
+        expires_at: Date.now() + 86400000
     } : null;
+
+    // Computed values
+    const isTeamMember = role === 'team_member';
+    const activeWorkspaceId = isTeamMember && workspaceOwnerId ? workspaceOwnerId : user?.id;
 
     // Sync user to Supabase and fetch admin status on login
     useEffect(() => {
@@ -52,6 +68,9 @@ function ClerkAuthProvider({ children }) {
         if (!clerkUser && isLoaded) {
             setIsAdmin(false);
             setUserSynced(false);
+            setRole('owner');
+            setWorkspaceOwnerId(null);
+            setWorkspaceName(null);
         }
     }, [clerkUser, isLoaded]);
 
@@ -72,6 +91,30 @@ function ClerkAuthProvider({ children }) {
             const syncData = await syncRes.json();
             if (syncData.success) {
                 console.log('[AuthContext] User synced successfully:', syncData.message);
+
+                // Set role and workspace from sync response
+                if (syncData.role) {
+                    setRole(syncData.role);
+                    console.log('[AuthContext] User role:', syncData.role);
+                }
+                if (syncData.roleOwnerId) {
+                    setWorkspaceOwnerId(syncData.roleOwnerId);
+                    console.log('[AuthContext] Workspace owner:', syncData.roleOwnerId);
+
+                    // Fetch owner's business name for team members
+                    if (syncData.role === 'team_member') {
+                        try {
+                            const profileRes = await fetch('/api/user/profile');
+                            const profileData = await profileRes.json();
+                            if (profileData.owner_business_name) {
+                                setWorkspaceName(profileData.owner_business_name);
+                                console.log('[AuthContext] Workspace name:', profileData.owner_business_name);
+                            }
+                        } catch (profileError) {
+                            console.error('[AuthContext] Failed to fetch workspace name:', profileError);
+                        }
+                    }
+                }
             } else {
                 console.error('[AuthContext] User sync failed:', syncData.error);
             }
@@ -84,7 +127,11 @@ function ClerkAuthProvider({ children }) {
             console.log('[AuthContext] Admin status:', adminData.isAdmin);
 
             // Set profile completeness from sync response
-            if (syncData.isProfileComplete !== undefined) {
+            // Team members skip onboarding automatically
+            if (syncData.role === 'team_member') {
+                setIsProfileComplete(true);
+                console.log('[AuthContext] Team member - skipping onboarding');
+            } else if (syncData.isProfileComplete !== undefined) {
                 setIsProfileComplete(syncData.isProfileComplete);
                 console.log('[AuthContext] Profile complete:', syncData.isProfileComplete);
             }
@@ -97,7 +144,7 @@ function ClerkAuthProvider({ children }) {
                 console.log('[AuthContext] License accepted:', licenseData.licenseAccepted);
             } catch (licenseError) {
                 console.error('[AuthContext] License check error:', licenseError);
-                setLicenseAccepted(false); // Assume not accepted on error
+                setLicenseAccepted(false);
             }
         } catch (error) {
             console.error('[AuthContext] Sync/admin check error:', error);
@@ -113,6 +160,9 @@ function ClerkAuthProvider({ children }) {
         setIsAdmin(false);
         setIsProfileComplete(false);
         setUserSynced(false);
+        setRole('owner');
+        setWorkspaceOwnerId(null);
+        setWorkspaceName(null);
         window.location.href = '/';
     };
 
@@ -146,12 +196,20 @@ function ClerkAuthProvider({ children }) {
 
     const value = {
         user,
+        userId: user?.id,
         session,
         isAdmin,
         loading: !isLoaded || (clerkUser && !userSynced),
         authLoading: !isLoaded || (clerkUser && !userSynced),
         licenseAccepted,
         isProfileComplete,
+        // Team/Workspace context
+        role,
+        isTeamMember,
+        activeWorkspaceId,
+        workspaceOwnerId,
+        workspaceName,
+        // Functions
         switchUser,
         signOut,
         acceptLicense,

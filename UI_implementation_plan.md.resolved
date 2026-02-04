@@ -1,0 +1,41 @@
+# Implementation Plan: Deployed Funnel Builder Access
+
+## Goal
+Provide users with a clear "Go to Builder" entry point *after* they have successfully deployed their funnel. This ensures they know how to access their live content.
+
+## Diagnosis
+Currently, successful deployment is logged in `ghl_oauth_logs` but doesn't persist a "Live" status on the funnel record itself, making it hard to show persistent UI states.
+
+## Proposed Changes
+
+### 1. Database Schema
+#### [NEW] Migration: `add_deployed_at_to_user_funnels`
+*   Add `deployed_at` (timestamptz) column to `user_funnels` table.
+*   This serves as the single source of truth for "Live" status.
+
+### 2. Backend API
+#### [MODIFY] [app/api/ghl/deploy-workflow/route.js](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/api/ghl/deploy-workflow/route.js)
+*   **Update**: Upon successful deployment (lines ~1390), update the `user_funnels` record:
+    *   Set `deployed_at = NOW()`.
+    *   Set `vault_generation_status = 'completed'` (ensure consistency).
+
+### 3. Frontend UI
+#### [NEW] `components/vault/DeployedFunnelCard.jsx`
+*   **Design**: A distinct card/banner showing:
+    *   ✅ Status: "Funnel Live"
+    *   🚀 Button: [LaunchBuilderButton](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/LaunchBuilderButton.jsx#12-95)
+    *   ℹ️ Info Icon: Opens a small modal/tooltip with instructions:
+        1. Login to Builder.
+        2. Go to **Sites**.
+        3. Open **Funnel-03**.
+        4. Click **Preview** icon.
+
+#### [MODIFY] [app/vault/page.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/vault/page.jsx)
+*   **Logic**:
+    *   Fetch `deployed_at` as part of `vaultData` or `dataSource`.
+    *   If `deployed_at` exists, render `DeployedFunnelCard` at the top of the "Assets" tab (Phase 2).
+
+## Verification
+1.  **Deploy**: Run a deployment on a test funnel.
+2.  **Verify DB**: Check `deployed_at` is set in Supabase.
+3.  **Verify UI**: Ensure the "Go to Builder" card appears in the Vault with correct instructions.

@@ -6,7 +6,7 @@ import {
     DollarSign, Users, LineChart as LineChartIcon,
     ArrowUpRight,
     PieChart as PieIcon, Activity, BarChart3, Timer, TrendingUp,
-    Calendar, Clock, Info, Hammer
+    Calendar, Clock, Info, Hammer, ExternalLink, Zap
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useRouter } from 'next/navigation';
@@ -107,25 +107,38 @@ export default function AnalyticsDashboard() {
         );
     }
 
-    // Disconnected State - Coming Soon
+    // Disconnected State - Not Connected
     if (!connected) {
         return (
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-8 p-8 bg-gradient-to-r from-blue-900/10 to-cyan/5 rounded-3xl border border-cyan/20 flex flex-col items-center justify-center gap-4 relative overflow-hidden"
+                className="mb-8 p-8 bg-gradient-to-r from-amber-900/10 to-orange-900/10 rounded-3xl border border-amber-500/30 flex flex-col items-center justify-center gap-6 relative overflow-hidden"
             >
-                <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan/20 to-blue-500/20 flex items-center justify-center border border-cyan/20 shadow-lg shadow-cyan/5">
-                    <Hammer className="w-8 h-8 text-cyan" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center border border-amber-500/30 shadow-lg shadow-amber-500/10">
+                    <Zap className="w-8 h-8 text-amber-400" />
                 </div>
-                <h3 className="text-xl font-bold text-white">Marketing Platform Integration</h3>
-                <p className="text-gray-400 text-center max-w-md">
-                    Builder connection is currently under development. This feature will be available shortly to connect your marketing platform and view live metrics.
+
+                <div className="text-center">
+                    <h3 className="text-2xl font-bold text-white mb-2">No Marketing Platform Connected</h3>
+                    <p className="text-gray-400 max-w-lg">
+                        Connect your marketing platform to view live performance metrics, pipeline value, contacts, and appointments right here on your dashboard.
+                    </p>
+                </div>
+
+                <button
+                    onClick={() => router.push('/admin/ghl-authorize')}
+                    className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:brightness-110 transition-all shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                >
+                    <ExternalLink className="w-5 h-5" />
+                    Connect to Builder
+                </button>
+
+                <p className="text-xs text-gray-500 text-center max-w-md">
+                    You'll be redirected to authorize access to your marketing platform. Your data is securely stored and only accessible by you.
                 </p>
-                <span className="px-4 py-2 bg-cyan/10 text-cyan text-sm font-bold rounded-lg border border-cyan/20">
-                    Coming Soon
-                </span>
             </motion.div>
         );
     }

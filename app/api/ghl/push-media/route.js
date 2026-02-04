@@ -3,6 +3,7 @@
  * Uses OAuth via ghl_subaccounts with automatic token refresh
  * ONLY UPDATES existing custom values (never creates new ones)
  * Uses ghlKeyMatcher.js for enhanced 11-level key matching
+ * Team members can push to their owner's GHL account
  */
 
 import { auth } from '@clerk/nextjs';
@@ -10,6 +11,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { MEDIA_MAP } from '@/lib/ghl/customValuesMap';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 60 seconds timeout
@@ -37,6 +39,13 @@ export async function POST(req) {
     }
 
     try {
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return Response.json({ error: workspaceError }, { status: 403 });
+        }
+
         const { funnelId } = await req.json();
 
         if (!funnelId) {
@@ -44,13 +53,14 @@ export async function POST(req) {
         }
 
         console.log('[PushMedia] ========== START ==========');
+        console.log('[PushMedia] Starting push for target user', targetUserId, '(Auth: ' + userId + ')');
         console.log('[PushMedia] Funnel ID:', funnelId);
 
         // Get user's location ID
         const { data: subaccount } = await supabaseAdmin
             .from('ghl_subaccounts')
             .select('location_id')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_active', true)
             .single();
 
@@ -61,7 +71,7 @@ export async function POST(req) {
         console.log('[PushMedia] Location ID:', subaccount.location_id);
 
         // Get OAuth token
-        const tokenResult = await getLocationToken(userId, subaccount.location_id);
+        const tokenResult = await getLocationToken(targetUserId, subaccount.location_id);
         if (!tokenResult.success) {
             console.error('[PushMedia] Token error:', tokenResult.error);
             return Response.json({ error: tokenResult.error }, { status: 401 });
@@ -99,6 +109,7 @@ export async function POST(req) {
             .from('vault_content_fields')
             .select('field_id, field_value')
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'media')
             .eq('is_current_version', true);
 
@@ -209,11 +220,12 @@ export async function POST(req) {
 
         // Log push operation
         await supabaseAdmin.from('ghl_push_logs').insert({
-            user_id: userId,
+            user_id: targetUserId,
             funnel_id: funnelId,
             section: 'media',
             values_pushed: results.updated,
             success: results.success,
+            pushed_by: userId
         });
 
         return Response.json({

@@ -1,0 +1,44 @@
+# Implementation Plan: GHL Dashboard Activation
+
+## Goal
+Enable the GHL Metrics Dashboard ([GHLWidgets.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/dashboard/GHLWidgets.jsx)) to display live data for the currently logged-in user (using OAuth credentials). Replace the "Coming Soon" placeholder with a functional "Not Connected" state or the live dashboard.
+
+## Diagnosis
+*   **Current State**: [GHLWidgets.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/dashboard/GHLWidgets.jsx) displays a "Coming Soon" barrier if `connected` is false.
+*   **Backend**: `metrics`, `contacts`, and `appointments` endpoints are active and use [resolveWorkspace](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/lib/workspaceHelper.js#48-82) to target the correct user.
+*   **Isolation**: The backend correctly isolates data by querying `ghl_credentials` using the verified `targetUserId`.
+
+## Proposed Changes
+
+### 1. Frontend: Dashboard Activation
+#### [MODIFY] [components/dashboard/GHLWidgets.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/dashboard/GHLWidgets.jsx)
+*   **Remove Placeholder**: Replace the "Coming Soon" component with a proper "No Account Connected" state.
+*   **Add Action**: Include a "Connect GHL" button in the disconnected state that redirects to `/admin/ghl-authorize` (or relevant settings page).
+*   **Refinement**: Ensure charts handle empty data gracefully (already mostly implemented, but will review animations/tooltips).
+
+### 2. Backend: Fix Permissions (Scopes)
+#### [MODIFY] [app/api/oauth/authorize/route.js](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/api/oauth/authorize/route.js)
+*   **Add Missing Scopes**: The current Agency Token lacks permissions for the dashboard. Add the following scopes:
+    *   `contacts.readonly`
+    *   `opportunities.readonly`
+    *   `calendars.readonly` (or `appointments.readonly`)
+*   **Action Required**: After this change, the Agency Admin **MUST** disconnect and reconnect their GHL account to grant these new permissions.
+
+### 3. Backend: Logic & Verification
+*   **APIs**: `GET /api/ghl/metrics`, `contacts`, `appointments`
+    *   [VERIFIED] Use `auth()` for security.
+    *   [VERIFIED] Use [resolveWorkspace(userId)](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/lib/workspaceHelper.js#48-82) for team isolation.
+    *   [CHANGE] **Token Strategy**:
+        1.  Fetch Agency Token from `ghl_agency_credentials` (or `ghl_tokens` if that's the actual table).
+        2.  Fetch Location ID from `ghl_subaccounts`.
+        3.  **Exchange**: Use Agency Token to generate a fresh Location Token via `POST /oauth/locationToken`.
+        4.  **Refresh**: Automatically refresh Agency Token if expired before exchange.
+
+## Verification Plan
+1.  **Disconnect State**:
+    *   Log in as user without GHL.
+    *   Verify "Coming Soon" is gone, replaced by "Connect GHL".
+2.  **Connect State**:
+    *   Log in as user *with* GHL.
+    *   Verify Dashboard loads (Charts, KPIs, Tables).
+    *   Verify data matches the GHL account (Isolation check).

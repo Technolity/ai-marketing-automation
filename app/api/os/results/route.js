@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 
 export const dynamic = 'force-dynamic';
@@ -25,17 +26,25 @@ export async function GET(req) {
         const { searchParams } = new URL(req.url);
         // Support both funnel_id and session_id for backwards compatibility
         const funnelId = searchParams.get('funnel_id') || searchParams.get('session_id');
+        const requestedWorkspaceId = searchParams.get('workspace_id');
 
-        console.log(`[Results API] Fetching results for user ${userId}${funnelId ? ` (funnel: ${funnelId})` : ''}`);
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId, requestedWorkspaceId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        console.log(`[Results API] Fetching results for target user ${targetUserId} (Auth: ${userId})`);
 
         let targetFunnelId = funnelId;
 
-        // If no funnel_id provided, get the user's active funnel
+        // If no funnel_id provided, get the TARGET USER'S active funnel
         if (!targetFunnelId) {
             const { data: activeFunnel, error } = await supabaseAdmin
                 .from('user_funnels')
                 .select('id, funnel_name')
-                .eq('user_id', userId)
+                .eq('user_id', targetUserId)
                 .eq('is_active', true)
                 .eq('is_deleted', false)
                 .single();
@@ -51,7 +60,7 @@ export async function GET(req) {
                 const { data: latestFunnel } = await supabaseAdmin
                     .from('user_funnels')
                     .select('id, funnel_name')
-                    .eq('user_id', userId)
+                    .eq('user_id', targetUserId)
                     .eq('is_deleted', false)
                     .order('updated_at', { ascending: false })
                     .limit(1)
@@ -74,9 +83,9 @@ export async function GET(req) {
         // Fetch funnel details
         const { data: funnel } = await supabaseAdmin
             .from('user_funnels')
-            .select('id, funnel_name, vault_generated, phase1_approved, phase2_unlocked, selected_funnel_type')
+            .select('id, funnel_name, vault_generated, phase1_approved, phase2_unlocked, selected_funnel_type, deployed_at')
             .eq('id', targetFunnelId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         // Fetch all current vault content for this funnel
@@ -84,7 +93,7 @@ export async function GET(req) {
             .from('vault_content')
             .select('section_id, section_title, content, phase, status, is_locked')
             .eq('funnel_id', targetFunnelId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_current_version', true)
             .order('numeric_key', { ascending: true });
 
@@ -140,7 +149,8 @@ export async function GET(req) {
                 phase1_approved: funnel.phase1_approved,
                 phase2_unlocked: funnel.phase2_unlocked,
                 selected_funnel_type: funnel.selected_funnel_type,
-                has_funnel_choice: !!funnel.selected_funnel_type
+                has_funnel_choice: !!funnel.selected_funnel_type,
+                deployed_at: funnel.deployed_at
             } : null,
             data: aggregatedData
         });

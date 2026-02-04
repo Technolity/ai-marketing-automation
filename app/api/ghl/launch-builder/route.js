@@ -2,10 +2,12 @@
  * Launch Builder API
  * Generates GHL location token and SSO URL for direct subaccount access
  * Allows users to seamlessly login to their GHL builder
+ * Team members will access their owner's GHL builder
  */
 
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,14 +18,21 @@ export async function POST(req) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('[LaunchBuilder] Request from user:', userId);
+    // Resolve workspace (Team Member support)
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+    if (workspaceError) {
+        return Response.json({ error: workspaceError }, { status: 403 });
+    }
+
+    console.log(`[LaunchBuilder] Request for target user ${targetUserId} (Auth: ${userId})`);
 
     try {
-        // Get user's GHL subaccount
+        // Get target user's GHL subaccount (owner if team member)
         const { data: subaccount, error: subError } = await supabaseAdmin
             .from('ghl_subaccounts')
             .select('location_id, location_name')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_active', true)
             .maybeSingle();
 

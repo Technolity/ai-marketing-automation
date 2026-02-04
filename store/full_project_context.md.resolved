@@ -34,6 +34,23 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-02-03)
+| File | Change |
+| :--- | :--- |
+| `supabase/migrations/20260203210000_create_organization_seats.sql` | **NEW**: Created `organization_seats` table for team member invitations |
+| `supabase/migrations/20260203210001_update_rls_for_seats.sql` | **NEW**: Updated RLS policies for shared access across tables |
+| `app/api/team/invite/route.js` | **NEW**: API for provisioning Clerk users and managing invitations |
+| `app/api/team/accept/route.js` | **NEW**: API for accepting team invitations (links member to owner) |
+| `app/api/users/sync/route.js` | Updated to return `role` and `role_owner_id` for workspace context |
+| `app/api/os/results/route.js` | Updated to use `resolveWorkspace` for Team Member access control |
+| `lib/workspaceHelper.js` | **NEW**: Utility for validating workspace access and resolving target user IDs |
+| `contexts/AuthContext.jsx` | Added support for `role` and `activeWorkspaceId` switching |
+| `app/api/builder/location/route.js` | **NEW**: API for fetching builder deep link URL |
+| `app/team/page.jsx` | **NEW**: Team Management UI with Clerk user provisioning form |
+| `app/join/page.jsx` | **NEW**: Invitation acceptance page |
+| `components/LaunchBuilderButton.jsx` | Updated to use `/api/builder/location` |
+| `components/AppNavbar.jsx` | Added Team link to navigation |
+
 ### Recent Modifications (2026-02-02)
 | File | Change |
 | :--- | :--- |

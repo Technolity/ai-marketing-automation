@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/os/approvals
  * Fetch approved sections from vault_content and phase status from user_funnels
+ * Team members will see their owner's approvals
  */
 export async function GET(req) {
     try {
@@ -15,6 +16,15 @@ export async function GET(req) {
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        console.log(`[Approvals API] Fetching approvals for target user ${targetUserId} (Auth: ${userId})`);
 
         const { searchParams } = new URL(req.url);
         // Support both funnel_id (new) and session_id (backwards compatibility)
@@ -34,7 +44,7 @@ export async function GET(req) {
                 .from('vault_content')
                 .select('section_id, phase')
                 .eq('funnel_id', funnelId)
-                .eq('user_id', userId)
+                .eq('user_id', targetUserId)
                 .eq('status', 'approved')
                 .eq('is_current_version', true);
 
@@ -51,7 +61,7 @@ export async function GET(req) {
                         .from('vault_content')
                         .select('section_id, phase')
                         .eq('funnel_id', funnelId)
-                        .eq('user_id', userId)
+                        .eq('user_id', targetUserId)
                         .eq('status', 'approved');
 
                     if (!fallbackError) {
@@ -76,7 +86,7 @@ export async function GET(req) {
             .from('user_funnels')
             .select('phase1_approved, phase2_unlocked')
             .eq('id', funnelId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (funnelError && funnelError.code !== 'PGRST116') {
@@ -141,6 +151,7 @@ export async function GET(req) {
 /**
  * POST /api/os/approvals
  * Mark sections as approved in vault_content and update funnel status
+ * Team members can approve their owner's content
  */
 export async function POST(req) {
     try {
@@ -148,6 +159,15 @@ export async function POST(req) {
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        console.log(`[Approvals API] Saving approvals for target user ${targetUserId} (Auth: ${userId})`);
 
         const body = await req.json();
         const { sessionId: funnelId, businessCoreApprovals, funnelAssetsApprovals, scriptsApprovals, funnelApproved } = body;

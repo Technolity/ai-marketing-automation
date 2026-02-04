@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { getLocationToken } from '@/lib/ghl/tokenHelper';
 
 // Force dynamic rendering for auth-protected routes
 export const dynamic = 'force-dynamic';
@@ -15,6 +17,7 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 /**
  * GET /api/ghl/contacts
  * Fetches contact data from GHL for the dashboard
+ * Team members will see their owner's GHL contacts
  */
 export async function GET(req) {
     try {
@@ -23,23 +26,28 @@ export async function GET(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Check cache first
-        const cacheKey = `ghl_contacts_${userId}`;
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        console.log(`[GHL Contacts] Fetching contacts for target user ${targetUserId} (Auth: ${userId})`);
+
+        // Check cache first (use targetUserId for cache key)
+        const cacheKey = `ghl_contacts_${targetUserId}`;
         const cached = cache.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
             console.log('[GHL Contacts] Serving from cache');
             return NextResponse.json(cached.data);
         }
 
-        // Get GHL Credentials
-        const { data: credentials, error } = await supabaseAdmin
-            .from('ghl_credentials')
-            .select('access_token, location_id')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .single();
+        // Get location token using helper (handles token exchange and refresh)
+        const tokenResult = await getLocationToken(targetUserId);
 
-        if (error || !credentials) {
+        if (!tokenResult.success) {
+            console.log('[GHL Contacts] No valid token:', tokenResult.error);
             return NextResponse.json({
                 connected: false,
                 metrics: {
@@ -52,7 +60,8 @@ export async function GET(req) {
             });
         }
 
-        const { access_token, location_id } = credentials;
+        const access_token = tokenResult.access_token;
+        const location_id = tokenResult.location_id;
 
         // Fetch Contacts Metrics
         const metrics = await fetchContactsMetrics(access_token, location_id);

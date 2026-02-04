@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { createGHLSubAccount, importSnapshotToSubAccount, createGHLUser, sendGHLWelcomeEmail } from '@/lib/integrations/ghl';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,9 +14,10 @@ const supabase = createClient(
 
 /**
  * POST /api/ghl/ensure-subaccount
- * 
+ *
  * Ensures user has a GHL sub-account.
  * Creates one if missing (for users who onboarded before OAuth integration).
+ * Team members will access their owner's GHL sub-account (read-only check, no creation).
  * Called from dashboard/vault when user needs to deploy.
  */
 export async function POST(req) {
@@ -25,29 +27,39 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // 1. Check if user already has a sub-account
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, isTeamMember, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        console.log(`[Ensure SubAccount] Check for target user ${targetUserId} (Auth: ${userId}, IsTeamMember: ${isTeamMember})`);
+
+        // 1. Check if target user (owner if team member) has a sub-account
         const { data: existingSubaccount } = await supabase
             .from('ghl_subaccounts')
             .select('*')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_active', true)
             .single();
 
         if (existingSubaccount) {
-            console.log('[Ensure SubAccount] User already has sub-account:', existingSubaccount.location_id);
+            console.log('[Ensure SubAccount] Target user has sub-account:', existingSubaccount.location_id);
 
             // Check if GHL user account has been created
             let userCreated = existingSubaccount.ghl_user_created || false;
             let ghlUserId = existingSubaccount.ghl_user_id;
 
-            if (!userCreated) {
+            // IMPORTANT: Only create GHL user for the owner, not for team members
+            if (!userCreated && !isTeamMember) {
                 console.log('[Ensure SubAccount] GHL user not created yet, creating now...');
 
                 // Get user profile for user creation
                 const { data: profile } = await supabase
                     .from('user_profiles')
                     .select('first_name, last_name, email')
-                    .eq('id', userId)
+                    .eq('id', targetUserId)
                     .single();
 
                 if (profile && profile.email) {
@@ -90,11 +102,22 @@ export async function POST(req) {
                 locationName: existingSubaccount.location_name,
                 snapshotImported: existingSubaccount.snapshot_imported,
                 userCreated: userCreated,
-                ghlUserId: ghlUserId
+                ghlUserId: ghlUserId,
+                isTeamMember: isTeamMember
             });
         }
 
-        // 2. Get user profile for sub-account creation
+        // CRITICAL: Team members cannot create sub-accounts - only owners can
+        if (isTeamMember) {
+            console.log('[Ensure SubAccount] Team member attempted access but owner has no GHL setup');
+            return NextResponse.json({
+                success: false,
+                error: 'Owner has not set up GHL integration yet. Please contact your workspace owner.',
+                needsOwnerSetup: true
+            }, { status: 403 });
+        }
+
+        // 2. Get user profile for sub-account creation (only for owners)
         const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
             .select('*')
@@ -225,8 +248,9 @@ export async function POST(req) {
 
 /**
  * GET /api/ghl/ensure-subaccount
- * 
+ *
  * Check if user has a GHL sub-account without creating one.
+ * Team members will check their owner's GHL sub-account.
  */
 export async function GET(req) {
     try {
@@ -235,10 +259,19 @@ export async function GET(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, isTeamMember, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        console.log(`[Ensure SubAccount GET] Check for target user ${targetUserId} (Auth: ${userId})`);
+
         const { data: subaccount } = await supabase
             .from('ghl_subaccounts')
             .select('*')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_active', true)
             .single();
 
@@ -248,12 +281,15 @@ export async function GET(req) {
                 locationId: subaccount.location_id,
                 locationName: subaccount.location_name,
                 snapshotImported: subaccount.snapshot_imported,
-                customValuesSynced: subaccount.custom_values_synced
+                customValuesSynced: subaccount.custom_values_synced,
+                isTeamMember: isTeamMember
             });
         }
 
         return NextResponse.json({
-            hasSubaccount: false
+            hasSubaccount: false,
+            isTeamMember: isTeamMember,
+            needsOwnerSetup: isTeamMember
         });
 
     } catch (error) {

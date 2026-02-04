@@ -1,13 +1,14 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { populateVaultFields } from '@/lib/vault/fieldMapper';
-
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/os/vault-fields
  * Fetch all fields for a specific section
+ * Team members will see their owner's vault fields
  *
  * AUTO-POPULATION: If no fields exist in vault_content_fields,
  * this API will attempt to extract and populate them from vault_content.
@@ -25,6 +26,18 @@ export async function GET(req) {
         });
     }
 
+    // Resolve workspace (Team Member support)
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+    if (workspaceError) {
+        return new Response(JSON.stringify({ error: workspaceError }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    console.log(`[VaultFields GET] Fetching fields for target user ${targetUserId} (Auth: ${userId})`);
+
     const { searchParams } = new URL(req.url);
     const funnel_id = searchParams.get('funnel_id');
     const section_id = searchParams.get('section_id');
@@ -36,7 +49,7 @@ export async function GET(req) {
         });
     }
 
-    console.log('[VaultFields GET] Fetching fields:', { userId, funnel_id, section_id });
+    console.log('[VaultFields GET] Fetching fields:', { targetUserId, funnel_id, section_id });
 
     try {
         // Verify funnel ownership
@@ -44,7 +57,7 @@ export async function GET(req) {
             .from('user_funnels')
             .select('id')
             .eq('id', funnel_id)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (funnelError || !funnel) {
@@ -89,7 +102,7 @@ export async function GET(req) {
                     funnel_id,
                     section_id,
                     vaultContent.content,
-                    userId
+                    targetUserId
                 );
 
                 console.log(`[VaultFields GET] Population result:`, populateResult);
@@ -119,7 +132,7 @@ export async function GET(req) {
 
                     const fieldsToInsert = predefinedFields.map(fieldDef => ({
                         funnel_id,
-                        user_id: userId,
+                        user_id: targetUserId,
                         section_id,
                         field_id: fieldDef.field_id,
                         field_label: fieldDef.field_label,

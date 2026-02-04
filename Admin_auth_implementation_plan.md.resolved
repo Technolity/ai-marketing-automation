@@ -1,0 +1,58 @@
+# Implementation Plan: Admin Portal Overhaul ("God Mode")
+
+## Goal
+Empower the Admin to manage the entire system (Users, Funnels, APIs, Database) without developer intervention. Key features: "Inline Editing" for user tiers/limits, "Funnel Oversight" to fix bugs, and "API Controls".
+
+## Diagnosis
+*   **Missing Data**: `user_profiles` lacks a `max_funnels` column (currently hardcoded or inferred).
+*   **Rigid UI**: [AdminUsers](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/admin/users/page.jsx#33-301) is read-only.
+*   **Missing Views**: No dedicated view to inspect a specific user's generated funnels or fix "stuck" states.
+
+## Proposed Changes
+
+### 1. Database Schema
+#### [VERIFY] Check Column Access
+*   Confirm `max_funnels` and `current_funnel_count` are exposed to the API.
+*   Ensure `subscription_tier` is editable.
+
+### 2. Shared Components
+#### [NEW] `components/admin/EditableCell.jsx`
+*   **Function**: A table cell that toggles between "View" and "Edit" mode.
+*   **Types**: Text input (for `max_funnels`), Select dropdown (for `subscription_tier`).
+*   **UI**: Shows a "Pencil" on hover, "Check/Sales" on edit.
+*   **Validation**: Ensure `max_funnels` >= `current_funnel_count` (optional warning).
+
+### 3. User Management (Enhanced)
+#### [MODIFY] [app/admin/users/page.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/admin/users/page.jsx)
+*   **Upgrade**: Replace static cells with `EditableCell`.
+*   **Columns**:
+    *   `subscription_tier`: Dropdown (Starter, Growth, Scale).
+    *   `max_funnels`: Number input.
+    *   `funnel_count`: Display `current_funnel_count` (read-only or recalibrate action).
+    *   `actions`: Add "View Funnels" button.
+
+#### [MODIFY] [app/api/admin/users/route.js](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/api/admin/users/route.js)
+*   **Update**: Handle [PUT](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/api/admin/users/route.js#70-151) with `action: 'update_field'` to dynamically update any allowed column.
+
+### 4. Funnel Oversight (New)
+#### [NEW] `app/admin/funnels/page.jsx` (or `/admin/users/[id]/funnels`)
+*   **View**: List all funnels for a specific user (or global list with filters).
+*   **Actions**:
+    *   "Reset Logic": Reset `vault_generation_status` to `not_started`.
+    *   "Delete": Hard delete a stuck funnel.
+    *   "View Content": Peek into the generated Vault content (read-only JSON viewer).
+
+### 5. API & System Control
+#### [MODIFY] [app/admin/ghl-accounts/page.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/admin/ghl-accounts/page.jsx)
+*   Existing page is robust. Will ensure "Retry" and "Sync" buttons work for all edge cases.
+*   Add **"Refresh Company Token"** button to manually trigger OAuth refresh if stuck.
+
+## Verification
+1.  **Schema**: Verify `max_funnels` column exists.
+2.  **UI**:
+    *   Go to Admin -> Users.
+    *   Click "Edit" on a tier -> Change to "Scale" -> Save -> Verify DB.
+    *   Click "Edit" on max funnels -> Change to 5 -> Save -> Verify DB.
+3.  **Funnels**:
+    *   Click "View Funnels" for a user.
+    *   See their funnels. Reset one. Verify status change.

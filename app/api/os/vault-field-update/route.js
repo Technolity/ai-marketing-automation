@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { validateVaultContent, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
-
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +11,7 @@ export const dynamic = 'force-dynamic';
  *
  * Update a single field in vault content and save to Supabase
  * This allows inline editing without regenerating entire sections
+ * Team members can edit their owner's vault content
  *
  * Request:
  * {
@@ -27,9 +28,18 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        console.log(`[VaultFieldUpdate] Updating for target user ${targetUserId} (Auth: ${userId})`);
+
         const { sessionId, sectionId, fieldPath, newValue } = await req.json();
 
-        console.log(`[VaultFieldUpdate] User: ${userId}, Section: ${sectionId}, Path: ${fieldPath}`);
+        console.log(`[VaultFieldUpdate] User: ${targetUserId}, Section: ${sectionId}, Path: ${fieldPath}`);
 
         if (!sessionId || !sectionId || !fieldPath || newValue === undefined) {
             return NextResponse.json({
@@ -43,7 +53,7 @@ export async function POST(req) {
             .from('saved_sessions')
             .select('vault_content')
             .eq('id', sessionId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (fetchError || !currentSession) {
@@ -87,7 +97,7 @@ export async function POST(req) {
                 updated_at: new Date().toISOString()
             })
             .eq('id', sessionId)
-            .eq('user_id', userId);
+            .eq('user_id', targetUserId);
 
         if (updateError) {
             console.error('[VaultFieldUpdate] Update failed:', updateError);
@@ -97,11 +107,11 @@ export async function POST(req) {
         // 5. Log to content_edit_history
         try {
             await supabaseAdmin.from('content_edit_history').insert({
-                user_id: userId,
+                user_id: targetUserId,
                 vault_content_id: sessionId,
                 funnel_id: sessionId,
                 user_feedback_type: 'direct_edit',
-                user_feedback_text: `Edited ${fieldPath}`,
+                user_feedback_text: `Edited ${fieldPath} by ${userId === targetUserId ? 'owner' : 'team member'}`,
                 content_before: getNestedValue(sectionContent, fieldPath),
                 content_after: newValue,
                 sections_modified: [fieldPath],

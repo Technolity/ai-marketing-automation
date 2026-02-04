@@ -3,6 +3,7 @@
  * Uses OAuth via ghl_subaccounts with automatic token refresh
  * Uses customValuesMap.js for correct GHL key mapping
  * Uses contentPolisher.js for AI polishing
+ * Team members can push to their owner's GHL account
  */
 
 import { auth } from '@clerk/nextjs';
@@ -11,6 +12,7 @@ import { FUNNEL_COPY_MAP, UNIVERSAL_MAP } from '@/lib/ghl/customValuesMap';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +24,13 @@ export async function POST(req) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Resolve workspace (Team Member support)
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+    if (workspaceError) {
+        return Response.json({ error: workspaceError }, { status: 403 });
+    }
+
     try {
         const { funnelId } = await req.json();
 
@@ -29,13 +38,13 @@ export async function POST(req) {
             return Response.json({ error: 'funnelId is required' }, { status: 400 });
         }
 
-        console.log('[PushFunnelCopy] Starting push for funnel:', funnelId);
+        console.log(`[PushFunnelCopy] Starting push for target user ${targetUserId} (Auth: ${userId})`);
 
-        // Get user's location ID from ghl_subaccounts
+        // Get target user's location ID from ghl_subaccounts (owner if team member)
         const { data: subaccount } = await supabaseAdmin
             .from('ghl_subaccounts')
             .select('location_id')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_active', true)
             .single();
 
@@ -43,8 +52,8 @@ export async function POST(req) {
             return Response.json({ error: 'GHL sub-account not found. Please complete onboarding.' }, { status: 400 });
         }
 
-        // Get OAuth token
-        const tokenResult = await getLocationToken(userId, subaccount.location_id);
+        // Get OAuth token (use targetUserId for owner's token)
+        const tokenResult = await getLocationToken(targetUserId, subaccount.location_id);
         if (!tokenResult.success) {
             return Response.json({ error: tokenResult.error }, { status: 401 });
         }
@@ -67,11 +76,12 @@ export async function POST(req) {
         console.log(`[PushFunnelCopy] Prefix summary: ${count03} with 03_, ${count02} with 02_, ${existingValues.length - count03 - count02} other`);
 
 
-        // Get funnel copy content from vault_content_fields (granular storage)
+        // Get funnel copy content from vault_content_fields (use targetUserId for owner's vault)
         const { data: fields, error: fieldsError } = await supabaseAdmin
             .from('vault_content_fields')
             .select('field_id, field_value')
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'funnelCopy')
             .eq('is_current_version', true);
 
@@ -238,16 +248,17 @@ export async function POST(req) {
         // Push to GHL
         const pushResults = await pushToGHL(locationId, accessToken, customValues);
 
-        // Log push operation
+        // Log push operation (use targetUserId for owner's logs)
         await supabaseAdmin
             .from('ghl_push_logs')
             .insert({
-                user_id: userId,
+                user_id: targetUserId,
                 funnel_id: funnelId,
                 section: 'funnelCopy',
                 values_pushed: customValues.length,
                 success: pushResults.success,
                 error: pushResults.error || null,
+                pushed_by: userId
             });
 
         return Response.json({

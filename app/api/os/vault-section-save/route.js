@@ -1,15 +1,17 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getFieldDefinition, validateFieldValue } from '@/lib/vault/fieldStructures';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/os/vault-section-save
- * 
+ *
  * Batch save multiple fields at once from Feedback Chat refinement.
  * Used when AI generates content for entire section or multiple fields.
- * 
+ * Team members can save to their owner's vault
+ *
  * Body: {
  *   funnel_id: string,
  *   section_id: string,
@@ -24,6 +26,18 @@ export async function POST(req) {
             headers: { 'Content-Type': 'application/json' }
         });
     }
+
+    // Resolve workspace (Team Member support)
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+    if (workspaceError) {
+        return new Response(JSON.stringify({ error: workspaceError }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    console.log(`[VaultSectionSave] Batch save for target user ${targetUserId} (Auth: ${userId})`);
 
     let body;
     try {
@@ -57,7 +71,7 @@ export async function POST(req) {
     }
 
     console.log('[VaultSectionSave] Batch save request:', {
-        userId,
+        targetUserId,
         funnel_id,
         section_id,
         fieldCount: fieldIds.length,
@@ -70,7 +84,7 @@ export async function POST(req) {
             .from('user_funnels')
             .select('id')
             .eq('id', funnel_id)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (funnelError || !funnel) {
@@ -142,7 +156,7 @@ export async function POST(req) {
                         .from('vault_content_fields')
                         .insert({
                             funnel_id,
-                            user_id: userId,
+                            user_id: targetUserId,
                             section_id,
                             field_id,
                             field_label: fieldDef?.field_label || field_id,
@@ -180,7 +194,7 @@ export async function POST(req) {
                         .from('vault_content_fields')
                         .insert({
                             funnel_id,
-                            user_id: userId,
+                            user_id: targetUserId,
                             section_id,
                             field_id,
                             field_label: currentField.field_label,

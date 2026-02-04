@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/user/funnels
  * Get all funnels (businesses) for the current user
+ * Team members will see their owner's funnels
  */
 export async function GET(req) {
     try {
@@ -16,11 +17,20 @@ export async function GET(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Fetch funnels for this user
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        console.log(`[Funnels API] Fetching funnels for target user ${targetUserId} (Auth: ${userId})`);
+
+        // Fetch funnels for the target user (owner if team member, self if owner)
         const { data: funnels, error } = await supabaseAdmin
             .from('user_funnels')
             .select('*')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_deleted', false)
             .order('created_at', { ascending: false });
 

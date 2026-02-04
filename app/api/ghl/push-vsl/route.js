@@ -3,19 +3,27 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { mapToVSLFunnel, validateVSLMapping } from '@/lib/ghl/vslFunnelMapper';
 import { generateFunnelImages } from '@/lib/ghl/funnelImageGenerator';
-
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/ghl/push-vsl
  * Complete workflow: Generate images → Map content → Push to GHL
+ * Team members can push to their owner's GHL account
  */
 export async function POST(req) {
     try {
         const { userId } = auth();
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Resolve workspace (Team Member support)
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
         }
 
         const body = await req.json();
@@ -32,7 +40,7 @@ export async function POST(req) {
         // Note: sessionId is actually a funnel ID from user_funnels table
         const funnelId = sessionId;
 
-        console.log('[PushVSL] Starting push for funnel:', funnelId);
+        console.log('[PushVSL] Starting push for target user', targetUserId, '(Auth: ' + userId + ')');
         console.log('[PushVSL] Uploaded images:', Object.keys(uploadedImages).filter(k => uploadedImages[k]));
         console.log('[PushVSL] Video URLs:', Object.keys(videoUrls).filter(k => videoUrls[k]));
         console.log('[PushVSL] Selected keys:', selectedKeys ? `${selectedKeys.length} selected` : 'all');
@@ -43,7 +51,7 @@ export async function POST(req) {
             .from('user_funnels')
             .select('*')
             .eq('id', funnelId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (funnelError || !funnel) {
@@ -56,7 +64,7 @@ export async function POST(req) {
             .from('vault_content')
             .select('section_id, section_title, content, phase')
             .eq('funnel_id', funnelId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_current_version', true);
 
         if (vaultError) {
@@ -344,12 +352,13 @@ export async function POST(req) {
         const { data: funnelRecord, error: funnelRecordError } = await supabaseAdmin
             .from('ghl_funnels')
             .insert({
-                user_id: userId,
+                user_id: targetUserId,
                 session_id: funnelId, // This references user_funnels.id
                 funnel_name: customValues.offer_name || 'VSL Funnel',
                 funnel_type: 'vsl-funnel',
                 funnel_url: `https://app.gohighlevel.com/location/${locationId}`,
-                status: 'active'
+                status: 'active',
+                pushed_by: userId
             })
             .select()
             .single();

@@ -67,12 +67,14 @@ export async function POST(req) {
         updatedUser.country
       );
 
-      console.log('[User Sync API] User updated. Profile complete:', isComplete);
+      console.log('[User Sync API] User updated. Profile complete:', isComplete, 'Role:', updatedUser.role);
       return NextResponse.json({
         success: true,
         message: 'User updated',
         user: updatedUser,
-        isProfileComplete: isComplete
+        isProfileComplete: isComplete,
+        role: updatedUser.role || 'owner',
+        roleOwnerId: updatedUser.role_owner_id || null
       });
     }
 
@@ -130,12 +132,14 @@ export async function POST(req) {
             existingUserByEmail.country
           );
 
-          console.log('[User Sync API] Profile migrated. Complete:', isComplete);
+          console.log('[User Sync API] Profile migrated. Complete:', isComplete, 'Role:', existingUserByEmail.role);
           return NextResponse.json({
             success: true,
             message: 'User migrated with new Clerk ID',
             user: { ...existingUserByEmail, id: userId },
-            isProfileComplete: isComplete
+            isProfileComplete: isComplete,
+            role: existingUserByEmail.role || 'owner',
+            roleOwnerId: existingUserByEmail.role_owner_id || null
           });
         }
       }
@@ -206,12 +210,15 @@ export async function POST(req) {
 
     const isComplete = checkCompleteness(newUser || existingUserById || {});
 
-    console.log('[User Sync API] User created/updated. Profile complete:', isComplete);
+    const finalUser = newUser || existingUserById || {};
+    console.log('[User Sync API] User created/updated. Profile complete:', isComplete, 'Role:', finalUser.role);
     return NextResponse.json({
       success: true,
       message: 'User synced',
-      user: newUser || existingUserById,
-      isProfileComplete: isComplete
+      user: finalUser,
+      isProfileComplete: isComplete,
+      role: finalUser.role || 'owner',
+      roleOwnerId: finalUser.role_owner_id || null
     });
 
   } catch (error) {

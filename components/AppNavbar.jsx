@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Shield, LayoutDashboard } from "lucide-react";
+import { Shield, LayoutDashboard, Users } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppNavbar() {
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, loading, isTeamMember, workspaceName } = useAuth();
   const pathname = usePathname();
 
   if (pathname === "/dashboard") return null;
@@ -46,10 +46,25 @@ export default function AppNavbar() {
             <Link
               href="/guide"
               className="text-sm font-bold text-gray-400 hover:text-white transition-all duration-300"
-              onClick={() => console.log("[AppNavbar] Navigating to /guide")}
             >
               <span>Guide</span>
             </Link>
+
+            {/* Team Link */}
+            <Link
+              href="/team"
+              className="text-sm font-bold text-gray-400 hover:text-white transition-all duration-300"
+            >
+              <span>Team</span>
+            </Link>
+
+            {/* Team Member Badge - Only visible for team members */}
+            {isTeamMember && workspaceName && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-blue-200 px-3 py-1.5 rounded-full bg-blue-900/50 border border-blue-500/20">
+                <Users className="w-3.5 h-3.5" />
+                <span>Team: {workspaceName}</span>
+              </div>
+            )}
 
             {/* Admin Link - Only visible if admin */}
             {isAdmin && (

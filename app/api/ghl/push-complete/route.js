@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { pushAllContentToGHL, getOperationStatus } from '@/lib/ghl/pushSystem';
-
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
  * - On first push: Creates values
  * - On subsequent pushes: Updates existing values
  * - Tracks progress and errors
+ * Team members can push to their owner's GHL account
  *
  * Body:
  * {
@@ -26,6 +27,13 @@ export async function POST(req) {
     const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Resolve workspace (Team Member support)
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+    if (workspaceError) {
+      return NextResponse.json({ error: workspaceError }, { status: 403 });
     }
 
     const { sessionId, ghlLocationId, ghlAccessToken } = await req.json();
@@ -43,7 +51,7 @@ export async function POST(req) {
       .from('saved_sessions')
       .select('id')
       .eq('id', sessionId)
-      .eq('user_id', userId)
+      .eq('user_id', targetUserId)
       .single();
 
     if (sessionError || !session) {
@@ -54,7 +62,7 @@ export async function POST(req) {
     await supabaseAdmin
       .from('ghl_credentials')
       .upsert({
-        user_id: userId,
+        user_id: targetUserId,
         location_id: ghlLocationId,
         access_token: ghlAccessToken,
         is_active: true,
@@ -65,7 +73,7 @@ export async function POST(req) {
 
     // Execute push operation
     const result = await pushAllContentToGHL({
-      userId,
+      userId: targetUserId,
       sessionId,
       locationId: ghlLocationId,
       accessToken: ghlAccessToken,
@@ -115,6 +123,13 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Resolve workspace (Team Member support)
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+    if (workspaceError) {
+      return NextResponse.json({ error: workspaceError }, { status: 403 });
+    }
+
     const { searchParams } = new URL(req.url);
     const operationId = searchParams.get('operationId');
 
@@ -123,7 +138,7 @@ export async function GET(req) {
       const { data, error } = await supabaseAdmin
         .from('ghl_push_operations')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', targetUserId)
         .order('started_at', { ascending: false })
         .limit(10);
 
@@ -138,7 +153,7 @@ export async function GET(req) {
     const operation = await getOperationStatus(operationId);
 
     // Verify ownership
-    if (operation.user_id !== userId) {
+    if (operation.user_id !== targetUserId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     Loader2, Plus, FolderOpen, ChevronRight, Sparkles,
     Clock, CheckCircle2, Lock, Building2, Trash2,
-    Crown, ExternalLink, Settings
+    Crown, ExternalLink, Settings, Users, Rocket
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserButton } from "@clerk/nextjs";
@@ -24,6 +24,7 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { toast } from "sonner";
 import GHLWidgets from "@/components/dashboard/GHLWidgets";
 import LaunchBuilderButton from "@/components/LaunchBuilderButton";
+import DeployedFunnelCard from "@/components/vault/DeployedFunnelCard";
 
 // Tier limits
 const TIER_LIMITS = {
@@ -35,7 +36,7 @@ const TIER_LIMITS = {
 
 export default function Dashboard() {
     const router = useRouter();
-    const { session, user, loading: authLoading, isProfileComplete } = useAuth();
+    const { session, user, loading: authLoading, isProfileComplete, isTeamMember, workspaceName } = useAuth();
 
     const [isLoading, setIsLoading] = useState(true);
     const [businesses, setBusinesses] = useState([]);
@@ -45,6 +46,7 @@ export default function Dashboard() {
     const [newBusinessName, setNewBusinessName] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(null);
+    const [hasDeployedFunnel, setHasDeployedFunnel] = useState(false);
 
     useEffect(() => {
         if (authLoading) return;
@@ -85,6 +87,10 @@ export default function Dashboard() {
                     return;
                 }
                 setBusinesses(userFunnels);
+
+                // Check if any funnel has been deployed
+                const deployed = userFunnels.some(f => f.deployed_at);
+                setHasDeployedFunnel(deployed);
             }
         } catch (error) {
             console.error('[Dashboard] Load error:', error);
@@ -221,6 +227,30 @@ export default function Dashboard() {
                         </div>
                     </div>
                 </div>
+
+                {/* Team Member Workspace Indicator */}
+                {isTeamMember && workspaceName && (
+                    <div className="mb-6 p-4 bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border border-blue-500/40 rounded-xl backdrop-blur-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500/20">
+                                <Users className="w-5 h-5 text-blue-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-white font-semibold">Team Member Access</h3>
+                                <p className="text-blue-200 text-sm">
+                                    You're working in <span className="font-bold">{workspaceName}'s</span> workspace
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Deployed Funnel Status */}
+                {hasDeployedFunnel && (
+                    <div className="mb-6">
+                        <DeployedFunnelCard />
+                    </div>
+                )}
 
                 {/* GHL Metrics Widgets */}
                 <GHLWidgets />

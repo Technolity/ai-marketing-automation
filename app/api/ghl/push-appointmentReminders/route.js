@@ -2,6 +2,7 @@
  * Push Appointment Reminders to GHL Custom Values
  * Uses OAuth via ghl_subaccounts with automatic token refresh
  * Uses ghlKeyMatcher.js for enhanced 11-level key matching
+ * Team members can push to their owner's GHL account
  */
 
 import { auth } from '@clerk/nextjs';
@@ -10,6 +11,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
 import { replaceCustomValues } from '@/lib/ghl/contentPolisher';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180; // 3 minutes timeout for appointment reminders with batching
@@ -105,6 +107,13 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Resolve workspace (Team Member support)
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+
+    if (workspaceError) {
+        return NextResponse.json({ error: workspaceError }, { status: 403 });
+    }
+
     const body = await req.json();
     const funnelId = body.funnelId || body.funnel_id;
 
@@ -112,13 +121,14 @@ export async function POST(req) {
         return NextResponse.json({ error: 'funnelId required' }, { status: 400 });
     }
 
-    console.log('[PushAppointmentReminders] Starting push for funnel:', funnelId);
+    console.log('[PushAppointmentReminders] Starting push for target user', targetUserId, '(Auth: ' + userId + ')');
+    console.log('[PushAppointmentReminders] Funnel ID:', funnelId);
 
     // Get subaccount
     const { data: subaccount } = await supabaseAdmin
         .from('ghl_subaccounts')
         .select('location_id')
-        .eq('user_id', userId)
+        .eq('user_id', targetUserId)
         .eq('is_active', true)
         .single();
 
@@ -127,7 +137,7 @@ export async function POST(req) {
     }
 
     // Get token
-    const tokenResult = await getLocationToken(userId, subaccount.location_id);
+    const tokenResult = await getLocationToken(targetUserId, subaccount.location_id);
     if (!tokenResult.success) {
         return NextResponse.json({ error: tokenResult.error }, { status: 401 });
     }
@@ -144,6 +154,7 @@ export async function POST(req) {
         .from('vault_content_fields')
         .select('field_id, field_value')
         .eq('funnel_id', funnelId)
+        .eq('user_id', targetUserId)
         .eq('section_id', 'appointmentReminders')
         .eq('is_current_version', true);
 
@@ -344,11 +355,12 @@ export async function POST(req) {
 
     // Log push operation
     await supabaseAdmin.from('ghl_push_logs').insert({
-        user_id: userId,
+        user_id: targetUserId,
         funnel_id: funnelId,
         section: 'appointmentReminders',
         values_pushed: results.pushed,
         success: results.success,
+        pushed_by: userId
     });
 
     return NextResponse.json({

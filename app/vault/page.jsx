@@ -72,6 +72,7 @@ import PushToGHLButton from "@/components/vault/PushToGHLButton";
 import PhaseWarningBanner from "@/components/vault/PhaseWarningBanner";
 import ActionModal from "@/components/vault/ActionModal";
 import EmergencyHelpButton from "@/components/vault/EmergencyHelpButton";
+import DeployedFunnelCard from "@/components/vault/DeployedFunnelCard";
 
 // Map section IDs to granular field components (all 13 sections)
 const GRANULAR_FIELD_COMPONENTS = {
@@ -2553,6 +2554,14 @@ export default function VaultPage() {
                             <CheckCircle className="w-5 h-5 text-green-500" />
                             Phase 2
                         </h2>
+
+                        {/* Show deployed funnel card if funnel has been deployed */}
+                        {dataSource?.deployed_at && (
+                            <div className="mb-4">
+                                <DeployedFunnelCard />
+                            </div>
+                        )}
+
                         <div className="grid gap-3">
                             {PHASE_2_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 2))}
                         </div>
