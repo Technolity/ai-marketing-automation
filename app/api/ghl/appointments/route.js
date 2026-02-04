@@ -119,12 +119,12 @@ async function fetchAppointmentsMetrics(accessToken, locationId) {
                 if (eventsRes.status === 401) {
                     const errorText = await eventsRes.clone().text();
                     console.error('[GHL Appointments] SCOPE ERROR: Token not authorized for this scope');
-                    console.error('[GHL Appointments] Required scope: calendars.readonly');
+                    console.error('[GHL Appointments] Required scopes: calendars.readonly AND calendars/events.readonly');
                     console.error('[GHL Appointments] Error response:', errorText);
                     console.error('[GHL Appointments] Troubleshooting steps:');
                     console.error('[GHL Appointments] 1. Delete all rows from ghl_tokens table in Supabase');
                     console.error('[GHL Appointments] 2. Visit /api/oauth/authorize?user_type=Company to re-authorize');
-                    console.error('[GHL Appointments] 3. Ensure calendars.readonly scope is included in authorization');
+                    console.error('[GHL Appointments] 3. Ensure both calendars.readonly and calendars/events.readonly scopes are included');
                 }
 
                 // Try alternative endpoint if primary fails

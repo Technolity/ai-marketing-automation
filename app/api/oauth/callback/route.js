@@ -129,7 +129,7 @@ export async function GET(req) {
         });
 
         // Log if critical scopes are missing
-        const criticalScopes = ['contacts.readonly', 'opportunities.readonly', 'calendars.readonly'];
+        const criticalScopes = ['contacts.readonly', 'opportunities.readonly', 'calendars.readonly', 'calendars/events.readonly'];
         const grantedScopesList = tokenData.scope ? tokenData.scope.split(' ') : [];
         const missingScopes = criticalScopes.filter(scope => !grantedScopesList.includes(scope));
 

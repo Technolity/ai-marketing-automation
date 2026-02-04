@@ -50,7 +50,8 @@ export async function GET(req) {
             'users.readonly',             // Read GHL user data
             'contacts.readonly',          // Read contacts for dashboard metrics
             'opportunities.readonly',     // Read opportunities for pipeline metrics
-            'calendars.readonly',         // Read calendar/appointments for booking metrics
+            'calendars.readonly',         // Read calendar data and availability
+            'calendars/events.readonly',  // Read appointment details and calendar events
         ].join(' ');
 
         // Create state parameter with user ID (Base64 encoded for safety)
