@@ -9,7 +9,7 @@ import {
     getCoreRowModel,
     getSortedRowModel,
     flexRender,
-} from "@tantml:function_calls>
+} from "@tanstack/react-table";
 import {
     Search,
     ChevronLeft,
@@ -51,13 +51,12 @@ function Toast({ message, type = 'success', onClose }) {
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                type === 'success'
+            className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border backdrop-blur-xl ${type === 'success'
                     ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
                     : type === 'error'
-                    ? 'bg-red-500/20 border-red-500/30 text-red-400'
-                    : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
-            }`}
+                        ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                        : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
+                }`}
         >
             {type === 'success' && <CheckCircle className="w-5 h-5" />}
             {type === 'error' && <XCircle className="w-5 h-5" />}
@@ -390,11 +389,10 @@ export default function AdminFunnels() {
                                 whileHover={{ scale: 1.02, y: -4 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => setStatusFilter(statusFilter === status ? '' : status)}
-                                className={`bg-gradient-to-br ${gradients[status]} rounded-2xl p-5 border transition-all shadow-lg ${
-                                    statusFilter === status
+                                className={`bg-gradient-to-br ${gradients[status]} rounded-2xl p-5 border transition-all shadow-lg ${statusFilter === status
                                         ? 'border-cyan/50 shadow-cyan/20 ring-2 ring-cyan/30'
                                         : statusColors[status]?.split(' ')[2] || 'border-gray-500/30'
-                                }`}
+                                    }`}
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <p className={`text-sm font-semibold uppercase tracking-wide ${statusColors[status]?.split(' ')[1]}`}>
