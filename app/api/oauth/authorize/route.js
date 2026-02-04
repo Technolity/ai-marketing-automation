@@ -48,6 +48,9 @@ export async function GET(req) {
             'oauth.write',                // Generate location tokens from agency token
             'users.write',                // Create GHL users (REQUIRED for Builder Login)
             'users.readonly',             // Read GHL user data
+            'contacts.readonly',          // Read contacts for dashboard metrics
+            'opportunities.readonly',     // Read opportunities for pipeline metrics
+            'calendars.readonly',         // Read calendar/appointments for booking metrics
         ].join(' ');
 
         // Create state parameter with user ID (Base64 encoded for safety)
@@ -65,6 +68,8 @@ export async function GET(req) {
         authUrl.searchParams.set('state', state);
 
         console.log('[OAuth Authorize] Redirecting user:', userId);
+        console.log('[OAuth Authorize] Requested scopes:', scopes);
+        console.log('[OAuth Authorize] User type:', userType);
 
         return NextResponse.redirect(authUrl.toString());
     } catch (error) {

@@ -3,6 +3,9 @@ import { auth } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 
+// Force dynamic rendering because auth() uses cookies
+export const dynamic = 'force-dynamic';
+
 /**
  * Get builder location for the current user
  * Returns the location_id from ghl_subaccounts for deep linking to app.tedos.ai

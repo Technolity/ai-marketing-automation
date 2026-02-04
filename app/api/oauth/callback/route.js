@@ -125,7 +125,20 @@ export async function GET(req) {
             hasRefreshToken: !!tokenData.refresh_token,
             companyId: tokenData.companyId,
             locationId: tokenData.locationId,
+            grantedScopes: tokenData.scope, // Log the scopes that were actually granted
         });
+
+        // Log if critical scopes are missing
+        const criticalScopes = ['contacts.readonly', 'opportunities.readonly', 'calendars.readonly'];
+        const grantedScopesList = tokenData.scope ? tokenData.scope.split(' ') : [];
+        const missingScopes = criticalScopes.filter(scope => !grantedScopesList.includes(scope));
+
+        if (missingScopes.length > 0) {
+            console.warn('[OAuth Callback] WARNING: Missing critical scopes:', missingScopes);
+            console.warn('[OAuth Callback] This may cause GHL dashboard widgets to fail with 401 errors');
+        } else {
+            console.log('[OAuth Callback] All critical scopes granted successfully');
+        }
 
         // Calculate expiration timestamp
         const expiresAt = new Date();
@@ -175,6 +188,8 @@ export async function GET(req) {
                 user_type: tokenData.userType,
                 company_id: tokenData.companyId,
                 location_id: tokenData.locationId,
+                granted_scopes: tokenData.scope,
+                expires_at: expiresAt.toISOString(),
             },
         });
 

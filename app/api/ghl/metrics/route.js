@@ -132,6 +132,16 @@ async function fetchGHLMetrics(accessToken, locationId) {
             // Clone response to read body twice
             const errorText = await oppsRes.clone().text();
             console.error('[GHL Metrics] Error response:', errorText);
+
+            // Specific handling for scope/authorization errors
+            if (oppsRes.status === 401) {
+                console.error('[GHL Metrics] SCOPE ERROR: Token not authorized for this scope');
+                console.error('[GHL Metrics] Required scope: opportunities.readonly');
+                console.error('[GHL Metrics] Troubleshooting steps:');
+                console.error('[GHL Metrics] 1. Delete all rows from ghl_tokens table in Supabase');
+                console.error('[GHL Metrics] 2. Visit /api/oauth/authorize?user_type=Company to re-authorize');
+                console.error('[GHL Metrics] 3. Ensure opportunities.readonly scope is included in authorization');
+            }
         }
 
         const oppsData = await oppsRes.json();

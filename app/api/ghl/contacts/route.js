@@ -107,6 +107,17 @@ async function fetchContactsMetrics(accessToken, locationId) {
             // Clone response to read body twice
             const errorText = await contactsRes.clone().text();
             console.error('[GHL Contacts] Error response:', errorText);
+
+            // Specific handling for scope/authorization errors
+            if (contactsRes.status === 401) {
+                console.error('[GHL Contacts] SCOPE ERROR: Token not authorized for this scope');
+                console.error('[GHL Contacts] Required scope: contacts.readonly');
+                console.error('[GHL Contacts] Troubleshooting steps:');
+                console.error('[GHL Contacts] 1. Delete all rows from ghl_tokens table in Supabase');
+                console.error('[GHL Contacts] 2. Visit /api/oauth/authorize?user_type=Company to re-authorize');
+                console.error('[GHL Contacts] 3. Ensure contacts.readonly scope is included in authorization');
+            }
+
             throw new Error(`GHL API returned ${contactsRes.status}`);
         }
 
