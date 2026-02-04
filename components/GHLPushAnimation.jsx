@@ -142,7 +142,7 @@ export default function GHLPushAnimation({
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white tracking-tight">
                         Pushing to{' '}
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-emerald-400 to-teal-400">
-                            GoHighLevel
+                            Builder
                         </span>
                     </h1>
                     <p className="text-gray-500 text-sm md:text-base tracking-wide max-w-md mx-auto">

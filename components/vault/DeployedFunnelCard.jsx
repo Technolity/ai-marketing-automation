@@ -34,7 +34,7 @@ export default function DeployedFunnelCard() {
                                 </button>
                             </h3>
                             <p className="text-gray-400 text-sm mt-1">
-                                Your funnel has been successfully deployed to GHL
+                                Your funnel has been successfully deployed to Builder
                             </p>
                         </div>
                     </div>

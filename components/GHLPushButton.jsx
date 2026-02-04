@@ -16,7 +16,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
   const handleBuildFunnel = async () => {
     // Validate GHL configuration
     if (!ghlConfig.accessToken || !ghlConfig.locationId) {
-      toast.error("Please configure your GHL credentials first");
+      toast.error("Please configure your Builder credentials first");
       setShowConfig(true);
       return;
     }
@@ -46,7 +46,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
       toast.success(`Generated ${Object.keys(customValues).length} custom values`);
 
       // Step 2: Push to GoHighLevel
-      toast.info("Building your funnel in GoHighLevel...");
+      toast.info("Building your funnel in Builder...");
       const pushRes = await fetch('/api/ghl/custom-values/push', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -90,7 +90,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
         <div className="absolute top-0 right-0 w-32 h-32 bg-cyan/5 blur-3xl rounded-full pointer-events-none"></div>
 
         <div className="flex justify-between items-center mb-6 relative z-10">
-          <h3 className="text-2xl font-black text-white tracking-tighter">GHL Configuration</h3>
+          <h3 className="text-2xl font-black text-white tracking-tighter">Builder Configuration</h3>
           <button
             onClick={() => setShowConfig(false)}
             className="p-2 hover:bg-white/10 rounded-xl transition-all text-gray-400 hover:text-white"
@@ -108,7 +108,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
               type="password"
               value={ghlConfig.accessToken}
               onChange={(e) => setGhlConfig({ ...ghlConfig, accessToken: e.target.value })}
-              placeholder="Enter your GHL access token"
+              placeholder="Enter your Builder access token"
               className="w-full px-4 py-3.5 bg-black/40 border border-white/5 rounded-2xl text-white placeholder-gray-600 focus:ring-2 focus:ring-cyan/30 focus:border-cyan/50 outline-none transition-all input-glow"
             />
           </div>
@@ -121,7 +121,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
               type="text"
               value={ghlConfig.locationId}
               onChange={(e) => setGhlConfig({ ...ghlConfig, locationId: e.target.value })}
-              placeholder="Enter your GHL location ID"
+              placeholder="Enter your Builder location ID"
               className="w-full px-4 py-3.5 bg-black/40 border border-white/5 rounded-2xl text-white placeholder-gray-600 focus:ring-2 focus:ring-cyan/30 focus:border-cyan/50 outline-none transition-all input-glow"
             />
           </div>
@@ -166,7 +166,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
           onClick={handleBuildFunnel}
           disabled={building || !sessionId}
           className="p-2.5 hover:bg-cyan/10 rounded-xl text-gray-400 hover:text-cyan transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-transparent hover:border-cyan/30"
-          title={building ? "Building..." : "Push to GoHighLevel"}
+          title={building ? "Building..." : "Push to Builder"}
         >
           {building ? <Loader2 className="w-5 h-5 animate-spin" /> : <Rocket className="w-5 h-5" />}
         </button>
@@ -197,7 +197,7 @@ export default function GHLPushButton({ sessionId, minimal = false }) {
         <button
           onClick={() => setShowConfig(!showConfig)}
           className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-3.5 rounded-2xl font-bold transition-all text-white border border-white/10"
-          title="Configure GHL credentials"
+          title="Configure Builder credentials"
         >
           <Settings size={20} />
         </button>

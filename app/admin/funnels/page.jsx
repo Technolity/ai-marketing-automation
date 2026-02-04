@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -9,7 +9,7 @@ import {
     getCoreRowModel,
     getSortedRowModel,
     flexRender,
-} from "@tanstack/react-table";
+} from "@tantml:function_calls>
 import {
     Search,
     ChevronLeft,
@@ -24,17 +24,50 @@ import {
     Eye,
     ArrowLeft,
     FolderKanban,
-    X
+    X,
+    Sparkles,
+    XCircle,
+    TrendingUp
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
 const statusColors = {
-    not_started: "bg-gray-500/20 text-gray-400",
-    pending: "bg-yellow-500/20 text-yellow-400",
-    in_progress: "bg-blue-500/20 text-blue-400",
-    completed: "bg-green-500/20 text-green-400",
-    failed: "bg-red-500/20 text-red-400",
+    not_started: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+    pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    in_progress: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    completed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+    failed: "bg-red-500/20 text-red-400 border-red-500/30",
 };
+
+// Toast notification component
+function Toast({ message, type = 'success', onClose }) {
+    useEffect(() => {
+        const timer = setTimeout(onClose, 4000);
+        return () => clearTimeout(timer);
+    }, [onClose]);
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
+                type === 'success'
+                    ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                    : type === 'error'
+                    ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                    : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
+            }`}
+        >
+            {type === 'success' && <CheckCircle className="w-5 h-5" />}
+            {type === 'error' && <XCircle className="w-5 h-5" />}
+            <p className="font-medium">{message}</p>
+            <button onClick={onClose} className="ml-2 hover:opacity-70 transition-opacity">
+                <XCircle className="w-4 h-4" />
+            </button>
+        </motion.div>
+    );
+}
 
 const statusIcons = {
     not_started: AlertCircle,
@@ -59,6 +92,7 @@ export default function AdminFunnels() {
     const [statusStats, setStatusStats] = useState({});
     const [selectedFunnel, setSelectedFunnel] = useState(null);
     const [showVaultModal, setShowVaultModal] = useState(false);
+    const [toast, setToast] = useState(null);
 
     useEffect(() => {
         if (!authLoading && session) {
@@ -111,13 +145,21 @@ export default function AdminFunnels() {
                 throw new Error(errorData.error || 'Failed to perform action');
             }
 
+            const actionLabels = {
+                reset_status: 'Funnel status reset',
+                delete: 'Funnel deleted',
+                retry_generation: 'Generation retry initiated',
+                force_complete: 'Funnel marked as complete'
+            };
+
+            setToast({ message: actionLabels[action] || 'Action completed successfully!', type: 'success' });
             console.log(`✓ Action '${action}' completed for funnel ${funnelId}`);
 
             // Refresh funnels list
             fetchFunnels();
         } catch (error) {
             console.error(`Error performing action ${action}:`, error);
-            alert(`Failed to ${action}: ${error.message}`);
+            setToast({ message: `Failed: ${error.message}`, type: 'error' });
         }
     };
 
@@ -206,43 +248,51 @@ export default function AdminFunnels() {
                 header: "Actions",
                 cell: ({ row }) => (
                     <div className="flex items-center gap-2">
-                        <button
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
                             onClick={() => handleViewVault(row.original)}
-                            className="p-2 hover:bg-cyan/10 rounded-lg transition-colors group"
+                            className="p-2.5 hover:bg-cyan/20 rounded-xl transition-all group border border-transparent hover:border-cyan/30"
                             title="View vault content"
                         >
-                            <Eye className="w-4 h-4 text-gray-400 group-hover:text-cyan" />
-                        </button>
+                            <Eye className="w-4 h-4 text-gray-400 group-hover:text-cyan transition-colors" />
+                        </motion.button>
 
-                        <button
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
                             onClick={() => handleFunnelAction(row.original.id, 'reset_status')}
-                            className="p-2 hover:bg-blue-500/10 rounded-lg transition-colors group"
+                            className="p-2.5 hover:bg-blue-500/20 rounded-xl transition-all group border border-transparent hover:border-blue-500/30"
                             title="Reset to not started"
                         >
-                            <RotateCcw className="w-4 h-4 text-gray-400 group-hover:text-blue-400" />
-                        </button>
+                            <RotateCcw className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors" />
+                        </motion.button>
 
                         {row.original.vault_generation_status === 'failed' && (
-                            <button
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
                                 onClick={() => handleFunnelAction(row.original.id, 'retry_generation')}
-                                className="p-2 hover:bg-yellow-500/10 rounded-lg transition-colors group"
+                                className="p-2.5 hover:bg-yellow-500/20 rounded-xl transition-all group border border-transparent hover:border-yellow-500/30"
                                 title="Retry generation"
                             >
-                                <PlayCircle className="w-4 h-4 text-gray-400 group-hover:text-yellow-400" />
-                            </button>
+                                <PlayCircle className="w-4 h-4 text-gray-400 group-hover:text-yellow-400 transition-colors" />
+                            </motion.button>
                         )}
 
-                        <button
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
                             onClick={() => {
                                 if (confirm(`Are you sure you want to delete the funnel "${row.original.business_name}"? This action cannot be undone.`)) {
                                     handleFunnelAction(row.original.id, 'delete');
                                 }
                             }}
-                            className="p-2 hover:bg-red-500/10 rounded-lg transition-colors group"
+                            className="p-2.5 hover:bg-red-500/20 rounded-xl transition-all group border border-transparent hover:border-red-500/30"
                             title="Delete funnel"
                         >
-                            <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-400" />
-                        </button>
+                            <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-400 transition-colors" />
+                        </motion.button>
                     </div>
                 ),
             },
@@ -262,112 +312,180 @@ export default function AdminFunnels() {
 
     return (
         <AdminLayout>
+            {/* Toast Notifications */}
+            <AnimatePresence>
+                {toast && (
+                    <Toast
+                        message={toast.message}
+                        type={toast.type}
+                        onClose={() => setToast(null)}
+                    />
+                )}
+            </AnimatePresence>
+
             <div className="space-y-6">
                 {/* Header */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div className="flex items-center gap-3">
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                >
+                    <div className="flex items-center gap-4">
                         {filterUserId && (
-                            <button
+                            <motion.button
+                                whileHover={{ scale: 1.05, x: -4 }}
+                                whileTap={{ scale: 0.95 }}
                                 onClick={() => router.push('/admin/users')}
-                                className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
+                                className="p-2.5 hover:bg-cyan/20 rounded-xl transition-all border border-transparent hover:border-cyan/30"
                             >
-                                <ArrowLeft className="w-5 h-5" />
-                            </button>
+                                <ArrowLeft className="w-5 h-5 text-cyan" />
+                            </motion.button>
                         )}
+                        <motion.div
+                            whileHover={{ scale: 1.05, rotate: 5 }}
+                            className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500/30 via-cyan/20 to-purple-500/30 flex items-center justify-center border border-purple-500/30 shadow-lg shadow-purple-500/20"
+                        >
+                            <FolderKanban className="w-7 h-7 text-purple-400" />
+                        </motion.div>
                         <div>
-                            <h1 className="text-3xl font-bold mb-2">
-                                {filterUserId ? 'User Funnels' : 'All Funnels'}
+                            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent tracking-tight">
+                                {filterUserId ? 'User Funnels' : 'Funnel Management'}
                             </h1>
-                            <p className="text-gray-400">
-                                Manage and monitor funnel generation status
+                            <p className="text-gray-400 text-sm sm:text-base mt-1 flex items-center gap-2">
+                                <Sparkles className="w-4 h-4 text-purple-400" />
+                                Monitor and manage funnel generation
                             </p>
                         </div>
                     </div>
-                    <button
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={fetchFunnels}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-lg transition-colors"
+                        disabled={loading}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500/20 to-cyan/20 hover:from-purple-500/30 hover:to-cyan/30 rounded-xl transition-all border border-purple-500/30 shadow-lg shadow-purple-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </button>
-                </div>
+                        <RefreshCw className={`w-4 h-4 text-purple-400 ${loading ? 'animate-spin' : ''}`} />
+                        <span className="font-medium text-white">Refresh</span>
+                    </motion.button>
+                </motion.div>
 
                 {/* Status Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    {Object.entries(statusStats).map(([status, count]) => (
-                        <button
-                            key={status}
-                            onClick={() => setStatusFilter(statusFilter === status ? '' : status)}
-                            className={`bg-[#1b1b1d] rounded-xl p-4 border transition-all ${
-                                statusFilter === status ? 'border-cyan' : 'border-[#2a2a2d]'
-                            }`}
-                        >
-                            <p className="text-gray-400 text-sm capitalize">{status.replace('_', ' ')}</p>
-                            <p className={`text-2xl font-bold ${statusColors[status]?.split(' ')[1]}`}>
-                                {count || 0}
-                            </p>
-                        </button>
-                    ))}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                    {Object.entries(statusStats).map(([status, count], idx) => {
+                        const gradients = {
+                            not_started: 'from-gray-500/10 to-gray-500/5',
+                            pending: 'from-yellow-500/10 to-yellow-500/5',
+                            in_progress: 'from-blue-500/10 to-cyan/5',
+                            completed: 'from-emerald-500/10 to-green-500/5',
+                            failed: 'from-red-500/10 to-red-500/5'
+                        };
+                        return (
+                            <motion.button
+                                key={status}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1 + idx * 0.05 }}
+                                whileHover={{ scale: 1.02, y: -4 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={() => setStatusFilter(statusFilter === status ? '' : status)}
+                                className={`bg-gradient-to-br ${gradients[status]} rounded-2xl p-5 border transition-all shadow-lg ${
+                                    statusFilter === status
+                                        ? 'border-cyan/50 shadow-cyan/20 ring-2 ring-cyan/30'
+                                        : statusColors[status]?.split(' ')[2] || 'border-gray-500/30'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className={`text-sm font-semibold uppercase tracking-wide ${statusColors[status]?.split(' ')[1]}`}>
+                                        {status.replace('_', ' ')}
+                                    </p>
+                                    <TrendingUp className={`w-4 h-4 ${statusColors[status]?.split(' ')[1]}`} />
+                                </div>
+                                <p className={`text-4xl font-bold ${statusColors[status]?.split(' ')[1]}`}>
+                                    {count || 0}
+                                </p>
+                                <p className="text-gray-400 text-xs mt-1">funnels</p>
+                            </motion.button>
+                        );
+                    })}
                 </div>
 
                 {/* Search */}
-                <div className="relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="relative"
+                >
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400/50" />
                     <input
                         type="text"
                         placeholder="Search by business name, user name, or email..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors"
+                        className="w-full pl-12 pr-4 py-3 bg-[#0e0e0f] border border-purple-500/30 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-all"
                     />
-                </div>
+                </motion.div>
 
                 {/* Table */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] overflow-hidden"
+                    transition={{ delay: 0.5 }}
+                    className="bg-gradient-to-br from-[#1b1b1d] to-[#0e0e0f] rounded-2xl border border-purple-500/20 overflow-hidden shadow-xl"
                 >
                     {loading ? (
-                        <div className="flex items-center justify-center h-64">
-                            <Loader2 className="w-8 h-8 text-cyan animate-spin" />
+                        <div className="flex flex-col items-center justify-center h-96">
+                            <Loader2 className="w-12 h-12 text-purple-400 animate-spin mb-4" />
+                            <p className="text-gray-400 text-lg font-medium">Loading funnels...</p>
+                            <p className="text-gray-500 text-sm mt-1">Please wait</p>
                         </div>
                     ) : (
                         <>
                             <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        {table.getHeaderGroups().map((headerGroup) => (
-                                            <tr key={headerGroup.id} className="border-b border-[#2a2a2d]">
-                                                {headerGroup.headers.map((header) => (
-                                                    <th key={header.id} className="px-6 py-4 text-left text-sm font-semibold text-gray-400">
-                                                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                                                    </th>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </thead>
-                                    <tbody>
-                                        {table.getRowModel().rows.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={columns.length} className="px-6 py-12 text-center text-gray-400">
-                                                    <FolderKanban className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-                                                    <p>No funnels found</p>
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            table.getRowModel().rows.map((row) => (
-                                                <tr key={row.id} className="border-b border-[#2a2a2d] hover:bg-[#0e0e0f] transition-colors">
-                                                    {row.getVisibleCells().map((cell) => (
-                                                        <td key={cell.id} className="px-6 py-4">
-                                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                        </td>
+                                <div className="max-h-[calc(100vh-550px)] overflow-y-auto custom-scrollbar">
+                                    <table className="w-full">
+                                        <thead className="bg-gradient-to-r from-[#0e0e0f] to-[#1a1a1c] sticky top-0 z-10 border-b border-purple-500/20">
+                                            {table.getHeaderGroups().map((headerGroup) => (
+                                                <tr key={headerGroup.id}>
+                                                    {headerGroup.headers.map((header) => (
+                                                        <th key={header.id} className="px-6 py-4 text-left text-xs font-bold text-purple-400 uppercase tracking-wider whitespace-nowrap">
+                                                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                                        </th>
                                                     ))}
                                                 </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
+                                            ))}
+                                        </thead>
+                                        <tbody>
+                                            {table.getRowModel().rows.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={columns.length} className="px-6 py-16 text-center">
+                                                        <FolderKanban className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                                                        <p className="text-gray-400 text-lg font-medium">No funnels found</p>
+                                                        <p className="text-gray-500 text-sm mt-2">Try adjusting your search or filters</p>
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                table.getRowModel().rows.map((row, idx) => (
+                                                    <motion.tr
+                                                        key={row.id}
+                                                        initial={{ opacity: 0, y: 20 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        transition={{ delay: idx * 0.02 }}
+                                                        className="border-b border-purple-500/5 hover:bg-[#0e0e0f]/50 transition-all"
+                                                    >
+                                                        {row.getVisibleCells().map((cell) => (
+                                                            <td key={cell.id} className="px-6 py-4">
+                                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                            </td>
+                                                        ))}
+                                                    </motion.tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
                             {/* Pagination */}

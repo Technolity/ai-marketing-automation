@@ -19,14 +19,17 @@ import {
     Menu,
     X,
     Loader2,
-    Database
+    Database,
+    FolderKanban
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const MENU_ITEMS = [
     { href: "/admin/overview", label: "Overview", icon: LayoutDashboard },
     { href: "/admin/users", label: "Users", icon: Users },
+    { href: "/admin/funnels", label: "Funnels", icon: FolderKanban },
     { href: "/admin/ghl-accounts", label: "GHL Sub-Accounts", icon: Database },
+    { href: "/admin/database", label: "Database Manager", icon: Database, badge: "GOD MODE" },
     { href: "/admin/businesses", label: "Marketing Engine", icon: Building2 },
     { href: "/admin/transcripts", label: "Transcripts", icon: FileText },
     { href: "/admin/knowledge-base", label: "Knowledge Base", icon: BookOpen },
