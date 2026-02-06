@@ -38,6 +38,8 @@
 | File | Change |
 | :--- | :--- |
 | `app/globals.css` | Fixed double scrollbar issue by changing `html { overflow-y: scroll }` to `html { overflow-y: auto; overflow-x: hidden }` |
+| `lib/vault/feedbackUtils.js` | Fixed `extractIdealClientFields` to return `howToTalkToThem` as a string instead of array, matching `fieldStructures.js` textarea definition |
+| `app/vault/page.jsx` | **CRITICAL FIX**: Added `flattenAIResponseToFields` call in `handleFeedbackSave` for full section updates. AI response wrappers like `idealClientSnapshot` are now properly extracted to individual fields before saving. |
 
 ### Recent Modifications (2026-02-05)
 | File | Change |

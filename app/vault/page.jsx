@@ -30,6 +30,7 @@ import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { createLogger } from '@/lib/logger';
 import { applyFreeGiftReplacement } from "@/lib/vault/freeGiftReplacer";
+import { flattenAIResponseToFields } from '@/lib/vault/feedbackUtils';
 
 // Initialize logger
 const logger = createLogger('VaultPage');
@@ -1755,8 +1756,17 @@ export default function VaultPage() {
         const currentSectionContent = vaultData[feedbackSection.id] || {};
         console.log('[Vault] Current content keys:', Object.keys(currentSectionContent));
 
-        // Merge new content into existing
-        const updatedContent = strictReplace(currentSectionContent, refinedContent, { subSection });
+        // For full section updates (subSection === 'all' or undefined), flatten AI response
+        // to extract individual fields from wrappers like `idealClientSnapshot`
+        let contentToMerge = refinedContent;
+        if (!subSection || subSection === 'all') {
+            console.log('[Vault] Flattening AI response for local state / JSONB update');
+            contentToMerge = flattenAIResponseToFields(refinedContent, feedbackSection.id);
+            console.log('[Vault] Flattened content keys:', Object.keys(contentToMerge));
+        }
+
+        // Merge new content into existing (using flattened content for full updates)
+        const updatedContent = strictReplace(currentSectionContent, contentToMerge, { subSection });
         console.log('[Vault] Updated content keys:', Object.keys(updatedContent));
         console.log('[Vault] Updated content preview:', JSON.stringify(updatedContent).substring(0, 300));
 
@@ -1772,9 +1782,18 @@ export default function VaultPage() {
 
         try {
             // 1. Save individual fields to vault_content_fields for granular persistence
-            const fieldsToSave = subSection && subSection !== 'all'
-                ? { [subSection]: refinedContent[subSection] || refinedContent }
-                : refinedContent;
+            // For full section updates (subSection === 'all'), use flattenAIResponseToFields
+            // to extract individual fields from AI response wrappers (e.g., idealClientSnapshot)
+            // Note: contentToMerge is already flattened above for full section updates
+            let fieldsToSave;
+            if (subSection && subSection !== 'all') {
+                // Sub-section update: save just the specific field
+                fieldsToSave = { [subSection]: refinedContent[subSection] || refinedContent };
+            } else {
+                // Full section update: use already-flattened contentToMerge
+                fieldsToSave = contentToMerge;
+                console.log('[Vault] Using flattened fields for save:', Object.keys(fieldsToSave));
+            }
 
             console.log('[Vault] Fields to save:', {
                 count: Object.keys(fieldsToSave).length,
@@ -2604,11 +2623,10 @@ export default function VaultPage() {
                                     }
                                 }}
                                 disabled={isDeploying}
-                                className={`px-8 py-4 rounded-xl font-bold text-white shadow-lg transition-all hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${
-                                    dataSource?.deployed_at
-                                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/30'
-                                        : 'bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 shadow-cyan/30'
-                                }`}
+                                className={`px-8 py-4 rounded-xl font-bold text-white shadow-lg transition-all hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${dataSource?.deployed_at
+                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/30'
+                                    : 'bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 shadow-cyan/30'
+                                    }`}
                             >
                                 {isDeploying ? (
                                     <>

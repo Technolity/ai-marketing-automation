@@ -3,6 +3,7 @@ import { RefreshCw, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
+import { flattenAIResponseToFields } from '@/lib/vault/feedbackUtils';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 /**
@@ -112,31 +113,88 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
 
         // FeedbackChatModal passes { refinedContent, subSection }
         const refinedContent = saveData?.refinedContent || saveData;
+        const subSection = saveData?.subSection;
 
-        // The refinedContent should be the new field value
-        // Auto-save it via the FieldEditor's save mechanism
         try {
-            const response = await fetch('/api/os/vault-field', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    funnel_id: funnelId,
-                    section_id: sectionId,
-                    field_id: selectedField.field_id,
-                    field_value: refinedContent
-                })
-            });
+            // CRITICAL FIX: Handle full section updates differently
+            // When subSection is 'all' or undefined and refinedContent has wrapper keys,
+            // we need to flatten and save each field individually
+            const isFullSectionUpdate = subSection === 'all' || !subSection ||
+                refinedContent?.idealClientSnapshot || Object.keys(refinedContent).length > 1;
 
-            if (!response.ok) throw new Error('Failed to save AI feedback');
+            if (isFullSectionUpdate) {
+                console.log('[IdealClientFields] Full section update detected, flattening fields...');
 
-            const result = await response.json();
+                // Use feedbackUtils to properly extract individual fields
+                const flattenedFields = flattenAIResponseToFields(refinedContent, sectionId);
+                console.log('[IdealClientFields] Flattened fields:', Object.keys(flattenedFields));
 
-            // Update local state
-            setFields(prev => prev.map(f =>
-                f.field_id === selectedField.field_id
-                    ? { ...f, field_value: refinedContent, version: result.version }
-                    : f
-            ));
+                // Save each field individually
+                const savePromises = Object.entries(flattenedFields).map(async ([fieldId, fieldValue]) => {
+                    console.log(`[IdealClientFields] Saving field: ${fieldId}`);
+                    const response = await fetch('/api/os/vault-field', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            funnel_id: funnelId,
+                            section_id: sectionId,
+                            field_id: fieldId,
+                            field_value: fieldValue
+                        })
+                    });
+
+                    if (!response.ok) {
+                        console.error(`[IdealClientFields] Failed to save field ${fieldId}`);
+                        throw new Error(`Failed to save field: ${fieldId}`);
+                    }
+
+                    const result = await response.json();
+                    return { fieldId, fieldValue, version: result.version };
+                });
+
+                const savedFields = await Promise.all(savePromises);
+                console.log('[IdealClientFields] All fields saved:', savedFields.length);
+
+                // Update local state with all saved fields
+                setFields(prev => {
+                    const updated = [...prev];
+                    for (const { fieldId, fieldValue, version } of savedFields) {
+                        const idx = updated.findIndex(f => f.field_id === fieldId);
+                        if (idx >= 0) {
+                            updated[idx] = { ...updated[idx], field_value: fieldValue, version };
+                        } else {
+                            // Field doesn't exist, add it
+                            updated.push({ field_id: fieldId, field_value: fieldValue, version });
+                        }
+                    }
+                    return updated;
+                });
+
+            } else {
+                // Single field update (original behavior)
+                console.log('[IdealClientFields] Single field update:', selectedField.field_id);
+                const response = await fetch('/api/os/vault-field', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        funnel_id: funnelId,
+                        section_id: sectionId,
+                        field_id: selectedField.field_id,
+                        field_value: refinedContent
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to save AI feedback');
+
+                const result = await response.json();
+
+                // Update local state
+                setFields(prev => prev.map(f =>
+                    f.field_id === selectedField.field_id
+                        ? { ...f, field_value: refinedContent, version: result.version }
+                        : f
+                ));
+            }
 
             // Reset section approval
             setSectionApproved(false);
