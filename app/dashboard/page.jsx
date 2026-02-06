@@ -181,7 +181,7 @@ export default function Dashboard() {
 
     if (authLoading || isLoading) {
         return (
-            <div className="flex h-[calc(100vh-5rem)] items-center justify-center bg-[#0e0e0f]">
+            <div className="flex min-h-[calc(100vh-5rem)] items-center justify-center bg-[#0e0e0f]">
                 <Loader2 className="w-10 h-10 text-cyan animate-spin" />
             </div>
         );

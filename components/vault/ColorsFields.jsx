@@ -190,8 +190,12 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
             setFeedbackModalOpen(false);
             toast.success('Brand colors updated successfully! Ready for deployment.');
 
-            // Notify parent of change if onSave exists
-            if (onSave) onSave();
+            // CRITICAL: Notify parent to trigger UI refresh
+            // This ensures the updated colors are immediately visible without requiring a page refresh
+            if (onSave) {
+                console.log('[ColorsFields] Triggering onSave callback to refresh parent state');
+                onSave();
+            }
         } catch (error) {
             console.error('[ColorsFields] Save error:', error);
             toast.error('Failed to save changes: ' + error.message);

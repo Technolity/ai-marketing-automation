@@ -46,14 +46,14 @@ export default function IntakeFormPage() {
 
     if (authLoading || isLoading) {
         return (
-            <div className="h-[calc(100vh-5rem)] bg-[#0e0e0f] flex items-center justify-center">
+            <div className="min-h-[calc(100vh-5rem)] bg-[#0e0e0f] flex items-center justify-center">
                 <Loader2 className="w-10 h-10 text-cyan animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="h-[calc(100vh-5rem)] bg-[#0e0e0f] overflow-hidden">
+        <div className="min-h-[calc(100vh-5rem)] bg-[#0e0e0f]">
             <OSWizard
                 mode="intake"
                 funnelId={funnelId}

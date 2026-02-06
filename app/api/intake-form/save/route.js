@@ -34,6 +34,9 @@ export async function POST(req) {
         // =========================================================
         // STEP 1: Update user_funnels (Fast JSON Store)
         // =========================================================
+        // IMPORTANT: We ONLY update wizard_answers and questionnaire timestamps.
+        // We DO NOT reset vault_generation_status or has_funnel_choice.
+        // This ensures that editing intake answers doesn't void Phase 2/3 access.
         const { error: funnelError } = await supabaseAdmin
             .from('user_funnels')
             .update({

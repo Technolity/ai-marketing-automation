@@ -34,6 +34,11 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-02-07)
+| File | Change |
+| :--- | :--- |
+| `app/globals.css` | Fixed double scrollbar issue by changing `html { overflow-y: scroll }` to `html { overflow-y: auto; overflow-x: hidden }` |
+
 ### Recent Modifications (2026-02-05)
 | File | Change |
 | :--- | :--- |

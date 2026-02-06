@@ -1706,7 +1706,12 @@ export default function VaultPage() {
         const subSection = saveData?.subSection;
         const funnelId = searchParams.get('funnel_id');
 
-        console.log('[Vault] Saving feedback:', { subSection, contentType: typeof refinedContent });
+        console.log('[Vault] ========== FEEDBACK SAVE START ==========');
+        console.log('[Vault] Section:', feedbackSection.id);
+        console.log('[Vault] SubSection:', subSection);
+        console.log('[Vault] Content type:', typeof refinedContent);
+        console.log('[Vault] Content keys:', Object.keys(refinedContent || {}));
+        console.log('[Vault] Content preview:', JSON.stringify(refinedContent).substring(0, 200));
 
         // PRIMITIVE FIX: If AI returns a simple string value for a field, wrap it with the field name
         // e.g., "I help..." becomes { oneLineMessage: "I help..." }
@@ -1748,15 +1753,22 @@ export default function VaultPage() {
 
         // Get current content for this section
         const currentSectionContent = vaultData[feedbackSection.id] || {};
+        console.log('[Vault] Current content keys:', Object.keys(currentSectionContent));
 
         // Merge new content into existing
         const updatedContent = strictReplace(currentSectionContent, refinedContent, { subSection });
+        console.log('[Vault] Updated content keys:', Object.keys(updatedContent));
+        console.log('[Vault] Updated content preview:', JSON.stringify(updatedContent).substring(0, 300));
 
         // Update local state immediately for responsive UI
-        setVaultData(prev => ({
-            ...prev,
-            [feedbackSection.id]: updatedContent
-        }));
+        setVaultData(prev => {
+            const newState = {
+                ...prev,
+                [feedbackSection.id]: updatedContent
+            };
+            console.log('[Vault] Local state updated for section:', feedbackSection.id);
+            return newState;
+        });
 
         try {
             // 1. Save individual fields to vault_content_fields for granular persistence
@@ -1804,10 +1816,17 @@ export default function VaultPage() {
             toast.success('Changes saved!');
 
             // CRITICAL: Update refreshTrigger for this specific section to trigger UI updates
-            setRefreshTriggers(prev => ({ ...prev, [feedbackSection.id]: Date.now() }));
+            const newTriggerTime = Date.now();
+            console.log('[Vault] Setting refreshTrigger for', feedbackSection.id, 'to', newTriggerTime);
+            setRefreshTriggers(prev => {
+                const newTriggers = { ...prev, [feedbackSection.id]: newTriggerTime };
+                console.log('[Vault] New refreshTriggers:', newTriggers);
+                return newTriggers;
+            });
 
             // Reset approval since content changed
             handleUnapprove(feedbackSection.id);
+            console.log('[Vault] ========== FEEDBACK SAVE COMPLETE ==========');
 
             setFeedbackChatOpen(false);
         } catch (error) {
@@ -2555,16 +2574,30 @@ export default function VaultPage() {
                         <div className="flex gap-4 justify-center">
                             <button
                                 onClick={() => {
-                                    console.log('[Vault] Build Your Funnel clicked - starting one-click deployment');
-                                    handleDeployToGHL();
+                                    if (dataSource?.deployed_at) {
+                                        console.log('[Vault] Funnel already deployed, showing info');
+                                        toast.info('Your funnel is already deployed! Use "Push to Builder" buttons to update individual sections.');
+                                    } else {
+                                        console.log('[Vault] Build Your Funnel clicked - starting one-click deployment');
+                                        handleDeployToGHL();
+                                    }
                                 }}
                                 disabled={isDeploying}
-                                className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-white shadow-lg shadow-cyan/30 transition-all hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                                className={`px-8 py-4 rounded-xl font-bold text-white shadow-lg transition-all hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${
+                                    dataSource?.deployed_at
+                                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/30'
+                                        : 'bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 shadow-cyan/30'
+                                }`}
                             >
                                 {isDeploying ? (
                                     <>
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                         Deploying...
+                                    </>
+                                ) : dataSource?.deployed_at ? (
+                                    <>
+                                        <CheckCircle className="w-5 h-5" />
+                                        Funnel Deployed
                                     </>
                                 ) : (
                                     <>
