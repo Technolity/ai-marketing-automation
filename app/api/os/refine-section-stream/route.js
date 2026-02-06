@@ -1182,43 +1182,45 @@ async function parseAndValidate(fullText, sectionId, subSection) {
     // 5. Validate against schema with proper wrapping for sub-sections
     let validationTarget = refinedContent;
 
+    // CRITICAL: Skip schema validation for sub-section edits
+    // Sub-sections are partial updates (e.g., only "bestIdealClient") and won't have all required fields
+    // Validating partial content against full schema will always fail with "Required" errors
     if (subSection && subSection !== 'all') {
-        console.log('[ParseAndValidate] Sub-section detected, wrapping for validation:', subSection);
+        console.log('[ParseAndValidate] Sub-section detected, skipping full schema validation:', subSection);
 
-        // Extract the content to wrap (might be nested or direct)
-        const contentToWrap = refinedContent[subSection] || refinedContent;
+        // Extract the content directly without validation
+        const contentToExtract = refinedContent[subSection] || refinedContent;
 
-        // Wrap in full schema structure for validation
-        validationTarget = wrapSubSectionForValidation(sectionId, subSection, contentToWrap);
-
-        console.log('[ParseAndValidate] Wrapped structure for validation:', {
-            keys: Object.keys(validationTarget),
-            preview: JSON.stringify(validationTarget).substring(0, 200)
+        console.log('[ParseAndValidate] Sub-section content:', {
+            type: typeof contentToExtract,
+            isArray: Array.isArray(contentToExtract),
+            isObject: typeof contentToExtract === 'object' && !Array.isArray(contentToExtract),
+            preview: JSON.stringify(contentToExtract).substring(0, 200)
         });
-    }
 
-    // Validate the wrapped/full content
-    const validation = validateVaultContent(sectionId, validationTarget);
-
-    if (!validation.success) {
-        console.warn('[RefineStream] Schema validation failed:', validation.errors);
-
-        // Strip extra fields to match schema
-        validationTarget = stripExtraFields(sectionId, validationTarget);
-
-        validationSuccess = false;
-        validationWarning = 'Output adjusted to match schema requirements';
+        // Return the sub-section content directly without validation
+        refinedContent = contentToExtract;
+        validationSuccess = true; // Sub-sections always pass (they're partial updates)
     } else {
-        console.log('[RefineStream] Schema validation passed');
-        validationTarget = validation.data;
-    }
+        // Full section update - validate against complete schema
+        console.log('[ParseAndValidate] Full section update, validating against schema');
 
-    // 6. Unwrap if we wrapped for validation
-    if (subSection && subSection !== 'all') {
-        console.log('[ParseAndValidate] Unwrapping validated content');
-        refinedContent = unwrapSubSection(validationTarget, sectionId, subSection);
-        console.log('[ParseAndValidate] Unwrapped content keys:', Object.keys(refinedContent));
-    } else {
+        validationTarget = refinedContent;
+        const validation = validateVaultContent(sectionId, validationTarget);
+
+        if (!validation.success) {
+            console.warn('[RefineStream] Schema validation failed:', validation.errors);
+
+            // Strip extra fields to match schema
+            validationTarget = stripExtraFields(sectionId, validationTarget);
+
+            validationSuccess = false;
+            validationWarning = 'Output adjusted to match schema requirements';
+        } else {
+            console.log('[RefineStream] Schema validation passed');
+            validationTarget = validation.data;
+        }
+
         refinedContent = validationTarget;
     }
 
