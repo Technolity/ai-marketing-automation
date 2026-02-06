@@ -834,22 +834,22 @@ const SUBSECTION_PATHS = {
         part6_closeNextSteps: ['closerCallScript', 'quickOutline', 'callFlow', 'part6_closeNextSteps'],
         closerMindset: ['closerCallScript', 'quickOutline', 'closerMindset']
     },
-    // idealClient uses FLAT structure from idealClient.js generation
+    // idealClient uses idealClientSnapshot wrapper from vaultSchemas.js
     idealClient: {
         // Full bestIdealClient object with all 6 subfields
         bestIdealClient: ['idealClientSnapshot', 'bestIdealClient'],
         // Individual subfields for granular refinement
-        location: ['bestIdealClient', 'location'],
-        ageLifeStage: ['bestIdealClient', 'ageLifeStage'],
-        roleIdentity: ['bestIdealClient', 'roleIdentity'],
-        incomeRevenueRange: ['bestIdealClient', 'incomeRevenueRange'],
-        familySituation: ['bestIdealClient', 'familySituation'],
-        decisionStyle: ['bestIdealClient', 'decisionStyle'],
-        top3Challenges: ['top3Challenges'],
-        top3Desires: ['top3Desires'],
-        topObjections: ['topObjections'],
-        topTriggers: ['topTriggers'],
-        wordsTheyUse: ['wordsTheyUse']
+        location: ['idealClientSnapshot', 'bestIdealClient', 'location'],
+        ageLifeStage: ['idealClientSnapshot', 'bestIdealClient', 'ageLifeStage'],
+        roleIdentity: ['idealClientSnapshot', 'bestIdealClient', 'roleIdentity'],
+        incomeRevenueRange: ['idealClientSnapshot', 'bestIdealClient', 'incomeRevenueRange'],
+        familySituation: ['idealClientSnapshot', 'bestIdealClient', 'familySituation'],
+        decisionStyle: ['idealClientSnapshot', 'bestIdealClient', 'decisionStyle'],
+        // New schema field names
+        top3Challenges: ['idealClientSnapshot', 'topChallenges'],
+        whatTheyWant: ['idealClientSnapshot', 'whatTheyWant'],
+        whatMakesThemPay: ['idealClientSnapshot', 'whatMakesThemPay'],
+        howToTalkToThem: ['idealClientSnapshot', 'howToTalkToThem']
     },
     // message uses FLAT structure from message.js generation
     message: {
