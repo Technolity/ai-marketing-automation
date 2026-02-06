@@ -1776,8 +1776,14 @@ export default function VaultPage() {
                 ? { [subSection]: refinedContent[subSection] || refinedContent }
                 : refinedContent;
 
+            console.log('[Vault] Fields to save:', {
+                count: Object.keys(fieldsToSave).length,
+                fieldIds: Object.keys(fieldsToSave)
+            });
+
             const fieldSavePromises = Object.entries(fieldsToSave).map(async ([fieldId, fieldValue]) => {
                 try {
+                    console.log(`[Vault] Saving field ${fieldId}:`, JSON.stringify(fieldValue).substring(0, 200));
                     const response = await fetchWithAuth('/api/os/vault-field', {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
@@ -1792,6 +1798,8 @@ export default function VaultPage() {
                     if (!response.ok) {
                         const errData = await response.json();
                         console.warn(`[Vault] Field ${fieldId} save warning:`, errData);
+                    } else {
+                        console.log(`[Vault] Field ${fieldId} saved successfully`);
                     }
                     return { fieldId, success: response.ok };
                 } catch (err) {
@@ -1800,9 +1808,15 @@ export default function VaultPage() {
                 }
             });
 
-            await Promise.all(fieldSavePromises);
+            const saveResults = await Promise.all(fieldSavePromises);
+            console.log('[Vault] All field saves complete:', saveResults);
 
             // 2. Also update vault_content JSONB for backwards compatibility
+            console.log('[Vault] Updating vault_content JSONB:', {
+                funnel_id: funnelId,
+                section_id: feedbackSection.id,
+                contentKeys: Object.keys(updatedContent)
+            });
             const { error: sectionError } = await supabase
                 .from('vault_content')
                 .update({ content: updatedContent })
@@ -1811,13 +1825,20 @@ export default function VaultPage() {
 
             if (sectionError) {
                 console.warn('[Vault] Section content sync warning:', sectionError);
+            } else {
+                console.log('[Vault] Vault content JSONB updated successfully');
             }
 
             toast.success('Changes saved!');
 
             // CRITICAL: Update refreshTrigger for this specific section to trigger UI updates
+            // Use setTimeout to ensure React has finished the current render cycle
             const newTriggerTime = Date.now();
             console.log('[Vault] Setting refreshTrigger for', feedbackSection.id, 'to', newTriggerTime);
+
+            // Force a small delay to ensure database write completes before triggering refresh
+            await new Promise(resolve => setTimeout(resolve, 100));
+
             setRefreshTriggers(prev => {
                 const newTriggers = { ...prev, [feedbackSection.id]: newTriggerTime };
                 console.log('[Vault] New refreshTriggers:', newTriggers);

@@ -30,12 +30,16 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
 
     // Fetch fields from database
     const fetchFields = async () => {
+        console.log('[IdealClientFields] ========== FETCH START ==========');
+        console.log('[IdealClientFields] Fetching fields for:', { funnelId, sectionId });
         setIsLoading(true);
         try {
             const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
             if (!response.ok) throw new Error('Failed to fetch fields');
 
             const data = await response.json();
+            console.log('[IdealClientFields] Received fields:', data.fields?.length || 0);
+            console.log('[IdealClientFields] Field IDs:', data.fields?.map(f => f.field_id).join(', '));
             setFields(data.fields || []);
 
             // Check if all fields are approved
@@ -43,15 +47,18 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
             // This prevents a race condition where fetching old field data overwrites the UI state.
             const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
+            console.log('[IdealClientFields] Section approved status:', allApproved);
 
         } catch (error) {
             console.error('[IdealClientFields] Fetch error:', error);
         } finally {
             setIsLoading(false);
+            console.log('[IdealClientFields] ========== FETCH COMPLETE ==========');
         }
     };
 
     useEffect(() => {
+        console.log('[IdealClientFields] useEffect triggered:', { funnelId, refreshTrigger });
         if (funnelId) {
             fetchFields();
         }
