@@ -39,6 +39,9 @@
 | :--- | :--- |
 | `app/globals.css` | Fixed double scrollbar issue by changing `html { overflow-y: scroll }` to `html { overflow-y: auto; overflow-x: hidden }` |
 | `lib/vault/feedbackUtils.js` | Fixed `extractIdealClientFields` to return `howToTalkToThem` as a string instead of array, matching `fieldStructures.js` textarea definition |
+| `lib/vault/feedbackUtils.js` | Added `extractColorsFields` function and switch case for `colors` section to properly handle `colorPalette` field extraction |
+| `components/vault/ColorsFields.jsx` | Modified `onSave` callback to pass updated `colorPalette` object back to parent for vaultData update |
+| `app/vault/page.jsx` | **CRITICAL FIX**: Added `content`, `sectionId`, and `onSave` props to GranularComponent render. The `onSave` callback now updates `vaultData` and triggers `refreshTriggers` when field components save data. |
 | `app/vault/page.jsx` | **CRITICAL FIX**: Added `flattenAIResponseToFields` call in `handleFeedbackSave` for full section updates. AI response wrappers like `idealClientSnapshot` are now properly extracted to individual fields before saving. |
 
 ### Recent Modifications (2026-02-05)

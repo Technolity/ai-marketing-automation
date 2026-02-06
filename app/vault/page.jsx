@@ -2982,11 +2982,28 @@ export default function VaultPage() {
                                         return (
                                             <GranularComponent
                                                 key={`${section.id}-${status}`}
+                                                content={vaultData[section.id]}
+                                                sectionId={section.id}
                                                 funnelId={funnelId}
                                                 isApproved={status === 'approved'}
                                                 onApprove={(sectionId) => handleApprove(sectionId, phase)}
                                                 onUnapprove={handleUnapprove}
                                                 refreshTrigger={refreshTriggers[section.id]}
+                                                onSave={(updatedContent) => {
+                                                    // When field components save their own data, update parent state
+                                                    if (updatedContent) {
+                                                        console.log('[Vault] onSave callback with content:', Object.keys(updatedContent));
+                                                        setVaultData(prev => ({
+                                                            ...prev,
+                                                            [section.id]: { ...prev[section.id], ...updatedContent }
+                                                        }));
+                                                    }
+                                                    // Trigger refresh for this section
+                                                    setRefreshTriggers(prev => ({
+                                                        ...prev,
+                                                        [section.id]: Date.now()
+                                                    }));
+                                                }}
                                                 onRenderApproveButton={(btn) => (
                                                     <SafePortal targetId={`section-header-actions-${section.id}`}>
                                                         {btn}

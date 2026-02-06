@@ -191,10 +191,11 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
             toast.success('Brand colors updated successfully! Ready for deployment.');
 
             // CRITICAL: Notify parent to trigger UI refresh
-            // This ensures the updated colors are immediately visible without requiring a page refresh
+            // Pass the updated content so parent can update vaultData state
             if (onSave) {
-                console.log('[ColorsFields] Triggering onSave callback to refresh parent state');
-                onSave();
+                console.log('[ColorsFields] Triggering onSave callback with updated colors');
+                // Pass colorPalette object so parent can update vaultData and trigger refreshTriggers
+                onSave({ colorPalette: colorPaletteObject });
             }
         } catch (error) {
             console.error('[ColorsFields] Save error:', error);
