@@ -337,7 +337,7 @@ export async function POST(req) {
         parentSection: parentSection || 'none',
         isHierarchical: !!parentSection,
         messageCount: messageHistory.length,
-        contentSize: JSON.stringify(currentContent).length,
+        contentSize: currentContent ? JSON.stringify(currentContent).length : 0,
         sessionId: sessionId || 'none',
         timestamp: new Date().toISOString()
     });
@@ -345,11 +345,12 @@ export async function POST(req) {
     // COMPREHENSIVE LOGGING: Full message history
     console.log('[RefineStream] Message history:');
     messageHistory.forEach((msg, idx) => {
-        console.log(`  [${idx + 1}/${messageHistory.length}] ${msg.role}:`, msg.content.substring(0, 200) + (msg.content.length > 200 ? '...' : ''));
+        const msgContent = msg.content || '';
+        console.log(`  [${idx + 1}/${messageHistory.length}] ${msg.role}:`, msgContent.substring(0, 200) + (msgContent.length > 200 ? '...' : ''));
     });
 
     // COMPREHENSIVE LOGGING: Current content dump
-    console.log('[RefineStream] Current content:', JSON.stringify(currentContent, null, 2).substring(0, 1000));
+    console.log('[RefineStream] Current content:', currentContent ? JSON.stringify(currentContent, null, 2).substring(0, 1000) : '(no content)');
 
     if (!sectionId || messageHistory.length === 0) {
         return new Response(JSON.stringify({
@@ -622,14 +623,15 @@ export async function POST(req) {
             const streamDuration = Date.now() - streamStartTime;
 
             // COMPREHENSIVE LOGGING: Stream completion
+            const safeFullText = fullText || '';
             console.log('[RefineStream] Streaming complete:', {
                 duration: `${streamDuration}ms`,
-                totalCharacters: fullText.length,
-                estimatedTokens: Math.ceil(fullText.length / 4),
-                avgCharsPerSecond: Math.round((fullText.length / streamDuration) * 1000),
-                preview: fullText.substring(0, 300) + (fullText.length > 300 ? '...' : '')
+                totalCharacters: safeFullText.length,
+                estimatedTokens: Math.ceil(safeFullText.length / 4),
+                avgCharsPerSecond: streamDuration > 0 ? Math.round((safeFullText.length / streamDuration) * 1000) : 0,
+                preview: safeFullText.substring(0, 300) + (safeFullText.length > 300 ? '...' : '')
             });
-            console.log('[RefineStream] Full text length:', fullText.length);
+            console.log('[RefineStream] Full text length:', safeFullText.length);
             console.log('[RefineStream] Validating response...');
 
             // Parse and validate complete response
@@ -647,10 +649,10 @@ export async function POST(req) {
                 success: validationSuccess,
                 hasWarning: !!validationWarning,
                 warning: validationWarning || 'none',
-                contentKeys: Object.keys(refinedContent),
-                contentSize: JSON.stringify(refinedContent).length
+                contentKeys: refinedContent ? Object.keys(refinedContent) : [],
+                contentSize: refinedContent ? JSON.stringify(refinedContent).length : 0
             });
-            console.log('[RefineStream] Refined content:', JSON.stringify(refinedContent, null, 2).substring(0, 1000));
+            console.log('[RefineStream] Refined content:', refinedContent ? JSON.stringify(refinedContent, null, 2).substring(0, 1000) : '(no content)');
 
             // Send validated content
             await sendEvent('validated', {
@@ -699,7 +701,7 @@ export async function POST(req) {
                 totalDuration: `${totalDuration}ms`,
                 streamDuration: `${streamDuration}ms`,
                 validationDuration: `${validationDuration}ms`,
-                finalContentSize: JSON.stringify(refinedContent).length,
+                finalContentSize: refinedContent ? JSON.stringify(refinedContent).length : 0,
                 validationSuccess,
                 hasWarnings: !!validationWarning
             });
