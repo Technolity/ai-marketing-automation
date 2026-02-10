@@ -4,6 +4,7 @@ import { getPromptByKey } from '@/lib/prompts';
 import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { populateVaultFields } from '@/lib/vault/fieldMapper';
+import { hashContent, fetchCurrentContent } from '@/lib/vault/contentHash';
 import { resolveDependencies, buildEnrichedData, buildCoreContext, formatContextForPrompt } from '@/lib/vault/dependencyResolver';
 import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
 import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
@@ -454,43 +455,66 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             }
         }
 
-        // Save to DB - archive old versions first
-        await supabaseAdmin
-            .from('vault_content')
-            .update({ is_current_version: false })
-            .eq('funnel_id', funnelId)
-            .eq('section_id', sectionId);
+        // SMART REGENERATION: Compare new content against existing before writing
+        const currentRow = await fetchCurrentContent(funnelId, sectionId);
+        const newHash = hashContent(parsed);
+        const oldHash = currentRow ? hashContent(currentRow.content) : null;
 
-        // Get current version to increment
-        const { data: currentVersionData } = await supabaseAdmin
-            .from('vault_content')
-            .select('version')
-            .eq('funnel_id', funnelId)
-            .eq('section_id', sectionId)
-            .order('version', { ascending: false })
-            .limit(1)
-            .single();
+        if (currentRow && newHash === oldHash) {
+            // IDENTICAL — skip DB write entirely, preserve approvals
+            logger.step(`save_db_${sectionId}`, 'skipped_identical', { version: currentRow.version });
+            console.log(`[GenerateStream] ⏭️ ${sectionId}: Content identical — skipping DB write`);
+            await sendEvent('section', { key, sectionId, name: displayName, success: true, unchanged: true });
+            return { key, success: true, unchanged: true };
+        }
 
-        const newVersion = (currentVersionData?.version || 0) + 1;
+        if (currentRow) {
+            // DIFFERENT — update current row in-place (no version sprawl)
+            const { error: updateError } = await supabaseAdmin
+                .from('vault_content')
+                .update({
+                    content: parsed,
+                    prompt_used: rawPrompt,
+                    status: 'generated',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', currentRow.id);
 
-        await supabaseAdmin.from('vault_content').insert({
-            funnel_id: funnelId,
-            user_id: userId,
-            section_id: sectionId,
-            section_title: displayName,
-            content: parsed,
-            prompt_used: rawPrompt,
-            phase: PHASE_1_KEYS.includes(key) || [4, 5, 17].includes(key) ? 1 : 2,
-            status: 'generated',
-            numeric_key: key,
-            is_current_version: true,
-            version: newVersion
-        });
+            if (updateError) {
+                console.error(`[GenerateStream] ✗ Update error for ${sectionId}:`, updateError);
+                throw new Error(`Failed to update ${sectionId}: ${updateError.message}`);
+            }
 
-        logger.step(`save_db_${sectionId}`, 'completed', { version: newVersion });
+            logger.step(`save_db_${sectionId}`, 'updated_in_place', { version: currentRow.version });
+            console.log(`[GenerateStream] ✏️ ${sectionId}: Content changed — updated in-place (v${currentRow.version})`);
+        } else {
+            // FIRST TIME — insert new row
+            const { error: insertError } = await supabaseAdmin.from('vault_content').insert({
+                funnel_id: funnelId,
+                user_id: userId,
+                section_id: sectionId,
+                section_title: displayName,
+                content: parsed,
+                prompt_used: rawPrompt,
+                phase: PHASE_1_KEYS.includes(key) || [4, 5, 17].includes(key) ? 1 : 2,
+                status: 'generated',
+                numeric_key: key,
+                is_current_version: true,
+                version: 1
+            });
+
+            if (insertError) {
+                console.error(`[GenerateStream] ✗ Insert error for ${sectionId}:`, insertError);
+                throw new Error(`Failed to insert ${sectionId}: ${insertError.message}`);
+            }
+
+            logger.step(`save_db_${sectionId}`, 'inserted_new', { version: 1 });
+            console.log(`[GenerateStream] ✨ ${sectionId}: First generation — inserted v1`);
+        }
 
         // Populate granular fields for UI editing
-        const fieldResult = await populateVaultFields(funnelId, sectionId, parsed, userId);
+        // forceOverwrite=true when updating existing content (regeneration with changes)
+        const fieldResult = await populateVaultFields(funnelId, sectionId, parsed, userId, { forceOverwrite: !!currentRow });
 
         if (!fieldResult.success) {
             logger.step(`populate_fields_${sectionId}`, 'failed', { error: fieldResult.error });
@@ -502,7 +526,7 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             });
         }
 
-        await sendEvent('section', { key, name: displayName, success: true });
+        await sendEvent('section', { key, sectionId, name: displayName, success: true });
         return { key, success: true };
 
     } catch (err) {
@@ -521,7 +545,7 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             is_current_version: true
         });
 
-        await sendEvent('section', { key, name: displayName, success: false, error: err.message });
+        await sendEvent('section', { key, sectionId, name: displayName, success: false, error: err.message });
         return { key, success: false, error: err.message };
     }
 }

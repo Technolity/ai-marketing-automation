@@ -1151,43 +1151,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
             console.log('[Generate] 📡 Starting SSE streaming for funnel:', funnelId);
 
-            // REGENERATION: Reset all section approvals before generating new content
-            // This ensures vault shows "unapproved" status and displays loading states properly
-            if (isRegenerationMode) {
-                console.log('[Generate] 🔄 Resetting all section approvals to unapproved state...');
-                try {
-                    const resetResponse = await fetch('/api/os/approvals', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            sessionId: funnelId,
-                            businessCoreApprovals: [],
-                            funnelAssetsApprovals: [],
-                            scriptsApprovals: [],
-                            funnelApproved: false
-                        })
-                    });
-
-                    if (resetResponse.ok) {
-                        console.log('[Generate] ✅ All section approvals reset - vault will show pending status');
-
-                        // Also clear localStorage cache for approvals to prevent stale UI
-                        if (session?.user?.id && funnelId) {
-                            const cacheKey = `vault_approvals_${session.user.id}_${funnelId}`;
-                            localStorage.removeItem(cacheKey);
-                            console.log('[Generate] 🗑️ Cleared approval cache from localStorage');
-                        }
-                    } else {
-                        console.warn('[Generate] ⚠️ Failed to reset approvals, but continuing with regeneration');
-                    }
-                } catch (resetError) {
-                    console.error('[Generate] ❌ Error resetting approvals:', resetError);
-                    // Don't fail the entire regeneration - just log and continue
-                }
-            }
+            // SMART REGENERATION: Track which sections actually changed during generation
+            // Approval resets are deferred until after stream completes
+            const changedSections = [];
 
             // IMPORTANT: Save questionnaire answers to database BEFORE generation
             // This ensures we have persistent data for regenerations and ColorsFields
@@ -1294,6 +1260,14 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                             ? [...prev.completedSections, parseInt(sectionKey)]
                                             : prev.completedSections
                                     }));
+
+                                    // SMART REGEN: Track sections that actually changed
+                                    if (!data.unchanged && data.sectionId) {
+                                        changedSections.push(data.sectionId);
+                                        console.log(`[Generate] 📝 Section ${data.name} (${data.sectionId}) changed — will reset approval`);
+                                    } else if (data.unchanged) {
+                                        console.log(`[Generate] ⏭️ Section ${data.name} unchanged — keeping approval`);
+                                    }
                                 }
                                 console.log(`[Generate] Section: ${data.name} - ${data.success ? '✓' : '✗'}`);
                             } else if (currentEvent === 'early_redirect') {
@@ -1317,8 +1291,39 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                 console.log('[Generate] ✅ All sections complete!', data);
                             } else if (currentEvent === 'complete') {
                                 console.log('[Generate] ✅ Generation complete!', data.metadata);
-                                if (isRegenerationMode) {
-                                    console.log('[Generate] 🔄 Regeneration completed - vault has been updated with new content');
+
+                                // SMART REGEN: Defer approval reset to here — only reset changed sections
+                                if (isRegenerationMode && changedSections.length > 0) {
+                                    console.log(`[Generate] 🔄 Resetting approvals for ${changedSections.length} changed sections:`, changedSections);
+                                    try {
+                                        const resetResponse = await fetch('/api/os/approvals', {
+                                            method: 'POST',
+                                            headers: {
+                                                'Authorization': `Bearer ${token}`,
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify({
+                                                sessionId: funnelId,
+                                                resetSections: changedSections
+                                            })
+                                        });
+
+                                        if (resetResponse.ok) {
+                                            console.log('[Generate] ✅ Approvals reset for changed sections only');
+                                            // Clear localStorage cache for approvals to prevent stale UI
+                                            if (session?.user?.id && funnelId) {
+                                                const cacheKey = `vault_approvals_${session.user.id}_${funnelId}`;
+                                                localStorage.removeItem(cacheKey);
+                                                console.log('[Generate] 🗑️ Cleared approval cache from localStorage');
+                                            }
+                                        } else {
+                                            console.warn('[Generate] ⚠️ Failed to reset approvals for changed sections');
+                                        }
+                                    } catch (resetError) {
+                                        console.error('[Generate] ❌ Error resetting approvals:', resetError);
+                                    }
+                                } else if (isRegenerationMode) {
+                                    console.log('[Generate] ⏭️ No sections changed — all approvals preserved!');
                                 }
 
                                 // Show success message
@@ -1327,7 +1332,9 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                     toast.warning(`${actionText} ${data.metadata.successful}/${data.metadata.total} sections`);
                                 } else {
                                     const successText = isRegenerationMode
-                                        ? "Vault regenerated successfully!"
+                                        ? changedSections.length > 0
+                                            ? `Regenerated ${changedSections.length} changed sections!`
+                                            : "Content unchanged — nothing to regenerate!"
                                         : "All content generated successfully!";
                                     toast.success(successText);
                                 }

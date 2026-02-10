@@ -170,10 +170,31 @@ export async function POST(req) {
         console.log(`[Approvals API] Saving approvals for target user ${targetUserId} (Auth: ${userId})`);
 
         const body = await req.json();
-        const { sessionId: funnelId, businessCoreApprovals, funnelAssetsApprovals, scriptsApprovals, funnelApproved } = body;
+        const { sessionId: funnelId, businessCoreApprovals, funnelAssetsApprovals, scriptsApprovals, funnelApproved, resetSections } = body;
 
         if (!funnelId) {
             return NextResponse.json({ error: 'Missing funnel ID' }, { status: 400 });
+        }
+
+        // SMART REGENERATION: If resetSections is provided, only reset those specific sections
+        // This preserves approvals for sections that didn't change during regeneration
+        if (resetSections && Array.isArray(resetSections) && resetSections.length > 0) {
+            console.log(`[Approvals API] Smart regen: Resetting ${resetSections.length} sections:`, resetSections);
+
+            const { error: resetError } = await supabaseAdmin
+                .from('vault_content')
+                .update({ status: 'generated' })
+                .eq('funnel_id', funnelId)
+                .eq('is_current_version', true)
+                .in('section_id', resetSections);
+
+            if (resetError) {
+                console.error('[Approvals API] Error resetting sections:', resetError);
+                return NextResponse.json({ error: 'Failed to reset sections' }, { status: 500 });
+            }
+
+            console.log('[Approvals API] ✅ Successfully reset approvals for changed sections only');
+            return NextResponse.json({ success: true, resetCount: resetSections.length });
         }
 
         console.log(`[Approvals API] Saving approvals for funnel ${funnelId}`);
