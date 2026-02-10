@@ -155,8 +155,8 @@ export default function Dashboard() {
 
             if (!res.ok) throw new Error('Delete failed');
 
-            setBusinesses(prev => prev.filter(b => b.id !== funnelId));
             toast.success("Marketing Engine deleted");
+            await loadUserData(); // Reload from server to sync counts
         } catch (error) {
             console.error('[Dashboard] Delete error:', error);
             toast.error("Failed to delete");

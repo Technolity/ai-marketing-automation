@@ -97,17 +97,25 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Business name is required' }, { status: 400 });
         }
 
-        // Check tier limits - user_profiles uses 'id' as the Clerk user ID
+        // Check tier limits - use live COUNT(*) instead of stale counter
         const { data: profile } = await supabaseAdmin
             .from('user_profiles')
-            .select('max_funnels, current_funnel_count')
+            .select('max_funnels')
             .eq('id', userId)
             .single();
 
         const maxFunnels = profile?.max_funnels || 1;
-        const currentCount = profile?.current_funnel_count || 0;
 
-        if (currentCount >= maxFunnels) {
+        // Count actual active funnels (source of truth — eliminates stale counter drift)
+        const { count: currentCount, error: countError } = await supabaseAdmin
+            .from('user_funnels')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('is_deleted', false);
+
+        if (countError) throw countError;
+
+        if ((currentCount || 0) >= maxFunnels) {
             return NextResponse.json({
                 error: 'Funnel limit reached',
                 message: `You can only create ${maxFunnels} business(es). Upgrade your plan for more.`
@@ -126,7 +134,7 @@ export async function POST(req) {
                 completed_steps: [],
                 vault_generated: false,
                 vault_generation_status: 'not_started',
-                is_active: currentCount === 0, // First funnel is active by default
+                is_active: (currentCount || 0) === 0, // First funnel is active by default
                 is_deleted: false
             })
             .select()
@@ -134,11 +142,10 @@ export async function POST(req) {
 
         if (error) throw error;
 
-        // Increment funnel count (if we have the helper function, it handles this via trigger)
-        // Otherwise, update manually
+        // Sync current_funnel_count to actual count after insert
         await supabaseAdmin
             .from('user_profiles')
-            .update({ current_funnel_count: currentCount + 1 })
+            .update({ current_funnel_count: (currentCount || 0) + 1 })
             .eq('id', userId);
 
         return NextResponse.json({
@@ -214,9 +221,10 @@ export async function PATCH(req) {
  * Hard delete a funnel (business) and all related data
  * Database has ON DELETE CASCADE, so all related data is automatically deleted:
  * - questionnaire_responses
- * - vault_content
- * - content_edit_history
+ * - vault_content / vault_content_fields
  * - generation_jobs
+ * - ghl_custom_value_mappings / ghl_push_operations / ghl_push_logs
+ * - generated_images / rag_data / feedback_logs / funnel_pages
  */
 export async function DELETE(req) {
     try {
@@ -253,8 +261,17 @@ export async function DELETE(req) {
 
         if (deleteError) throw deleteError;
 
-        // The database trigger (decrement_funnel_count_trigger) will automatically 
-        // decrement the user's current_funnel_count
+        // Sync current_funnel_count to actual count (no stale counters)
+        const { count: remainingCount } = await supabaseAdmin
+            .from('user_funnels')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .eq('is_deleted', false);
+
+        await supabaseAdmin
+            .from('user_profiles')
+            .update({ current_funnel_count: remainingCount || 0 })
+            .eq('id', userId);
 
         return NextResponse.json({
             success: true,
