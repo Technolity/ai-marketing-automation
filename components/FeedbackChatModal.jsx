@@ -626,7 +626,7 @@ Be as specific as possible - for example:
                     subSection: selectedSubSection || 'all',
                     messageLength: feedback.length,
                     totalMessagesInHistory: requestPayload.messageHistory.length,
-                    currentContentSize: JSON.stringify(currentContent).length,
+                    currentContentSize: (JSON.stringify(currentContent) || "").length,
                     inputPreview: feedback.substring(0, 100) + (feedback.length > 100 ? '...' : '')
                 });
 

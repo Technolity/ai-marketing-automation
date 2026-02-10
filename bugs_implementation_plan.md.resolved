@@ -1,0 +1,84 @@
+# Bug Fix Implementation Plan
+
+## Goal
+Fix critical bugs identified during the recent TedOS test run, specifically:
+1.  **Ideal Client Save Failure**: Content generated in "Refine with AI" is not persisting or not showing after save.
+2.  **Brand Colors Persistence**: UI does not update after saving new colors (requires refresh).
+3.  **Intake Parsing Error**: Last name being mistaken for City.
+4.  **UI State Issues**: "Build Your Funnel" button confusing state, Builder Preview issues.
+
+## Diagnosis & Investigation Plan
+
+### 1. Ideal Client Save Failure
+**Symptoms**: User approved "Update entire section" in AI Chat, clicked Save, returned to Vault, but content was unchanged.
+**Suspects**:
+*   [components/FeedbackChatModal.jsx](file:///c:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/FeedbackChatModal.jsx): Does `handleSave` correctly call the API? Does it update the parent state?
+*   `app/api/os/save-section/route.js`: Is the backend actually writing to `vault_content`?
+*   [app/vault/page.jsx](file:///c:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/vault/page.jsx): Is the Vault refetching data after the modal closes?
+
+### 2. Brand Colors Persistence
+**Symptoms**: "Save" works (persists on refresh) but UI doesn't update immediately.
+**Suspects**:
+*   [components/vault/ColorsFields.jsx](file:///c:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/vault/ColorsFields.jsx): The local React state likely isn't being updated with the new values after the `saveSection` API call succeeds. It probably relies on a prop update that isn't triggering.
+
+### 3. Intake Parsing Error (Last Name vs City)
+**Symptoms**: "Ryan Pryor" -> City extracted as "Pryor".
+**Suspects**:
+*   The prompt responsible for extracting/reasoning about user data.
+*   Likely in `lib/prompts` - check how `intake_data` is processed.
+
+### 4. AI Repetition (Appointment Booking Video)
+**Symptoms**: Output is gibberish/repeating words.
+**Suspects**:
+*   Low temperature combined with a repetitive prompt structure?
+*   Context window overflow leading to degradation?
+*   Check `lib/prompts` for this specific section.
+
+### 5. Large Section Refinement Timeout
+**Symptoms**: "Update Entire Section" spins indefinitely on large sections.
+**Suspects**:
+*   Vercel/Serverless timeout (usually 10s-60s). Large sections take longer to generate.
+*   Client-side timeout handling in `FeedbackChatModal`.
+
+### 6. Unexpected Locking (Edit Intake Persistence)
+**Symptoms**: Entering "Edit Intake" voids Phase 2 access.
+**Suspects**:
+*   Does the "Edit Intake" button reset `vault_generation_status`?
+*   Does `app/vault/page.jsx` derive "Locked" status from `saved_sessions` timestamp vs `vault_content` timestamp? (If intake is "newer" than vault, does it lock?)
+
+## Proposed Changes
+
+### Fix 1: Brand Colors Immediate Feedback
+#### [MODIFY] [components/vault/ColorsFields.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/vault/ColorsFields.jsx)
+*   Ensure that upon successful `saveSection` call, the local state (e.g., `setColors` or equivalent) is updated with the values sent to the server.
+*   OR ensure the `onSave` callback propagates the change up to `VaultSection` -> `page.jsx` to trigger a re-render.
+
+### Fix 2: Ideal Client Save Logic
+#### [MODIFY] [components/FeedbackChatModal.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/components/FeedbackChatModal.jsx)
+*   Review `handleSave` or `handleApply`.
+*   Ensure that when "Update Entire Section" is used, the payload sent to `api/os/save-section` is correct.
+*   Check if the `onSave` prop passed from `VaultSection` is correctly triggering a data refresh in `page.jsx`.
+
+### Fix 3: Intake Prompt Refinement
+#### [MODIFY] [lib/prompts/contextHelper.js](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/lib/prompts/contextHelper.js) (or relevant prompt file)
+*   Add explicit instructions to distinguishable User Name vs Location.
+*   "If the city is not explicitly stated, do not infer it from the name."
+
+### Fix 4: "Build Your Funnel" Button State
+#### [MODIFY] [app/vault/page.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/vault/page.jsx)
+*   Change the button text/state based on `deploymentStatus`.
+*   If `deploymentStatus === 'completed'`, show "Funnel Built" (Disabled) or "Go to Builder" (Secondary Logic).
+
+### Fix 5: Appointment Video Prompt & Timeouts
+#### [MODIFY] [lib/prompts/videoPrompts.js](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/lib/prompts/videoPrompts.js) (Hypothetical Path)
+*   Check for negative constraints that might cause looping.
+*   Consider chunking this section if it's too large for a single pass.
+
+### Fix 6: Protect Vault Status from Intake Audits
+#### [MODIFY] [app/vault/page.jsx](file:///C:/Users/LOG%20IN/Desktop/ai-marketing-automation/app/vault/page.jsx)
+*   Ensure that "Edit Intake" DOES NOT reset the generation status unless the user explicitly *saves* new answers.
+*   If the locking logic compares timestamps (`intake_updated_at` > `vault_generated_at`), ensure we only update `intake_updated_at` on actual SAVE, not just view.
+
+## Verification Plan
+1.  **Manual Code Review**: Verify state updates in React components.
+2.  **Simulation**: I cannot run the full AI flow, but I can verify the logic flow in the code.
