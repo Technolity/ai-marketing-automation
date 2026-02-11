@@ -71,24 +71,24 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { currentStep, completedSteps, answers, isComplete } = body;
+        const { funnel_id, currentStep, completedSteps, answers, isComplete } = body;
 
-        // Verify if user has an active funnel, if not create one?
-        // Usually funnel is created on startup or by this call. 
-        // Let's first try to find active funnel.
-        let { data: existingFunnel } = await supabaseAdmin
-            .from('user_funnels')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('is_active', true)
-            .eq('is_deleted', false)
-            .single();
-
-        let funnelId = existingFunnel?.id;
+        let funnelId = funnel_id;
         let error;
 
         if (funnelId) {
-            // Update existing funnel
+            const { data: funnel, error: funnelError } = await supabaseAdmin
+                .from('user_funnels')
+                .select('id')
+                .eq('id', funnelId)
+                .eq('user_id', userId)
+                .eq('is_deleted', false)
+                .single();
+
+            if (funnelError || !funnel) {
+                return NextResponse.json({ error: 'Funnel not found or unauthorized' }, { status: 404 });
+            }
+
             const { error: updateError } = await supabaseAdmin
                 .from('user_funnels')
                 .update({
@@ -102,26 +102,49 @@ export async function POST(req) {
                 .eq('id', funnelId);
             error = updateError;
         } else {
-            // Create new funnel if none exists
-            // This happens if user goes straight to wizard without creating one explicitly?
-            // Usually we want to ensure one exists.
-            const { data: newFunnel, error: insertError } = await supabaseAdmin
+            // Verify if user has an active funnel, if not create one
+            let { data: existingFunnel } = await supabaseAdmin
                 .from('user_funnels')
-                .insert({
-                    user_id: userId,
-                    funnel_name: answers.businessName || 'My Marketing Engine',
-                    current_step: currentStep,
-                    completed_steps: completedSteps,
-                    wizard_answers: answers,
-                    questionnaire_completed: isComplete,
-                    is_active: true,
-                    is_deleted: false
-                })
-                .select()
+                .select('id')
+                .eq('user_id', userId)
+                .eq('is_active', true)
+                .eq('is_deleted', false)
                 .single();
 
-            error = insertError;
-            funnelId = newFunnel?.id;
+            funnelId = existingFunnel?.id;
+
+            if (funnelId) {
+                const { error: updateError } = await supabaseAdmin
+                    .from('user_funnels')
+                    .update({
+                        current_step: currentStep,
+                        completed_steps: completedSteps,
+                        wizard_answers: answers,
+                        questionnaire_completed: isComplete,
+                        questionnaire_completed_at: isComplete ? new Date().toISOString() : null,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', funnelId);
+                error = updateError;
+            } else {
+                const { data: newFunnel, error: insertError } = await supabaseAdmin
+                    .from('user_funnels')
+                    .insert({
+                        user_id: userId,
+                        funnel_name: answers.businessName || 'My Marketing Engine',
+                        current_step: currentStep,
+                        completed_steps: completedSteps,
+                        wizard_answers: answers,
+                        questionnaire_completed: isComplete,
+                        is_active: true,
+                        is_deleted: false
+                    })
+                    .select()
+                    .single();
+
+                error = insertError;
+                funnelId = newFunnel?.id;
+            }
         }
 
         if (error) {

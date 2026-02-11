@@ -62,6 +62,11 @@ const SECTION_PROMPTS = {
     colors: { fn: (data) => `Generate brand colors for ${data.businessName}`, name: 'Brand Colors', key: 20 }
 };
 
+const SECTION_KEY_TO_ID = Object.entries(SECTION_PROMPTS).reduce((acc, [sectionId, config]) => {
+    acc[config.key] = sectionId;
+    return acc;
+}, {});
+
 /**
  * POST /api/os/regenerate
  * Regenerate a specific content section
@@ -74,26 +79,53 @@ export async function POST(req) {
         }
 
         const body = await req.json();
-        const { section, sessionId } = body; // section is the ID string (e.g., 'funnelCopy')
+        const {
+            section,
+            sectionId,
+            section_id,
+            section_key,
+            sectionKey,
+            numericKey,
+            sessionId,
+            session_id,
+            funnel_id,
+            funnelId,
+        } = body;
 
-        console.log(`[Regenerate] User: ${userId}, Section: ${section}, Session: ${sessionId || 'current'}`);
+        let resolvedSection = section || sectionId || section_id;
+        const rawKey = section_key ?? sectionKey ?? numericKey;
+        if (!resolvedSection && rawKey !== undefined && rawKey !== null) {
+            const parsedKey = parseInt(rawKey, 10);
+            if (!Number.isNaN(parsedKey)) {
+                resolvedSection = SECTION_KEY_TO_ID[parsedKey];
+            }
+        }
+        if (!resolvedSection && typeof rawKey === 'string' && SECTION_PROMPTS[rawKey]) {
+            resolvedSection = rawKey;
+        }
+
+        const resolvedSessionId = sessionId || session_id || funnel_id || funnelId;
+
+        console.log(`[Regenerate] User: ${userId}, Section: ${resolvedSection || 'undefined'}, Session: ${resolvedSessionId || 'current'}`);
 
         // Validate section
-        if (!section || !SECTION_PROMPTS[section]) {
+        if (!resolvedSection || !SECTION_PROMPTS[resolvedSection]) {
             return NextResponse.json({
                 error: 'Invalid section',
+                providedSection: section || sectionId || section_id || null,
+                providedSectionKey: rawKey ?? null,
                 availableSections: Object.keys(SECTION_PROMPTS)
             }, { status: 400 });
         }
 
-        const promptConfig = SECTION_PROMPTS[section];
+        const promptConfig = SECTION_PROMPTS[resolvedSection];
         const key = promptConfig.key;
 
         // Fetch dependencies using shared resolver (ensure consistent context)
         // Uses sessionId as funnelId for context resolution
         let enrichedData = {};
         try {
-            const checklistMap = await resolveDependencies(sessionId, key, {});
+            const checklistMap = await resolveDependencies(resolvedSessionId, key, {});
             // Fetch intake answers as base
             const { data: intakeAnswers } = await supabaseAdmin
                 .from('intake_answers')
@@ -286,7 +318,7 @@ export async function POST(req) {
 
             // Inject core context if needed (Key > 3)
             if (key > 3) {
-                const coreContext = await buildCoreContext(sessionId);
+                const coreContext = await buildCoreContext(resolvedSessionId);
                 const formattedContext = formatContextForPrompt(coreContext);
                 prompt = formattedContext + '\n\n' + prompt;
             }
@@ -311,21 +343,21 @@ export async function POST(req) {
         }
 
         // Save to database
-        const funnelId = sessionId;
-        if (funnelId) {
+        const resolvedFunnelId = resolvedSessionId;
+        if (resolvedFunnelId) {
             // Archive old version
             await supabaseAdmin
                 .from('vault_content')
                 .update({ is_current_version: false })
-                .eq('funnel_id', funnelId)
-                .eq('section_id', section);
+                .eq('funnel_id', resolvedFunnelId)
+                .eq('section_id', resolvedSection);
 
             // Get version
             const { data: currentVersionData } = await supabaseAdmin
                 .from('vault_content')
                 .select('version')
-                .eq('funnel_id', funnelId)
-                .eq('section_id', section)
+                .eq('funnel_id', resolvedFunnelId)
+                .eq('section_id', resolvedSection)
                 .order('version', { ascending: false })
                 .limit(1)
                 .single();
@@ -333,9 +365,9 @@ export async function POST(req) {
 
             // Insert new version
             const { error: insertError } = await supabaseAdmin.from('vault_content').insert({
-                funnel_id: funnelId,
+                funnel_id: resolvedFunnelId,
                 user_id: userId,
-                section_id: section,
+                section_id: resolvedSection,
                 section_title: promptConfig.name,
                 content: parsedContent,
                 prompt_used: promptUsed,
@@ -352,7 +384,7 @@ export async function POST(req) {
 
         return NextResponse.json({
             success: true,
-            section: section,
+            section: resolvedSection,
             sectionName: promptConfig.name,
             content: parsedContent
         });

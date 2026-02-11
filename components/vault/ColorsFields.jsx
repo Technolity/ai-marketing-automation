@@ -84,6 +84,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
     const [loading, setLoading] = useState(true);
     const [rawAnswer, setRawAnswer] = useState('');
     const [debugInfo, setDebugInfo] = useState(null); // For debugging invalid data
+    const [needsWizardAnswersSync, setNeedsWizardAnswersSync] = useState(false);
 
     // Feedback modal state
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
@@ -132,6 +133,14 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
             console.log('[ColorsFields] Saving structured color palette:', colorPaletteObject);
 
+            const buildBrandColorsSummary = (palette) => {
+                const parts = [];
+                if (palette?.primary?.hex) parts.push(`Primary: ${palette.primary.hex}`);
+                if (palette?.secondary?.hex) parts.push(`Secondary: ${palette.secondary.hex}`);
+                if (palette?.tertiary?.hex) parts.push(`Tertiary: ${palette.tertiary.hex}`);
+                return parts.length > 0 ? parts.join(', ') : 'Brand colors updated';
+            };
+
             // Save to vault_content table via vault-section API (NOT vault-field)
             // This is what deploy-workflow reads from
             const response = await fetch('/api/os/vault-section', {
@@ -161,12 +170,11 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        sectionId: 'colors',
-                        funnelId: funnelId,
-                        fields: [{
-                            field_id: 'colorPalette',
-                            field_value: colorPaletteObject
-                        }]
+                        funnel_id: funnelId,
+                        section_id: 'colors',
+                        fields: {
+                            colorPalette: colorPaletteObject
+                        }
                     })
                 });
                 if (fieldsResponse.ok) {
@@ -175,6 +183,25 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
             } catch (fieldError) {
                 console.warn('[ColorsFields] Could not save to vault_content_fields:', fieldError);
                 // Non-fatal - deploy will still work from vault_content
+            }
+
+            // Save to wizard_answers when intake data is missing or invalid
+            if (needsWizardAnswersSync && funnelId) {
+                try {
+                    const summary = buildBrandColorsSummary(colorPaletteObject);
+                    await fetch('/api/intake-form/answers', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            funnel_id: funnelId,
+                            answersPatch: { brandColors: summary }
+                        })
+                    });
+                    setNeedsWizardAnswersSync(false);
+                    console.log('[ColorsFields] Synced brand colors to wizard_answers');
+                } catch (answersError) {
+                    console.warn('[ColorsFields] Failed to sync wizard_answers:', answersError);
+                }
             }
 
             // Update local state with parsed colors
@@ -207,9 +234,9 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
         const fetchColors = async () => {
             try {
                 // PRIORITY 1: passed content prop (real-time updates from parent)
-                if (content && (content.colorPalette || content.primary || content.primaryColor)) {
-                    console.log('[ColorsFields] Using passed content prop:', content);
-                    let generatedColors = content.colorPalette || content;
+            if (content && (content.colorPalette || content.primary || content.primaryColor)) {
+                console.log('[ColorsFields] Using passed content prop:', content);
+                let generatedColors = content.colorPalette || content;
 
                     // Handle stringified JSON
                     if (typeof generatedColors === 'string') {
@@ -237,6 +264,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                         if (displayColors.length > 0) {
                             setParsedColors(displayColors);
                             setRawAnswer(generatedColors.reasoning || JSON.stringify(generatedColors.reasoning) || 'AI-generated professional color palette');
+                            setNeedsWizardAnswersSync(true);
                             setLoading(false);
                             return;
                         }
@@ -284,6 +312,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
                                         setParsedColors(displayColors);
                                         setRawAnswer(generatedColors.reasoning || 'AI-generated professional color palette');
+                                        setNeedsWizardAnswersSync(true);
                                         setLoading(false);
                                         return; // STOP HERE if we found valid AI content
                                     }
@@ -317,6 +346,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
                             const colors = parseColorsFromText(colorAnswer);
                             setParsedColors(colors);
+                            setNeedsWizardAnswersSync(colors.length === 0);
                             setLoading(false);
                             return;
                         }
@@ -349,10 +379,13 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                         const colors = parseColorsFromText(colorAnswer);
                         console.log('[ColorsFields] Parsed colors from text:', colors);
                         setParsedColors(colors);
+                        setNeedsWizardAnswersSync(true);
                     }
                 } else {
                     console.error('[ColorsFields] Profile fetch failed:', response.status);
                 }
+
+                setNeedsWizardAnswersSync(true);
             } catch (error) {
                 console.error('[ColorsFields] Error fetching colors:', error);
             } finally {

@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { validateVaultContent, stripExtraFields } from '@/lib/schemas/vaultSchemas';
 import { performAtomicUpdate } from '@/lib/vault/atomicUpdater';
+import { reconcileFromSection } from '@/lib/vault/reconcileVault';
 
 
 export const dynamic = 'force-dynamic';
@@ -132,51 +133,9 @@ export async function PATCH(req) {
             }
         }
 
-        // If still no funnel, try to update saved_sessions instead
         if (!targetFunnelId) {
-            console.log(`[VaultSection] No funnel found, trying saved_sessions`);
-
-            // Try to find saved session
-            const { data: session } = await supabaseAdmin
-                .from('saved_sessions')
-                .select('id, results_data')
-                .eq('user_id', userId)
-                .order('updated_at', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (session) {
-                // Update the results_data in saved_sessions
-                const existingData = session.results_data || {};
-                const updatedData = {
-                    ...existingData,
-                    [sectionId]: { data: validatedContent }
-                };
-
-                const { error: updateError } = await supabaseAdmin
-                    .from('saved_sessions')
-                    .update({
-                        results_data: updatedData,
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', session.id);
-
-                if (updateError) {
-                    console.error('[VaultSection] Session update error:', updateError);
-                    return NextResponse.json({ error: 'Failed to update session' }, { status: 500 });
-                }
-
-                console.log(`[VaultSection] Updated section ${sectionId} in session ${session.id}`);
-                return NextResponse.json({
-                    success: true,
-                    sectionId,
-                    sessionId: session.id,
-                    source: 'saved_sessions'
-                });
-            }
-
             return NextResponse.json({
-                error: 'No funnel or session found for user'
+                error: 'No funnel found for user'
             }, { status: 404 });
         }
 
@@ -252,6 +211,16 @@ export async function PATCH(req) {
             }
 
             console.log(`[VaultSection] Created section ${sectionId} in funnel ${targetFunnelId}`);
+        }
+
+        // Reconcile granular fields from updated JSONB
+        try {
+            const reconcileResult = await reconcileFromSection(targetFunnelId, sectionId, validatedContent, userId);
+            if (!reconcileResult?.success) {
+                console.warn('[VaultSection] Reconcile failed:', reconcileResult?.error);
+            }
+        } catch (reconcileError) {
+            console.warn('[VaultSection] Reconcile error:', reconcileError.message);
         }
 
         return NextResponse.json({

@@ -138,7 +138,10 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
             const response = await fetch('/api/os/regenerate-section', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_key: 6 })
+                body: JSON.stringify({
+                    section: sectionId,
+                    sessionId: funnelId
+                })
             });
             if (!response.ok) throw new Error('Failed to regenerate');
             await fetchFields();

@@ -26,17 +26,17 @@ export default function GHLAuthorize() {
 
                     {/* Title */}
                     <h1 className="text-2xl font-bold text-white text-center mb-2">
-                        Authorize GHL Access
+                        Authorize Builder Access
                     </h1>
                     <p className="text-gray-400 text-center mb-8">
-                        Grant TedOS permission to create and manage GHL user accounts with the latest scopes.
+                        Grant TedOS permission to create and manage Builder user accounts with the latest scopes.
                     </p>
 
                     {/* Info */}
                     <div className="bg-[#0f0f10] border border-[#2a2a2d] rounded-lg p-4 mb-6 space-y-2">
                         <div className="flex items-center gap-2 text-sm text-gray-300">
                             <div className="w-1.5 h-1.5 rounded-full bg-cyan"></div>
-                            <span>Create GHL User accounts</span>
+                            <span>Create Builder User accounts</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-gray-300">
                             <div className="w-1.5 h-1.5 rounded-full bg-cyan"></div>
@@ -69,7 +69,7 @@ export default function GHLAuthorize() {
 
                     {/* Note */}
                     <p className="text-xs text-gray-500 text-center mt-6">
-                        You'll be redirected to GHL to grant permissions. This will update your OAuth token with the required scopes.
+                        You'll be redirected to Builder to grant permissions. This will update your OAuth token with the required scopes.
                     </p>
                 </div>
             </div>

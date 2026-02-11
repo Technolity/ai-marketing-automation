@@ -1,6 +1,6 @@
 # 🧠 TedOS / AI Marketing Automation - Full Project Context
 
-> **Last Updated**: 2026-02-02
+> **Last Updated**: 2026-02-11
 > **Purpose**: Definitive technical guide for developers. Covers architecture, data flow, API inventory, and integration logic.
 
 ---
@@ -43,6 +43,13 @@
 | `components/vault/ColorsFields.jsx` | Modified `onSave` callback to pass updated `colorPalette` object back to parent for vaultData update |
 | `app/vault/page.jsx` | **CRITICAL FIX**: Added `content`, `sectionId`, and `onSave` props to GranularComponent render. The `onSave` callback now updates `vaultData` and triggers `refreshTriggers` when field components save data. |
 | `app/vault/page.jsx` | **CRITICAL FIX**: Added `flattenAIResponseToFields` call in `handleFeedbackSave` for full section updates. AI response wrappers like `idealClientSnapshot` are now properly extracted to individual fields before saving. |
+
+### Recent Modifications (2026-02-11)
+| File | Change |
+| :--- | :--- |
+| `app/api/os/regenerate-section/route.js` | Accepts section ID or numeric keys and funnel/session IDs; improved validation and logging for regeneration requests |
+| `app/vault/page.jsx` | Regenerate retry now posts correct payload, updates vault data from response, and refreshes granular section triggers |
+| `components/vault/*Fields.jsx` | Regenerate requests now send `section` + `sessionId` to fix "Invalid section" retry errors |
 
 ### Recent Modifications (2026-02-05)
 | File | Change |

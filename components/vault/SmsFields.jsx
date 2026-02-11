@@ -187,7 +187,10 @@ export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, 
             const response = await fetch('/api/os/regenerate-section', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_key: 19 })
+                body: JSON.stringify({
+                    section: sectionId,
+                    sessionId: funnelId
+                })
             });
             if (!response.ok) throw new Error('Failed to regenerate');
             await fetchFields();

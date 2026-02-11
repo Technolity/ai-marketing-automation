@@ -69,3 +69,84 @@ export async function GET(req) {
         });
     }
 }
+
+/**
+ * PATCH /api/intake-form/answers
+ * Merge partial answers into user_funnels.wizard_answers
+ * Body: { funnel_id: string, answersPatch: object }
+ */
+export async function PATCH(req) {
+    const { userId } = auth();
+    if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    let body;
+    try {
+        body = await req.json();
+    } catch (e) {
+        return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    const { funnel_id, answersPatch } = body;
+
+    if (!funnel_id || !answersPatch || typeof answersPatch !== 'object') {
+        return new Response(JSON.stringify({ error: 'Missing funnel_id or answersPatch' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    try {
+        const { data: funnel, error: fetchError } = await supabaseAdmin
+            .from('user_funnels')
+            .select('wizard_answers')
+            .eq('id', funnel_id)
+            .eq('user_id', userId)
+            .single();
+
+        if (fetchError || !funnel) {
+            return new Response(JSON.stringify({ error: 'Funnel not found' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const mergedAnswers = {
+            ...(funnel.wizard_answers || {}),
+            ...answersPatch
+        };
+
+        const { error: updateError } = await supabaseAdmin
+            .from('user_funnels')
+            .update({
+                wizard_answers: mergedAnswers,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', funnel_id)
+            .eq('user_id', userId);
+
+        if (updateError) {
+            return new Response(JSON.stringify({ error: updateError.message }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        return new Response(JSON.stringify({ success: true, answers: mergedAnswers }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}

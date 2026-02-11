@@ -50,6 +50,7 @@ export async function POST(req) {
             // Check if GHL user account has been created
             let userCreated = existingSubaccount.ghl_user_created || false;
             let ghlUserId = existingSubaccount.ghl_user_id;
+            let emailSent = false;
 
             // IMPORTANT: Only create GHL user for the owner, not for team members
             if (!userCreated && !isTeamMember) {
@@ -82,7 +83,8 @@ export async function POST(req) {
 
                             // Send welcome email ONLY for newly created users
                             console.log('[Ensure SubAccount Phase: Email] Sending welcome email...');
-                            await sendGHLWelcomeEmail(profile.email, profile.first_name);
+                            const emailResult = await sendGHLWelcomeEmail(profile.email, profile.first_name);
+                            emailSent = !!emailResult;
                             console.log('[Ensure SubAccount Phase: Email] Welcome email sent!');
 
                             // Update database
@@ -113,7 +115,8 @@ export async function POST(req) {
                 snapshotImported: existingSubaccount.snapshot_imported,
                 userCreated: userCreated,
                 ghlUserId: ghlUserId,
-                isTeamMember: isTeamMember
+                isTeamMember: isTeamMember,
+                emailSent: emailSent
             });
         }
 
@@ -252,7 +255,8 @@ export async function POST(req) {
             locationName: ghlResult.locationName,
             snapshotImported: snapshotImported,
             userCreated: userCreated,
-            ghlUserId: ghlUserId
+            ghlUserId: ghlUserId,
+            emailSent: emailSent || false
         });
 
     } catch (error) {

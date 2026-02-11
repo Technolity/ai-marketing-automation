@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getFieldDefinition, validateFieldValue } from '@/lib/vault/fieldStructures';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { reconcileFromFields } from '@/lib/vault/reconcileVault';
 
 export const dynamic = 'force-dynamic';
 
@@ -234,6 +235,16 @@ export async function POST(req) {
             errors: errors.length,
             savedFields: savedFields.map(f => f.field_id)
         });
+
+        // Reconcile JSONB content with latest field edits
+        try {
+            const reconcileResult = await reconcileFromFields(funnel_id, section_id, targetUserId);
+            if (!reconcileResult?.success) {
+                console.warn('[VaultSectionSave] Reconcile failed:', reconcileResult?.error);
+            }
+        } catch (reconcileError) {
+            console.warn('[VaultSectionSave] Reconcile error:', reconcileError.message);
+        }
 
         return new Response(JSON.stringify({
             success: true,

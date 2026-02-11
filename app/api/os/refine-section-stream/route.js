@@ -423,15 +423,15 @@ export async function POST(req) {
             // Fetch intake data for context
             let intakeData = {};
             if (sessionId) {
-                const { data: sessionData } = await supabaseAdmin
-                    .from('saved_sessions')
-                    .select('answers, intake_data')
+                const { data: funnelData } = await supabaseAdmin
+                    .from('user_funnels')
+                    .select('wizard_answers')
                     .eq('id', sessionId)
                     .eq('user_id', userId)
                     .single();
 
-                if (sessionData) {
-                    intakeData = sessionData.intake_data || sessionData.answers || {};
+                if (funnelData?.wizard_answers) {
+                    intakeData = funnelData.wizard_answers;
                 }
             }
 
@@ -443,7 +443,7 @@ export async function POST(req) {
                     .select('field_value')
                     .eq('funnel_id', sessionId)
                     .eq('section_id', 'leadMagnet')
-                    .eq('field_key', 'mainTitle')
+                    .eq('field_id', 'mainTitle')
                     .single();
 
                 if (mainTitleField?.field_value) {
