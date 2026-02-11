@@ -365,42 +365,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 }
 
 
-                // Try to fetch saved sessions from database
-                try {
-                    console.log('[OSWizard] Fetching saved sessions from database...');
-                    const sessionsRes = await fetchWithAuth("/api/os/sessions");
-
-                    if (!mounted) return;
-
-                    if (sessionsRes.ok) {
-                        const sessionsData = await sessionsRes.json();
-                        console.log('[OSWizard] Database sessions:', sessionsData.sessions?.length || 0);
-
-                        if (sessionsData.sessions && sessionsData.sessions.length > 0) {
-                            setSavedSessions(sessionsData.sessions);
-                            console.log('[OSWizard] Set saved sessions list');
-
-                            // Auto-load the most recent session ONLY if no localStorage data
-                            const hasLocalData = localStorage.getItem(getStorageKey('wizard_progress'));
-                            if (!hasLocalData) {
-                                console.log('[OSWizard] No local data, auto-loading most recent session');
-                                const mostRecent = sessionsData.sessions[0];
-                                setCompletedSteps(mostRecent.completed_steps || []);
-                                setStepData(mostRecent.answers || {});
-                                setSavedContent(mostRecent.generated_content || {});
-                                setGeneratedContent(mostRecent.generated_content || {});
-                                setIsWizardComplete(mostRecent.is_complete || (mostRecent.completed_steps?.length >= 20));
-                                setIsSessionSaved(true);
-
-                                toast.success(`Loaded your session: ${mostRecent.session_name}`);
-                            } else {
-                                console.log('[OSWizard] Local data exists, not auto-loading session');
-                            }
-                        }
-                    }
-                } catch (sessionsError) {
-                    console.error('[OSWizard] Could not fetch saved sessions:', sessionsError);
-                }
+                // Saved sessions are disabled for now (do not call /api/os/sessions)
+                setSavedSessions([]);
 
                 if (!mounted) return;
 
@@ -528,6 +494,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 generatedContent: newContent,
                 isComplete: newCompletedSteps.length >= 20,
                 updatedAt: new Date().toISOString(),
+                funnel_id: funnelId || undefined,
                 ...overrides
             };
 
@@ -647,181 +614,37 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         setEditingStep(null);
     };
 
+    const notifySessionsUnavailable = () => {
+        toast.error('Saved sessions are temporarily unavailable in Builder.');
+    };
+
     // Fetch saved sessions
     const fetchSavedSessions = async () => {
         setLoadingSessions(true);
-        try {
-            if (!session) return;
-
-            const res = await fetchWithAuth("/api/os/sessions");
-            const data = await res.json();
-            setSavedSessions(data.sessions || []);
-        } catch (error) {
-            console.error('Fetch sessions error:', error);
-            toast.error("Failed to load saved sessions");
-        } finally {
-            setLoadingSessions(false);
-        }
+        notifySessionsUnavailable();
+        setSavedSessions([]);
+        setLoadingSessions(false);
     };
 
     // Save current session
     const handleSaveSession = async () => {
-        if (!sessionName.trim()) {
-            toast.error("Please enter a session name");
-            return;
-        }
-
-        setIsSavingSession(true);
-        try {
-            if (!session) return;
-
-            const res = await fetchWithAuth("/api/os/sessions", {
-                method: "POST",
-                body: JSON.stringify({
-                    sessionName,
-                    currentStep,
-                    completedSteps,
-                    answers: stepData,
-                    generatedContent: generatedContent || savedContent, // Use full generated content if available
-                    isComplete: completedSteps.length >= 20 && isWizardComplete
-                })
-            });
-
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-
-            toast.success("Session saved successfully!");
-            setShowSaveModal(false);
-            setSessionName("");
-            setIsSessionSaved(true); // Mark as saved - no more warnings
-            setHasUnsavedProgress(false);
-            fetchSavedSessions(); // Refresh list
-        } catch (error) {
-            console.error('Save session error:', error);
-            toast.error("Failed to save session");
-        } finally {
-            setIsSavingSession(false);
-        }
+        notifySessionsUnavailable();
     };
 
     // Quick save progress (auto-named) - for in-progress saves
     const handleQuickSave = async () => {
-        if (!session) return;
-
-        setIsSavingSession(true);
-        try {
-            // Generate auto name with timestamp
-            const autoName = `Progress - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
-
-            const res = await fetchWithAuth("/api/os/sessions", {
-                method: "POST",
-                body: JSON.stringify({
-                    sessionName: autoName,
-                    currentStep,
-                    completedSteps,
-                    answers: { ...stepData, ...currentInput }, // Include current input
-                    generatedContent: generatedContent || savedContent,
-                    isComplete: false // Mid-progress save
-                })
-            });
-
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-
-            toast.success("Progress saved!");
-            setIsSessionSaved(true);
-            setHasUnsavedProgress(false);
-            fetchSavedSessions();
-        } catch (error) {
-            console.error('Quick save error:', error);
-            toast.error("Failed to save progress");
-        } finally {
-            setIsSavingSession(false);
-        }
+        notifySessionsUnavailable();
     };
 
     // Load a saved session
     const handleLoadSession = async (sessionData) => {
-        try {
-            // Update state
-            setCompletedSteps(sessionData.completed_steps || []);
-            setStepData(sessionData.answers || {});
-            setSavedContent(sessionData.generated_content || {});
-            setGeneratedContent(sessionData.generated_content || {});
-            setCurrentStep(null); // Go to dashboard
-            setViewMode('dashboard');
-
-            // Set wizard complete status based on session
-            setIsWizardComplete(sessionData.is_complete || (sessionData.completed_steps?.length >= 20));
-
-            // Save to local storage and sync with main progress
-            await saveProgressToStorage(
-                sessionData.completed_steps || [],
-                sessionData.answers || {},
-                sessionData.generated_content || {},
-                {
-                    currentStep: sessionData.current_step || 1,
-                    isComplete: sessionData.is_complete || (sessionData.completed_steps?.length >= 20)
-                }
-            );
-
-            // Set session source for Results page
-            localStorage.setItem('ted_has_active_session', 'true');
-            localStorage.setItem('ted_results_source', JSON.stringify({
-                type: 'loaded',
-                name: sessionData.session_name,
-                id: sessionData.id
-            }));
-
-            toast.success(`Loaded session: ${sessionData.session_name}`);
-            setShowSavedSessions(false);
-        } catch (error) {
-            console.error('Load session error:', error);
-            toast.error("Failed to load session");
-        }
+        notifySessionsUnavailable();
     };
 
 
     // Delete a saved session (soft delete - data kept for admin)
     const handleDeleteSession = async (sessionId) => {
-        console.log('Delete clicked for session:', sessionId);
-
-        if (!confirm("⚠️ This will delete the whole data of this session for you.\n\nThis action cannot be undone. Are you sure you want to continue?")) {
-            console.log('Delete cancelled by user');
-            return;
-        }
-
-        try {
-            if (!session) {
-                console.error('No auth session found');
-                toast.error('Please log in again');
-                return;
-            }
-
-            console.log('Sending delete request for session:', sessionId);
-
-            const res = await fetchWithAuth(`/api/os/sessions?id=${sessionId}`, {
-                method: "DELETE"
-            });
-
-            const data = await res.json();
-            console.log('Delete response:', data);
-
-            if (data.error) throw new Error(data.error);
-
-            toast.success("Session deleted successfully");
-            fetchSavedSessions(); // Refresh list
-
-            // Clear current state if deleted session was loaded
-            setCompletedSteps([]);
-            setStepData({});
-            setSavedContent({});
-            setCurrentInput({});
-
-        } catch (error) {
-            console.error('Delete session error:', error);
-            toast.error(`Failed to delete session: ${error.message}`);
-        }
+        notifySessionsUnavailable();
     };
 
 
@@ -1629,12 +1452,11 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                sectionId: sectionId,
-                                funnelId: funnelId,
-                                fields: [{
-                                    field_id: 'colorPalette', // Standard key for colors
-                                    field_value: data.result.content
-                                }]
+                                section_id: sectionId,
+                                funnel_id: funnelId,
+                                fields: {
+                                    colorPalette: data.result.content
+                                }
                             })
                         });
 
@@ -1711,35 +1533,6 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 { currentStep: 20, isComplete: false } // Change isComplete to false
             );
 
-            // ✅ AUTO-CREATE SAVED SESSION
-            // This ensures regeneration and future edits can find a session to save to
-            console.log('[OSWizard] Auto-creating saved session...');
-            try {
-                const sessionRes = await fetchWithAuth("/api/os/sessions", {
-                    method: "POST",
-                    body: JSON.stringify({
-                        sessionName: `Auto-saved - ${new Date().toLocaleDateString()}`,
-                        currentStep: 20,
-                        completedSteps: completedSteps,
-                        answers: stepData,
-                        generatedContent: {}, // Don't pass generatedContent here to avoid auto-approval
-                        isComplete: false // Mark session as NOT complete yet
-                    }),
-                });
-
-                const sessionData = await sessionRes.json();
-                if (sessionData.success && sessionData.session) {
-                    // Store session ID in localStorage for future reference
-                    localStorage.setItem('ted_current_session_id', sessionData.session.id);
-                    console.log('[OSWizard] Auto-created session:', sessionData.session.id);
-                } else {
-                    console.warn('[OSWizard] Failed to auto-create session:', sessionData);
-                }
-            } catch (sessionError) {
-                console.error('[OSWizard] Session auto-create error:', sessionError);
-                // Don't block the user flow if session creation fails
-            }
-
             // Ensure the active session flag is set for results page
             localStorage.setItem('ted_has_active_session', 'true');
             localStorage.setItem('ted_results_source', JSON.stringify({
@@ -1785,8 +1578,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
     // Mission Control View
     if (viewMode === 'dashboard') {
-        // User is first-time if they have no completed steps AND no saved sessions
-        const isFirstTimeUser = completedSteps.length === 0 && savedSessions.length === 0;
+        // User is first-time if they have no completed steps
+        const isFirstTimeUser = completedSteps.length === 0;
 
 
         return (

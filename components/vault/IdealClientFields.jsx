@@ -261,8 +261,8 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    funnel_id: funnelId,
-                    section_key: 1 // idealClient is key 1
+                    section: sectionId,
+                    sessionId: funnelId
                 })
             });
 

@@ -5,6 +5,7 @@ import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { performFieldAtomicUpdate } from '@/lib/vault/atomicUpdater';
 import { isAtomicField } from '@/lib/vault/dependencyGraph';
+import { reconcileFromFields } from '@/lib/vault/reconcileVault';
 
 
 export const dynamic = 'force-dynamic';
@@ -484,6 +485,16 @@ export async function PATCH(req) {
                         console.error('[VaultField PATCH] Atomic update failed:', err);
                     });
             }
+        }
+
+        // Reconcile JSONB content with latest field edits
+        try {
+            const reconcileResult = await reconcileFromFields(funnel_id, section_id, userId);
+            if (!reconcileResult?.success) {
+                console.warn('[VaultField PATCH] Reconcile failed:', reconcileResult?.error);
+            }
+        } catch (reconcileError) {
+            console.warn('[VaultField PATCH] Reconcile error:', reconcileError.message);
         }
 
         return new Response(JSON.stringify({

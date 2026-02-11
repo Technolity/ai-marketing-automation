@@ -602,6 +602,7 @@ export default function VaultPage() {
     // UX Enhancement States
     const [showPhase2Instructions, setShowPhase2Instructions] = useState(false);
     const [deploymentStep, setDeploymentStep] = useState(0); // 0 = not started, 1-3 = in progress
+    const [emailSentOnDeploy, setEmailSentOnDeploy] = useState(false);
 
     // Ref to track completed job IDs we've already processed (prevents duplicate refreshes)
     const previouslyCompletedJobsRef = useRef(new Set());
@@ -1172,11 +1173,7 @@ export default function VaultPage() {
             await saveApprovals(approvedPhase1, newApprovals, approvedPhase3);
 
             if (newApprovals.length >= PHASE_2_SECTIONS.length) {
-                toast.success("🎉 Phase 2 Complete! Proceeding to Sales Scripts...");
-                // Smart Redirect: Auto-switch to Phase 3 after a brief delay
-                setTimeout(() => {
-                    setActiveTab('scripts');
-                }, 1500);
+                toast.success("🎉 Phase 2 Complete! Deploy your funnel or continue to Phase 3.");
             } else {
                 toast.success("Section approved!");
             }
@@ -1271,7 +1268,8 @@ export default function VaultPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    funnel_id: funnelId,
+                    section: sectionId,
+                    sessionId: funnelId,
                     section_key: numericKey,
                     feedback: feedback // Pass feedback if present
                 })
@@ -1279,11 +1277,11 @@ export default function VaultPage() {
 
             const result = await res.json();
 
-            if (result.success && result.section) {
+            if (result.success && result.content) {
                 // Update vault data with new content
                 setVaultData(prev => ({
                     ...prev,
-                    [sectionId]: result.section.content
+                    [sectionId]: result.content
                 }));
                 // Reset granular field components for this section to force re-render/update
                 // Or simply the data update should trigger it if they use props correctly.
@@ -1291,13 +1289,16 @@ export default function VaultPage() {
                 setSectionStatuses(prev => ({ ...prev, [sectionId]: 'generated' }));
 
                 // Trigger granular field components to refetch
-                setRefreshTrigger(prev => prev + 1);
+                setRefreshTriggers(prev => ({
+                    ...prev,
+                    [sectionId]: Date.now()
+                }));
 
                 // Reset approval status since content has changed
                 setApprovedPhase1(prev => prev.filter(id => id !== sectionId));
                 setApprovedPhase2(prev => prev.filter(id => id !== sectionId));
 
-                toast.success(`${result.section.name} regenerated successfully!`);
+                toast.success(`${result.sectionName || sectionId} regenerated successfully!`);
             } else {
                 setSectionStatuses(prev => ({ ...prev, [sectionId]: 'failed' }));
                 toast.error(result.error || 'Regeneration failed');
@@ -1457,13 +1458,18 @@ export default function VaultPage() {
                 return;
             }
 
-            // Log account status for debugging
             console.log('[Vault] ✅ Account setup complete:', {
                 locationId: accountResult.locationId,
                 snapshotImported: accountResult.snapshotImported,
                 userCreated: accountResult.userCreated,
-                wasExisting: accountResult.exists
+                wasExisting: accountResult.exists,
+                emailSent: accountResult.emailSent
             });
+
+            // Track if welcome email was sent (for success modal)
+            if (accountResult.emailSent) {
+                setEmailSentOnDeploy(true);
+            }
 
             // ===== PHASE 2: Deploy Assets (Custom Values) =====
             setDeploymentStep(2); // Step 2: Deploying Assets
@@ -1489,8 +1495,10 @@ export default function VaultPage() {
                 console.log('[Vault] ✅ Deployment complete! Values updated:', result.summary?.updated);
                 await new Promise(resolve => setTimeout(resolve, 500));
                 setDeploymentComplete(true);
-                setShowDeployModal(true); // Show success modal
-                toast.success('Pushed your Funnel Content Successfully');
+                setGhlConnected(true); // Mark as deployed — unlocks Phase 3
+                setDataSource(prev => prev ? { ...prev, deployed_at: new Date().toISOString() } : prev); // Persist deployed state in memory so button stays greyed out after modal closes
+                setShowDeployModal(true); // Show success modal with dual actions
+                toast.success('Funnel deployed successfully!');
             } else {
                 console.error('[Vault] Deployment error:', result);
                 toast.error(result.error || 'Failed to deploy assets');
@@ -2614,18 +2622,18 @@ export default function VaultPage() {
                         <div className="flex gap-4 justify-center">
                             <button
                                 onClick={() => {
-                                    if (dataSource?.deployed_at) {
+                                    if (deploymentComplete || dataSource?.deployed_at) {
                                         console.log('[Vault] Funnel already deployed, showing info');
                                         toast.info('Your funnel is already deployed! Use "Push to Builder" buttons to update individual sections.');
                                     } else {
-                                        console.log('[Vault] Build Your Funnel clicked - starting one-click deployment');
-                                        handleDeployToGHL();
+                                        console.log('[Vault] Build Your Funnel clicked - opening deploy modal');
+                                        handleOpenDeployModal();
                                     }
                                 }}
-                                disabled={isDeploying}
-                                className={`px-8 py-4 rounded-xl font-bold text-white shadow-lg transition-all hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${dataSource?.deployed_at
-                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/30'
-                                    : 'bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 shadow-cyan/30'
+                                disabled={isDeploying || deploymentComplete || !!dataSource?.deployed_at}
+                                className={`px-8 py-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center gap-2 ${(deploymentComplete || dataSource?.deployed_at)
+                                    ? 'bg-[#1b1b1d] text-gray-500 border border-[#2a2a2d] cursor-not-allowed opacity-70 hover:scale-100'
+                                    : 'bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 shadow-cyan/30 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
                                     }`}
                             >
                                 {isDeploying ? (
@@ -2633,14 +2641,14 @@ export default function VaultPage() {
                                         <Loader2 className="w-5 h-5 animate-spin" />
                                         Deploying...
                                     </>
-                                ) : dataSource?.deployed_at ? (
+                                ) : (deploymentComplete || dataSource?.deployed_at) ? (
                                     <>
-                                        <CheckCircle className="w-5 h-5" />
+                                        <CheckCircle className="w-5 h-5 text-green-500" />
                                         Funnel Deployed
                                     </>
                                 ) : (
                                     <>
-                                        <ExternalLink className="w-5 h-5" />
+                                        <Rocket className="w-5 h-5" />
                                         Build Your Funnel
                                     </>
                                 )}
@@ -3261,21 +3269,71 @@ export default function VaultPage() {
                                                 animate={{ opacity: 1, scale: 1 }}
                                                 className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-cyan/20 text-center shadow-2xl shadow-cyan/5"
                                             >
-                                                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                    <CheckCircle className="w-8 h-8 text-green-500" />
-                                                </div>
-                                                <h3 className="text-xl font-bold mb-2">All Marketing Assets Complete!</h3>
-                                                <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                    Your marketing assets are complete. Now let's focus on closing clients.
-                                                </p>
-                                                <button
-                                                    onClick={() => setActiveTab('scripts')}
-                                                    className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 mx-auto hover:brightness-110 transition-all group"
-                                                >
-                                                    <Sparkles className="w-5 h-5" />
-                                                    Proceed to Phase 3
-                                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                                </button>
+                                                {(deploymentComplete || dataSource?.deployed_at) ? (
+                                                    <>
+                                                        <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                            <CheckCircle className="w-8 h-8 text-green-500" />
+                                                        </div>
+                                                        <h3 className="text-xl font-bold mb-2">Funnel Has Been Deployed!</h3>
+                                                        <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+                                                            Your funnel is live. Continue to Phase 3 or log in to your Builder.
+                                                        </p>
+                                                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                                            {/* Greyed-out non-clickable deployed indicator */}
+                                                            <button
+                                                                disabled
+                                                                className="px-6 py-3 bg-[#1b1b1d] text-gray-500 rounded-xl font-bold flex items-center justify-center gap-2 border border-[#2a2a2d] cursor-not-allowed opacity-70"
+                                                            >
+                                                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                                                Funnel Deployed
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setActiveTab('scripts')}
+                                                                className="px-8 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 hover:brightness-110 transition-all group"
+                                                            >
+                                                                <Sparkles className="w-5 h-5" />
+                                                                Continue to Phase 3
+                                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                            </button>
+                                                            <a
+                                                                href="https://app.tedos.ai"
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 border border-[#2a2a2d] transition-all"
+                                                            >
+                                                                <ExternalLink className="w-4 h-4" />
+                                                                Go to Builder
+                                                            </a>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="w-16 h-16 bg-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                            <Rocket className="w-8 h-8 text-cyan" />
+                                                        </div>
+                                                        <h3 className="text-xl font-bold mb-2">All Marketing Assets Complete!</h3>
+                                                        <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+                                                            Deploy your funnel to go live, or continue reviewing Phase 3 first.
+                                                        </p>
+                                                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                                                            <button
+                                                                onClick={handleOpenDeployModal}
+                                                                disabled={isDeploying}
+                                                                className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
+                                                            >
+                                                                <Rocket className="w-5 h-5" />
+                                                                Build Your Funnel
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setActiveTab('scripts')}
+                                                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-3 border border-[#2a2a2d] transition-all group"
+                                                            >
+                                                                Proceed to Phase 3
+                                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                            </button>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </motion.div>
                                         )}
                                     </div>
@@ -3399,25 +3457,27 @@ export default function VaultPage() {
                             setDeploymentComplete(false);
                         }
                     }}
-                    title={deploymentComplete ? "Deployment Complete!" : "Build Your Funnel"}
-                    subtitle={deploymentComplete ? "Your content is live" : "Deploy to your builder"}
+                    title={deploymentComplete ? "Funnel Deployed!" : "Build Your Funnel"}
+                    subtitle={deploymentComplete ? "Your content is now live" : "Deploy to your builder"}
                     icon={deploymentComplete ? CheckCircle : Rocket}
                     steps={!deploymentComplete ? [
                         { title: 'Creating Account', description: 'Setting up your builder account', time: '~15s' },
                         { title: 'Deploying Assets', description: 'Pushing your funnel content', time: '~20s' },
-                        { title: 'Complete', description: 'Your funnel is live!', time: '' }
+                        { title: 'Complete', description: 'Your funnel will be live in about 5 mins', time: '' }
                     ] : []}
                     currentStep={deploymentStep}
                     isProcessing={isDeploying}
                     processingText="Deploying..."
-                    primaryAction={deploymentComplete ? () => {
-                        setShowDeployModal(false);
-                        setDeploymentStep(0);
-                        setDeploymentComplete(false);
-                    } : handleDeployToGHL}
-                    primaryActionText={deploymentComplete ? "Close" : "Start Deployment"}
-                    secondaryAction={!deploymentComplete && !isDeploying ? () => setShowDeployModal(false) : null}
-                    secondaryActionText="Cancel"
+                    primaryAction={deploymentComplete
+                        ? () => window.open('https://app.tedos.ai', '_blank')
+                        : handleDeployToGHL
+                    }
+                    primaryActionText={deploymentComplete ? "Go to Builder" : "Start Deployment"}
+                    secondaryAction={deploymentComplete
+                        ? () => { setShowDeployModal(false); setDeploymentStep(0); setDeploymentComplete(false); setActiveTab('scripts'); }
+                        : (!isDeploying ? () => setShowDeployModal(false) : null)
+                    }
+                    secondaryActionText={deploymentComplete ? "Proceed to Phase 3" : "Cancel"}
                     showCloseButton={!isDeploying}
                 >
                     {deploymentComplete && (
@@ -3426,8 +3486,13 @@ export default function VaultPage() {
                                 <CheckCircle className="w-10 h-10 text-green-500" />
                             </div>
                             <p className="text-gray-400 text-sm">
-                                Your content is now live in Builder. Check your email for login instructions.
+                                Your content is now live in Builder.
                             </p>
+                            {emailSentOnDeploy && (
+                                <p className="text-cyan text-xs mt-3 font-semibold">
+                                    📧 An email has been sent to set up your Builder login password.
+                                </p>
+                            )}
                         </div>
                     )}
                     {!deploymentComplete && !isDeploying && (
@@ -3469,7 +3534,7 @@ export default function VaultPage() {
                 <div className="text-left py-4 space-y-4">
                     <p className="text-gray-300 text-sm leading-relaxed">
                         We strongly recommend <strong className="text-cyan">approving all content in Phase 1, 2 & 3</strong> before
-                        running your initial deployment via <strong className="text-white">"Build Your Funnel"</strong> in Phase 3.
+                        running your initial deployment via <strong className="text-white">"Build Your Funnel"</strong> at the end of Phase 2.
                     </p>
                     <div className="bg-[#1b1b1d] rounded-xl p-4 border border-[#2a2a2d] space-y-2">
                         <p className="text-gray-400 text-xs">

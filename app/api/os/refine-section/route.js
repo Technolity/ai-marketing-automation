@@ -309,15 +309,15 @@ export async function POST(req) {
         let intakeData = {};
 
         if (sessionId) {
-            const { data: sessionData } = await supabaseAdmin
-                .from('saved_sessions')
-                .select('answers, intake_data')
+            const { data: funnelData } = await supabaseAdmin
+                .from('user_funnels')
+                .select('wizard_answers')
                 .eq('id', sessionId)
                 .eq('user_id', userId)
                 .single();
 
-            if (sessionData) {
-                intakeData = sessionData.intake_data || sessionData.answers || {};
+            if (funnelData?.wizard_answers) {
+                intakeData = funnelData.wizard_answers;
             }
         }
 

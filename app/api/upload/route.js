@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 
 // File upload configuration
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 // Expanded image types to prevent 400 errors - includes less common but valid types
 const ALLOWED_IMAGE_TYPES = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
@@ -33,7 +34,9 @@ export async function POST(request) {
 
         const formData = await request.formData();
         const file = formData.get('file');
-        const fileType = formData.get('type'); // 'image' or 'video'
+        const formType = formData.get('type') || formData.get('fileType');
+        const isVideo = formType === 'video' || file.type.startsWith('video/');
+        const fileType = isVideo ? 'video' : 'image';
 
         if (!file) {
             return NextResponse.json(
@@ -58,10 +61,11 @@ export async function POST(request) {
         }
 
         // Validate file size
-        if (file.size > MAX_FILE_SIZE) {
+        const maxSize = fileType === 'video' ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+        if (file.size > maxSize) {
             return NextResponse.json(
                 {
-                    error: `File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+                    error: `File too large. Max size: ${maxSize / 1024 / 1024}MB`,
                     fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`
                 },
                 { status: 400 }
@@ -140,7 +144,8 @@ export async function GET() {
     return NextResponse.json({
         status: isConfigured ? 'Upload endpoint ready (Cloudinary)' : 'Cloudinary not configured',
         cloudinaryConfigured: isConfigured,
-        maxFileSize: `${MAX_FILE_SIZE / 1024 / 1024}MB`,
+        maxImageSize: `${MAX_IMAGE_SIZE / 1024 / 1024}MB`,
+        maxVideoSize: `${MAX_VIDEO_SIZE / 1024 / 1024}MB`,
         allowedImageTypes: ALLOWED_IMAGE_TYPES,
         allowedVideoTypes: ALLOWED_VIDEO_TYPES,
         cdnProvider: 'Cloudinary',

@@ -1,0 +1,125 @@
+# Payment, Billing, and Scalable Architecture Plan
+
+## Overview
+This plan outlines the implementation of a fully automated billing and provisioning system for TedOS ("Phase 1"). The goal is to remove manual onboarding by integrating Stripe to automatically provision unique GoHighLevel (GHL) sub-accounts and system access upon subscription. It also sketches the "Phase 2" vision for a scalable "Bring Your Own GHL" model.
+
+## User Review Required
+> [!IMPORTANT]
+> **Stripe Account Required**: You must have a verified Stripe account and API keys (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`).
+> **GHL Agency Token**: The system relies on a valid GHL Agency Token being present in the `ghl_tokens` table to create sub-accounts.
+> **Pricing Strategy**: You need to define your pricing tiers (Starter, Growth, Scale) and their corresponding Stripe Price IDs.
+
+## Phase 1: Immediate Implementation (This Week)
+
+### Architecture
+1.  **Trigger**: User purchases a subscription via Stripe Checkout.
+2.  **Signal**: Stripe sends a `checkout.session.completed` webhook.
+3.  **Action (Server-Side)**:
+    *   Verify User exists (create if necessary via Clerk/Stripe sync).
+    *   **Provision GHL**: Call [createGHLSubAccount](file:///C:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/lib/integrations/ghl.js#74-239) -> [importSnapshot](file:///C:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/lib/integrations/ghl.js#293-505) -> [createGHLUser](file:///C:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/lib/integrations/ghl.js#775-870).
+    *   **Update DB**: Set `subscription_tier`, `stripe_subscription_id`, `max_funnels`, `tier_expires_at`.
+4.  **Enforcement**: Application checks `tier_expires_at` and `subscription_tier` to allow/block access.
+
+### Proposed Changes
+
+#### 1. Database Schema Updates
+Ensure `user_profiles` has all necessary fields (Already mostly present, but verifying defaults).
+
+#### [MODIFY] `supabase/migrations/20260210_billing_updates.sql` (New Migration)
+*   Add `subscription_status` (active, past_due, canceled, trialing).
+*   Add `cancel_at_period_end` (boolean).
+*   Add `plan_id` (Stripe Price ID) for verifying limits.
+
+#### 2. Backend: Stripe Integration
+
+#### [NEW] `lib/stripe/stripe.js`
+*   Initialize Stripe client.
+*   Helper functions: `createCheckoutSession`, `manageSubscription`, `syncSubscriptionStatus`.
+
+#### [NEW] `app/api/webhooks/stripe/route.js`
+*   **Endpoint**: `POST /api/webhooks/stripe`
+*   **Events Handling**:
+    *   `checkout.session.completed`:
+        *   Extract `client_reference_id` (User ID).
+        *   **CRITICAL**: Trigger [createGHLSubAccount](file:///C:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/lib/integrations/ghl.js#74-239) logic here.
+        *   Update `user_profiles` with `subscription_tier` based on Price ID.
+    *   `invoice.payment_succeeded`:
+        *   Extend `tier_expires_at` (e.g., +1 month).
+        *   Set status to `active`.
+    *   `customer.subscription.deleted` / `updated`:
+        *   Handle cancellations/expirations.
+        *   If expired, set status to `inactive` and revoke access.
+
+#### 3. Backend: Automated Provisioning Refactoring
+
+#### [MODIFY] [lib/integrations/ghl.js](file:///C:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/lib/integrations/ghl.js)
+*   Ensure [createGHLSubAccount](file:///C:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/lib/integrations/ghl.js#74-239) is robust enough to be called from a webhook (idempotency).
+*   Add `assignTierLimits(userId, tier)` helper to set `max_funnels` based on plan.
+
+#### 4. Frontend: Billing UI
+
+#### [NEW] `app/dashboard/billing/page.jsx`
+*   Display current plan details (Status, Renewal Date).
+*   "Manage Subscription" button (Redirects to Stripe Customer Portal).
+*   Upgrade/Downgrade options (if not in Portal).
+
+#### [MODIFY] `middleware.js` or [components/LicenseWrapper.jsx](file:///c:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/components/LicenseWrapper.jsx)
+*   Add **BillingGuard**: check if `tier_expires_at` is in the past.
+*   Redirect to `/billing/expired` if subscription is inactive.
+
+#### 5. Migration for Existing Users
+
+#### [NEW] `scripts/migrate_existing_users.js` (One-off)
+*   Iterate through all `user_profiles`.
+*   Assign a default "Legacy/Founder" tier or "Trial" tier.
+*   Set `tier_expires_at` to +30 days (or custom date) to give them time to subscribe.
+
+---
+
+## Phase 2 Vision: Scalable "Partner Platform" (Long-Term)
+
+### Concept
+Instead of creating sub-accounts *under* your Agency, you allow other Agencies (Partners) to connect *their* GHL Agency Account. TedOS then creates regular sub-accounts *inside their* Agency.
+
+### Architecture Shifts
+1.  **Multi-Tenancy**:
+    *   `organizations` table becomes central. An Organization = An Agency.
+    *   Users belong to Organizations.
+2.  **Oauth Flow Upgrade**:
+    *   "Connect with GoHighLevel" will request **Agency Level** permissions from the *User*.
+    *   Store *their* Agency Token in `ghl_agency_credentials`.
+3.  **Deployment Routing**:
+    *   When deploying, check: Does this user belong to a "Partner" Organization?
+    *   **Yes**: Use *their* Agency Token to create/update sub-accounts.
+    *   **No** (Direct User): Use *TedOS* Agency Token (Phase 1 behavior).
+
+### Why wait?
+*   Requires significant refactoring of the Auth model (User <-> Org <-> Agency).
+*   Requires GHL Marketplace App approval for Agency-level scopes (can take weeks).
+*   Phase 1 captures value *now*.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+*   **Stripe Webhook Simulation**:
+    *   Use `stripe trigger checkout.session.completed` CLI command.
+    *   Verify `user_profiles` is updated.
+    *   Verify `ghl_subaccounts` row is created.
+    *   Verify `ghl_subaccount_logs` shows success.
+
+### Manual Verification
+1.  **End-to-End Purchase Flow**:
+    *   Click "Upgrade" in dashboard.
+    *   Complete purchase in Stripe Test Mode.
+    *   Observe redirection to Dashboard.
+    *   Verify GHL Sub-account is created (check GHL Agency View).
+    *   Verify User can access features.
+2.  **Expiration Test**:
+    *   Manually set `tier_expires_at` to yesterday in DB.
+    *   Refresh page.
+    *   Verify redirection to "Payment Required" page.
+3.  **Upgrade Flow**:
+    *   Upgrade from Starter to Growth.
+    *   Verify `max_funnels` increases in DB.
