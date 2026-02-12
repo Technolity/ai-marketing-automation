@@ -543,6 +543,12 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             return;
         }
 
+        // Save current input before navigating away
+        const mergedData = { ...stepData, ...currentInput };
+        if (Object.keys(currentInput).length > 0) {
+            setStepData(mergedData);
+        }
+
         // If in dashboard mode, save current step to localStorage and navigate to intake_form
         if (mode === 'dashboard') {
             // Save step info to localStorage so intake_form can load it
@@ -551,6 +557,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 let progressData = localProgress ? JSON.parse(localProgress) : {};
                 progressData.currentStep = stepId;
                 progressData.viewMode = 'step';
+                progressData.answers = mergedData;
                 localStorage.setItem(getStorageKey('wizard_progress'), JSON.stringify(progressData));
             }
             router.push('/intake_form');
@@ -570,8 +577,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             if (stepInputs) {
                 const loadedInput = {};
                 stepInputs.forEach(input => {
-                    if (stepData[input.name]) {
-                        loadedInput[input.name] = stepData[input.name];
+                    if (mergedData[input.name]) {
+                        loadedInput[input.name] = mergedData[input.name];
                     }
                 });
                 setCurrentInput(loadedInput);
@@ -1226,13 +1233,17 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         const newCompletedSteps = [...new Set([...completedSteps, currentStep])];
         setCompletedSteps(newCompletedSteps);
 
-        // Save progress
+        // Save progress (merge currentInput so typed text is not lost)
+        const mergedSkipData = { ...stepData, ...currentInput };
+        if (Object.keys(currentInput).length > 0) {
+            setStepData(mergedSkipData);
+        }
         if (session) {
             const progressData = {
                 currentStep: currentStep < STEPS.length ? currentStep + 1 : currentStep,
                 viewMode: 'step',
                 completedSteps: newCompletedSteps,
-                answers: stepData,
+                answers: mergedSkipData,
                 generatedContent: savedContent,
                 isComplete: newCompletedSteps.length >= 20,
                 updatedAt: new Date().toISOString()
@@ -1344,16 +1355,22 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     const handlePreviousStep = () => {
         if (currentStep <= 1) return;
 
+        // Save current input before navigating away
+        const mergedData = { ...stepData, ...currentInput };
+        if (Object.keys(currentInput).length > 0) {
+            setStepData(mergedData);
+        }
+
         const previousStep = currentStep - 1;
         setCurrentStep(previousStep);
 
-        // Load saved answers for the previous step
+        // Load saved answers for the previous step (use mergedData to get latest)
         const stepInputs = STEP_INPUTS[previousStep];
         if (stepInputs) {
             const loadedInput = {};
             stepInputs.forEach(input => {
-                if (stepData[input.name] !== undefined) {
-                    loadedInput[input.name] = stepData[input.name];
+                if (mergedData[input.name] !== undefined) {
+                    loadedInput[input.name] = mergedData[input.name];
                 } else if ((isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
                     loadedInput[input.name] = SAMPLE_DATA[input.name];
                 }
