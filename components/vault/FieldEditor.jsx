@@ -101,6 +101,22 @@ function FieldEditor({
                     const parsed = JSON.parse(val);
                     if (Array.isArray(parsed)) {
                         arrayResult = parsed.map(item => typeof item === 'string' ? sanitizeDisplayContent(item) : item);
+                    } else if (typeof parsed === 'object' && parsed !== null) {
+                        // Handle old object format: {step1: "...", step2: "...", ...step7: "..."} or {deliverable1: {...}, ...}
+                        const keys = Object.keys(parsed);
+                        const stepKeys = keys.filter(k => /^step\d+$/.test(k));
+                        if (stepKeys.length > 0) {
+                            // Old sevenStepBlueprint format: {step1: "name", step2: "name", ...}
+                            arrayResult = stepKeys.sort().map(k => {
+                                const val = parsed[k];
+                                return typeof val === 'string'
+                                    ? { stepName: val, whatItIs: '', problemSolved: '', outcomeCreated: '' }
+                                    : val;
+                            });
+                        } else {
+                            // Generic object-to-array: convert values to array items
+                            arrayResult = Object.values(parsed).filter(v => v != null);
+                        }
                     } else if (typeof parsed === 'string') {
                         // If parsed JSON is not an array, check if it's a string we can split
                         arrayResult = parsed.split('\n')
