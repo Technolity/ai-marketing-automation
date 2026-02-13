@@ -294,7 +294,7 @@ export default function GHLDebugPage() {
                                                 disabled={selectedKeys.size === 0 || loading}
                                                 className="px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm flex items-center gap-2 font-medium"
                                             >
-                                                <Send size={14} /> Push To GHL
+                                                <Send size={14} /> Push To Builder
                                             </button>
                                         </div>
                                     </div>
