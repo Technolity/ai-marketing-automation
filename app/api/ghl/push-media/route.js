@@ -12,6 +12,10 @@ import { MEDIA_MAP } from '@/lib/ghl/customValuesMap';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { toEmbedUrl } from '@/lib/utils/videoUrl';
+
+// Video vault field IDs that need YouTube watch→embed conversion
+const VIDEO_FIELDS = new Set(['main_vsl', 'vsl_video', 'thankyou_video', 'testimonial_video']);
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 60 seconds timeout
@@ -148,10 +152,12 @@ export async function POST(req) {
                 const match = findExistingId(existingMap, ghlKey);
 
                 if (match) {
+                    // Convert YouTube watch URLs to embed format for video fields
+                    const pushValue = VIDEO_FIELDS.has(vaultFieldId) ? toEmbedUrl(mediaUrl) : mediaUrl;
                     customValues.push({
                         vaultField: vaultFieldId,
                         key: ghlKey,
-                        value: mediaUrl,
+                        value: pushValue,
                         existingId: match.id,
                         ghlName: match.name
                     });

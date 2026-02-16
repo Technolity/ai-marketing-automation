@@ -6,6 +6,7 @@ import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
+import { toEmbedUrl } from '@/lib/utils/videoUrl';
 
 /**
  * MediaFields - Cloudinary-integrated media upload component
@@ -186,6 +187,10 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
 
         if (!customValueKey || !value) return;
 
+        // Convert YouTube watch URLs to embed format for video fields
+        const isVideoField = fieldDef?.field_type === 'video_url';
+        const syncValue = isVideoField ? toEmbedUrl(value) : value;
+
         try {
             const response = await fetch('/api/ghl/custom-values/push', {
                 method: 'POST',
@@ -193,7 +198,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                 body: JSON.stringify({
                     funnel_id: funnelId,
                     updates: {
-                        [customValueKey]: value
+                        [customValueKey]: syncValue
                     }
                 })
             });

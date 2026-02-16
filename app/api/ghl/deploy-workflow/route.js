@@ -9,6 +9,7 @@ import { auth } from '@clerk/nextjs';
 import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { toEmbedUrl } from '@/lib/utils/videoUrl';
 
 export const dynamic = 'force_dynamic';
 export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (current deployment takes ~74s)
@@ -971,11 +972,11 @@ export async function POST(req) {
             // Product Mockup -> 03 Optin Mockup Image  
             '03_optin_mockup_image': combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
 
-            // VSL Video -> 03 VSL Video Link
-            '03_vsl_video_link': combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video,
+            // VSL Video -> 03 VSL Video Link (convert YouTube watch URLs to embed format)
+            '03_vsl_video_link': toEmbedUrl(combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video),
 
-            // Thank You Video -> 03 Thank You Page Video Link
-            '03_thankyou_page_video_link': combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video,
+            // Thank You Video -> 03 Thank You Page Video Link (convert YouTube watch URLs to embed format)
+            '03_thankyou_page_video_link': toEmbedUrl(combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video),
 
             // Testimonials (from defaults or user uploads)
             '03_vsl_testimonial_review_1_image': combinedMedia.testimonial_review_1_image || combinedMedia.testimonial1Photo || combinedMedia.testimonial_1_photo,
