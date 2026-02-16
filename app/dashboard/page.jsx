@@ -1,22 +1,23 @@
 "use client";
 import Link from 'next/link';
 /**
- * Dashboard Page - V2
+ * Dashboard Page - V3 (Tabbed Layout)
  * 
  * Features:
- * - GHL Metrics Widgets (Pipeline Value, Opps)
- * - Interactive Business List (nifty list view)
+ * - Tab 1: Marketing Engines (Funnels/Vaults list)
+ * - Tab 2: Live Performance (Analytics widgets)
  * - Clerk Profile Integration
  * - Tier Controls
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Loader2, Plus, FolderOpen, ChevronRight, Sparkles,
     Clock, CheckCircle2, Lock, Building2, Trash2,
-    Crown, ExternalLink, Settings, Users, Rocket
+    Crown, ExternalLink, Settings, Users, Rocket,
+    BarChart3, Zap
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserButton } from "@clerk/nextjs";
@@ -25,6 +26,22 @@ import { toast } from "sonner";
 import GHLWidgets from "@/components/dashboard/GHLWidgets";
 import LaunchBuilderButton from "@/components/LaunchBuilderButton";
 import DeployedFunnelCard from "@/components/vault/DeployedFunnelCard";
+
+// Tab definitions
+const TABS = [
+    {
+        id: 'engines',
+        label: 'Marketing Engines',
+        icon: Rocket,
+        description: 'Your AI-generated marketing systems — funnels, emails, scripts, and automations.'
+    },
+    {
+        id: 'performance',
+        label: 'Live Performance',
+        icon: BarChart3,
+        description: 'Real-time analytics — leads, revenue, appointments, and pipeline performance.'
+    }
+];
 
 // Tier limits
 const TIER_LIMITS = {
@@ -38,6 +55,7 @@ export default function Dashboard() {
     const router = useRouter();
     const { session, user, loading: authLoading, isProfileComplete, isTeamMember, workspaceName } = useAuth();
 
+    const [activeTab, setActiveTab] = useState('engines');
     const [isLoading, setIsLoading] = useState(true);
     const [businesses, setBusinesses] = useState([]);
     const [userTier, setUserTier] = useState('tier1');
@@ -47,6 +65,7 @@ export default function Dashboard() {
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(null);
     const [hasDeployedFunnel, setHasDeployedFunnel] = useState(false);
+    const tabRefs = useRef({});
 
 
 
@@ -254,125 +273,191 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* GHL Metrics Widgets */}
-                <GHLWidgets />
-
                 {/* Launch Builder Button - Admin Only */}
                 {user?.isAdmin && (
                     <div className="mb-6 p-4 bg-purple-950/20 border border-purple-500/30 rounded-xl">
                         <div className="flex items-center justify-between">
                             <div>
                                 <h3 className="text-white font-semibold mb-1">Admin Tools</h3>
-                                <p className="text-gray-400 text-sm">Access your GHL subaccount builder</p>
+                                <p className="text-gray-400 text-sm">Access your subaccount builder</p>
                             </div>
                             <LaunchBuilderButton />
                         </div>
                     </div>
                 )}
 
-                {/* Businesses Section */}
-                <div className="flex items-end justify-between mb-6">
-                    <div>
-                        <h2 className="text-2xl font-black text-white mb-1">Your Marketing Engines</h2>
-                        <p className="text-gray-400 text-sm">
-                            {businesses.length} active of {maxFunnels} allowed slots
-                        </p>
+                {/* ── Tab Navigation ── */}
+                <div className="relative mb-8">
+                    <div className="flex gap-1 bg-[#161617]/60 backdrop-blur-xl border border-white/5 rounded-2xl p-1.5">
+                        {TABS.map((tab) => {
+                            const Icon = tab.icon;
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    ref={(el) => (tabRefs.current[tab.id] = el)}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`relative flex-1 flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl text-sm font-bold transition-all duration-300 ${isActive
+                                            ? 'text-black'
+                                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                        }`}
+                                >
+                                    {isActive && (
+                                        <motion.div
+                                            layoutId="activeTab"
+                                            className="absolute inset-0 bg-gradient-to-r from-cyan to-blue-500 rounded-xl"
+                                            transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
+                                        />
+                                    )}
+                                    <span className="relative z-10 flex items-center gap-2.5">
+                                        <Icon className="w-4.5 h-4.5" />
+                                        {tab.label}
+                                    </span>
+                                </button>
+                            );
+                        })}
                     </div>
-
-                    {canCreateMore && (
-                        <button
-                            onClick={() => setShowCreateModal(true)}
-                            className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-500 text-black text-sm font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-2"
+                    {/* Tab description */}
+                    <AnimatePresence mode="wait">
+                        <motion.p
+                            key={activeTab}
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 4 }}
+                            transition={{ duration: 0.2 }}
+                            className="text-gray-500 text-xs mt-3 ml-1"
                         >
-                            <Plus className="w-4 h-4" />
-                            New Marketing Engine
-                        </button>
-                    )}
+                            {TABS.find(t => t.id === activeTab)?.description}
+                        </motion.p>
+                    </AnimatePresence>
                 </div>
 
-                {/* Interactive Business List */}
-                <div className="space-y-3">
-                    {businesses.map((business, index) => {
-                        const status = getBusinessStatus(business);
-                        const progress = getProgressPercentage(business);
-
-                        return (
-                            <motion.div
-                                key={business.id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.05 }}
-                                className="group relative bg-[#161617]/40 backdrop-blur-sm border border-white/5 rounded-2xl p-4 hover:bg-white/5 hover:border-cyan/20 transition-all cursor-default"
-                            >
-                                <div className="flex items-center gap-4">
-                                    {/* Icon Box */}
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all ${status === 'complete' ? 'bg-green-500/10 text-green-400' :
-                                        status === 'in-progress' ? 'bg-amber-500/10 text-amber-400' :
-                                            'bg-cyan/10 text-cyan'
-                                        }`}>
-                                        {status === 'complete' ? <CheckCircle2 className="w-6 h-6" /> :
-                                            status === 'in-progress' ? <Clock className="w-6 h-6" /> :
-                                                <Sparkles className="w-6 h-6" />}
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-3">
-                                            <h3 className="text-lg font-bold text-white truncate">{business.funnel_name}</h3>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${status === 'complete' ? 'bg-green-500/20 text-green-400' :
-                                                'bg-white/5 text-gray-400'
-                                                }`}>
-                                                {status === 'complete' ? 'Active' : 'Building'}
-                                            </span>
-                                        </div>
-
-                                        {/* Progress Bar */}
-                                        <div className="flex items-center gap-3 mt-1.5 max-w-xs">
-                                            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full ${status === 'complete' ? 'bg-green-500' : 'bg-cyan'}`}
-                                                    style={{ width: `${progress}%` }}
-                                                />
-                                            </div>
-                                            <span className="text-xs font-mono text-gray-500">{progress}%</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity translate-x-4 group-hover:translate-x-0 duration-300">
-                                        <button
-                                            onClick={() => handleDeleteBusiness(business.id, business.funnel_name)}
-                                            className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                                            title="Delete Marketing Engine"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-
-                                        <div className="h-8 w-px bg-white/10 mx-1" />
-
-                                        <button
-                                            onClick={() => router.push(`/vault?funnel_id=${business.id}`)}
-                                            className="px-4 py-2 bg-white/5 hover:bg-cyan/10 text-gray-300 hover:text-cyan border border-white/10 hover:border-cyan/30 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
-                                        >
-                                            <FolderOpen className="w-4 h-4" />
-                                            Open Vault
-                                        </button>
-
-                                        {status !== 'complete' && (
-                                            <button
-                                                onClick={() => router.push(`/intake_form?funnel_id=${business.id}`)}
-                                                className="px-4 py-2 bg-cyan text-black rounded-lg text-sm font-bold hover:brightness-110 transition-all flex items-center gap-2"
-                                            >
-                                                Continue
-                                                <ChevronRight className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
+                {/* ── Tab Content ── */}
+                <AnimatePresence mode="wait">
+                    {activeTab === 'engines' ? (
+                        <motion.div
+                            key="engines"
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -12 }}
+                            transition={{ duration: 0.25 }}
+                        >
+                            {/* Marketing Engines Header */}
+                            <div className="flex items-end justify-between mb-6">
+                                <div>
+                                    <h2 className="text-2xl font-black text-white mb-1">Your Marketing Engines</h2>
+                                    <p className="text-gray-400 text-sm">
+                                        {businesses.length} active of {maxFunnels} allowed slots
+                                    </p>
                                 </div>
-                            </motion.div>
-                        );
-                    })}
-                </div>
+
+                                {canCreateMore && (
+                                    <button
+                                        onClick={() => setShowCreateModal(true)}
+                                        className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-500 text-black text-sm font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-2"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        New Marketing Engine
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Interactive Business List */}
+                            <div className="space-y-3">
+                                {businesses.map((business, index) => {
+                                    const status = getBusinessStatus(business);
+                                    const progress = getProgressPercentage(business);
+
+                                    return (
+                                        <motion.div
+                                            key={business.id}
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ delay: index * 0.05 }}
+                                            className="group relative bg-[#161617]/40 backdrop-blur-sm border border-white/5 rounded-2xl p-4 hover:bg-white/5 hover:border-cyan/20 transition-all cursor-default"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                {/* Icon Box */}
+                                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-all ${status === 'complete' ? 'bg-green-500/10 text-green-400' :
+                                                    status === 'in-progress' ? 'bg-amber-500/10 text-amber-400' :
+                                                        'bg-cyan/10 text-cyan'
+                                                    }`}>
+                                                    {status === 'complete' ? <CheckCircle2 className="w-6 h-6" /> :
+                                                        status === 'in-progress' ? <Clock className="w-6 h-6" /> :
+                                                            <Sparkles className="w-6 h-6" />}
+                                                </div>
+
+                                                {/* Content */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-3">
+                                                        <h3 className="text-lg font-bold text-white truncate">{business.funnel_name}</h3>
+                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${status === 'complete' ? 'bg-green-500/20 text-green-400' :
+                                                            'bg-white/5 text-gray-400'
+                                                            }`}>
+                                                            {status === 'complete' ? 'Active' : 'Building'}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Progress Bar */}
+                                                    <div className="flex items-center gap-3 mt-1.5 max-w-xs">
+                                                        <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full ${status === 'complete' ? 'bg-green-500' : 'bg-cyan'}`}
+                                                                style={{ width: `${progress}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs font-mono text-gray-500">{progress}%</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity translate-x-4 group-hover:translate-x-0 duration-300">
+                                                    <button
+                                                        onClick={() => handleDeleteBusiness(business.id, business.funnel_name)}
+                                                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                        title="Delete Marketing Engine"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+
+                                                    <div className="h-8 w-px bg-white/10 mx-1" />
+
+                                                    <button
+                                                        onClick={() => router.push(`/vault?funnel_id=${business.id}`)}
+                                                        className="px-4 py-2 bg-white/5 hover:bg-cyan/10 text-gray-300 hover:text-cyan border border-white/10 hover:border-cyan/30 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                                                    >
+                                                        <FolderOpen className="w-4 h-4" />
+                                                        Open Vault
+                                                    </button>
+
+                                                    {status !== 'complete' && (
+                                                        <button
+                                                            onClick={() => router.push(`/intake_form?funnel_id=${business.id}`)}
+                                                            className="px-4 py-2 bg-cyan text-black rounded-lg text-sm font-bold hover:brightness-110 transition-all flex items-center gap-2"
+                                                        >
+                                                            Continue
+                                                            <ChevronRight className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="performance"
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -12 }}
+                            transition={{ duration: 0.25 }}
+                        >
+                            <GHLWidgets />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Create Modal */}
