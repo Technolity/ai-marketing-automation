@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { auth, currentUser } from '@clerk/nextjs';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 // Force dynamic rendering - this route uses auth headers
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,7 @@ const TIER_FEATURES = {
         tedGuidance: false,
         maxGenerationsPerMonth: 10,
         maxFunnels: 1,
+        maxSeats: 1,
         priority: 'standard'
     },
     growth: {
@@ -35,6 +37,7 @@ const TIER_FEATURES = {
         tedGuidance: false,
         maxGenerationsPerMonth: 100,
         maxFunnels: 3,
+        maxSeats: 3,
         priority: 'high'
     },
     scale: {
@@ -45,6 +48,7 @@ const TIER_FEATURES = {
         tedGuidance: true,
         maxGenerationsPerMonth: -1, // unlimited
         maxFunnels: 10,
+        maxSeats: 10,
         priority: 'priority'
     }
 };
@@ -56,15 +60,23 @@ export async function GET(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
         // 1. Get user profile from DB
         const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
             .select('subscription_tier, tier_expires_at, generation_count, last_generation_at, max_funnels')
-            .eq('id', userId)
+            .eq('id', targetUserId)
             .single();
 
         // 2. If profile missing, create it (Auto-Sync) - but NEVER overwrite is_admin
         if (profileError || !profile) {
+            if (targetUserId !== userId) {
+                return NextResponse.json({ error: 'Profile not found for workspace' }, { status: 404 });
+            }
             const user = await currentUser(); // Fetch details from Clerk
             if (user) {
                 const email = user.emailAddresses[0]?.emailAddress || `${userId}@no-email.com`;
@@ -75,7 +87,7 @@ export async function GET(req) {
                 const { data: checkProfile } = await supabase
                     .from('user_profiles')
                     .select('id, is_admin, subscription_tier, max_funnels')
-                    .eq('id', userId)
+                    .eq('id', targetUserId)
                     .maybeSingle();
 
                 // Only insert if profile truly doesn't exist
@@ -120,8 +132,8 @@ export async function GET(req) {
         if (profile?.tier_expires_at && new Date(profile.tier_expires_at) < new Date()) {
             await supabase
                 .from('user_profiles')
-                .update({ subscription_tier: 'starter', tier_expires_at: null, max_funnels: 1 })
-                .eq('id', userId);
+                .update({ subscription_tier: 'starter', tier_expires_at: null, max_funnels: 1, max_seats: 1 })
+                .eq('id', targetUserId);
 
             return NextResponse.json({
                 tier: 'starter',

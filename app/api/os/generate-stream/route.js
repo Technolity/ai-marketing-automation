@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { getPromptByKey } from '@/lib/prompts';
 import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
@@ -92,7 +93,7 @@ const logger = createLogger('GenerateStream');
 /**
  * Generate a single section
  */
-async function generateSection(key, data, funnelId, userId, sendEvent) {
+async function generateSection(key, data, funnelId, userId, targetUserId, sendEvent) {
     const sectionId = CONTENT_NAMES[key];
     const displayName = DISPLAY_NAMES[key];
 
@@ -491,7 +492,7 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
             // FIRST TIME — insert new row
             const { error: insertError } = await supabaseAdmin.from('vault_content').insert({
                 funnel_id: funnelId,
-                user_id: userId,
+                user_id: targetUserId,
                 section_id: sectionId,
                 section_title: displayName,
                 content: parsed,
@@ -514,7 +515,7 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
 
         // Populate granular fields for UI editing
         // forceOverwrite=true when updating existing content (regeneration with changes)
-        const fieldResult = await populateVaultFields(funnelId, sectionId, parsed, userId, { forceOverwrite: !!currentRow });
+        const fieldResult = await populateVaultFields(funnelId, sectionId, parsed, targetUserId, { forceOverwrite: !!currentRow });
 
         if (!fieldResult.success) {
             logger.step(`populate_fields_${sectionId}`, 'failed', { error: fieldResult.error });
@@ -535,7 +536,7 @@ async function generateSection(key, data, funnelId, userId, sendEvent) {
         // Save failed status to DB so UI can show regenerate button
         await supabaseAdmin.from('vault_content').insert({
             funnel_id: funnelId,
-            user_id: userId,
+            user_id: targetUserId,
             section_id: sectionId,
             section_title: displayName,
             content: { error: err.message },
@@ -559,6 +560,14 @@ export async function POST(req) {
     if (!userId) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+        return new Response(JSON.stringify({ error: workspaceError }), {
+            status: 403,
             headers: { 'Content-Type': 'application/json' }
         });
     }
@@ -587,7 +596,7 @@ export async function POST(req) {
         .from('user_funnels')
         .select('id, funnel_name, wizard_answers')
         .eq('id', funnelId)
-        .eq('user_id', userId)
+        .eq('user_id', targetUserId)
         .single();
 
     if (funnelError || !funnel) {
@@ -647,7 +656,7 @@ export async function POST(req) {
 
             const redirectResults = [];
             for (const key of REDIRECT_KEYS) {
-                const result = await generateSection(key, questionnaireData, funnelId, userId, sendEvent);
+                const result = await generateSection(key, questionnaireData, funnelId, userId, targetUserId, sendEvent);
                 redirectResults.push(result);
             }
 
@@ -673,12 +682,12 @@ export async function POST(req) {
                 if (batch.parallel) {
                     // Run batch in parallel
                     await Promise.all(batch.keys.map(key =>
-                        generateSection(key, questionnaireData, funnelId, userId, sendEvent)
+                        generateSection(key, questionnaireData, funnelId, userId, targetUserId, sendEvent)
                     ));
                 } else {
                     // Run sequentially
                     for (const key of batch.keys) {
-                        await generateSection(key, questionnaireData, funnelId, userId, sendEvent);
+                        await generateSection(key, questionnaireData, funnelId, userId, targetUserId, sendEvent);
                     }
                 }
             }

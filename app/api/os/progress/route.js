@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,13 +13,18 @@ export async function GET(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
         // Fetch active funnel for this user
         // We use is_active=true (and optionally is_deleted=false logic if needed, 
         // but idx_unique_active_funnel handles uniqueness)
         const { data: funnel, error } = await supabaseAdmin
             .from('user_funnels')
             .select('*')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_active', true)
             .eq('is_deleted', false)
             .single();
@@ -70,6 +76,11 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
         const body = await req.json();
         const { funnel_id, currentStep, completedSteps, answers, isComplete } = body;
 
@@ -81,7 +92,7 @@ export async function POST(req) {
                 .from('user_funnels')
                 .select('id')
                 .eq('id', funnelId)
-                .eq('user_id', userId)
+                .eq('user_id', targetUserId)
                 .eq('is_deleted', false)
                 .single();
 
@@ -106,7 +117,7 @@ export async function POST(req) {
             let { data: existingFunnel } = await supabaseAdmin
                 .from('user_funnels')
                 .select('id')
-                .eq('user_id', userId)
+                .eq('user_id', targetUserId)
                 .eq('is_active', true)
                 .eq('is_deleted', false)
                 .single();
@@ -130,7 +141,7 @@ export async function POST(req) {
                 const { data: newFunnel, error: insertError } = await supabaseAdmin
                     .from('user_funnels')
                     .insert({
-                        user_id: userId,
+                        user_id: targetUserId,
                         funnel_name: answers.businessName || 'My Marketing Engine',
                         current_step: currentStep,
                         completed_steps: completedSteps,

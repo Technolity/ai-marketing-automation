@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 
 export const dynamic = 'force-dynamic';
@@ -38,6 +39,11 @@ export async function POST(req) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+        return Response.json({ error: workspaceError }, { status: 403 });
+    }
+
     let body;
     try {
         body = await req.json();
@@ -51,7 +57,7 @@ export async function POST(req) {
         return Response.json({ error: 'funnel_id and section_id are required' }, { status: 400 });
     }
 
-    console.log('[VaultSectionApprove] Approving section:', { userId, funnel_id, section_id });
+    console.log('[VaultSectionApprove] Approving section:', { userId: targetUserId, funnel_id, section_id });
 
     try {
         // Verify funnel ownership
@@ -59,7 +65,7 @@ export async function POST(req) {
             .from('user_funnels')
             .select('id')
             .eq('id', funnel_id)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (funnelError || !funnel) {
@@ -71,6 +77,7 @@ export async function POST(req) {
             .from('vault_content_fields')
             .update({ is_approved: true })
             .eq('funnel_id', funnel_id)
+            .eq('user_id', targetUserId)
             .eq('section_id', section_id)
             .eq('is_current_version', true)
             .select();
@@ -87,6 +94,7 @@ export async function POST(req) {
             .from('vault_content')
             .select('id')
             .eq('funnel_id', funnel_id)
+            .eq('user_id', targetUserId)
             .eq('section_id', section_id)
             .eq('is_current_version', true)
             .maybeSingle();
@@ -99,7 +107,7 @@ export async function POST(req) {
                 .from('vault_content')
                 .insert({
                     funnel_id,
-                    user_id: userId,
+                    user_id: targetUserId,
                     section_id,
                     section_title: sectionTitle,
                     content: {}, // Empty content for sections like media
@@ -118,7 +126,7 @@ export async function POST(req) {
                 .update({ status: 'approved' })
                 .eq('funnel_id', funnel_id)
                 .eq('section_id', section_id)
-                .eq('user_id', userId)
+                .eq('user_id', targetUserId)
                 .eq('is_current_version', true);
 
             if (vaultContentError) {

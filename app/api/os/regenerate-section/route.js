@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 // Import multi-provider AI config
 import { AI_PROVIDERS, getOpenAIClient, getClaudeClient, getGeminiClient } from '@/lib/ai/providerConfig';
@@ -8,6 +9,9 @@ import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 
 // Import JSON parser
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
+
+import { populateVaultFields } from '@/lib/vault/fieldMapper';
+import { hashContent, fetchCurrentContent } from '@/lib/vault/contentHash';
 
 // Import all prompts
 import { idealClientPrompt } from '@/lib/prompts/idealClient';
@@ -78,6 +82,11 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
         const body = await req.json();
         const {
             section,
@@ -104,9 +113,9 @@ export async function POST(req) {
             resolvedSection = rawKey;
         }
 
-        const resolvedSessionId = sessionId || session_id || funnel_id || funnelId;
+        let resolvedSessionId = sessionId || session_id || funnel_id || funnelId;
 
-        console.log(`[Regenerate] User: ${userId}, Section: ${resolvedSection || 'undefined'}, Session: ${resolvedSessionId || 'current'}`);
+        console.log(`[Regenerate] User: ${targetUserId}, Section: ${resolvedSection || 'undefined'}, Session: ${resolvedSessionId || 'current'}`);
 
         // Validate section
         if (!resolvedSection || !SECTION_PROMPTS[resolvedSection]) {
@@ -118,24 +127,77 @@ export async function POST(req) {
             }, { status: 400 });
         }
 
+        if (!resolvedSessionId) {
+            const { data: activeFunnel } = await supabaseAdmin
+                .from('user_funnels')
+                .select('id')
+                .eq('user_id', targetUserId)
+                .eq('is_active', true)
+                .eq('is_deleted', false)
+                .single();
+
+            if (activeFunnel) {
+                resolvedSessionId = activeFunnel.id;
+            }
+        }
+
+        if (!resolvedSessionId) {
+            return NextResponse.json({ error: 'No funnel found for user' }, { status: 404 });
+        }
+
+        const { data: ownedFunnel, error: ownedError } = await supabaseAdmin
+            .from('user_funnels')
+            .select('id')
+            .eq('id', resolvedSessionId)
+            .eq('user_id', targetUserId)
+            .single();
+
+        if (ownedError || !ownedFunnel) {
+            return NextResponse.json({ error: 'Funnel not found or unauthorized' }, { status: 404 });
+        }
+
         const promptConfig = SECTION_PROMPTS[resolvedSection];
         const key = promptConfig.key;
 
+        const SECTION_TIMEOUTS = {
+            4: 120000,
+            5: 120000,
+            7: 120000,
+            8: 120000,
+            17: 120000
+        };
+
         // Fetch dependencies using shared resolver (ensure consistent context)
         // Uses sessionId as funnelId for context resolution
+
         let enrichedData = {};
         try {
             const checklistMap = await resolveDependencies(resolvedSessionId, key, {});
-            // Fetch intake answers as base
-            const { data: intakeAnswers } = await supabaseAdmin
-                .from('intake_answers')
-                .select('answers')
-                .eq('user_id', userId)
-                .order('created_at', { ascending: false })
-                .limit(1)
+            let baseData = {};
+
+            // Prefer wizard_answers from the funnel (aligned with generate-stream)
+            const { data: funnelData } = await supabaseAdmin
+                .from('user_funnels')
+                .select('wizard_answers')
+                .eq('id', resolvedSessionId)
+                .eq('user_id', targetUserId)
                 .single();
 
-            const baseData = intakeAnswers?.answers || {};
+            const answersFromDB = funnelData?.wizard_answers || {};
+
+            if (Object.keys(answersFromDB).length > 0) {
+                baseData = answersFromDB;
+            } else {
+                const { data: intakeAnswers } = await supabaseAdmin
+                    .from('intake_answers')
+                    .select('answers')
+                    .eq('user_id', targetUserId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
+                baseData = intakeAnswers?.answers || {};
+            }
+
             enrichedData = buildEnrichedData(baseData, checklistMap);
         } catch (depError) {
             console.error('[Regenerate] Dependency resolution failed, falling back to basic intake:', depError);
@@ -143,7 +205,7 @@ export async function POST(req) {
             const { data: latestSession } = await supabaseAdmin
                 .from('saved_sessions')
                 .select('intake_data, answers')
-                .eq('user_id', userId)
+                .eq('user_id', targetUserId)
                 .order('updated_at', { ascending: false })
                 .limit(1)
                 .single();
@@ -216,7 +278,7 @@ export async function POST(req) {
 
         } else if (key === 8) { // Emails (Key 8)
             console.log('[Regenerate] Using CHUNKED generation for Emails');
-            const chunkTimeout = 90000;
+            const chunkTimeout = 120000;
             const chunkMaxTokens = 4000;
             promptUsed = "[CHUNKED GENERATION] Emails: 4 Chunks";
 
@@ -332,61 +394,85 @@ export async function POST(req) {
             if (key === 7) maxTokens = 7000; // VSL
             if (key === 4) maxTokens = 5000; // Offer
 
+            const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
+
             const rawContent = await retryWithBackoff(async () => {
                 return await generateWithProvider(systemPrompt, prompt, {
                     jsonMode: true,
                     maxTokens: maxTokens,
-                    temperature: 0.7
+                    temperature: 0.7,
+                    timeout: sectionTimeout
                 });
             });
-            parsedContent = parseJsonSafe(rawContent);
+            parsedContent = parseJsonSafe(rawContent, { throwOnError: true });
         }
 
         // Save to database
         const resolvedFunnelId = resolvedSessionId;
+        let unchanged = false;
+
         if (resolvedFunnelId) {
-            // Archive old version
-            await supabaseAdmin
-                .from('vault_content')
-                .update({ is_current_version: false })
-                .eq('funnel_id', resolvedFunnelId)
-                .eq('section_id', resolvedSection);
+            const currentRow = await fetchCurrentContent(resolvedFunnelId, resolvedSection);
+            const newHash = hashContent(parsedContent);
+            const oldHash = currentRow ? hashContent(currentRow.content) : null;
 
-            // Get version
-            const { data: currentVersionData } = await supabaseAdmin
-                .from('vault_content')
-                .select('version')
-                .eq('funnel_id', resolvedFunnelId)
-                .eq('section_id', resolvedSection)
-                .order('version', { ascending: false })
-                .limit(1)
-                .single();
-            const newVersion = (currentVersionData?.version || 0) + 1;
+            if (currentRow && newHash === oldHash) {
+                unchanged = true;
+                console.log(`[Regenerate] ${resolvedSection}: Content identical - skipping DB write`);
+            } else if (currentRow) {
+                const { error: updateError } = await supabaseAdmin
+                    .from('vault_content')
+                    .update({
+                        content: parsedContent,
+                        prompt_used: promptUsed,
+                        status: 'generated',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', currentRow.id);
 
-            // Insert new version
-            const { error: insertError } = await supabaseAdmin.from('vault_content').insert({
-                funnel_id: resolvedFunnelId,
-                user_id: userId,
-                section_id: resolvedSection,
-                section_title: promptConfig.name,
-                content: parsedContent,
-                prompt_used: promptUsed,
-                phase: [1, 2, 3, 4, 5, 17].includes(key) ? 1 : 2,
-                status: 'generated', // Explicitly generated so it needs approval
-                numeric_key: key,
-                is_current_version: true,
-                version: newVersion,
-                updated_at: new Date().toISOString()
-            });
+                if (updateError) {
+                    console.error('[Regenerate] DB Update Error:', updateError);
+                }
+            } else {
+                const { error: insertError } = await supabaseAdmin.from('vault_content').insert({
+                    funnel_id: resolvedFunnelId,
+                    user_id: targetUserId,
+                    section_id: resolvedSection,
+                    section_title: promptConfig.name,
+                    content: parsedContent,
+                    prompt_used: promptUsed,
+                    phase: [1, 2, 3, 4, 5, 17].includes(key) ? 1 : 2,
+                    status: 'generated',
+                    numeric_key: key,
+                    is_current_version: true,
+                    version: 1,
+                    updated_at: new Date().toISOString()
+                });
 
-            if (insertError) console.error('[Regenerate] DB Insert Error:', insertError);
+                if (insertError) console.error('[Regenerate] DB Insert Error:', insertError);
+            }
+
+            if (!unchanged) {
+                const fieldResult = await populateVaultFields(
+                    resolvedFunnelId,
+                    resolvedSection,
+                    parsedContent,
+                    targetUserId,
+                    { forceOverwrite: !!currentRow }
+                );
+
+                if (!fieldResult.success) {
+                    console.warn('[Regenerate] populateVaultFields failed:', fieldResult.error);
+                }
+            }
         }
 
         return NextResponse.json({
             success: true,
             section: resolvedSection,
             sectionName: promptConfig.name,
-            content: parsedContent
+            content: parsedContent,
+            unchanged
         });
 
     } catch (error) {

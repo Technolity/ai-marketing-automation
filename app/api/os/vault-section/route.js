@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { validateVaultContent, stripExtraFields } from '@/lib/schemas/vaultSchemas';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { performAtomicUpdate } from '@/lib/vault/atomicUpdater';
 import { reconcileFromSection } from '@/lib/vault/reconcileVault';
 
@@ -20,13 +21,18 @@ export async function PATCH(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
         const body = await req.json();
         const { sectionId, content, funnelId, sessionId } = body;
 
         // Support both funnelId and sessionId
         const providedId = funnelId || sessionId;
 
-        console.log(`[VaultSection] Updating section: ${sectionId} for user: ${userId}, providedId: ${providedId}`);
+        console.log(`[VaultSection] Updating section: ${sectionId} for user: ${targetUserId}, providedId: ${providedId}`);
 
         // EXPLICIT COLORS LOGGING: Track Brand Colors saves from AI feedback
         if (sectionId === 'colors') {
@@ -105,11 +111,24 @@ export async function PATCH(req) {
         // Find the target funnel (use provided ID or get active funnel)
         let targetFunnelId = providedId;
 
+        if (targetFunnelId) {
+            const { data: ownedFunnel, error: ownedError } = await supabaseAdmin
+                .from('user_funnels')
+                .select('id')
+                .eq('id', targetFunnelId)
+                .eq('user_id', targetUserId)
+                .single();
+
+            if (ownedError || !ownedFunnel) {
+                return NextResponse.json({ error: 'Funnel not found or unauthorized' }, { status: 404 });
+            }
+        }
+
         if (!targetFunnelId) {
             const { data: activeFunnel } = await supabaseAdmin
                 .from('user_funnels')
                 .select('id')
-                .eq('user_id', userId)
+                .eq('user_id', targetUserId)
                 .eq('is_active', true)
                 .eq('is_deleted', false)
                 .single();
@@ -121,7 +140,7 @@ export async function PATCH(req) {
                 const { data: latestFunnel } = await supabaseAdmin
                     .from('user_funnels')
                     .select('id')
-                    .eq('user_id', userId)
+                    .eq('user_id', targetUserId)
                     .eq('is_deleted', false)
                     .order('updated_at', { ascending: false })
                     .limit(1)
@@ -144,6 +163,7 @@ export async function PATCH(req) {
             .from('vault_content')
             .select('id, content, version')
             .eq('funnel_id', targetFunnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', sectionId)
             .eq('is_current_version', true)
             .single();
@@ -162,7 +182,8 @@ export async function PATCH(req) {
                     updated_at: new Date().toISOString(),
                     version: (existing.version || 1) + 1
                 })
-                .eq('id', existing.id);
+                .eq('id', existing.id)
+                .eq('user_id', targetUserId);
 
             if (updateError) {
                 console.error('[VaultSection] Update error:', updateError);
@@ -196,7 +217,7 @@ export async function PATCH(req) {
                 .from('vault_content')
                 .insert({
                     funnel_id: targetFunnelId,
-                    user_id: userId,
+                    user_id: targetUserId,
                     section_id: sectionId,
                     section_title: sectionId,
                     content: validatedContent,
@@ -215,7 +236,7 @@ export async function PATCH(req) {
 
         // Reconcile granular fields from updated JSONB
         try {
-            const reconcileResult = await reconcileFromSection(targetFunnelId, sectionId, validatedContent, userId);
+            const reconcileResult = await reconcileFromSection(targetFunnelId, sectionId, validatedContent, targetUserId);
             if (!reconcileResult?.success) {
                 console.warn('[VaultSection] Reconcile failed:', reconcileResult?.error);
             }

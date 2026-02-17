@@ -1,6 +1,8 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { streamWithProvider } from '@/lib/ai/sharedAiUtils';
+import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 import { getFullContextPrompt, buildEnhancedFeedbackPrompt } from '@/lib/prompts/fullContextPrompts';
 import { buildGlobalContext, getContextString, buildSectionContext } from '@/lib/prompts/contextHelper';
@@ -87,6 +89,22 @@ async function handleParallelRefinement({
     console.log('[ParallelRefinement] Starting parallel refinement for:', sectionId);
 
     // Define chunking strategies for each section type
+    const chunkTokenLimits = {
+        emails: 4000,
+        vsl: 5000,
+        salesScripts: 4000,
+        setterScript: 3500,
+        sms: 2000
+    };
+
+    const chunkTimeouts = {
+        emails: 120000,
+        vsl: 120000,
+        salesScripts: 120000,
+        setterScript: 120000,
+        sms: 60000
+    };
+
     const chunkingStrategies = {
         emails: {
             numChunks: 4,
@@ -274,7 +292,8 @@ INSTRUCTIONS:
             () => { }, // No token callback for parallel chunks
             {
                 temperature: 0.7,
-                maxTokens: 3000,
+                maxTokens: chunkTokenLimits[sectionId] || 3000,
+                timeout: chunkTimeouts[sectionId] || 90000,
                 jsonMode: true
             }
         );
@@ -290,7 +309,7 @@ INSTRUCTIONS:
             cleanedText = jsonMatch[0];
         }
 
-        const parsedChunk = JSON.parse(cleanedText);
+        const parsedChunk = parseJsonSafe(cleanedText, { throwOnError: true });
 
         console.log(`[ParallelRefinement] Chunk ${index + 1} completed:`, Object.keys(parsedChunk));
 
@@ -318,6 +337,14 @@ export async function POST(req) {
         });
     }
 
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+        return new Response(JSON.stringify({ error: workspaceError }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     const body = await req.json();
     const {
         sectionId,
@@ -327,6 +354,25 @@ export async function POST(req) {
         currentContent,
         sessionId
     } = body;
+
+    let validatedFunnel = null;
+    if (sessionId) {
+        const { data: funnelData, error: funnelError } = await supabaseAdmin
+            .from('user_funnels')
+            .select('id, wizard_answers')
+            .eq('id', sessionId)
+            .eq('user_id', targetUserId)
+            .single();
+
+        if (funnelError || !funnelData) {
+            return new Response(JSON.stringify({ error: 'Funnel not found or unauthorized' }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        validatedFunnel = funnelData;
+    }
 
     // COMPREHENSIVE LOGGING: Request metadata
     console.log('[RefineStream] ========== NEW REQUEST ==========');
@@ -422,17 +468,8 @@ export async function POST(req) {
 
             // Fetch intake data for context
             let intakeData = {};
-            if (sessionId) {
-                const { data: funnelData } = await supabaseAdmin
-                    .from('user_funnels')
-                    .select('wizard_answers')
-                    .eq('id', sessionId)
-                    .eq('user_id', userId)
-                    .single();
-
-                if (funnelData?.wizard_answers) {
-                    intakeData = funnelData.wizard_answers;
-                }
+            if (sessionId && validatedFunnel?.wizard_answers) {
+                intakeData = validatedFunnel.wizard_answers;
             }
 
             // Fetch Lead Magnet Title from vault_content_fields (for ad copy, emails, SMS dependencies)
@@ -458,7 +495,7 @@ export async function POST(req) {
                 const { data: userProfile } = await supabaseAdmin
                     .from('user_profiles')
                     .select('business_name')
-                    .eq('user_id', userId)
+                    .eq('user_id', targetUserId)
                     .single();
 
                 if (userProfile?.business_name) {

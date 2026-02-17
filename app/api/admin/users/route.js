@@ -7,6 +7,12 @@ export const dynamic = 'force-dynamic';
 
 const supabase = getSupabaseClient();
 
+const TIER_SEAT_LIMITS = {
+    starter: 1,
+    growth: 3,
+    scale: 10
+};
+
 /**
  * GET /api/admin/users - List all users with enhanced logging
  */
@@ -249,6 +255,10 @@ export async function PUT(req) {
                 updated_at: new Date().toISOString()
             };
 
+            if (field === 'subscription_tier') {
+                updateData.max_seats = TIER_SEAT_LIMITS[processedValue] ?? 1;
+            }
+
             adminLogger.logDatabaseOperation('UPDATE', 'user_profiles', {
                 targetUserId,
                 field,
@@ -294,6 +304,7 @@ export async function PUT(req) {
                 .from('user_profiles')
                 .update({
                     subscription_tier: tier,
+                    max_seats: TIER_SEAT_LIMITS[tier] ?? 1,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', targetUserId)

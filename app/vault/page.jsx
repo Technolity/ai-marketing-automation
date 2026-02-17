@@ -174,14 +174,25 @@ function normalizeData(rawData) {
         for (const [key, value] of Object.entries(rawData)) {
             if (value && typeof value === 'object' && ('data' in value || 'status' in value)) {
                 // New format: { media: { data: {...}, status: "approved" } }
-                const sectionData = value.data || value;
+                let sectionData = value.data || value;
+
+                // Safety: if data is a string (double-serialized JSONB), parse it first
+                if (typeof sectionData === 'string') {
+                    try {
+                        sectionData = JSON.parse(sectionData);
+                    } catch {
+                        // If not valid JSON, wrap it
+                        sectionData = { raw: sectionData };
+                    }
+                }
+
                 if (value.status) {
                     normalized[key] = {
-                        ...sectionData,
+                        ...(typeof sectionData === 'object' && sectionData !== null ? sectionData : { raw: sectionData }),
                         _status: value.status  // Preserve status
                     };
                 } else {
-                    normalized[key] = sectionData;
+                    normalized[key] = typeof sectionData === 'object' && sectionData !== null ? sectionData : { raw: sectionData };
                 }
             } else {
                 // Old flat format: { media: {...} }
@@ -607,6 +618,13 @@ export default function VaultPage() {
     // Ref to track completed job IDs we've already processed (prevents duplicate refreshes)
     const previouslyCompletedJobsRef = useRef(new Set());
 
+    // Ref to always hold latest vaultData for stale-closure-safe polling comparisons
+    const vaultDataRef = useRef(vaultData);
+    useEffect(() => { vaultDataRef.current = vaultData; }, [vaultData]);
+
+    // Incrementing this state restarts the polling useEffect (e.g. after regeneration)
+    const [pollVersion, setPollVersion] = useState(0);
+
     // Tab state - determine initial tab from URL param
     const initialTab = searchParams.get('phase') === '2' ? 'assets' : 'dna';
     const [activeTab, setActiveTab] = useState(initialTab);
@@ -805,6 +823,122 @@ export default function VaultPage() {
         return () => window.removeEventListener('funnelCopyGenerated', handleFunnelCopyGenerated);
     }, [searchParams, session]);
 
+    // Listen for regeneration events from FeedbackChatModal to show spinners immediately
+    useEffect(() => {
+        const funnelId = searchParams.get('funnel_id');
+        if (!funnelId || !session) return;
+
+        const handleDependencyComplete = async (e) => {
+            const sections = e.detail?.sections || [];
+            if (sections.length === 0) return;
+
+            try {
+                const res = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
+                if (!res.ok) return;
+
+                const result = await res.json();
+                if (!result.data || Object.keys(result.data).length === 0) return;
+
+                const normalizedData = normalizeData(result.data);
+                const withFreeGift = applyFreeGiftReplacement(normalizedData);
+
+                // Only update the sections that finished regenerating to avoid jarring re-renders
+                setVaultData(prev => {
+                    const next = { ...prev };
+                    sections.forEach(sectionId => {
+                        if (withFreeGift[sectionId]) {
+                            next[sectionId] = withFreeGift[sectionId];
+                        }
+                    });
+                    return next;
+                });
+
+                // Bump refresh triggers for the affected sections only
+                const now = Date.now();
+                setRefreshTriggers(prev => {
+                    const next = { ...prev };
+                    sections.forEach(sectionId => {
+                        next[sectionId] = now;
+                    });
+                    return next;
+                });
+
+                // Refresh approvals without forcing a full page refresh
+                await loadApprovals(funnelId);
+            } catch (err) {
+                console.error('[Vault] Dependency completion refresh error:', err);
+            }
+        };
+
+        window.addEventListener('dependencyRegenerationComplete', handleDependencyComplete);
+        return () => window.removeEventListener('dependencyRegenerationComplete', handleDependencyComplete);
+    }, [searchParams, session]);
+
+    useEffect(() => {
+        const funnelId = searchParams.get('funnel_id');
+        if (!funnelId || !session) return;
+
+        const handleRegenerationTriggered = async (e) => {
+            const sections = e.detail?.sections || [];
+            console.log('[Vault] dY", Regeneration triggered for sections:', sections);
+
+            if (sections.length === 0) {
+                setPollVersion(v => v + 1);
+                return;
+            }
+
+            // 1. IMMEDIATE (SOFT): Fetch fresh data but only update the affected sections
+            // to avoid jarring re-renders while the user is reading other sections.
+            try {
+                const res = await fetchWithAuth(`/api/os/results?funnel_id=${funnelId}`);
+                if (res.ok) {
+                    const result = await res.json();
+                    if (result.data && Object.keys(result.data).length > 0) {
+                        const normalizedData = normalizeData(result.data);
+                        const withFreeGift = applyFreeGiftReplacement(normalizedData);
+
+                        setVaultData(prev => {
+                            const next = { ...prev };
+                            sections.forEach(sectionId => {
+                                if (withFreeGift[sectionId]) {
+                                    next[sectionId] = {
+                                        ...next[sectionId],
+                                        ...withFreeGift[sectionId]
+                                    };
+                                } else {
+                                    next[sectionId] = {
+                                        ...next[sectionId],
+                                        _status: 'generating'
+                                    };
+                                }
+                            });
+                            return next;
+                        });
+
+                        const now = Date.now();
+                        setRefreshTriggers(prev => {
+                            const next = { ...prev };
+                            sections.forEach(sectionId => {
+                                next[sectionId] = now;
+                            });
+                            return next;
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('[Vault] Error during immediate regeneration refresh:', err);
+            }
+
+            // 2. Restart polling so it picks up per-section completion in real time.
+            //    Bumping pollVersion causes the polling useEffect to tear down the old
+            //    interval (and its exhausted unchangedPollCount) and start a fresh one.
+            setPollVersion(v => v + 1);
+        };
+
+        window.addEventListener('regenerationTriggered', handleRegenerationTriggered);
+        return () => window.removeEventListener('regenerationTriggered', handleRegenerationTriggered);
+    }, [searchParams, session]);
+
     // Poll for active generation jobs (Phase 2/3 background generation)
     // This provides real-time updates even without the ?generating=true flag
     useEffect(() => {
@@ -813,7 +947,7 @@ export default function VaultPage() {
 
         let pollInterval;
         let isPolling = false;
-        let lastSectionCount = Object.keys(vaultData).length;
+        let lastSectionCount = Object.keys(vaultDataRef.current).length;
         let unchangedPollCount = 0; // Track consecutive polls with no changes
 
         const checkForNewSections = async () => {
@@ -839,18 +973,22 @@ export default function VaultPage() {
                     // Check if new sections have been generated
                     const isNewSections = newSectionCount > lastSectionCount;
 
-                    // REGENERATION FIX: During regeneration, check if data actually changed
-                    // Compare stringified data to detect content changes without section count increase
+                    // ALWAYS compare content/status to detect backend changes (e.g. regeneration)
+                    // This runs in ALL modes — not just isGeneratingMode — so that
+                    // dependent sections whose status flips to 'generating' are picked up.
                     let dataChanged = isNewSections;
-                    if (isGeneratingMode && !isNewSections) {
-                        // Compare only the actual content, not the entire object structure
-                        // This prevents false positives from object reference changes
-                        const currentDataStr = JSON.stringify(vaultData, Object.keys(vaultData).sort());
-                        const newDataStr = JSON.stringify(normalizedData, Object.keys(normalizedData).sort());
+                    if (!isNewSections) {
+                        const latestVaultData = vaultDataRef.current;
+                        // CRITICAL FIX: Previously used JSON.stringify(obj, Object.keys(obj).sort())
+                        // which treats the sorted keys as a REPLACER ARRAY — stripping ALL nested
+                        // properties (like _status, oneLiner, etc.) from serialization.
+                        // This made the comparison ALWAYS think data was unchanged.
+                        const currentDataStr = JSON.stringify(latestVaultData);
+                        const newDataStr = JSON.stringify(normalizedData);
                         dataChanged = currentDataStr !== newDataStr;
 
                         if (dataChanged) {
-                            console.log('[Vault] 🔄 Content change detected during regeneration');
+                            console.log('[Vault] 🔄 Content/status change detected via polling');
                         }
                     }
 
@@ -967,7 +1105,7 @@ export default function VaultPage() {
             if (pollInterval) clearInterval(pollInterval);
             console.log('[Vault] Polling stopped');
         };
-    }, [searchParams, session, initialLoadComplete, isGeneratingMode]); // Added isGeneratingMode to restart polling with correct interval
+    }, [searchParams, session, initialLoadComplete, isGeneratingMode, pollVersion]); // pollVersion restarts polling on regeneration trigger
 
 
     const loadApprovals = async (sId = null) => {
@@ -1070,13 +1208,21 @@ export default function VaultPage() {
             console.log('[Vault] In GENERATING MODE - sections will show as generating until approved');
         }
 
+        const sectionData = vaultData?.[sectionId];
+
+        // 0. PRIORITY: If backend marks this section as 'generating', show spinner immediately.
+        //    This overrides approvals — the section is actively being regenerated.
+        if (sectionData?._status === 'generating') {
+            console.log(`[Vault] Section ${sectionId} is GENERATING (backend status)`);
+            return 'generating';
+        }
+
         // 1. Already approved sections stay approved (check approvedList first)
         if (approvedList.includes(sectionId)) return 'approved';
 
         // 1b. CRITICAL FIX: Also check vault_content.status for database-persisted approvals
         // This handles cases where Media/Colors were approved but not in approvedList
         // HOWEVER: During regeneration mode, ignore old cached status (it's stale)
-        const sectionData = vaultData?.[sectionId];
         if (!isGeneratingMode && sectionData?._status === 'approved') {
             console.log(`[Vault] Section ${sectionId} approved via vault_content.status`);
             return 'approved';
@@ -1141,6 +1287,23 @@ export default function VaultPage() {
     };
 
     const handleApprove = async (sectionId, phaseNumber) => {
+        if (sectionId === 'media') {
+            try {
+                const funnelId = searchParams.get('funnel_id');
+                if (funnelId) {
+                    await fetchWithAuth('/api/os/vault-section-approve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            funnel_id: funnelId,
+                            section_id: sectionId
+                        })
+                    });
+                }
+            } catch (error) {
+                console.error('[Vault] Media pre-approve failed:', error);
+            }
+        }
         // Get sections list for current phase
         const phaseSections = phaseNumber === 1 ? PHASE_1_SECTIONS
             : phaseNumber === 2 ? PHASE_2_SECTIONS
@@ -1359,6 +1522,14 @@ export default function VaultPage() {
                 })
             });
 
+            // Check for auth errors that might cause "kick out"
+            if (res.status === 401 || res.status === 403) {
+                console.error('[Vault] AUTH ERROR on save:', res.status, res.statusText);
+                toast.error('Session expired. Please refresh the page and try again.', { duration: 5000 });
+                setIsSaving(false);
+                return;
+            }
+
             const responseData = await res.json();
 
             if (res.ok && responseData.success) {
@@ -1371,7 +1542,7 @@ export default function VaultPage() {
             }
         } catch (error) {
             console.error("[Vault] Save error:", error);
-            toast.error("Failed to save changes");
+            toast.error("Failed to save changes. Check your connection.");
         } finally {
             setIsSaving(false);
         }
@@ -1531,14 +1702,29 @@ export default function VaultPage() {
             const isPersistable = dataSource?.type === 'loaded' || dataSource?.type === 'latest_session';
             if (sessionId && isPersistable) {
                 try {
-                    await fetchWithAuth('/api/os/sessions', {
+                    const response = await fetchWithAuth('/api/os/sessions', {
                         method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             id: sessionId,
                             generatedContent: updatedVaultData
                         })
                     });
-                    toast.success("Changes saved to session!");
+
+                    // Check for auth errors that might cause "kick out"
+                    if (response.status === 401 || response.status === 403) {
+                        console.error('[Vault] AUTH ERROR on edit save:', response.status);
+                        toast.error('Session expired. Please refresh the page.', { duration: 5000 });
+                        return;
+                    }
+
+                    if (response.ok) {
+                        toast.success("Changes saved to session!");
+                    } else {
+                        const errData = await response.json();
+                        console.error('[Vault] Edit save failed:', errData);
+                        toast.error(`Save failed: ${errData.error || 'Unknown error'}`);
+                    }
                 } catch (saveError) {
                     console.error("[Vault] Failed to persist edit:", saveError);
                     toast.error("Saved locally, but failed to sync with database.");
@@ -2656,6 +2842,10 @@ export default function VaultPage() {
                             <button
                                 onClick={() => {
                                     const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                                    const confirmed = window.confirm(
+                                        'Are you sure? Editing intake answers may change or overwrite generated content. Proceed carefully.'
+                                    );
+                                    if (!confirmed) return;
                                     console.log('[Vault] Edit Intake Answers clicked - redirecting with edit_mode=true for funnel:', funnelId);
                                     router.push(`/intake_form?funnel_id=${funnelId}&edit_mode=true`);
                                 }}
@@ -2844,8 +3034,9 @@ export default function VaultPage() {
                                     </svg>
                                 ) :
                                     status === 'generating' ? <Loader2 className="w-4 h-4 sm:w-6 sm:h-6 text-cyan animate-spin" /> :
-                                        status === 'failed' ? <AlertTriangle className="w-4 h-4 sm:w-6 sm:h-6 text-red-500" /> :
-                                            <Icon className="w-4 h-4 sm:w-6 sm:h-6 text-cyan" />}
+                                        status === 'regenerating' ? <RefreshCw className="w-4 h-4 sm:w-6 sm:h-6 text-purple-400 animate-spin" /> :
+                                            status === 'failed' ? <AlertTriangle className="w-4 h-4 sm:w-6 sm:h-6 text-red-500" /> :
+                                                <Icon className="w-4 h-4 sm:w-6 sm:h-6 text-cyan" />}
 
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2967,6 +3158,8 @@ export default function VaultPage() {
                             </button>
                         </div>
                     )}
+
+
 
                     {/* Portal Target for Granular Section Actions */}
                     <div id={`section-header-actions-${section.id}`} className="flex items-center gap-2" />
@@ -3113,6 +3306,10 @@ export default function VaultPage() {
                     <button
                         onClick={() => {
                             const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                            const confirmed = window.confirm(
+                                'Are you sure? Editing intake answers may change or overwrite generated content. Proceed carefully.'
+                            );
+                            if (!confirmed) return;
                             console.log('[Vault] Edit Intake Answers clicked - redirecting with edit_mode=true for funnel:', funnelId);
                             router.push(`/intake_form?funnel_id=${funnelId}&edit_mode=true`);
                         }}

@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { validateVaultContent, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { reconcileFromSection } from '@/lib/vault/reconcileVault';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,23 +49,38 @@ export async function POST(req) {
             }, { status: 400 });
         }
 
-        // 1. Fetch current vault content
-        const { data: currentSession, error: fetchError } = await supabaseAdmin
-            .from('saved_sessions')
-            .select('vault_content')
+        // 1. Verify funnel ownership
+        const { data: funnel, error: funnelError } = await supabaseAdmin
+            .from('user_funnels')
+            .select('id')
             .eq('id', sessionId)
             .eq('user_id', targetUserId)
             .single();
 
-        if (fetchError || !currentSession) {
-            console.error('[VaultFieldUpdate] Failed to fetch session:', fetchError);
+        if (funnelError || !funnel) {
             return NextResponse.json({
-                error: 'Session not found or access denied'
+                error: 'Funnel not found or access denied'
             }, { status: 404 });
         }
 
-        const vaultContent = currentSession.vault_content || {};
-        const sectionContent = vaultContent[sectionId] || {};
+        // 2. Fetch current vault section content
+        const { data: currentSection, error: fetchError } = await supabaseAdmin
+            .from('vault_content')
+            .select('id, content')
+            .eq('funnel_id', sessionId)
+            .eq('user_id', targetUserId)
+            .eq('section_id', sectionId)
+            .eq('is_current_version', true)
+            .single();
+
+        if (fetchError || !currentSection) {
+            console.error('[VaultFieldUpdate] Failed to fetch section:', fetchError);
+            return NextResponse.json({
+                error: 'Section not found or access denied'
+            }, { status: 404 });
+        }
+
+        const sectionContent = currentSection.content || {};
 
         // 2. Update the specific field using path
         const updatedSection = setNestedValue(sectionContent, fieldPath, newValue);
@@ -85,18 +101,15 @@ export async function POST(req) {
         }
 
         // 4. Save to Supabase
-        const newVaultContent = {
-            ...vaultContent,
-            [sectionId]: validation.success ? validation.data : updatedSection
-        };
+        const updatedContent = validation.success ? validation.data : updatedSection;
 
         const { error: updateError } = await supabaseAdmin
-            .from('saved_sessions')
+            .from('vault_content')
             .update({
-                vault_content: newVaultContent,
+                content: updatedContent,
                 updated_at: new Date().toISOString()
             })
-            .eq('id', sessionId)
+            .eq('id', currentSection.id)
             .eq('user_id', targetUserId);
 
         if (updateError) {
@@ -108,7 +121,7 @@ export async function POST(req) {
         try {
             await supabaseAdmin.from('content_edit_history').insert({
                 user_id: targetUserId,
-                vault_content_id: sessionId,
+                vault_content_id: currentSection.id,
                 funnel_id: sessionId,
                 user_feedback_type: 'direct_edit',
                 user_feedback_text: `Edited ${fieldPath} by ${userId === targetUserId ? 'owner' : 'team member'}`,
@@ -124,10 +137,20 @@ export async function POST(req) {
 
         console.log('[VaultFieldUpdate] Success');
 
+        // Reconcile granular fields from updated JSONB
+        try {
+            const reconcileResult = await reconcileFromSection(sessionId, sectionId, updatedContent, targetUserId);
+            if (!reconcileResult?.success) {
+                console.warn('[VaultFieldUpdate] Reconcile failed:', reconcileResult?.error);
+            }
+        } catch (reconcileError) {
+            console.warn('[VaultFieldUpdate] Reconcile error:', reconcileError.message);
+        }
+
         return NextResponse.json({
             success: true,
             message: 'Field updated successfully',
-            updatedSection: validation.success ? validation.data : updatedSection,
+            updatedSection: updatedContent,
             validationWarning: !validation.success ? 'Field may not match schema requirements' : null
         });
 

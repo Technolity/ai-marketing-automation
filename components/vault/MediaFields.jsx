@@ -484,7 +484,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                                 {predefinedFields.map(renderMediaField)}
 
                                 {/* Approve Button */}
-                                {!sectionApproved && fields.every(f => f.field_value) && (
+                                {!sectionApproved && (
                                     <button
                                         onClick={handleApproveSection}
                                         disabled={isApproving}

@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,11 @@ export async function POST(req) {
     const { userId } = auth();
     if (!userId) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+    }
+
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+        return new Response(JSON.stringify({ error: workspaceError }), { status: 403 });
     }
 
     let body;
@@ -46,7 +52,7 @@ export async function POST(req) {
                 updated_at: new Date().toISOString()
             })
             .eq('id', funnelId)
-            .eq('user_id', userId);
+            .eq('user_id', targetUserId);
 
         if (funnelError) {
             console.error('[IntakeFormSave] Funnel update failed:', funnelError);
@@ -90,7 +96,7 @@ export async function POST(req) {
 
                 const row = {
                     funnel_id: funnelId,
-                    user_id: userId,
+                    user_id: targetUserId,
                     question_id: questionId,
                     step_number: questionId, // Fallback/Redundant but useful
                     answered_at: new Date().toISOString()
@@ -116,7 +122,8 @@ export async function POST(req) {
                 await supabaseAdmin
                     .from('questionnaire_responses')
                     .delete()
-                    .eq('funnel_id', funnelId); // RLS/User check implicit in app logic but good to double check if needed, but funnel_id is unique enough here usually. 
+                    .eq('funnel_id', funnelId)
+                    .eq('user_id', targetUserId); // Always scope deletes by user to prevent cross-tenant deletes.
                 // Actually clearer to add user_id for safety if RLS isn't perfect on service role.
 
                 // Insert new

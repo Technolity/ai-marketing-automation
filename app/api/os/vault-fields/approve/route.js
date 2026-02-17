@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getSyncTargets, getNestedValue, applySyncToTarget } from '@/lib/vault/fieldSync';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,11 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
         const { funnel_id, section_id } = await req.json();
 
         if (!funnel_id || !section_id) {
@@ -25,13 +31,24 @@ export async function POST(req) {
 
         console.log(`[Approve Fields] Approving section ${section_id} for funnel ${funnel_id}`);
 
+        const { data: funnel, error: funnelError } = await supabaseAdmin
+            .from('user_funnels')
+            .select('id')
+            .eq('id', funnel_id)
+            .eq('user_id', targetUserId)
+            .single();
+
+        if (funnelError || !funnel) {
+            return NextResponse.json({ error: 'Funnel not found or unauthorized' }, { status: 404 });
+        }
+
         // Mark all fields in this section as approved (current version only)
         const { error: updateError } = await supabaseAdmin
             .from('vault_content_fields')
             .update({ is_approved: true })
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_current_version', true);
 
         if (updateError) {
@@ -45,7 +62,7 @@ export async function POST(req) {
             .update({ status: 'approved' })
             .eq('funnel_id', funnel_id)
             .eq('section_id', section_id)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .eq('is_current_version', true);
 
         // Ignore error if vault_content doesn't have this section yet
@@ -69,7 +86,7 @@ export async function POST(req) {
                     .select('content')
                     .eq('funnel_id', funnel_id)
                     .eq('section_id', 'leadMagnet')
-                    .eq('user_id', userId)
+                    .eq('user_id', targetUserId)
                     .eq('is_current_version', true)
                     .single();
 
@@ -91,7 +108,7 @@ export async function POST(req) {
                                 .select('content')
                                 .eq('funnel_id', funnel_id)
                                 .eq('section_id', target.targetSection)
-                                .eq('user_id', userId)
+                                .eq('user_id', targetUserId)
                                 .eq('is_current_version', true)
                                 .single();
 
@@ -110,7 +127,7 @@ export async function POST(req) {
                                     .update({ content: updatedContent })
                                     .eq('funnel_id', funnel_id)
                                     .eq('section_id', target.targetSection)
-                                    .eq('user_id', userId)
+                                    .eq('user_id', targetUserId)
                                     .eq('is_current_version', true);
 
                                 if (syncUpdateError) {

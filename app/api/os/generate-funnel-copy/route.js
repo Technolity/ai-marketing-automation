@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { getPromptByKey } from '@/lib/prompts';
 import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
@@ -14,6 +15,11 @@ export async function POST(req) {
     const { userId } = auth();
     if (!userId) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+        return Response.json({ error: workspaceError }, { status: 403 });
     }
 
     let body;
@@ -34,7 +40,7 @@ export async function POST(req) {
         .from('user_funnels')
         .select('id, funnel_name')
         .eq('id', funnelId)
-        .eq('user_id', userId)
+        .eq('user_id', targetUserId)
         .single();
 
     if (funnelError || !funnel) {
@@ -48,6 +54,7 @@ export async function POST(req) {
         .from('vault_content')
         .select('section_id, status')
         .eq('funnel_id', funnelId)
+        .eq('user_id', targetUserId)
         .eq('is_current_version', true)
         .in('section_id', requiredSections);
 
@@ -78,16 +85,47 @@ export async function POST(req) {
         .from('vault_content')
         .select('id, status')
         .eq('funnel_id', funnelId)
+        .eq('user_id', targetUserId)
         .eq('section_id', 'funnelCopy')
         .eq('is_current_version', true)
         .single();
+
+    if (existingFunnelCopy && ['generated', 'approved', 'generating'].includes(existingFunnelCopy.status)) {
+        return Response.json({
+            success: true,
+            alreadyGenerated: true,
+            message: 'Funnel Copy already generated',
+            status: existingFunnelCopy.status
+        });
+    }
+
+    const { data: activeJob } = await supabaseAdmin
+        .from('generation_jobs')
+        .select('id, status')
+        .eq('funnel_id', funnelId)
+        .eq('user_id', targetUserId)
+        .eq('job_type', 'funnel_copy_generation')
+        .in('status', ['queued', 'processing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (activeJob) {
+        return Response.json({
+            success: true,
+            alreadyInProgress: true,
+            jobId: activeJob.id,
+            status: activeJob.status,
+            message: 'Funnel Copy generation already in progress'
+        });
+    }
 
     // Create generation job
     const { data: job, error: jobError } = await supabaseAdmin
         .from('generation_jobs')
         .insert({
             funnel_id: funnelId,
-            user_id: userId,
+            user_id: targetUserId,
             job_type: 'funnel_copy_generation',
             sections_to_generate: ['funnelCopy'],
             status: 'queued',
@@ -103,7 +141,7 @@ export async function POST(req) {
     }
 
     // Start background generation (don't await)
-    generateFunnelCopyInBackground(job.id, funnelId, userId).catch(error => {
+    generateFunnelCopyInBackground(job.id, funnelId, targetUserId).catch(error => {
         console.error('[FunnelCopy] Background generation error:', error);
     });
 
@@ -118,7 +156,7 @@ export async function POST(req) {
 /**
  * Background function to generate Funnel Copy
  */
-async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
+async function generateFunnelCopyInBackground(jobId, funnelId, targetUserId) {
     try {
         // Update job status to 'processing'
         await updateJobStatus(jobId, 'processing', 10);
@@ -128,6 +166,7 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
             .from('vault_content')
             .update({ is_locked: true })
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'funnelCopy');
 
         // Fetch all approved dependencies
@@ -135,6 +174,7 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
             .from('vault_content')
             .select('section_id, content')
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('is_current_version', true)
             .in('section_id', ['idealClient', 'message', 'story', 'offer', 'leadMagnet', 'vsl', 'bio']);
 
@@ -149,6 +189,7 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
             .from('user_funnels')
             .select('wizard_answers')
             .eq('id', funnelId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (funnelError) {
@@ -160,7 +201,7 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
         const { data: userProfile } = await supabaseAdmin
             .from('user_profiles')
             .select('business_name')
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         const profileBusinessName = userProfile?.business_name || null;
@@ -172,6 +213,7 @@ async function generateFunnelCopyInBackground(jobId, funnelId, userId) {
             .from('vault_content_fields')
             .select('field_value')
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'colors')
             .eq('field_id', 'colorPalette')
             .eq('is_current_version', true)
@@ -388,6 +430,7 @@ CRITICAL REQUIREMENTS:
             .from('vault_content')
             .delete()
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'funnelCopy');
 
         // Also delete old fields
@@ -395,6 +438,7 @@ CRITICAL REQUIREMENTS:
             .from('vault_content_fields')
             .delete()
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'funnelCopy');
 
         // Save to vault_content
@@ -402,7 +446,7 @@ CRITICAL REQUIREMENTS:
             .from('vault_content')
             .insert({
                 funnel_id: funnelId,
-                user_id: userId,
+                user_id: targetUserId,
                 section_id: 'funnelCopy',
                 section_title: 'Funnel Page Copy',
                 numeric_key: 10,
@@ -428,7 +472,7 @@ CRITICAL REQUIREMENTS:
             funnelId,
             'funnelCopy', // sectionId
             generatedContent, // content
-            userId // userId
+            targetUserId // userId
         );
 
         // Update job status to 'completed'
@@ -444,6 +488,7 @@ CRITICAL REQUIREMENTS:
             .from('vault_content')
             .update({ is_locked: false })
             .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
             .eq('section_id', 'funnelCopy');
 
         // Update job status to 'failed'

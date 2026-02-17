@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { getFieldsForSection } from "@/lib/vault/fieldStructures";
+import { calculateDependencyImpact } from "@/lib/vault/dependencyGraph";
 
 // Friendly AI chat openers
 const CHAT_OPENERS = [
@@ -279,6 +280,14 @@ function getFieldLabel(sectionId, fieldId) {
 }
 
 /**
+ * Check if a string contains HTML tags (e.g. email bodies)
+ */
+function isHtmlContent(str) {
+    if (typeof str !== 'string') return false;
+    return /<(?:p|div|strong|em|ul|ol|li|a|br|h[1-6]|span|table|tr|td|th|img)[\/\s>]/i.test(str);
+}
+
+/**
  * Format AI-generated content for human-readable display
  * Converts JSON objects/strings into clean, formatted text
  */
@@ -290,6 +299,112 @@ function formatPreviewContent(content) {
 
     // Format the parsed content for display
     return formatForDisplay(parsed);
+}
+
+/**
+ * Render content with HTML awareness.
+ * If the content contains HTML tags (like email bodies), render as HTML.
+ * Otherwise, render as plain formatted text.
+ */
+function ContentPreviewRenderer({ content, className = '' }) {
+    if (!content) return null;
+
+    const parsed = deepParseJSON(content);
+
+    // If it's a string with HTML, render it directly
+    if (typeof parsed === 'string' && isHtmlContent(parsed)) {
+        return (
+            <div
+                className={`prose prose-invert prose-sm max-w-none ${className}`}
+                style={{ fontSize: '0.8125rem', lineHeight: '1.6' }}
+                dangerouslySetInnerHTML={{ __html: parsed }}
+            />
+        );
+    }
+
+    // If it's an object, check if any values contain HTML (e.g. email objects with body fields)
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        const hasHtmlValues = Object.values(parsed).some(v => {
+            if (typeof v === 'string') return isHtmlContent(v);
+            if (typeof v === 'object' && v !== null) {
+                return Object.values(v).some(sv => typeof sv === 'string' && isHtmlContent(sv));
+            }
+            return false;
+        });
+
+        if (hasHtmlValues) {
+            return (
+                <div className={`space-y-4 ${className}`}>
+                    {Object.entries(parsed).map(([key, value]) => {
+                        if (key.startsWith('_')) return null;
+                        const label = key
+                            .replace(/([A-Z])/g, ' $1')
+                            .replace(/[_-]/g, ' ')
+                            .trim()
+                            .split(' ')
+                            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                            .join(' ');
+
+                        if (typeof value === 'object' && value !== null) {
+                            return (
+                                <div key={key} className="border border-[#2a2a2d] rounded-lg p-3 space-y-2">
+                                    <div className="text-xs font-bold text-cyan uppercase tracking-wide">{label}</div>
+                                    {Object.entries(value).map(([subKey, subVal]) => {
+                                        const subLabel = subKey.charAt(0).toUpperCase() + subKey.slice(1);
+                                        if (typeof subVal === 'string' && isHtmlContent(subVal)) {
+                                            return (
+                                                <div key={subKey}>
+                                                    <span className="text-xs text-gray-500 font-medium">{subLabel}:</span>
+                                                    <div
+                                                        className="mt-1 prose prose-invert prose-sm max-w-none"
+                                                        style={{ fontSize: '0.75rem', lineHeight: '1.5' }}
+                                                        dangerouslySetInnerHTML={{ __html: subVal }}
+                                                    />
+                                                </div>
+                                            );
+                                        }
+                                        return (
+                                            <div key={subKey}>
+                                                <span className="text-xs text-gray-500 font-medium">{subLabel}:</span>
+                                                <p className="text-xs text-gray-300 mt-0.5">{String(subVal)}</p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        }
+
+                        if (typeof value === 'string' && isHtmlContent(value)) {
+                            return (
+                                <div key={key}>
+                                    <span className="text-xs text-gray-500 font-medium">{label}:</span>
+                                    <div
+                                        className="mt-1 prose prose-invert prose-sm max-w-none"
+                                        style={{ fontSize: '0.75rem', lineHeight: '1.5' }}
+                                        dangerouslySetInnerHTML={{ __html: value }}
+                                    />
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <div key={key}>
+                                <span className="text-xs text-gray-500 font-medium">{label}:</span>
+                                <p className="text-xs text-gray-300 mt-0.5">{formatForDisplay(value)}</p>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        }
+    }
+
+    // Fallback: plain text rendering
+    return (
+        <pre className={`text-xs whitespace-pre-wrap font-sans ${className}`}>
+            {formatForDisplay(parsed)}
+        </pre>
+    );
 }
 
 /**
@@ -423,9 +538,15 @@ export default function FeedbackChatModal({
     const [inputText, setInputText] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [selectedSubSection, setSelectedSubSection] = useState(null);
-    const [chatStep, setChatStep] = useState(1); // 1: Ask what to change, 2: Get feedback, 3: Show preview
+    const [chatStep, setChatStep] = useState(1); // 1: Ask what to change, 2: Get feedback, 3: Show preview, 4: Dependency review
     const [suggestedChanges, setSuggestedChanges] = useState(null);
     const [regenerationCount, setRegenerationCount] = useState(0);
+
+    // Dependency review state
+    const [dependencyImpact, setDependencyImpact] = useState(null);
+    const [selectedDependencies, setSelectedDependencies] = useState([]);
+    const [isDependencyProcessing, setIsDependencyProcessing] = useState(false);
+    const [lastUserFeedback, setLastUserFeedback] = useState('');
     const [previousAlternatives, setPreviousAlternatives] = useState([]); // Track all generated alternatives
     const messagesEndRef = useRef(null);
 
@@ -569,6 +690,7 @@ Be as specific as possible - for example:
         if (!inputText.trim() || isProcessing || isStreaming) return;
 
         const feedback = inputText.trim();
+        setLastUserFeedback(feedback); // Track for dependency context
         const userMessage = {
             id: `msg_${Date.now()}`,
             role: 'user',
@@ -958,14 +1080,141 @@ Be as specific as possible - for example:
         });
         console.log('[FeedbackChat] Content being saved:', JSON.stringify(suggestedChanges, null, 2).substring(0, 500));
 
-        // Pass both refined content AND subSection info to vault
+        // Check for dependency impacts BEFORE saving (saving triggers refresh which closes modal)
+        const impact = calculateDependencyImpact(sectionId, selectedSubSection);
+        console.log('[FeedbackChat] Dependency impact:', impact);
+
+        if (impact.hasImpact) {
+            // DON'T save yet — show dependency review step first
+            // onSave() will be called when user clicks Regenerate or Skip
+            setDependencyImpact(impact);
+            setSelectedDependencies(impact.affectedSections.map(s => s.sectionId)); // Pre-select all
+            setChatStep(4);
+
+            setMessages(prev => [
+                ...prev,
+                {
+                    role: 'assistant',
+                    content: `🔗 **Heads up** — ${impact.affectedSections.length} other section${impact.affectedSections.length > 1 ? 's' : ''} depend${impact.affectedSections.length === 1 ? 's' : ''} on your changes to **${sectionTitle}**. Would you like to regenerate them for consistency?\n\nYour changes will be saved when you choose an option below.`,
+                    isDependencyPrompt: true
+                }
+            ]);
+        } else {
+            // No dependencies — save immediately and close
+            onSave({
+                refinedContent: suggestedChanges,
+                subSection: selectedSubSection
+            });
+            toast.success("Changes saved!");
+            onClose();
+        }
+    };
+
+    // Actually perform the save (deferred when dependencies exist)
+    const commitSave = () => {
+        console.log('[FeedbackChat] Committing save (deferred)');
         onSave({
             refinedContent: suggestedChanges,
             subSection: selectedSubSection
         });
-
         toast.success("Changes saved!");
-        onClose();
+    };
+
+    // Handle dependency regeneration
+        const pollDependencyJob = (jobId) => {
+        const poll = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/os/generation-status?jobId=${jobId}`);
+                if (!res.ok) return;
+                const job = await res.json();
+
+                if (job.status === 'completed') {
+                    clearInterval(poll);
+                    window.dispatchEvent(new CustomEvent('dependencyRegenerationComplete', {
+                        detail: { jobId, sections: selectedDependencies }
+                    }));
+                    toast.success('Dependency regeneration complete', {
+                        description: 'Updated sections are ready in your vault.',
+                        duration: 5000
+                    });
+                } else if (job.status === 'failed') {
+                    clearInterval(poll);
+                    toast.error('Dependency regeneration failed', {
+                        description: job.errorMessage || 'Please try again or regenerate manually.',
+                        duration: 10000
+                    });
+                }
+            } catch (error) {
+                console.error('[FeedbackChat] Polling error:', error);
+            }
+        }, 3000);
+
+        setTimeout(() => clearInterval(poll), 10 * 60 * 1000);
+    };
+
+const handleRegenerateDependencies = async () => {
+        // Save the changes first (deferred from handleSaveChanges)
+        commitSave();
+
+        if (selectedDependencies.length === 0) {
+            toast.info('No sections selected. Skipping dependency regeneration.');
+            onClose();
+            return;
+        }
+
+        setIsDependencyProcessing(true);
+        console.log('[FeedbackChat] Triggering dependency regeneration:', selectedDependencies);
+
+        try {
+            const response = await fetchWithAuth('/api/os/regenerate-dependent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId,
+                    sections: selectedDependencies,
+                    sourceSection: sectionId,
+                    sourceField: selectedSubSection,
+                    userFeedback: lastUserFeedback,
+                    refinedChanges: JSON.stringify(suggestedChanges).substring(0, 1000),
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to trigger dependency regeneration');
+            }
+
+            const result = await response.json();
+            console.log('[FeedbackChat] Dependency regeneration triggered:', result);
+
+            // Notify the vault page to restart polling so it picks up the 'generating' status
+            window.dispatchEvent(new CustomEvent('regenerationTriggered', {
+                detail: { sections: selectedDependencies, sourceSection: sectionId }
+            }));
+
+            if (result.jobId) {
+                pollDependencyJob(result.jobId);
+            }
+
+            toast.success(
+                `Regenerating ${selectedDependencies.length} dependent section${selectedDependencies.length > 1 ? 's' : ''}. Check the vault to see progress.`,
+                { duration: 5000 }
+            );
+        } catch (error) {
+            console.error('[FeedbackChat] Dependency regeneration error:', error);
+            toast.error('Failed to start dependency regeneration. You can manually regenerate from the vault.');
+        } finally {
+            setIsDependencyProcessing(false);
+            onClose();
+        }
+    };
+
+    // Toggle a dependency section selection
+    const toggleDependencySection = (sectionIdToToggle) => {
+        setSelectedDependencies(prev =>
+            prev.includes(sectionIdToToggle)
+                ? prev.filter(id => id !== sectionIdToToggle)
+                : [...prev, sectionIdToToggle]
+        );
     };
 
     // Handle "Try Again" - same feedback, different output
@@ -1048,7 +1297,7 @@ Be as specific as possible - for example:
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden"
+                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-7xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl shadow-black/50"
                     onClick={e => e.stopPropagation()}
                 >
                     {/* Header */}
@@ -1094,12 +1343,13 @@ Be as specific as possible - for example:
                                         className="overflow-hidden"
                                     >
                                         <div className="p-4 bg-[#0e0e0f] max-h-40 overflow-y-auto border-b border-[#2a2a2d]">
-                                            <pre className="text-xs text-gray-500 whitespace-pre-wrap font-mono">
-                                                {formatPreviewContent(selectedSubSection === 'all'
+                                            <ContentPreviewRenderer
+                                                content={selectedSubSection === 'all'
                                                     ? latestContent
                                                     : { [selectedSubSection]: latestContent[selectedSubSection] || latestContent }
-                                                )}
-                                            </pre>
+                                                }
+                                                className="text-gray-500"
+                                            />
                                         </div>
                                     </motion.div>
                                 )}
@@ -1196,10 +1446,11 @@ Be as specific as possible - for example:
                                                         </div>
                                                         <span className="text-xs text-gray-500">Original Content</span>
                                                     </div>
-                                                    <div className="max-h-80 overflow-y-auto">
-                                                        <pre className="text-xs text-gray-400 whitespace-pre-wrap font-sans">
-                                                            {formatPreviewContent(originalContent || currentContent)}
-                                                        </pre>
+                                                    <div className="max-h-80 overflow-y-auto p-2">
+                                                        <ContentPreviewRenderer
+                                                            content={originalContent || currentContent}
+                                                            className="text-gray-400"
+                                                        />
                                                     </div>
                                                 </div>
 
@@ -1211,10 +1462,11 @@ Be as specific as possible - for example:
                                                         </div>
                                                         <span className="text-xs text-gray-500">AI-Refined Content</span>
                                                     </div>
-                                                    <div className="max-h-80 overflow-y-auto">
-                                                        <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans">
-                                                            {formatPreviewContent(contentToFormat)}
-                                                        </pre>
+                                                    <div className="max-h-80 overflow-y-auto p-2">
+                                                        <ContentPreviewRenderer
+                                                            content={contentToFormat}
+                                                            className="text-gray-300"
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
@@ -1261,9 +1513,10 @@ Be as specific as possible - for example:
                                         <div className="space-y-3">
                                             <p className="text-sm text-cyan font-medium">✓ Content generated successfully</p>
                                             <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-96 overflow-y-auto">
-                                                <div className="text-sm text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                                                    {formatPreviewContent(streamingMessage.metadata.validatedContent)}
-                                                </div>
+                                                <ContentPreviewRenderer
+                                                    content={streamingMessage.metadata.validatedContent}
+                                                    className="text-gray-300 leading-relaxed"
+                                                />
                                             </div>
                                         </div>
                                     )}
@@ -1394,6 +1647,57 @@ Be as specific as possible - for example:
                             suggestedChangesKeys: Object.keys(suggestedChanges || {})
                         });
 
+
+                        // Dependency Review Step (Step 4)
+                        if (chatStep === 4 && dependencyImpact) {
+                            return (
+                                <div className="p-4 border-t border-[#2a2a2d] space-y-3">
+                                    {/* Dependency checkboxes */}
+                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                        {dependencyImpact.affectedSections.map((dep) => (
+                                            <label
+                                                key={dep.sectionId}
+                                                className="flex items-start gap-3 p-3 bg-[#0e0e0f] rounded-lg cursor-pointer hover:bg-[#1a1a1d] transition-colors"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedDependencies.includes(dep.sectionId)}
+                                                    onChange={() => toggleDependencySection(dep.sectionId)}
+                                                    className="mt-1 w-4 h-4 rounded border-gray-600 text-cyan-500 focus:ring-cyan-500 bg-[#0e0e0f]"
+                                                />
+                                                <div className="flex-1">
+                                                    <span className="text-white text-sm font-medium">{dep.sectionName}</span>
+                                                    <p className="text-xs text-gray-500 mt-0.5">{dep.reason}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+
+                                    {/* Action buttons */}
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={handleRegenerateDependencies}
+                                            disabled={isDependencyProcessing || selectedDependencies.length === 0}
+                                            className="flex-1 py-2 px-4 btn-approve rounded-xl flex items-center justify-center gap-2 text-sm shadow-lg shadow-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isDependencyProcessing ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <RefreshCw className="w-4 h-4" />
+                                            )}
+                                            Regenerate {selectedDependencies.length > 0 ? `(${selectedDependencies.length})` : ''}
+                                        </button>
+                                        <button
+                                            onClick={() => { commitSave(); onClose(); }}
+                                            disabled={isDependencyProcessing}
+                                            className="py-2 px-4 bg-[#2a2a2d] text-gray-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
+                                        >
+                                            Save Only
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        }
 
                         return shouldShowActions ? (
                             <div className="p-4 border-t border-[#2a2a2d]">

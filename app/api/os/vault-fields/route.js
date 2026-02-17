@@ -72,6 +72,7 @@ export async function GET(req) {
             .from('vault_content_fields')
             .select('*')
             .eq('funnel_id', funnel_id)
+            .eq('user_id', targetUserId)
             .eq('section_id', section_id)
             .eq('is_current_version', true)
             .order('display_order', { ascending: true });
@@ -90,6 +91,7 @@ export async function GET(req) {
                 .from('vault_content')
                 .select('content')
                 .eq('funnel_id', funnel_id)
+                .eq('user_id', targetUserId)
                 .eq('section_id', section_id)
                 .eq('is_current_version', true)
                 .single();
@@ -113,6 +115,7 @@ export async function GET(req) {
                         .from('vault_content_fields')
                         .select('*')
                         .eq('funnel_id', funnel_id)
+                        .eq('user_id', targetUserId)
                         .eq('section_id', section_id)
                         .eq('is_current_version', true)
                         .order('display_order', { ascending: true });
@@ -174,6 +177,7 @@ export async function GET(req) {
             .from('vault_content')
             .select('status')
             .eq('funnel_id', funnel_id)
+            .eq('user_id', targetUserId)
             .eq('section_id', section_id)
             .eq('is_current_version', true)
             .maybeSingle();

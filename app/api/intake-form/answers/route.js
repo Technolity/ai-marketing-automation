@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,14 @@ export async function GET(req) {
     if (!userId) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+        return new Response(JSON.stringify({ error: workspaceError }), {
+            status: 403,
             headers: { 'Content-Type': 'application/json' }
         });
     }
@@ -35,7 +44,7 @@ export async function GET(req) {
             .from('user_funnels')
             .select('wizard_answers, questionnaire_completed, questionnaire_completed_at')
             .eq('id', funnelId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (error || !funnel) {
@@ -84,6 +93,14 @@ export async function PATCH(req) {
         });
     }
 
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+        return new Response(JSON.stringify({ error: workspaceError }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     let body;
     try {
         body = await req.json();
@@ -108,7 +125,7 @@ export async function PATCH(req) {
             .from('user_funnels')
             .select('wizard_answers')
             .eq('id', funnel_id)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (fetchError || !funnel) {
@@ -130,7 +147,7 @@ export async function PATCH(req) {
                 updated_at: new Date().toISOString()
             })
             .eq('id', funnel_id)
-            .eq('user_id', userId);
+            .eq('user_id', targetUserId);
 
         if (updateError) {
             return new Response(JSON.stringify({ error: updateError.message }), {

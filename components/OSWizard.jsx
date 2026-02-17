@@ -64,6 +64,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
     // Ref to prevent re-initialization on session changes
     const hasInitializedRef = useRef(false);
+    const autosaveTimerRef = useRef(null);
 
     // View Management - initialize based on mode prop
     const [viewMode, setViewMode] = useState(mode === 'intake' ? 'step' : 'dashboard'); // 'dashboard' or 'step'
@@ -826,11 +827,35 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
         setIsReviewMode(false);
     };
 
+    const queueAutosave = (field, value) => {
+        if (!session || !funnelId) return;
+
+        if (autosaveTimerRef.current) {
+            clearTimeout(autosaveTimerRef.current);
+        }
+
+        autosaveTimerRef.current = setTimeout(async () => {
+            try {
+                await fetchWithAuth('/api/intake-form/answers', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        funnel_id: funnelId,
+                        answersPatch: { [field]: value }
+                    })
+                });
+            } catch (autosaveError) {
+                console.warn('[OSWizard] Autosave failed:', autosaveError);
+            }
+        }, 800);
+    };
+
     const handleInputChange = (field, value) => {
         setCurrentInput(prev => ({ ...prev, [field]: value }));
         // Mark session as unsaved when user makes changes
         setIsSessionSaved(false);
         setHasUnsavedProgress(true);
+        queueAutosave(field, value);
     };
 
     // Validate step inputs using modular validator

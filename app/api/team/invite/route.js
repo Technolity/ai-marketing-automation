@@ -249,7 +249,7 @@ export async function DELETE(request) {
         // Get the seat to find the user
         const { data: seat } = await supabase
             .from('organization_seats')
-            .select('seat_user_id')
+            .select('seat_user_id, status')
             .eq('id', seatId)
             .eq('owner_user_id', userId)
             .single();
@@ -266,12 +266,26 @@ export async function DELETE(request) {
             return NextResponse.json({ error: 'Failed to revoke team member' }, { status: 500 });
         }
 
-        // Update the user's role to prevent access
+        // Decrement owner's seat count only if this seat was active
+        if (seat?.status === 'active') {
+            await supabase
+                .from('user_profiles')
+                .update({ current_seat_count: supabase.raw('GREATEST(current_seat_count - 1, 0)') })
+                .eq('id', userId);
+        }
+
+        // Remove team member profile and access
         if (seat?.seat_user_id) {
             await supabase
                 .from('user_profiles')
-                .update({ role_owner_id: null })
+                .delete()
                 .eq('id', seat.seat_user_id);
+
+            try {
+                await clerkClient.users.deleteUser(seat.seat_user_id);
+            } catch (clerkError) {
+                console.error('[Team API] Failed to delete Clerk user:', clerkError);
+            }
         }
 
         console.log(`[Team API] Seat revoked successfully`);
