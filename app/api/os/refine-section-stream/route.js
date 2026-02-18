@@ -27,6 +27,46 @@ export const maxDuration = 300; // Vercel Pro: allow up to 5 min for parallel ch
 const STREAM_TIMEOUT = 300000; // 5 minutes max for large sections
 const TOKEN_BUFFER_SIZE = 3; // Send every 3 tokens for smooth rendering
 
+
+
+// Escape raw newlines/tabs inside JSON strings to improve parse reliability
+function escapeJsonStringNewlines(text) {
+    let out = '';
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (escaped) {
+            out += ch;
+            escaped = false;
+            continue;
+        }
+        if (ch === '\\') {
+            out += ch;
+            escaped = true;
+            continue;
+        }
+        if (ch === '"') {
+            inString = !inString;
+            out += ch;
+            continue;
+        }
+        if (inString && ch === '\n') {
+            out += '\\n';
+            continue;
+        }
+        if (inString && ch === '\r') {
+            continue;
+        }
+        if (inString && ch === '\t') {
+            out += '\\t';
+            continue;
+        }
+        out += ch;
+    }
+    return out;
+}
+
 /**
  * Recursively generate example structure from Zod schema
  * Shows ALL nested keys so AI sees exact structure required
@@ -275,7 +315,7 @@ async function handleParallelRefinement({
         return results;
     };
 
-    const chunkPromises = async (chunkContent, index) => {
+    const chunkPromises = async (chunkContent, index, forceStrict = false) => {
         const chunkName = strategy.chunkNames[index];
         const chunkStartTime = Date.now();
         console.log(`[ParallelRefinement] Chunk ${index + 1}/${chunks.length} (${chunkName}) STARTING at ${new Date().toISOString()}`);
@@ -301,7 +341,8 @@ You are refining PART ${index + 1}/${chunks.length} of the ${sectionId} section 
 - Return ONLY the fields relevant to this chunk
 - Keep the same schema structure and field names
 
-CRITICAL: Return valid JSON matching the chunk structure. Do NOT wrap in markdown code blocks.`;
+CRITICAL: Return valid JSON matching the chunk structure. Do NOT wrap in markdown code blocks.
+CRITICAL: Strings must escape newlines as \\n. Do NOT include raw line breaks inside JSON strings.`;
 
         const userPrompt = `CURRENT CONTENT (${chunkName}):
 ${JSON.stringify(chunkContent, null, 2)}
@@ -315,13 +356,16 @@ INSTRUCTIONS:
 2. Maintain the exact field names and structure
 3. Return ONLY valid JSON for this chunk
 4. Do NOT include fields from other chunks
-5. First character must be { and last character must be }`;
+5. First character must be { and last character must be }
+6. All string values must use \\n for line breaks (no literal newlines).`;
 
         // Stream the chunk (non-interactive, just get result)
         let parsedChunk;
         let lastParseError;
 
-        for (let attempt = 1; attempt <= 2; attempt++) {
+        const maxAttempts = forceStrict ? 1 : 2;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const strictMode = forceStrict || attempt === 2;
             const hardTimeoutMs = (chunkTimeouts[sectionId] || 90000) + 15000;
             const controller = new AbortController();
             const timeoutId = setTimeout(() => {
@@ -331,11 +375,11 @@ INSTRUCTIONS:
             let chunkResult;
             try {
                 chunkResult = await streamWithProvider(
-                    systemPrompt + (attempt === 2 ? ' CRITICAL: Output MUST be valid JSON only. No backticks, no commentary.' : ''),
+                    systemPrompt + (strictMode ? ' CRITICAL: Output MUST be valid JSON only. No backticks, no commentary.' : ''),
                     userPrompt,
                     () => { }, // No token callback for parallel chunks
                     {
-                        temperature: attempt === 2 ? 0.4 : 0.7,
+                        temperature: strictMode ? 0.4 : 0.7,
                         maxTokens: chunkTokenLimits[sectionId] || 3000,
                         timeout: chunkTimeouts[sectionId] || 90000,
                         jsonMode: true,
@@ -360,6 +404,7 @@ INSTRUCTIONS:
             if (jsonMatch) {
                 cleanedText = jsonMatch[0];
             }
+            cleanedText = escapeJsonStringNewlines(cleanedText);
 
             try {
                 parsedChunk = parseJsonSafe(cleanedText, { throwOnError: true });
@@ -418,7 +463,42 @@ INSTRUCTIONS:
         }
     });
 
-    // If ALL chunks failed, throw so the caller shows an error
+    
+    // If any chunks failed, retry only those with strict mode once
+    if (failedChunkIndices.length > 0) {
+        console.warn('[ParallelRefinement] Retrying failed chunks only (strict mode)...', failedChunkIndices);
+        const retryResults = await runWithConcurrency(
+            failedChunkIndices.map(i => chunks[i]),
+            (chunkContent, idx) => {
+                const originalIndex = failedChunkIndices[idx];
+                return chunkPromises(chunkContent, originalIndex, true);
+            },
+            Math.min(maxConcurrency, failedChunkIndices.length)
+        );
+
+        retryResults.forEach((result, idx) => {
+            const originalIndex = failedChunkIndices[idx];
+            if (result.status === 'fulfilled') {
+                const existing = succeededChunks.find(s => s.index === originalIndex);
+                if (existing) {
+                    existing.data = result.value;
+                } else {
+                    succeededChunks.push({ index: originalIndex, data: result.value });
+                }
+            } else {
+                console.error(`[ParallelRefinement] Retry failed for chunk ${originalIndex + 1}:`, result.reason?.message || result.reason);
+            }
+        });
+
+        // Recompute failedChunkIndices after retry
+        const succeededIndexSet = new Set(succeededChunks.map(s => s.index));
+        failedChunkIndices.length = 0;
+        for (let i = 0; i < chunks.length; i++) {
+            if (!succeededIndexSet.has(i)) failedChunkIndices.push(i);
+        }
+    }
+
+// If ALL chunks failed, throw so the caller shows an error
     if (succeededChunks.length === 0) {
         throw new Error(`All ${chunks.length} chunks failed during parallel refinement`);
     }
