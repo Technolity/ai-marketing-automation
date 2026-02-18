@@ -15,6 +15,7 @@ import { mergeSmsChunks } from '@/lib/prompts/smsMerger';
 
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // Vercel Pro: allow up to 5 min for parallel chunk streaming
 
 /**
  * POST /api/os/refine-section-stream
@@ -600,7 +601,8 @@ export async function POST(req) {
                         .eq('section_id', 'colors')
                         .eq('field_id', 'colorPalette')
                         .eq('is_current_version', true)
-                        .single();
+                        .limit(1)
+                        .maybeSingle();
 
                     if (colorsField?.field_value) {
                         // Handle both object and JSON string formats

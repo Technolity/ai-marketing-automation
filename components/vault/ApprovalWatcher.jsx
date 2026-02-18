@@ -96,11 +96,16 @@ export default function ApprovalWatcher({ funnelId, userId }) {
             return;
           }
 
-          const { jobId } = await triggerRes.json();
+          const triggerData = await triggerRes.json();
+          const jobId = triggerData?.jobId;
           console.log('[ApprovalWatcher] Generation job created:', jobId);
 
-          // Start polling for completion
-          pollGenerationStatus(jobId);
+          // Start polling for completion — only if we have a valid jobId
+          if (jobId) {
+            pollGenerationStatus(jobId);
+          } else {
+            console.warn('[ApprovalWatcher] No jobId returned from generation trigger, skipping polling');
+          }
         }
       } catch (error) {
         console.error('[ApprovalWatcher] Error checking approvals:', error);

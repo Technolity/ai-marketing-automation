@@ -41,6 +41,7 @@ import { funnelCopyChunks } from '@/lib/prompts/funnelCopyChunks';
 import { mergeFunnelCopyChunks, validateMergedFunnelCopy } from '@/lib/prompts/funnelCopyMerger';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // Vercel Pro: allow up to 5 min for chunked generation
 
 // Same SECTION_PROMPTS as regenerate-section
 const SECTION_PROMPTS = {

@@ -42,6 +42,7 @@ import { mergeFunnelCopyChunks, validateMergedFunnelCopy } from '@/lib/prompts/f
 import { resolveDependencies, buildEnrichedData, buildCoreContext, formatContextForPrompt } from '@/lib/vault/dependencyResolver';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // Vercel Pro: allow up to 5 min for chunked generation
 
 // Map phase IDs to their prompt functions and names
 const SECTION_PROMPTS = {
