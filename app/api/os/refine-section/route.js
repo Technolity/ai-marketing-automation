@@ -222,9 +222,9 @@ The funnelCopy section has FOUR pages with the following structure:
    - subheadline_text: Supporting benefit statement (12-16 words STRICTLY)
    - cta_button_text: Action button text (2-3 words MAX, e.g., "Get Access", "Download Now")
    - popup_form_headline: Popup form headline (6-10 words)
-   - mockup_image: Leave as-is (image reference)
+   - footer_text: Footer copyright text (use business name)
 
-2. salesPage (72+ fields):
+2. salesPage (69 fields):
    - hero_headline_text (8-15 words), hero_subheadline_text (10-20 words), cta_text (2-5 words)
    - process_headline, process_subheadline
    - process_1_headline through process_6_headline (with subheadlines)
@@ -238,14 +238,15 @@ The funnelCopy section has FOUR pages with the following structure:
    - faq_headline_text, faq_question_1/2/3/4, faq_answer_1/2/3/4
    - final_cta_headline, final_cta_subheadline, final_cta_subtext
 
-3. calendarPage (2 fields):
+3. calendarPage (3 fields):
    - headline: Calendar booking page headline (8-15 words)
    - calendar_embedded_code: Leave as-is (embed code)
+   - footer_text: Footer copyright text (use business name)
 
 4. thankYouPage (3 fields):
    - headline: Thank you page headline (8-12 words)
    - subheadline: Thank you page subheadline (15-25 words)
-   - video_link: Leave as-is (video reference)
+   - footer_text: Footer copyright text (use business name)
 
 YOUR APPROACH:
 1. IDENTIFY which page(s) the feedback refers to

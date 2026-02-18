@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw, FileDown, FileText } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronUp, Sparkles, RefreshCw, Download, Table } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
-import { exportToPDF, exportToDOCX } from '@/lib/exportUtils';
+import { exportSectionToPDF, exportSectionToCSV } from '@/lib/exportUtils';
 import { toast } from 'sonner';
 import { fieldGroups } from '@/lib/vault/fieldGroups';
 
@@ -312,29 +312,21 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
 
             {/* Export Buttons - Bottom of Section */}
             {!isLoading && fields.length > 0 && (
-                <div className="mt-8 pt-6 border-t border-[#2a2a2d]">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-gradient-to-r from-cyan/5 to-purple-500/5 rounded-2xl border border-cyan/20">
-                        <div>
-                            <h3 className="text-lg font-bold text-white mb-1">Export Your Closer Script</h3>
-                            <p className="text-sm text-gray-400">Download your complete script for offline use or printing</p>
-                        </div>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => exportToPDF(fields, 'Closer Script')}
-                                className="px-5 py-2.5 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/30 rounded-xl font-semibold flex items-center gap-2 transition-all"
-                            >
-                                <FileDown className="w-4 h-4" />
-                                export PDF
-                            </button>
-                            <button
-                                onClick={() => exportToDOCX(fields, 'Closer Script')}
-                                className="px-5 py-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-xl font-semibold flex items-center gap-2 transition-all"
-                            >
-                                <FileText className="w-4 h-4" />
-                                Export Doc
-                            </button>
-                        </div>
-                    </div>
+                <div className="mt-6 pt-4 border-t border-[#2a2a2d] flex items-center justify-end gap-2">
+                    <button
+                        onClick={() => exportSectionToPDF(fields, 'Closer Script')}
+                        className="p-2 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
+                        title="Download PDF"
+                    >
+                        <Download className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => exportSectionToCSV(fields, 'Closer Script')}
+                        className="p-2 rounded-lg border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-colors"
+                        title="Download CSV"
+                    >
+                        <Table className="w-4 h-4" />
+                    </button>
                 </div>
             )}
 

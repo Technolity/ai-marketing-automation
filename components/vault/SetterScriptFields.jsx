@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle, ChevronDown, ChevronUp, Phone, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronUp, Phone, Download, Table } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import { exportSectionToPDF, exportSectionToCSV } from '@/lib/exportUtils';
 import { toast } from 'sonner';
 import { fieldGroups } from '@/lib/vault/fieldGroups';
 
@@ -13,11 +14,9 @@ import { fieldGroups } from '@/lib/vault/fieldGroups';
  * SetterScriptFields - Granular field-level editing for Setter Script section
  * Uses expandable groups (accordions) to organize fields.
  */
-export default function SetterScriptFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
+export default function SetterScriptFields({ funnelId, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isApproving, setIsApproving] = useState(false);
-    const [isRegenerating, setIsRegenerating] = useState(false);
     const [sectionApproved, setSectionApproved] = useState(false);
 
     // Grouping state
@@ -37,7 +36,6 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
     }));
 
     // Define group order explicitly
-    const startGroup = 'Pre-Call';
     const groupOrder = ['Pre-Call', 'The Open', 'Discovery', 'The Pitch', 'The Close'];
 
     const previousApprovalRef = useRef(false);
@@ -149,32 +147,6 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
         } catch (error) {
             console.error('[SetterScriptFields] AI feedback save error:', error);
             toast.error('Failed to save changes');
-        }
-    };
-
-    // Handle section approval
-    const handleApproveSection = async () => {
-        setIsApproving(true);
-        try {
-            const response = await fetchWithAuth('/api/os/vault-section-approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    funnel_id: funnelId,
-                    section_id: sectionId
-                })
-            });
-
-            if (!response.ok) throw new Error('Failed to approve section');
-
-            setFields(prev => prev.map(f => ({ ...f, is_approved: true })));
-            setSectionApproved(true);
-            if (onApprove) onApprove(sectionId);
-
-        } catch (error) {
-            console.error('[SetterScriptFields] Approve error:', error);
-        } finally {
-            setIsApproving(false);
         }
     };
 
@@ -302,6 +274,25 @@ export default function SetterScriptFields({ funnelId, onApprove, onRenderApprov
                     </>
                 )}
             </div>
+
+            {!isLoading && fields.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-[#2a2a2d] flex items-center justify-end gap-2">
+                    <button
+                        onClick={() => exportSectionToPDF(fields, 'Setter Script')}
+                        className="p-2 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
+                        title="Download PDF"
+                    >
+                        <Download className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => exportSectionToCSV(fields, 'Setter Script')}
+                        className="p-2 rounded-lg border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-colors"
+                        title="Download CSV"
+                    >
+                        <Table className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
 
             {/* AI Feedback Modal */}
             {feedbackModalOpen && selectedField && (

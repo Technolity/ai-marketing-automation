@@ -28,6 +28,24 @@ export const maxDuration = 300; // Vercel Pro: allow up to 5 min for parallel ch
 const STREAM_TIMEOUT = 300000; // 5 minutes max for large sections
 const TOKEN_BUFFER_SIZE = 3; // Send every 3 tokens for smooth rendering
 
+function applyFunnelCopyFooterDefaults(content, companyName) {
+    if (!content || typeof content !== 'object' || !companyName) return content;
+
+    const footerText = `Copyrighted By "${companyName}" ${new Date().getFullYear()} |Terms & Conditions`;
+    const wrapper = content.funnelCopy ? 'funnelCopy' : null;
+    const target = wrapper ? content.funnelCopy : content;
+    const pages = ['optinPage', 'salesPage', 'calendarPage', 'thankYouPage'];
+
+    pages.forEach((page) => {
+        if (!target[page] || typeof target[page] !== 'object') return;
+        if (!target[page].footer_text || String(target[page].footer_text).trim() === '') {
+            target[page].footer_text = footerText;
+        }
+    });
+
+    return content;
+}
+
 
 
 // Escape raw newlines/tabs inside JSON strings to improve parse reliability
@@ -849,11 +867,23 @@ export async function POST(req) {
             // Fetch Company Name from user_profiles (for funnel copy)
             let companyName = null;
             try {
-                const { data: userProfile } = await supabaseAdmin
+                let userProfile = null;
+                const { data: byIdProfile } = await supabaseAdmin
                     .from('user_profiles')
                     .select('business_name')
-                    .eq('user_id', targetUserId)
+                    .eq('id', targetUserId)
                     .maybeSingle();
+
+                userProfile = byIdProfile;
+
+                if (!userProfile?.business_name) {
+                    const { data: byUserIdProfile } = await supabaseAdmin
+                        .from('user_profiles')
+                        .select('business_name')
+                        .eq('user_id', targetUserId)
+                        .maybeSingle();
+                    userProfile = byUserIdProfile;
+                }
 
                 if (userProfile?.business_name) {
                     companyName = userProfile.business_name;
@@ -863,35 +893,33 @@ export async function POST(req) {
                 console.log('[RefineStream] No company name found in user_profiles:', profileError.message);
             }
 
-            // Fetch Brand Colors from vault (primary, secondary, tertiary) for funnel copy context
+            // Brand colors removed for funnel copy refinement (not used in generation)
             let brandColors = null;
+
+            // Fetch approved dependency sections for funnel copy refinement context
+            let refinementContext = intakeData;
             if (sessionId && sectionId === 'funnelCopy') {
                 try {
-                    const { data: colorsField } = await supabaseAdmin
-                        .from('vault_content_fields')
-                        .select('field_value')
+                    const { data: approvedSections } = await supabaseAdmin
+                        .from('vault_content')
+                        .select('section_id, content, status')
                         .eq('funnel_id', sessionId)
-                        .eq('section_id', 'colors')
-                        .eq('field_id', 'colorPalette')
+                        .eq('user_id', targetUserId)
                         .eq('is_current_version', true)
-                        .limit(1)
-                        .maybeSingle();
+                        .in('section_id', ['idealClient', 'message', 'story', 'offer', 'leadMagnet', 'vsl', 'bio']);
 
-                    if (colorsField?.field_value) {
-                        // Handle both object and JSON string formats
-                        const colorsData = typeof colorsField.field_value === 'string'
-                            ? JSON.parse(colorsField.field_value)
-                            : colorsField.field_value;
-
-                        brandColors = {
-                            primary: colorsData.primary || colorsData.primaryColor,
-                            secondary: colorsData.secondary || colorsData.secondaryColor,
-                            tertiary: colorsData.tertiary || colorsData.accentColor
-                        };
-                        console.log('[RefineStream] Found Brand Colors:', brandColors);
+                    if (approvedSections && approvedSections.length > 0) {
+                        const sectionMap = {};
+                        approvedSections.forEach(section => {
+                            if (section.content) {
+                                sectionMap[section.section_id] = section.content;
+                            }
+                        });
+                        refinementContext = { ...intakeData, ...sectionMap };
+                        console.log('[RefineStream] Added approved sections to funnel copy refinement context:', Object.keys(sectionMap));
                     }
-                } catch (colorsError) {
-                    console.log('[RefineStream] No brand colors found:', colorsError.message);
+                } catch (contextError) {
+                    console.log('[RefineStream] Failed to load approved sections for funnel copy refinement:', contextError.message);
                 }
             }
 
@@ -909,7 +937,7 @@ export async function POST(req) {
                         sectionId,
                         currentContent,
                         messageHistory,
-                        intakeData,
+                        intakeData: refinementContext,
                         leadMagnetTitle,
                         companyName,
                         brandColors,
@@ -940,6 +968,11 @@ export async function POST(req) {
                             ? `${validationWarning}. ${partialWarning}`
                             : partialWarning;
                         console.warn('[ParallelRefinement] Partial save:', partialWarning);
+                    }
+
+                    // Ensure funnel copy footer defaults are present
+                    if (sectionId === 'funnelCopy' && companyName) {
+                        finalContent = applyFunnelCopyFooterDefaults(finalContent, companyName);
                     }
 
                     // Send the final merged result — omit rawText for parallel path
@@ -996,10 +1029,10 @@ export async function POST(req) {
                 parentSection, // Pass parent field context for hierarchical selections
                 messageHistory: messageHistory.slice(-10), // Last 10 messages for context
                 currentContent,
-                intakeData,
+                intakeData: refinementContext,
                 leadMagnetTitle, // Pass the Lead Magnet title for dependencies
                 companyName, // Pass company name from user_profiles
-                brandColors // Pass brand colors for funnel copy context
+                brandColors // Intentionally null (colors not used for funnel copy refinement)
             });
 
             // COMPREHENSIVE LOGGING: Prompt generation
@@ -1039,11 +1072,15 @@ export async function POST(req) {
 
             // Parse and validate complete response
             const validationStartTime = Date.now();
-            const { refinedContent, validationSuccess, validationWarning } = await parseAndValidate(
+            let { refinedContent, validationSuccess, validationWarning } = await parseAndValidate(
                 fullText,
                 sectionId,
                 subSection
             );
+
+            if (sectionId === 'funnelCopy' && companyName) {
+                refinedContent = applyFunnelCopyFooterDefaults(refinedContent, companyName);
+            }
             const validationDuration = Date.now() - validationStartTime;
 
             // COMPREHENSIVE LOGGING: Validation result
@@ -1761,7 +1798,7 @@ CONVERSATION STYLE:
         try {
             const { getFieldsForSection } = await import('@/lib/vault/fieldStructures');
             const fieldStructure = getFieldsForSection(sectionId);
-            const fieldDef = fieldStructure?.fields?.find(f => f.field_id === subSection);
+            const fieldDef = fieldStructure?.find(f => f.field_id === subSection);
 
             if (fieldDef) {
                 console.log('[BuildContext] Found field definition:', {

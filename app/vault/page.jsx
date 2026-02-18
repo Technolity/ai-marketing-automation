@@ -1358,22 +1358,7 @@ export default function VaultPage() {
             }
         }
 
-        // Auto-collapse current section and expand next section
-        const newExpanded = new Set();
-
-        // Find and expand next section
-        if (currentIndex >= 0 && currentIndex < phaseSections.length - 1) {
-            const nextSection = phaseSections[currentIndex + 1];
-            newExpanded.add(nextSection.id);
-        } else if (phaseNumber === 1 && hasFunnelChoice && PHASE_2_SECTIONS.length > 0) {
-            // If Phase 1 complete and has funnel choice, expand first Phase 2 section
-            newExpanded.add(PHASE_2_SECTIONS[0].id);
-        } else if (phaseNumber === 2 && phase2FullyApproved && PHASE_3_SECTIONS.length > 0) {
-            // If Phase 2 complete, expand first Phase 3 section
-            newExpanded.add(PHASE_3_SECTIONS[0].id);
-        }
-
-        setExpandedSections(newExpanded);
+        // NOTE: Section expansion is manual only (no auto-open/close on approve)
     };
 
     // Handle unapprove when fields are edited
@@ -3065,17 +3050,22 @@ export default function VaultPage() {
                     {/* Action Buttons */}
                     {(status === 'current' || status === 'approved' || status === 'failed') && (
                         <div className="flex items-center gap-3">
-                            {!isExpanded ? (
+                            {!isExpanded && (
                                 <button
                                     onClick={() => {
-                                        // "One Action At A Time" - Only allow one section expanded
-                                        setExpandedSections(new Set([section.id]));
+                                        setExpandedSections(prev => {
+                                            const next = new Set(prev);
+                                            next.add(section.id);
+                                            return next;
+                                        });
                                     }}
                                     className="px-2 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-cyan/20 to-blue-500/20 hover:from-cyan/30 hover:to-blue-500/30 text-cyan border border-cyan/30 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all hover:scale-105"
                                 >
                                     <span className="hidden sm:inline">Show My {section.title}</span><span className="sm:hidden">Show</span> <ChevronDown className="w-4 h-4" />
                                 </button>
-                            ) : (
+                            )}
+
+                            {isExpanded && (
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => {
@@ -3119,18 +3109,23 @@ export default function VaultPage() {
                                             <CheckCircle className="w-4 h-4" /> <span className="hidden sm:inline">Approve</span>
                                         </button>
                                     )}
-
-                                    <button
-                                        onClick={() => {
-                                            const newExpanded = new Set(expandedSections);
-                                            newExpanded.delete(section.id);
-                                            setExpandedSections(newExpanded);
-                                        }}
-                                        className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-white transition-colors"
-                                    >
-                                        <ChevronUp className="w-5 h-5" />
-                                    </button>
                                 </div>
+                            )}
+
+                            {isExpanded && (
+                                <button
+                                    onClick={() => {
+                                        setExpandedSections(prev => {
+                                            const next = new Set(prev);
+                                            next.delete(section.id);
+                                            return next;
+                                        });
+                                    }}
+                                    className="p-2 hover:bg-white/10 rounded-lg text-gray-500 hover:text-white transition-colors"
+                                    title="Collapse section"
+                                >
+                                    <ChevronUp className="w-5 h-5" />
+                                </button>
                             )}
                         </div>
                     )}

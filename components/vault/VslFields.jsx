@@ -1,18 +1,17 @@
 ﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle, ChevronDown, ChevronUp, Video, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronUp, Video, Download, Table } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import { exportSectionToPDF, exportSectionToCSV } from '@/lib/exportUtils';
 import { toast } from 'sonner';
 
-export default function VslFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
+export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isApproving, setIsApproving] = useState(false);
-    const [isRegenerating, setIsRegenerating] = useState(false);
     const [sectionApproved, setSectionApproved] = useState(false);
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
@@ -70,7 +69,7 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton, 
             const firstGroup = predefinedFields[0]?.group || 'Other';
             setExpandedGroup(firstGroup);
         }
-    }, [fields, expandedGroup]);
+    }, [fields, expandedGroup, predefinedFields]);
 
 
 
@@ -114,71 +113,6 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton, 
             toast.error('Failed to save changes');
         }
     };
-
-    const handleFieldAdded = (newField) => { setFields(prev => [...prev, newField]); setSectionApproved(false); };
-
-    const handleApproveSection = async () => {
-        setIsApproving(true);
-        try {
-            const response = await fetchWithAuth('/api/os/vault-section-approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId })
-            });
-            if (!response.ok) throw new Error('Failed to approve');
-            setFields(prev => prev.map(f => ({ ...f, is_approved: true })));
-            setSectionApproved(true);
-            if (onApprove) onApprove(sectionId);
-        } catch (error) {
-            console.error('[VslFields] Approve error:', error);
-        } finally {
-            setIsApproving(false);
-        }
-    };
-
-    const handleRegenerateSection = async () => {
-        setIsRegenerating(true);
-        try {
-            const response = await fetch('/api/os/regenerate-section', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    section: sectionId,
-                    sessionId: funnelId
-                })
-            });
-            if (!response.ok) throw new Error('Failed to regenerate');
-            await fetchFields();
-            setSectionApproved(false);
-        } catch (error) {
-            console.error('[VslFields] Regenerate error:', error);
-        } finally {
-            setIsRegenerating(false);
-        }
-    };
-
-    const getFieldValue = (field_id) => fields.find(f => f.field_id === field_id)?.field_value || null;
-
-    // Expose approve button for parent to render in header
-    const approveButton = !sectionApproved ? (
-        <button
-            onClick={handleApproveSection}
-            disabled={isApproving}
-            className="bg-gradient-to-r from-cyan to-cyan/80 text-white font-bold px-6 py-2.5 rounded-xl hover:from-cyan/90 hover:to-cyan/70 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-        >
-            {isApproving ? (
-                <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Approving...
-                </>
-            ) : (
-                <>
-                    <CheckCircle className="w-4 h-4" />
-                    Approve Section
-                </>
-            )}
-        </button>
-    ) : null;
 
     // Helper to group fields
     const renderGroupedFields = () => {
@@ -284,6 +218,25 @@ export default function VslFields({ funnelId, onApprove, onRenderApproveButton, 
                     renderGroupedFields()
                 )}
             </div>
+
+            {!isLoading && fields.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-[#2a2a2d] flex items-center justify-end gap-2">
+                    <button
+                        onClick={() => exportSectionToPDF(fields, 'VSL Script')}
+                        className="p-2 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
+                        title="Download PDF"
+                    >
+                        <Download className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => exportSectionToCSV(fields, 'VSL Script')}
+                        className="p-2 rounded-lg border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-colors"
+                        title="Download CSV"
+                    >
+                        <Table className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
 
             {/* AI Feedback Modal */}
             {feedbackModalOpen && selectedField && (

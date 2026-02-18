@@ -6,6 +6,22 @@ import { generateWithProvider, retryWithBackoff } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { populateVaultFields } from '@/lib/vault/fieldMapper';
 
+function applyFunnelCopyFooterDefaults(content, companyName) {
+    if (!content || typeof content !== 'object' || !companyName) return content;
+
+    const footerText = `Copyrighted By "${companyName}" ${new Date().getFullYear()} |Terms & Conditions`;
+    const pages = ['optinPage', 'salesPage', 'calendarPage', 'thankYouPage'];
+
+    pages.forEach((page) => {
+        if (!content[page] || typeof content[page] !== 'object') return;
+        if (!content[page].footer_text || String(content[page].footer_text).trim() === '') {
+            content[page].footer_text = footerText;
+        }
+    });
+
+    return content;
+}
+
 /**
  * POST /api/os/generate-funnel-copy
  * Background generation endpoint for Funnel Copy
@@ -405,7 +421,10 @@ CRITICAL REQUIREMENTS:
 
         // Merge chunks into final structure
         console.log('[FunnelCopy] Merging chunks...');
-        const generatedContent = mergeFunnelCopyChunks(chunk1, chunk2, chunk3, chunk4);
+        let generatedContent = mergeFunnelCopyChunks(chunk1, chunk2, chunk3, chunk4);
+        if (profileBusinessName) {
+            generatedContent = applyFunnelCopyFooterDefaults(generatedContent, profileBusinessName);
+        }
 
         // Validate merged structure
         const validation = validateMergedFunnelCopy(generatedContent);

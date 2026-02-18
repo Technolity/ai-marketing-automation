@@ -82,7 +82,8 @@ function FieldEditor({
     funnelId,
     onSave,
     onAIFeedback,
-    readOnly = false
+    readOnly = false,
+    hideCharLimit = false
 }) {
     // DEBUG: Commented out to reduce console spam (uncomment if debugging)
     // console.log('[FieldEditor] Rendering:', { field: fieldDef.field_id, readOnly, sectionId });
@@ -319,7 +320,7 @@ function FieldEditor({
                             disabled={readOnly}
                             className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                         />
-                        {field_metadata.maxLength && (
+                        {field_metadata.maxLength && !hideCharLimit && (
                             <div className="mt-1 flex items-center justify-between">
                                 <p className={`text-xs ${(value || '').length > field_metadata.maxLength
                                     ? 'text-red-400'
@@ -347,7 +348,7 @@ function FieldEditor({
                             maxLength={field_metadata.maxLength}
                             disabled={readOnly}
                         />
-                        {field_metadata.maxLength && (
+                        {field_metadata.maxLength && !hideCharLimit && (
                             <div className="mt-1 flex items-center justify-between">
                                 <p className={`text-xs ${(value || '').length > field_metadata.maxLength
                                     ? 'text-red-400'
@@ -399,7 +400,7 @@ function FieldEditor({
                         style={{ minHeight: '4.5rem', maxHeight: '18rem', height: 'auto' }}
                         className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
                     />
-                    {field_metadata.maxLength && (
+                    {field_metadata.maxLength && !hideCharLimit && (
                         <div className="mt-1 flex items-center justify-between">
                             <p className={`text-xs ${(value || '').length > field_metadata.maxLength
                                 ? 'text-red-400'

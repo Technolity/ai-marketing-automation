@@ -6,7 +6,7 @@
  * User describes what they want changed, AI generates targeted updates.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -236,7 +236,7 @@ const SECTION_OPTIONS = {
 function getFieldStructure(sectionId, fieldId) {
     try {
         const sectionFields = getFieldsForSection(sectionId);
-        return sectionFields?.fields?.find(f => f.field_id === fieldId);
+        return sectionFields?.find(f => f.field_id === fieldId);
     } catch (error) {
         console.error('[FeedbackChat] Error getting field structure:', error);
         return null;
@@ -306,10 +306,57 @@ function formatPreviewContent(content) {
  * If the content contains HTML tags (like email bodies), render as HTML.
  * Otherwise, render as plain formatted text.
  */
-function ContentPreviewRenderer({ content, className = '' }) {
+function ContentPreviewRenderer({ content, className = '', highlightMap, basePath = '', sectionId }) {
     if (!content) return null;
 
-    const parsed = deepParseJSON(content);
+    let parsed = deepParseJSON(content);
+
+    // Normalize funnel copy wrapper for consistent preview structure
+    if (sectionId === 'funnelCopy' && parsed && typeof parsed === 'object' && parsed.funnelCopy) {
+        parsed = parsed.funnelCopy;
+    }
+
+    const hasHighlight = (path) => {
+        if (!highlightMap) return false;
+        if (highlightMap.has('__all__')) return true;
+        if (highlightMap.has(path)) return true;
+        for (const p of highlightMap) {
+            if (p.startsWith(path + '.')) return true;
+        }
+        return false;
+    };
+
+    const getOrderedKeys = (obj, path = '') => {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return Object.keys(obj || {});
+
+        try {
+            const fieldStructure = getFieldsForSection(sectionId);
+            if (!fieldStructure || fieldStructure.length === 0) return Object.keys(obj);
+
+            if (!path) {
+                const ordered = fieldStructure.map(f => f.field_id).filter(k => k in obj);
+                const extras = Object.keys(obj).filter(k => !ordered.includes(k));
+                return [...ordered, ...extras];
+            }
+
+            const pathParts = path.split('.');
+            const parentFieldId = pathParts[0];
+            const parentField = fieldStructure.find(f => f.field_id === parentFieldId);
+            const subfields = parentField?.field_metadata?.subfields || [];
+            if (subfields.length === 0) return Object.keys(obj);
+
+            const ordered = subfields.map(sf => sf.field_id).filter(k => k in obj);
+            const extras = Object.keys(obj).filter(k => !ordered.includes(k));
+            return [...ordered, ...extras];
+        } catch {
+            return Object.keys(obj);
+        }
+    };
+
+    const getOrderedEntries = (obj, path = '') => {
+        const keys = getOrderedKeys(obj, path);
+        return keys.map(key => [key, obj[key]]);
+    };
 
     // If it's a string with HTML, render it directly
     if (typeof parsed === 'string' && isHtmlContent(parsed)) {
@@ -335,7 +382,7 @@ function ContentPreviewRenderer({ content, className = '' }) {
         if (hasHtmlValues) {
             return (
                 <div className={`space-y-4 ${className}`}>
-                    {Object.entries(parsed).map(([key, value]) => {
+                    {getOrderedEntries(parsed, basePath).map(([key, value]) => {
                         if (key.startsWith('_')) return null;
                         const label = key
                             .replace(/([A-Z])/g, ' $1')
@@ -345,15 +392,23 @@ function ContentPreviewRenderer({ content, className = '' }) {
                             .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
                             .join(' ');
 
+                        const fieldPath = basePath ? `${basePath}.${key}` : key;
+                        const isHighlighted = hasHighlight(fieldPath);
+
                         if (typeof value === 'object' && value !== null) {
                             return (
-                                <div key={key} className="border border-[#2a2a2d] rounded-lg p-3 space-y-2">
+                                <div
+                                    key={key}
+                                    className={`border border-[#2a2a2d] rounded-lg p-3 space-y-2 ${isHighlighted ? 'bg-cyan/10 border-cyan/40' : ''}`}
+                                >
                                     <div className="text-xs font-bold text-cyan uppercase tracking-wide">{label}</div>
-                                    {Object.entries(value).map(([subKey, subVal]) => {
+                                    {getOrderedEntries(value, fieldPath).map(([subKey, subVal]) => {
                                         const subLabel = subKey.charAt(0).toUpperCase() + subKey.slice(1);
+                                        const subPath = `${fieldPath}.${subKey}`;
+                                        const subHighlighted = hasHighlight(subPath);
                                         if (typeof subVal === 'string' && isHtmlContent(subVal)) {
                                             return (
-                                                <div key={subKey}>
+                                                <div key={subKey} className={subHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
                                                     <span className="text-xs text-gray-500 font-medium">{subLabel}:</span>
                                                     <div
                                                         className="mt-1 prose prose-invert prose-sm max-w-none"
@@ -364,7 +419,7 @@ function ContentPreviewRenderer({ content, className = '' }) {
                                             );
                                         }
                                         return (
-                                            <div key={subKey}>
+                                            <div key={subKey} className={subHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
                                                 <span className="text-xs text-gray-500 font-medium">{subLabel}:</span>
                                                 <p className="text-xs text-gray-300 mt-0.5">{String(subVal)}</p>
                                             </div>
@@ -376,7 +431,7 @@ function ContentPreviewRenderer({ content, className = '' }) {
 
                         if (typeof value === 'string' && isHtmlContent(value)) {
                             return (
-                                <div key={key}>
+                                <div key={key} className={isHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
                                     <span className="text-xs text-gray-500 font-medium">{label}:</span>
                                     <div
                                         className="mt-1 prose prose-invert prose-sm max-w-none"
@@ -388,7 +443,7 @@ function ContentPreviewRenderer({ content, className = '' }) {
                         }
 
                         return (
-                            <div key={key}>
+                            <div key={key} className={isHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
                                 <span className="text-xs text-gray-500 font-medium">{label}:</span>
                                 <p className="text-xs text-gray-300 mt-0.5">{formatForDisplay(value)}</p>
                             </div>
@@ -402,7 +457,7 @@ function ContentPreviewRenderer({ content, className = '' }) {
     // Fallback: plain text rendering
     return (
         <pre className={`text-xs whitespace-pre-wrap font-sans ${className}`}>
-            {formatForDisplay(parsed)}
+            {formatForDisplay(parsed, 0, { getOrderedEntries, path: basePath })}
         </pre>
     );
 }
@@ -447,10 +502,42 @@ function deepParseJSON(content) {
 }
 
 /**
+ * Build a set of dot-paths that changed between two structures
+ */
+function collectDiffPaths(before, after, path, diff) {
+    if (before === after) return;
+
+    const beforeIsArray = Array.isArray(before);
+    const afterIsArray = Array.isArray(after);
+
+    if (beforeIsArray || afterIsArray) {
+        if (JSON.stringify(before) !== JSON.stringify(after)) {
+            diff.add(path || '__all__');
+        }
+        return;
+    }
+
+    const beforeIsObject = before && typeof before === 'object';
+    const afterIsObject = after && typeof after === 'object';
+
+    if (beforeIsObject && afterIsObject) {
+        const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+        for (const key of keys) {
+            if (key.startsWith('_')) continue;
+            const nextPath = path ? `${path}.${key}` : key;
+            collectDiffPaths(before?.[key], after?.[key], nextPath, diff);
+        }
+        return;
+    }
+
+    diff.add(path || '__all__');
+}
+
+/**
  * Format parsed content into clean, simple human-readable text
  * NO JSON structure, NO icons, just clean formatted content
  */
-function formatForDisplay(content, depth = 0) {
+function formatForDisplay(content, depth = 0, options = {}) {
     if (!content) return '';
 
     if (typeof content === 'string') {
@@ -460,7 +547,7 @@ function formatForDisplay(content, depth = 0) {
     if (Array.isArray(content)) {
         return content.map((item, i) => {
             if (typeof item === 'object' && item !== null) {
-                return `${i + 1}. ${formatForDisplay(item, depth + 1)}`;
+                return `${i + 1}. ${formatForDisplay(item, depth + 1, options)}`;
             }
             return `${i + 1}. ${item}`;
         }).join('\n\n');
@@ -469,8 +556,11 @@ function formatForDisplay(content, depth = 0) {
     if (typeof content === 'object') {
         const lines = [];
         const indent = '  '.repeat(depth);
+        const entries = options.getOrderedEntries
+            ? options.getOrderedEntries(content, options.path || '')
+            : Object.entries(content);
 
-        for (const [key, value] of Object.entries(content)) {
+        for (const [key, value] of entries) {
             // Skip internal keys
             if (key.startsWith('_')) continue;
 
@@ -494,7 +584,7 @@ function formatForDisplay(content, depth = 0) {
                 lines.push(`${indent}${label}:`);
                 value.forEach((item, i) => {
                     if (typeof item === 'object' && item !== null) {
-                        lines.push(`${indent}  ${i + 1}. ${formatForDisplay(item, depth + 1)}`);
+                        lines.push(`${indent}  ${i + 1}. ${formatForDisplay(item, depth + 1, options)}`);
                     } else {
                         lines.push(`${indent}  ${i + 1}. ${String(item)}`);
                     }
@@ -502,13 +592,9 @@ function formatForDisplay(content, depth = 0) {
                 lines.push(''); // Add blank line after arrays
             } else if (typeof value === 'object' && value !== null) {
                 // Nested objects: Show label and recurse
-                if (depth === 0) {
-                    // Top level - use section headers
-                    lines.push(`\n=== ${label} ===`);
-                } else {
-                    lines.push(`${indent}${label}:`);
-                }
-                lines.push(formatForDisplay(value, depth + 1));
+                lines.push(`${indent}${label}:`);
+                const childPath = options.path ? `${options.path}.${key}` : key;
+                lines.push(formatForDisplay(value, depth + 1, { ...options, path: childPath }));
             } else if (value !== null && value !== undefined) {
                 // Simple values
                 const valueStr = String(value).replace(/\\n/g, '\n');
@@ -529,6 +615,7 @@ export default function FeedbackChatModal({
     onClose,
     sectionId,
     sectionTitle,
+    subSection,
     currentContent,
     sessionId,
     onSave
@@ -558,6 +645,21 @@ export default function FeedbackChatModal({
     const [latestContent, setLatestContent] = useState(currentContent); // Track latest revision for continuous refinement
     const [showContentPreview, setShowContentPreview] = useState(false); // Toggle for context preview
     const [originalContent, setOriginalContent] = useState(null); // Store original content for before/after comparison
+
+    const highlightMap = useMemo(() => {
+        if (!suggestedChanges) return null;
+        if (subSection && subSection !== 'all') {
+            return new Set([subSection]);
+        }
+
+        const diff = new Set();
+        const before = deepParseJSON(originalContent || currentContent);
+        const after = deepParseJSON(suggestedChanges);
+        collectDiffPaths(before, after, '', diff);
+
+        if (diff.size === 0) diff.add('__all__');
+        return diff;
+    }, [suggestedChanges, originalContent, currentContent, subSection]);
 
     // NEW state for hierarchical field selection
     const [selectedParentField, setSelectedParentField] = useState(null);
@@ -603,7 +705,7 @@ export default function FeedbackChatModal({
                 }
             ]);
             setChatStep(1);
-            setSelectedSubSection(null);
+            setSelectedSubSection(subSection || null);
             setSuggestedChanges(null);
             setPreviousAlternatives([]); // Reset previous alternatives for fresh session
             setStreamingMessage(null);
@@ -1386,6 +1488,10 @@ Be as specific as possible - for example:
                                                     : { [selectedSubSection]: latestContent[selectedSubSection] || latestContent }
                                                 }
                                                 className="text-gray-500"
+                                                sectionId={sectionId}
+                                                basePath={selectedSubSection && selectedSubSection !== 'all'
+                                                    ? selectedSubSection.split('.')[0]
+                                                    : ''}
                                             />
                                         </div>
                                     </motion.div>
@@ -1487,6 +1593,10 @@ Be as specific as possible - for example:
                                                         <ContentPreviewRenderer
                                                             content={originalContent || currentContent}
                                                             className="text-gray-400"
+                                                            sectionId={sectionId}
+                                                            basePath={selectedSubSection && selectedSubSection !== 'all'
+                                                                ? selectedSubSection.split('.')[0]
+                                                                : ''}
                                                         />
                                                     </div>
                                                 </div>
@@ -1503,6 +1613,11 @@ Be as specific as possible - for example:
                                                         <ContentPreviewRenderer
                                                             content={contentToFormat}
                                                             className="text-gray-300"
+                                                            highlightMap={highlightMap}
+                                                            sectionId={sectionId}
+                                                            basePath={selectedSubSection && selectedSubSection !== 'all'
+                                                                ? selectedSubSection.split('.')[0]
+                                                                : ''}
                                                         />
                                                     </div>
                                                 </div>
@@ -1553,6 +1668,7 @@ Be as specific as possible - for example:
                                                 <ContentPreviewRenderer
                                                     content={streamingMessage.metadata.validatedContent}
                                                     className="text-gray-300 leading-relaxed"
+                                                    sectionId={sectionId}
                                                 />
                                             </div>
                                         </div>

@@ -1,26 +1,28 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
 
-export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveButton, onUnapprove, isApproved, refreshTrigger }) {
+export default function FunnelCopyFields({ funnelId, onUnapprove, isApproved, refreshTrigger }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isApproving, setIsApproving] = useState(false);
     const [sectionApproved, setSectionApproved] = useState(false);
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
     const [activeTab, setActiveTab] = useState('optin'); // optin, sales, calendar, thankyou
+    const [businessName, setBusinessName] = useState('');
 
     const sectionId = 'funnelCopy';
-    const predefinedFields = getFieldsForSection(sectionId);
+    const fieldStructure = getFieldsForSection(sectionId);
+    const predefinedFields = fieldStructure?.fields || fieldStructure || [];
     const previousApprovalRef = useRef(false);
+    const footerDefaultsAppliedRef = useRef(false);
 
     // Get subfields for each page
     const optinPage = predefinedFields.find(f => f.field_id === 'optinPage');
@@ -52,7 +54,26 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
         }
     }, [funnelId]);
 
-    // Initial fetch
+    useEffect(() => {
+        let isMounted = true;
+        const fetchBusinessName = async () => {
+            try {
+                const res = await fetchWithAuth('/api/user/profile');
+                const data = await res.json();
+                if (!isMounted) return;
+                const name = data?.business_name || data?.owner_business_name || '';
+                setBusinessName(name);
+            } catch (error) {
+                console.error('[FunnelCopyFields] Failed to fetch business name:', error);
+            }
+        };
+
+        fetchBusinessName();
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
     // Initial fetch
     useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
 
@@ -78,6 +99,69 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
         }
         previousApprovalRef.current = sectionApproved;
     }, [sectionApproved, sectionId, onUnapprove]);
+
+    useEffect(() => {
+        if (!businessName || fields.length === 0 || footerDefaultsAppliedRef.current) return;
+
+        const currentYear = new Date().getFullYear();
+        const footerText = `Copyrighted By "${businessName}" ${currentYear} |Terms & Conditions`;
+        const pageFieldIds = ['optinPage', 'salesPage', 'calendarPage', 'thankYouPage'];
+
+        const updates = [];
+        const nextFields = fields.map((field) => {
+            if (!pageFieldIds.includes(field.field_id)) return field;
+
+            let value = field.field_value;
+            if (typeof value === 'string') {
+                try {
+                    value = JSON.parse(value);
+                } catch {
+                    value = {};
+                }
+            }
+
+            if (!value || typeof value !== 'object') {
+                value = {};
+            }
+
+            const existingFooter = String(value.footer_text || '').trim();
+            if (existingFooter) return field;
+
+            const updatedValue = { ...value, footer_text: footerText };
+            updates.push({ field_id: field.field_id, field_value: updatedValue });
+
+            return {
+                ...field,
+                field_value: updatedValue,
+                is_approved: false
+            };
+        });
+
+        if (updates.length === 0) {
+            footerDefaultsAppliedRef.current = true;
+            return;
+        }
+
+        setFields(nextFields);
+        footerDefaultsAppliedRef.current = true;
+
+        updates.forEach(async (update) => {
+            try {
+                await fetchWithAuth('/api/os/vault-field', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        funnel_id: funnelId,
+                        section_id: sectionId,
+                        field_id: update.field_id,
+                        field_value: update.field_value
+                    })
+                });
+            } catch (error) {
+                console.error('[FunnelCopyFields] Failed to save footer default:', error);
+            }
+        });
+    }, [businessName, fields, funnelId]);
 
     // Listen for real-time generation complete event
     useEffect(() => {
@@ -221,37 +305,6 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
         }
     };
 
-    const handleApproveSection = async () => {
-        setIsApproving(true);
-        try {
-            const response = await fetchWithAuth('/api/os/vault-section-approve', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId })
-            });
-            if (!response.ok) throw new Error('Failed to approve');
-
-            // Wait for API response before updating local state
-            await response.json();
-
-            // Update local state FIRST
-            setFields(prev => prev.map(f => ({ ...f, is_approved: true })));
-            setSectionApproved(true);
-
-            // THEN notify parent (prevents race condition with data refresh)
-            if (onApprove) onApprove(sectionId);
-
-            toast.success('Funnel Copy approved!');
-        } catch (error) {
-            console.error('[FunnelCopyFields] Approve error:', error);
-            toast.error('Failed to approve section');
-        } finally {
-            setIsApproving(false);
-        }
-    };
-
-    const getFieldValue = (field_id) => fields.find(f => f.field_id === field_id)?.field_value || null;
-
     // Get value for a parent field (like optinPage) which is an object
     const getPageFieldValue = (pageFieldId) => {
         const field = fields.find(f => f.field_id === pageFieldId);
@@ -352,6 +405,7 @@ export default function FunnelCopyFields({ funnelId, onApprove, onRenderApproveB
                                             funnelId={funnelId}
                                             onSave={handleFieldSave}
                                             onAIFeedback={handleAIFeedback}
+                                            hideCharLimit={true}
                                         />
                                     );
                                 })}

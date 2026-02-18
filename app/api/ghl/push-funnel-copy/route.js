@@ -202,7 +202,7 @@ export async function POST(req) {
 
                 if (rawValue) {
                     // Polish content with AI (skip for calendar_embedded_code and image fields)
-                    const skipPolish = field.includes('calendar_embedded') || field.includes('_image') || field.includes('video_link');
+                    const skipPolish = field.includes('calendar_embedded') || field.includes('footer_text') || field.includes('_image') || field.includes('video_link');
                     const fieldType = field.includes('headline') ? 'headline' :
                         field.includes('bullet') ? 'bullet' : 'paragraph';
                     const polishedValue = skipPolish ? rawValue : await polishTextContent(rawValue, fieldType);

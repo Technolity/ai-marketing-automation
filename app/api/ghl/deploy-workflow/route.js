@@ -29,17 +29,16 @@ const DEFAULT_MEDIA_VALUES = {
     testimonial_review_4_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png'
 };
 
-// === CALENDAR PAGE MAPPINGS (2 fields) ===
+// === CALENDAR PAGE MAPPINGS (2 fields; footer handled elsewhere) ===
 const CALENDAR_PAGE_MAP = {
     'headline': '03_calender_page_headline',
     'calendar_embedded_code': '03_calender_page_embedded_calender_code'
 };
 
-// === THANK YOU PAGE MAPPINGS (3 fields) ===
+// === THANK YOU PAGE MAPPINGS (2 fields; footer handled elsewhere) ===
 const THANK_YOU_PAGE_MAP = {
     'headline': '03_thankyou_page_headline',
-    'subheadline': '03_thankyou_page_sub__headline',  // Note: double underscore for GHL's "Sub - Headline"
-    'video_link': '03_thankyou_page_video_link'
+    'subheadline': '03_thankyou_page_sub__headline'  // Note: double underscore for GHL's "Sub - Headline"
 };
 
 // Duplicate POST function removed
@@ -50,16 +49,15 @@ const THANK_YOU_PAGE_MAP = {
  * Maps vault field names to GHL custom value keys
  */
 
-// === OPTIN PAGE MAPPINGS (5 fields) ===
+// === OPTIN PAGE MAPPINGS (4 fields; footer handled elsewhere) ===
 const OPTIN_PAGE_MAP = {
     'headline_text': '03_optin_headline_text',
     'subheadline_text': '03_optin_subheadline_text',
     'cta_button_text': '03_optin_cta_button_text',
-    'mockup_image': '03_optin_mockup_image',
     'popup_form_headline': '03_opt_in_popup_form_headline'
 };
 
-// === VSL/SALES PAGE MAPPINGS (75+ fields) ===
+// === VSL/SALES PAGE MAPPINGS (69 fields; footer handled elsewhere) ===
 const SALES_PAGE_MAP = {
     // Hero Section (4)
     'hero_headline_text': '03_vsl_hero_headline_text',
@@ -118,26 +116,21 @@ const SALES_PAGE_MAP = {
     'call_expectations_not_for_bullet_2': '03_vsl_call_expectations_not_for_bullet_2',
     'call_expectations_not_for_bullet_3': '03_vsl_call_expectations_not_for_bullet_3',
 
-    // Bio (3)
+    // Bio (2)
     'bio_headline_text': '03_vsl_bio_headline_text',
     'bio_paragraph_text': '03_vsl_bio_paragraph_text',
-    'bio_image': '03_vsl_bio_image',
 
-    // Testimonials (13)
+    // Testimonials (10)
     'testimonial_headline_text': '03_vsl_testimonial_headline_text',
     'testimonial_subheadline_text': '03_vsl_testimonial_subheadline_text',
     'testimonial_review_1_headline': '03_vsl_testimonial_review_1_headline',
     'testimonial_review_1_subheadline_with_name': '03_vsl_testimonial_review_1_subheadline_with_name',
-    'testimonial_review_1_image': '03_vsl_testimonial_review_1_image',
     'testimonial_review_2_headline': '03_vsl_testimonial_review_2_headline',
     'testimonial_review_2_subheadline_with_name': '03_vsl_testimonial_review_2_subheadline_with_name',
-    'testimonial_review_2_image': '03_vsl_testimonial_review_2_image',
     'testimonial_review_3_headline': '03_vsl_testimonial_review_3_headline',
     'testimonial_review_3_subheadline_with_name': '03_vsl_testimonial_review_3_subheadline_with_name',
-    'testimonial_review_3_image': '03_vsl_testimonial_review_3_image',
     'testimonial_review_4_headline': '03_vsl_testimonial_review_4_headline',
     'testimonial_review_4_subheadline_with_name': '03_vsl_testimonial_review_4_subheadline_with_name',
-    'testimonial_review_4_image': '03_vsl_testimonial_review_4_image',
 
     // FAQ (9)
     'faq_headline_text': '03_vsl_faq_headline_text',
@@ -153,10 +146,7 @@ const SALES_PAGE_MAP = {
     // Final CTA (3)
     'final_cta_headline': '03_vsl_final_cta_headline',
     'final_cta_subheadline': '03_vsl_final_cta_subheadline',
-    'final_cta_subtext': '03_vsl_final_cta_subtext',
-
-    // Video
-    'video_link': '03_vsl_video_link'
+    'final_cta_subtext': '03_vsl_final_cta_subtext'
 };
 
 // === COLORS MAPPINGS (3 colors) ===
@@ -757,7 +747,7 @@ export async function POST(req) {
             }
         }
 
-        // Process salesPage/VSL (75+ fields)
+        // Process salesPage/VSL (69 fields)
         const salesPage = fcContent.salesPage || {};
         log(`[Deploy] salesPage fields count: ${Object.keys(salesPage).length}`);
 
@@ -1033,7 +1023,7 @@ export async function POST(req) {
             }
         }
 
-        // Note: Legacy thankYouPage, bookingPage fields removed - not in new 03_* structure
+        // Note: Legacy bookingPage fields removed - not in new 03_* structure
 
         // === PROCESS EMAILS ===
         log('[Deploy] Processing emails...');
