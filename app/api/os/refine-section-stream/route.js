@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
-import { streamWithProvider } from '@/lib/ai/sharedAiUtils';
+import { streamWithProvider, generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
 import { getFullContextPrompt, buildEnhancedFeedbackPrompt } from '@/lib/prompts/fullContextPrompts';
@@ -12,6 +12,7 @@ import { mergeVslChunks } from '@/lib/prompts/vslMerger';
 import { mergeCloserChunks } from '@/lib/prompts/closerScriptMerger';
 import { mergeSetterChunks } from '@/lib/prompts/setterScriptMerger';
 import { mergeSmsChunks } from '@/lib/prompts/smsMerger';
+import { populateVaultFields } from '@/lib/vault/fieldMapper';
 
 
 export const dynamic = 'force-dynamic';
@@ -216,7 +217,9 @@ async function handleParallelRefinement({
     leadMagnetTitle,
     companyName,
     brandColors,
-    sendEvent
+    sendEvent,
+    sessionId,
+    targetUserId
 }) {
     console.log('[ParallelRefinement] Starting parallel refinement for:', sectionId);
 
@@ -458,32 +461,26 @@ INSTRUCTIONS:
         const maxAttempts = forceStrict ? 1 : 2;
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             const strictMode = forceStrict || attempt === 2;
-            const hardTimeoutMs = (chunkTimeouts[sectionId] || 90000) + 15000;
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => {
-                controller.abort();
-            }, hardTimeoutMs);
 
             let chunkResult;
             try {
-                chunkResult = await streamWithProvider(
+                // Use generateWithProvider (non-streaming) — parallel chunks used onToken = () => {}
+                // (a no-op) so token streaming was pure overhead. generateWithProvider is a single
+                // HTTP request that returns the complete text, exactly like generate-stream does for
+                // email/sms/script chunks. This eliminates 4 long-lived streaming connections that
+                // were racing against SSE connection timeouts.
+                chunkResult = await generateWithProvider(
                     systemPrompt + (strictMode ? ' CRITICAL: Output MUST be valid JSON only. No backticks, no commentary.' : ''),
                     userPrompt,
-                    () => { }, // No token callback for parallel chunks
                     {
                         temperature: strictMode ? 0.4 : 0.7,
                         maxTokens: chunkTokenLimits[sectionId] || 3000,
                         timeout: chunkTimeouts[sectionId] || 90000,
                         jsonMode: true,
-                                            }
+                    }
                 );
             } catch (error) {
-                if (controller.signal.aborted) {
-                    throw new Error(`Chunk ${index + 1} timed out after ${hardTimeoutMs}ms`);
-                }
                 throw error;
-            } finally {
-                clearTimeout(timeoutId);
             }
 
             // Parse the chunk result
@@ -615,6 +612,50 @@ INSTRUCTIONS:
         failedIndices: failedChunkIndices,
         mergedKeys: Object.keys(mergedResult)
     });
+
+    // Save merged result to vault_content + vault_content_fields so content is preserved
+    // even if the SSE connection drops before the 'validated' event reaches the browser.
+    // Mirrors how generate-stream handles all chunked sections (emails, sms, scripts).
+    if (sessionId && targetUserId) {
+        try {
+            const { data: existingRow } = await supabaseAdmin
+                .from('vault_content')
+                .select('id')
+                .eq('funnel_id', sessionId)
+                .eq('section_id', sectionId)
+                .eq('is_current_version', true)
+                .maybeSingle();
+
+            if (existingRow) {
+                await supabaseAdmin
+                    .from('vault_content')
+                    .update({
+                        content: mergedResult,
+                        status: 'generated',
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existingRow.id);
+                console.log('[ParallelRefinement] Updated vault_content for', sectionId);
+            } else {
+                await supabaseAdmin.from('vault_content').insert({
+                    funnel_id: sessionId,
+                    user_id: targetUserId,
+                    section_id: sectionId,
+                    content: mergedResult,
+                    status: 'generated',
+                    is_current_version: true,
+                    version: 1
+                });
+                console.log('[ParallelRefinement] Inserted vault_content for', sectionId);
+            }
+
+            await populateVaultFields(sessionId, sectionId, mergedResult, targetUserId, { forceOverwrite: true });
+            console.log('[ParallelRefinement] Saved merged result to DB for', sectionId);
+        } catch (dbError) {
+            console.error('[ParallelRefinement] DB save failed (non-fatal):', dbError.message);
+            // Don't throw — content is still returned via SSE validated event
+        }
+    }
 
     // Return result along with partial-save metadata
     return {
@@ -872,7 +913,9 @@ export async function POST(req) {
                         leadMagnetTitle,
                         companyName,
                         brandColors,
-                        sendEvent
+                        sendEvent,
+                        sessionId,
+                        targetUserId
                     });
 
                     // Validate merged result
