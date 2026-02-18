@@ -565,6 +565,7 @@ export default function FeedbackChatModal({
     const [isHierarchicalSection, setIsHierarchicalSection] = useState(false);
 
     const abortControllerRef = useRef(null);
+    const streamCompletedRef = useRef(false); // Track stream completion (ref avoids stale closures)
 
     const MAX_REGENERATIONS = 5;
     const USE_STREAMING = true; // Feature flag
@@ -752,6 +753,9 @@ Be as specific as possible - for example:
                     inputPreview: feedback.substring(0, 100) + (feedback.length > 100 ? '...' : '')
                 });
 
+                // Reset completion ref before starting new stream
+                streamCompletedRef.current = false;
+
                 const response = await fetch('/api/os/refine-section-stream', {
                     method: 'POST',
                     headers: {
@@ -819,6 +823,9 @@ Be as specific as possible - for example:
                                     // Store validated content FIRST
                                     setSuggestedChanges(data.refinedContent);
 
+                                    // Mark stream as successfully completed (ref won't suffer from stale closures)
+                                    streamCompletedRef.current = true;
+
                                     // Complete message with validated content (CREATE if null!)
                                     // Update tracking for continuous refinement
                                     if (data.refinedContent) {
@@ -828,6 +835,14 @@ Be as specific as possible - for example:
 
                                     // Move to result step
                                     setChatStep(3);
+
+                                    // If partial chunks failed, show a warning toast
+                                    if (data.partialInfo?.isPartial) {
+                                        toast.warning(
+                                            `${data.partialInfo.failedChunkNames.join(', ')} couldn't be regenerated and kept their original content. You can retry those individually.`,
+                                            { duration: 8000 }
+                                        );
+                                    }
 
                                     // Complete message with validated content (CREATE if null!)
                                     setStreamingMessage(prev => {
@@ -977,7 +992,7 @@ Be as specific as possible - for example:
                 // If the reader finished (done=true) but we never received a
                 // 'validated' or 'complete' event, it means Vercel killed the
                 // function or the connection dropped. Show a clear error.
-                if (chatStep !== 3 && !suggestedChanges) {
+                if (!streamCompletedRef.current) {
                     console.warn('[FeedbackChat] Stream ended without validated/complete events – likely Vercel timeout or connection drop');
                     setStreamingMessage(null);
                     setMessages(prev => [...prev, {

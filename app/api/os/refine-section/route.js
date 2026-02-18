@@ -449,33 +449,20 @@ export async function POST(req) {
             }
         }
 
-        // Log to content_edit_history for tracking
+        // Log to feedback_logs for Chatbot history
+        // Note: content_edit_history table was removed; using feedback_logs only
         try {
-            await supabaseAdmin.from('content_edit_history').insert({
-                user_id: userId,
-                vault_content_id: sessionId || null,
-                funnel_id: sessionId || null,
-                user_feedback_type: 'section_update',
-                user_feedback_text: feedback,
-                content_before: currentContent,
-                content_after: refinedContent,
-                sections_modified: [subSection || sectionId],
-                edit_applied: false
-            });
-
-            // NEW: Log to feedback_logs for Chatbot history
             await supabaseAdmin.from('feedback_logs').insert({
                 user_id: userId,
-                funnel_id: sessionId || null, // Assuming sessionId maps to funnel_id context
+                funnel_id: sessionId || null,
                 section_id: sectionId,
                 session_id: sessionId,
                 user_message: feedback,
-                ai_response: 'Refinement generated successfully', // Non-streaming endpoint just returns content
+                ai_response: 'Refinement generated successfully',
                 applied_changes: refinedContent
             });
-
         } catch (historyError) {
-            console.log('[RefineSection] Could not log to history/feedback:', historyError.message);
+            console.log('[RefineSection] Could not log to feedback:', historyError.message);
             // Non-blocking - continue with refinement
         }
 

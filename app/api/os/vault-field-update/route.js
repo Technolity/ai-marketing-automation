@@ -117,23 +117,7 @@ export async function POST(req) {
             throw new Error('Failed to save to database');
         }
 
-        // 5. Log to content_edit_history
-        try {
-            await supabaseAdmin.from('content_edit_history').insert({
-                user_id: targetUserId,
-                vault_content_id: currentSection.id,
-                funnel_id: sessionId,
-                user_feedback_type: 'direct_edit',
-                user_feedback_text: `Edited ${fieldPath} by ${userId === targetUserId ? 'owner' : 'team member'}`,
-                content_before: getNestedValue(sectionContent, fieldPath),
-                content_after: newValue,
-                sections_modified: [fieldPath],
-                edit_applied: true
-            });
-        } catch (historyError) {
-            console.log('[VaultFieldUpdate] Could not log to history:', historyError.message);
-            // Non-blocking
-        }
+        // Note: content_edit_history table was removed; logging is handled by feedback_logs
 
         console.log('[VaultFieldUpdate] Success');
 

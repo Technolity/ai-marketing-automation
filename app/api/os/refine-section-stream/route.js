@@ -341,16 +341,55 @@ INSTRUCTIONS:
         return parsedChunk;
     });
 
-    // Wait for all chunks to complete
+    // Wait for all chunks — use allSettled so partial success is possible
     await sendEvent('progress', { message: 'Merging refined chunks...' });
-    const refinedChunks = await Promise.all(chunkPromises);
+    const settledResults = await Promise.allSettled(chunkPromises);
+
+    // Categorise results
+    const succeededChunks = [];
+    const failedChunkIndices = [];
+    settledResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+            succeededChunks.push({ index, data: result.value });
+        } else {
+            failedChunkIndices.push(index);
+            console.error(`[ParallelRefinement] Chunk ${index + 1} failed:`, result.reason?.message || result.reason);
+        }
+    });
+
+    // If ALL chunks failed, throw so the caller shows an error
+    if (succeededChunks.length === 0) {
+        throw new Error(`All ${chunks.length} chunks failed during parallel refinement`);
+    }
+
+    // Build final chunk array: use refined data for succeeded, original for failed
+    const finalChunks = chunks.map((originalChunk, index) => {
+        const succeeded = succeededChunks.find(s => s.index === index);
+        return succeeded ? succeeded.data : originalChunk;
+    });
 
     // Merge chunks using the appropriate merger
-    const mergedResult = strategy.merger(...refinedChunks);
+    const mergedResult = strategy.merger(...finalChunks);
 
     console.log('[ParallelRefinement] Merge complete. Final keys:', Object.keys(mergedResult));
+    console.log('[ParallelRefinement] Chunk results:', {
+        total: chunks.length,
+        succeeded: succeededChunks.length,
+        failed: failedChunkIndices.length,
+        failedIndices: failedChunkIndices
+    });
 
-    return mergedResult;
+    // Return result along with partial-save metadata
+    return {
+        mergedResult,
+        partialInfo: failedChunkIndices.length > 0 ? {
+            isPartial: true,
+            totalChunks: chunks.length,
+            succeededChunks: succeededChunks.map(s => s.index),
+            failedChunks: failedChunkIndices,
+            failedChunkNames: failedChunkIndices.map(i => strategy.chunkNames[i])
+        } : null
+    };
 }
 
 export async function POST(req) {
@@ -586,7 +625,7 @@ export async function POST(req) {
                 await sendEvent('status', { message: `Smart parallel refinement activated for ${sectionId}...` });
 
                 try {
-                    const mergedResult = await handleParallelRefinement({
+                    const { mergedResult, partialInfo } = await handleParallelRefinement({
                         sectionId,
                         currentContent,
                         messageHistory,
@@ -612,30 +651,28 @@ export async function POST(req) {
                         finalContent = validation.data;
                     }
 
+                    // If some chunks failed, add a partial warning
+                    if (partialInfo) {
+                        const partialWarning = `${partialInfo.failedChunks.length} of ${partialInfo.totalChunks} chunks failed (${partialInfo.failedChunkNames.join(', ')}). Those sections kept their original content — you can retry them individually.`;
+                        validationWarning = validationWarning
+                            ? `${validationWarning}. ${partialWarning}`
+                            : partialWarning;
+                        console.warn('[ParallelRefinement] Partial save:', partialWarning);
+                    }
+
                     // Send the final merged result
                     await sendEvent('validated', {
                         refinedContent: finalContent,
                         rawText: JSON.stringify(mergedResult, null, 2),
                         validationSuccess,
                         validationWarning,
-                        parallelMode: true
+                        parallelMode: true,
+                        partialInfo: partialInfo || null
                     });
 
-                    // Log to content_edit_history
+                    // Log to feedback_logs (content_edit_history table doesn't exist)
                     try {
                         const latestUserMessage = messageHistory.filter(m => m.role === 'user').pop();
-                        await supabaseAdmin.from('content_edit_history').insert({
-                            user_id: userId,
-                            vault_content_id: sessionId || null,
-                            funnel_id: sessionId || null,
-                            user_feedback_type: 'parallel_refinement',
-                            user_feedback_text: latestUserMessage?.content || 'Parallel Refinement',
-                            content_before: currentContent,
-                            content_after: finalContent,
-                            sections_modified: [sectionId],
-                            edit_applied: false
-                        });
-
                         await supabaseAdmin.from('feedback_logs').insert({
                             user_id: userId,
                             funnel_id: sessionId || null,
@@ -646,10 +683,10 @@ export async function POST(req) {
                             applied_changes: finalContent
                         });
                     } catch (historyError) {
-                        console.log('[ParallelRefinement] Could not log to history:', historyError.message);
+                        console.log('[ParallelRefinement] Could not log to feedback:', historyError.message);
                     }
 
-                    await sendEvent('complete', { success: true, parallelMode: true });
+                    await sendEvent('complete', { success: true, parallelMode: true, partialInfo: partialInfo || null });
 
                     console.log('[ParallelRefinement] ========== PARALLEL REFINEMENT COMPLETE ==========');
                     clearTimeout(timeout);
@@ -743,34 +780,20 @@ export async function POST(req) {
                 validationWarning
             });
 
-            // Log to content_edit_history
+            // Log to feedback_logs (content_edit_history table doesn't exist)
             try {
                 const latestUserMessage = messageHistory.filter(m => m.role === 'user').pop();
-                await supabaseAdmin.from('content_edit_history').insert({
-                    user_id: userId,
-                    vault_content_id: sessionId || null,
-                    funnel_id: sessionId || null,
-                    user_feedback_type: 'streaming_chat',
-                    user_feedback_text: latestUserMessage?.content || 'Conversation',
-                    content_before: currentContent,
-                    content_after: refinedContent,
-                    sections_modified: [subSection || sectionId],
-                    edit_applied: false
-                });
-
-                // NEW: Log to feedback_logs for Chatbot history
                 await supabaseAdmin.from('feedback_logs').insert({
                     user_id: userId,
                     funnel_id: sessionId || null,
                     section_id: sectionId,
                     session_id: sessionId,
                     user_message: latestUserMessage?.content || 'Conversation',
-                    ai_response: fullText, // Store the full streamed text as the response
+                    ai_response: fullText,
                     applied_changes: refinedContent
                 });
-
             } catch (historyError) {
-                console.log('[RefineStream] Could not log to history/feedback:', historyError.message);
+                console.log('[RefineStream] Could not log to feedback:', historyError.message);
             }
 
             await sendEvent('complete', { success: true });
