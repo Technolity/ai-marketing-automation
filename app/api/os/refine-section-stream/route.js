@@ -1091,6 +1091,7 @@ export async function POST(req) {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',  // Prevents Nginx/Vercel proxy from buffering SSE — without this, heartbeat pings don't flush to browser, causing ~30s silent drop
         },
     });
 }
