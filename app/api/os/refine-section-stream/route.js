@@ -67,6 +67,97 @@ function escapeJsonStringNewlines(text) {
     return out;
 }
 
+function repairJsonStringValues(text, keys) {
+    let out = '';
+    let i = 0;
+
+    while (i < text.length) {
+        let found = -1;
+        let foundKey = null;
+
+        for (const key of keys) {
+            const idx = text.indexOf(`"${key}"`, i);
+            if (idx !== -1 && (found === -1 || idx < found)) {
+                found = idx;
+                foundKey = key;
+            }
+        }
+
+        if (found === -1) {
+            out += text.slice(i);
+            break;
+        }
+
+        out += text.slice(i, found);
+        i = found;
+
+        out += `"${foundKey}"`;
+        i += foundKey.length + 2;
+
+        const colonIdx = text.indexOf(':', i);
+        if (colonIdx === -1) {
+            out += text.slice(i);
+            break;
+        }
+
+        out += text.slice(i, colonIdx + 1);
+        i = colonIdx + 1;
+
+        while (i < text.length && /\s/.test(text[i])) {
+            out += text[i];
+            i++;
+        }
+
+        if (text[i] !== '"') {
+            continue;
+        }
+
+        out += '"';
+        i++;
+
+        let escaped = false;
+        for (; i < text.length; i++) {
+            const ch = text[i];
+            if (escaped) {
+                out += ch;
+                escaped = false;
+                continue;
+            }
+            if (ch === '\\') {
+                out += ch;
+                escaped = true;
+                continue;
+            }
+            if (ch === '"') {
+                let j = i + 1;
+                while (j < text.length && /\s/.test(text[j])) j++;
+                if (j < text.length && (text[j] === ',' || text[j] === '}')) {
+                    out += '"';
+                    i++;
+                    break;
+                }
+                out += '\\"';
+                continue;
+            }
+            if (ch === '\n') {
+                out += '\\n';
+                continue;
+            }
+            if (ch === '\r') {
+                continue;
+            }
+            if (ch === '\t') {
+                out += '\\t';
+                continue;
+            }
+            out += ch;
+        }
+    }
+
+    return out;
+}
+
+
 /**
  * Recursively generate example structure from Zod schema
  * Shows ALL nested keys so AI sees exact structure required
@@ -405,6 +496,9 @@ INSTRUCTIONS:
                 cleanedText = jsonMatch[0];
             }
             cleanedText = escapeJsonStringNewlines(cleanedText);
+            if (sectionId === 'emails') {
+                cleanedText = repairJsonStringValues(cleanedText, ['body']);
+            }
 
             try {
                 parsedChunk = parseJsonSafe(cleanedText, { throwOnError: true });
