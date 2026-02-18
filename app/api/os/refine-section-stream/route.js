@@ -942,10 +942,13 @@ export async function POST(req) {
                         console.warn('[ParallelRefinement] Partial save:', partialWarning);
                     }
 
-                    // Send the final merged result
+                    // Send the final merged result — omit rawText for parallel path
+                    // (it's a pretty-printed duplicate of refinedContent adding ~300KB extra to
+                    // the SSE event, which caused the SSE data line to span multiple TCP chunks
+                    // and get silently dropped by the frontend parser).
+                    // Content is already saved to DB above, so rawText is not needed for recovery.
                     await sendEvent('validated', {
                         refinedContent: finalContent,
-                        rawText: JSON.stringify(mergedResult, null, 2),
                         validationSuccess,
                         validationWarning,
                         parallelMode: true,

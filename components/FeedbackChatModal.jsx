@@ -774,6 +774,12 @@ Be as specific as possible - for example:
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
+                // currentEvent must persist across read() calls — for large events like the
+                // parallel-refinement 'validated' payload (~200KB+), the 'event:' line and the
+                // 'data:' line arrive in different TCP chunks. Declaring it inside the while
+                // loop would reset it to '' on every read(), causing the data line to be
+                // silently dropped (the '&& currentEvent' guard fails).
+                let currentEvent = '';
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -783,7 +789,6 @@ Be as specific as possible - for example:
                     const lines = buffer.split('\n');
                     buffer = lines.pop() || '';
 
-                    let currentEvent = '';
                     for (const line of lines) {
                         if (line.startsWith('event: ')) {
                             currentEvent = line.slice(7).trim();
