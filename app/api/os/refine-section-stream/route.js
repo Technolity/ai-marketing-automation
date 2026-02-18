@@ -98,7 +98,7 @@ async function handleParallelRefinement({
     };
 
     const chunkTimeouts = {
-        emails: 120000,
+        emails: 180000,
         vsl: 120000,
         salesScripts: 120000,
         setterScript: 120000,
@@ -379,7 +379,8 @@ INSTRUCTIONS:
         total: chunks.length,
         succeeded: succeededChunks.length,
         failed: failedChunkIndices.length,
-        failedIndices: failedChunkIndices
+        failedIndices: failedChunkIndices,
+        mergedKeys: Object.keys(mergedResult)
     });
 
     // Return result along with partial-save metadata
@@ -562,7 +563,8 @@ export async function POST(req) {
                     .eq('funnel_id', sessionId)
                     .eq('section_id', 'leadMagnet')
                     .eq('field_id', 'mainTitle')
-                    .single();
+                    .limit(1)
+                    .maybeSingle();
 
                 if (mainTitleField?.field_value) {
                     leadMagnetTitle = mainTitleField.field_value;
@@ -577,7 +579,7 @@ export async function POST(req) {
                     .from('user_profiles')
                     .select('business_name')
                     .eq('user_id', targetUserId)
-                    .single();
+                    .maybeSingle();
 
                 if (userProfile?.business_name) {
                     companyName = userProfile.business_name;
