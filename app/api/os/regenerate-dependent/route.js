@@ -61,21 +61,22 @@ const SECTION_PROMPTS = {
 };
 
 // System prompts per section type for AI context
+const NO_MARKDOWN = ' No markdown formatting (no **bold**, no _italic_, no # headers) — plain text only inside JSON values.';
 const SECTION_SYSTEM_PROMPTS = {
-    idealClient: 'You are TED-OS Ideal Client Engine. Return ONLY valid JSON.',
-    message: 'You are TED-OS Message Engine. Return ONLY valid JSON.',
-    story: 'You are TED-OS Story Engine. Return ONLY valid JSON.',
-    offer: 'You are TED-OS Offer Engine. Return ONLY valid JSON.',
-    salesScripts: 'You are TED-OS Closer Script Engine. Return ONLY valid JSON.',
-    leadMagnet: 'You are TED-OS Lead Magnet Engine. Return ONLY valid JSON.',
-    vsl: 'You are TED-OS VSL Engine. Return ONLY valid JSON.',
-    emails: 'You are TED-OS Email Engine. Return ONLY valid JSON.',
-    facebookAds: 'You are TED-OS Facebook Ads Engine. Return ONLY valid JSON.',
-    funnelCopy: 'You are TED-OS Funnel Copy Engine. Return ONLY valid JSON.',
-    bio: 'You are TED-OS Bio Engine. Return ONLY valid JSON.',
-    appointmentReminders: 'You are TED-OS Appointment Reminders Engine. Return ONLY valid JSON.',
-    setterScript: 'You are TED-OS Setter Script Engine. Return ONLY valid JSON.',
-    sms: 'You are TED-OS SMS Engine. Return ONLY valid JSON.',
+    idealClient: 'You are TED-OS Ideal Client Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    message: 'You are TED-OS Message Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    story: 'You are TED-OS Story Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    offer: 'You are TED-OS Offer Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    salesScripts: 'You are TED-OS Closer Script Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    leadMagnet: 'You are TED-OS Lead Magnet Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    vsl: 'You are TED-OS VSL Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    emails: 'You are TED-OS Email Engine. Return ONLY valid JSON. No markdown — use HTML tags for email bodies, plain text for subjects/previews.',
+    facebookAds: 'You are TED-OS Facebook Ads Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    funnelCopy: 'You are TED-OS Funnel Copy Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    bio: 'You are TED-OS Bio Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    appointmentReminders: 'You are TED-OS Appointment Reminders Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    setterScript: 'You are TED-OS Setter Script Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+    sms: 'You are TED-OS SMS Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
 };
 
 // Chunked sections that need multi-part generation
@@ -84,25 +85,25 @@ const CHUNKED_SECTIONS = {
         chunks: [emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt],
         merger: mergeEmailChunks,
         validator: validateMergedEmails,
-        systemPrompt: 'You are TED-OS Email Engine. Return ONLY valid JSON.',
+        systemPrompt: 'You are TED-OS Email Engine. Return ONLY valid JSON. No markdown — use HTML tags for email bodies, plain text for subjects/previews.',
     },
     sms: {
         chunks: [smsChunk1Prompt, smsChunk2Prompt],
         merger: mergeSmsChunks,
         validator: validateMergedSms,
-        systemPrompt: 'You are TED-OS SMS Engine. Return ONLY valid JSON.',
+        systemPrompt: 'You are TED-OS SMS Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
     },
     setterScript: {
         chunks: [setterChunk1Prompt, setterChunk2Prompt],
         merger: mergeSetterChunks,
         validator: validateMergedSetter,
-        systemPrompt: 'You are TED-OS Setter Script Engine. Return ONLY valid JSON.',
+        systemPrompt: 'You are TED-OS Setter Script Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
     },
     salesScripts: {
         chunks: [closerChunk1Prompt, closerChunk2Prompt],
         merger: mergeCloserChunks,
         validator: validateMergedCloser,
-        systemPrompt: 'You are TED-OS Closer Script Engine. Return ONLY valid JSON.',
+        systemPrompt: 'You are TED-OS Closer Script Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
     },
     funnelCopy: {
         // funnelCopyChunks is an object {chunk1_optinPage, ...} not an array
@@ -110,7 +111,7 @@ const CHUNKED_SECTIONS = {
         chunks: Object.values(funnelCopyChunks),
         merger: mergeFunnelCopyChunks,
         validator: validateMergedFunnelCopy,
-        systemPrompt: 'You are TED-OS Funnel Copy Engine. Return ONLY valid JSON.',
+        systemPrompt: 'You are TED-OS Funnel Copy Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
     },
 };
 
@@ -434,16 +435,15 @@ async function generateSingleSection(sectionId, sectionConfig, enrichedData, dep
         throw new Error(`Prompt function for ${sectionId} returned null/undefined. Check enrichedData has required fields.`);
     }
 
-    const fullPrompt = prompt + dependencyContext;
-
-    // FIX: generateWithProvider signature is (systemPrompt, userPrompt, options)
-    // NOT (providerKey, userPrompt, systemMsg, opts) which was the bug
-    const systemPrompt = SECTION_SYSTEM_PROMPTS[sectionId] || 'You are an expert marketing copywriter. Return ONLY valid JSON.';
+    // Dependency context goes in system prompt (NOT appended after user prompt)
+    // to avoid corrupting JSON output expectations
+    const baseSystemPrompt = SECTION_SYSTEM_PROMPTS[sectionId] || 'You are an expert marketing copywriter. Return ONLY valid JSON. No markdown formatting — plain text only.';
+    const systemPrompt = baseSystemPrompt + dependencyContext;
 
     const response = await retryWithBackoff(() =>
         generateWithProvider(
             systemPrompt,
-            fullPrompt,
+            prompt,
             { jsonMode: true, maxTokens: 4096, timeout: 90000 }
         ),
         3,
@@ -460,47 +460,46 @@ async function generateChunkedSection(sectionId, enrichedData, dependencyContext
     const chunkedConfig = CHUNKED_SECTIONS[sectionId];
     if (!chunkedConfig) return null;
 
-    const chunkResults = [];
-    const systemPrompt = chunkedConfig.systemPrompt || 'You are an expert marketing copywriter. Return ONLY valid JSON.';
+    // Dependency context goes in system prompt (NOT appended after user prompt)
+    const baseSystemPrompt = chunkedConfig.systemPrompt || 'You are an expert marketing copywriter. Return ONLY valid JSON. No markdown formatting — plain text only.';
+    const systemPrompt = baseSystemPrompt + dependencyContext;
 
-    for (let i = 0; i < chunkedConfig.chunks.length; i++) {
-        const chunkFn = chunkedConfig.chunks[i];
-        const chunkPrompt = chunkFn(enrichedData);
+    console.log(`[regenerate-dependent] Generating ${chunkedConfig.chunks.length} chunks in PARALLEL for ${sectionId}`);
 
-        // Validate chunk prompt
-        if (!chunkPrompt) {
-            console.warn(`[regenerate-dependent] Chunk ${i + 1} prompt for ${sectionId} returned null, skipping`);
-            chunkResults.push({});
-            continue;
-        }
+    // Generate all chunks in parallel (matches generate-stream behavior)
+    const chunkResults = await Promise.all(
+        chunkedConfig.chunks.map(async (chunkFn, i) => {
+            const chunkPrompt = chunkFn(enrichedData);
 
-        const fullPrompt = chunkPrompt + dependencyContext;
+            if (!chunkPrompt) {
+                console.warn(`[regenerate-dependent] Chunk ${i + 1} prompt for ${sectionId} returned null, skipping`);
+                return {};
+            }
 
-        console.log(`[regenerate-dependent] Generating chunk ${i + 1}/${chunkedConfig.chunks.length} for ${sectionId}`);
+            console.log(`[regenerate-dependent] Starting chunk ${i + 1}/${chunkedConfig.chunks.length} for ${sectionId}`);
 
-        // FIX: Correct generateWithProvider signature: (systemPrompt, userPrompt, options)
-        const response = await retryWithBackoff(() =>
-            generateWithProvider(
-                systemPrompt,
-                fullPrompt,
-                { jsonMode: true, maxTokens: 4096, timeout: 90000 }
-            ),
-            3,
-            2000
-        );
+            const response = await retryWithBackoff(() =>
+                generateWithProvider(
+                    systemPrompt,
+                    chunkPrompt,
+                    { jsonMode: true, maxTokens: 4096, timeout: 90000 }
+                ),
+                3,
+                2000
+            );
 
-        const parsed = parseJsonSafe(response);
-        chunkResults.push(parsed);
-    }
+            return parseJsonSafe(response);
+        })
+    );
 
     // Merge chunks — spread results as individual args for mergers that expect (chunk1, chunk2, ...)
     const merged = chunkedConfig.merger(...chunkResults);
 
     // Validate
     if (chunkedConfig.validator) {
-        const isValid = chunkedConfig.validator(merged);
-        if (!isValid) {
-            console.warn(`[regenerate-dependent] Validation failed for ${sectionId}, using merged result anyway`);
+        const validation = chunkedConfig.validator(merged);
+        if (validation && !validation.valid) {
+            console.warn(`[regenerate-dependent] Validation issues for ${sectionId}:`, validation);
         }
     }
 

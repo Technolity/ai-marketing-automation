@@ -1,0 +1,14 @@
+- [x] Switch to feature/payment-billing branch <!-- id: 0 -->
+- [/] Phase 2: Payment & Billing (Authorize.Net via GHL SaaS Mode) <!-- id: 1 -->
+    - [x] Create Implementation Plan <!-- id: 2 -->
+
+    - [ ] DB Migration: Add subscription columns to user_profiles <!-- id: 3 -->
+    - [ ] Backend: Create GHL SaaS Webhook Handler <!-- id: 4 -->
+    - [ ] Middleware: Update to handle billing routes <!-- id: 5 -->
+    - [ ] Backend: Update Clerk Webhook for initial status <!-- id: 6 -->
+    - [ ] Frontend: Create SubscriptionGuard component <!-- id: 7 -->
+    - [ ] Context: Update AuthContext with subscription state <!-- id: 8 -->
+    - [ ] Backend: Update Tier API <!-- id: 9 -->
+    - [ ] Frontend: Create Billing Dashboard <!-- id: 10 -->
+    - [ ] Scripts: Create migration script for existing users <!-- id: 11 -->
+

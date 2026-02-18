@@ -166,7 +166,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                 const [chunk1Result, chunk2Result, chunk3Result, chunk4Result] = await Promise.all([
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                            "You are TED-OS Email Engine. Return ONLY valid JSON. No markdown formatting in output — use HTML tags for email bodies, plain text for subjects/previews.",
                             emailChunk1Prompt(emailData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -174,7 +174,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                     }),
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                            "You are TED-OS Email Engine. Return ONLY valid JSON. No markdown formatting in output — use HTML tags for email bodies, plain text for subjects/previews.",
                             emailChunk2Prompt(emailData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -182,7 +182,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                     }),
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                            "You are TED-OS Email Engine. Return ONLY valid JSON. No markdown formatting in output — use HTML tags for email bodies, plain text for subjects/previews.",
                             emailChunk3Prompt(emailData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -190,7 +190,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                     }),
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS Email Engine. Return ONLY valid JSON.",
+                            "You are TED-OS Email Engine. Return ONLY valid JSON. No markdown formatting in output — use HTML tags for email bodies, plain text for subjects/previews.",
                             emailChunk4Prompt(emailData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -237,7 +237,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                 const [chunk1Result, chunk2Result] = await Promise.all([
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS SMS Engine. Return ONLY valid JSON.",
+                            "You are TED-OS SMS Engine. Return ONLY valid JSON. No markdown formatting — plain text only.",
                             smsChunk1Prompt(smsData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -245,7 +245,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                     }),
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS SMS Engine. Return ONLY valid JSON.",
+                            "You are TED-OS SMS Engine. Return ONLY valid JSON. No markdown formatting — plain text only.",
                             smsChunk2Prompt(smsData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -296,7 +296,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                 const [chunk1Result, chunk2Result] = await Promise.all([
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS Setter Script Engine. Return ONLY valid JSON.",
+                            "You are TED-OS Setter Script Engine. Return ONLY valid JSON. No markdown formatting — plain text only.",
                             setterChunk1Prompt(scriptData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -304,7 +304,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                     }),
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS Setter Script Engine. Return ONLY valid JSON.",
+                            "You are TED-OS Setter Script Engine. Return ONLY valid JSON. No markdown formatting — plain text only.",
                             setterChunk2Prompt(scriptData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -360,7 +360,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                 const [chunk1Result, chunk2Result] = await Promise.all([
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS Closer Script Engine. Return ONLY valid JSON.",
+                            "You are TED-OS Closer Script Engine. Return ONLY valid JSON. No markdown formatting — plain text only.",
                             closerChunk1Prompt(scriptData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -368,7 +368,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                     }),
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
-                            "You are TED-OS Closer Script Engine. Return ONLY valid JSON.",
+                            "You are TED-OS Closer Script Engine. Return ONLY valid JSON. No markdown formatting — plain text only.",
                             closerChunk2Prompt(scriptData),
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
@@ -431,7 +431,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
 
             const rawContent = await retryWithBackoff(async () => {
                 return await generateWithProvider(
-                    "You are an elite business growth strategist. Return ONLY valid JSON.",
+                    "You are an elite business growth strategist. Return ONLY valid JSON. Do NOT include any markdown formatting like **bold**, _italic_, or # headers in your output — use plain text only inside JSON string values.",
                     rawPrompt,
                     {
                         jsonMode: true,

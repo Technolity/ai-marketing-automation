@@ -286,30 +286,55 @@ INSTRUCTIONS:
 5. First character must be { and last character must be }`;
 
         // Stream the chunk (non-interactive, just get result)
-        const chunkResult = await streamWithProvider(
-            systemPrompt,
-            userPrompt,
-            () => { }, // No token callback for parallel chunks
-            {
-                temperature: 0.7,
-                maxTokens: chunkTokenLimits[sectionId] || 3000,
-                timeout: chunkTimeouts[sectionId] || 90000,
-                jsonMode: true
+        let parsedChunk;
+        let lastParseError;
+
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            const hardTimeoutMs = (chunkTimeouts[sectionId] || 90000) + 15000;
+            const chunkResult = await Promise.race([
+                streamWithProvider(
+                    systemPrompt + (attempt === 2 ? ' CRITICAL: Output MUST be valid JSON only. No backticks, no commentary.' : ''),
+                    userPrompt,
+                    () => { }, // No token callback for parallel chunks
+                    {
+                        temperature: attempt === 2 ? 0.4 : 0.7,
+                        maxTokens: chunkTokenLimits[sectionId] || 3000,
+                        timeout: chunkTimeouts[sectionId] || 90000,
+                        jsonMode: true
+                    }
+                ),
+                new Promise((_, reject) => setTimeout(() => reject(new Error(`Chunk ${index + 1} timed out after ${hardTimeoutMs}ms`)), hardTimeoutMs))
+            ]);
+
+            // Parse the chunk result
+            let cleanedText = chunkResult
+                .replace(/^```(?:json)?[\s\n]*/gi, '')
+                .replace(/[\s\n]*```$/gi, '')
+                .trim();
+
+            const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                cleanedText = jsonMatch[0];
             }
-        );
 
-        // Parse the chunk result
-        let cleanedText = chunkResult
-            .replace(/^```(?:json)?[\s\n]*/gi, '')
-            .replace(/[\s\n]*```$/gi, '')
-            .trim();
-
-        const jsonMatch = cleanedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            cleanedText = jsonMatch[0];
+            try {
+                parsedChunk = parseJsonSafe(cleanedText, { throwOnError: true });
+                // NOTE: Do NOT wrap in emailSequence here — the merger (mergeEmailChunks)
+                // already wraps the merged result in { emailSequence: {...} }.
+                // Wrapping individual chunks causes double-wrapping and data loss
+                // because spread (...chunk) inside the merger would create
+                // { emailSequence: { emailSequence: {...} } } with only the last chunk surviving.
+                lastParseError = null;
+                break;
+            } catch (err) {
+                lastParseError = err;
+                console.warn(`[ParallelRefinement] Chunk ${index + 1} parse failed (attempt ${attempt}):`, err.message);
+            }
         }
 
-        const parsedChunk = parseJsonSafe(cleanedText, { throwOnError: true });
+        if (!parsedChunk) {
+            throw lastParseError || new Error('Failed to parse chunk JSON');
+        }
 
         console.log(`[ParallelRefinement] Chunk ${index + 1} completed:`, Object.keys(parsedChunk));
 
@@ -412,11 +437,12 @@ export async function POST(req) {
     const encoder = new TextEncoder();
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
+    let streamClosed = false;
 
     const sendEvent = async (event, data) => {
         try {
             // Check if stream is locked or closed before writing
-            if (writer.desiredSize === null) {
+            if (streamClosed || writer.desiredSize === null) {
                 console.warn('[RefineStream] Attempted to write to closed stream, ignoring');
                 return;
             }
@@ -430,6 +456,19 @@ export async function POST(req) {
                 console.warn('[RefineStream] Stream closed during write, stopping');
             } else {
                 console.error('[RefineStream] Write error:', e.message);
+            }
+        }
+    };
+
+    const closeStream = async () => {
+        if (streamClosed) return;
+        streamClosed = true;
+        try {
+            await writer.close();
+        } catch (e) {
+            // Ignore ERR_INVALID_STATE if already closed by another path
+            if (!e.message?.includes('closed') && e.code !== 'ERR_INVALID_STATE') {
+                console.error('[RefineStream] closeStream error:', e.message);
             }
         }
     };
@@ -460,7 +499,7 @@ export async function POST(req) {
                     code: 'STREAM_TIMEOUT'
                 });
             }
-            await writer.close();
+            await closeStream();
         }, STREAM_TIMEOUT);
 
         try {
@@ -614,12 +653,17 @@ export async function POST(req) {
 
                     console.log('[ParallelRefinement] ========== PARALLEL REFINEMENT COMPLETE ==========');
                     clearTimeout(timeout);
-                    await writer.close();
+                    await closeStream();
                     return; // Exit early - parallel path complete
                 } catch (parallelError) {
                     console.error('[ParallelRefinement] Error in parallel mode:', parallelError.message);
-                    // Fall through to normal streaming as fallback
-                    await sendEvent('status', { message: 'Falling back to standard refinement...' });
+                    await sendEvent('error', {
+                        message: parallelError.message || 'Parallel refinement failed',
+                        code: 'PARALLEL_REFINEMENT_FAILED'
+                    });
+                    clearTimeout(timeout);
+                    await closeStream();
+                    return;
                 }
             }
 
@@ -776,7 +820,7 @@ export async function POST(req) {
             }
         } finally {
             clearTimeout(timeout);
-            await writer.close();
+            await closeStream();
         }
     })();
 

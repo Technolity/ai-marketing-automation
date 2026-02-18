@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 /**
  * GET /api/os/generation-status?jobId=xxx
@@ -9,6 +10,11 @@ export async function GET(req) {
     const { userId } = auth();
     if (!userId) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+        return Response.json({ error: workspaceError }, { status: 403 });
     }
 
     const { searchParams } = new URL(req.url);
@@ -23,7 +29,7 @@ export async function GET(req) {
         .from('generation_jobs')
         .select('*')
         .eq('id', jobId)
-        .eq('user_id', userId) // Ensure user owns this job
+        .eq('user_id', targetUserId) // Ensure user owns this job
         .single();
 
     if (jobError || !job) {

@@ -1,0 +1,77 @@
+# Phase 2: Payment & Billing Implementation Plan (Authorize.Net via GHL SaaS)
+
+**Goal**: Implement payment processing and billing enforcement using the client's existing Authorize.Net account via GoHighLevel (GHL) SaaS Mode. This ensures automated subscription management, sub-account provisioning, and access control.
+
+## User Review Required
+> [!IMPORTANT]
+> **Prerequisites**: Ensure GHL SaaS Mode is enabled and Authorize.Net is connected in the GHL Agency dashboard. SaaS products (Starter, Growth, Scale) must be configured with correct pricing and trial periods.
+> **GHL Webhook URL**: The webhook URL in GHL SaaS settings must be set to `https://{tedos-domain}/api/webhooks/ghl-saas`.
+
+## Proposed Changes
+
+### Database Schema
+#### [MODIFY] `supabase/migrations/`
+- Create a new migration file `YYYYMMDD_billing_saas.sql` to add subscription columns to `user_profiles`.
+    - `subscription_status` (enum: pending_payment, active, past_due, cancelled, trialing)
+    - `ghl_saas_subscription_id` (text)
+    - `billing_provider` (default: 'authorize_net')
+    - `cancel_at_period_end` (boolean)
+
+### Backend (API & Webhooks)
+#### [NEW] `app/api/webhooks/ghl-saas/route.js`
+- Implement webhook handler for GHL SaaS events.
+- Logic:
+    - Log full payload for discovery (since docs are incomplete).
+    - detailed logging for `subscription.created`, `subscription.updated`, `subscription.cancelled`, `location.created`, `payment.failed`.
+    - Verify signature `X-HighLevel-Signature`.
+    - Update `user_profiles` based on event.
+    - Idempotency check using `ghl_saas_subscription_id`.
+
+#### [MODIFY] `app/api/webhooks/clerk/route.js`
+- Set initial `subscription_status` to `'pending_payment'` on user creation.
+
+#### [MODIFY] `middleware.js`
+- Add `/api/webhooks/ghl-saas` to `publicRoutes` and `ignoredRoutes` to allow GHL to post webhooks without auth.
+
+#### [MODIFY] `app/api/user/tier/route.js`
+- Return `subscription_status` in the API response.
+- Update expiry logic to respect subscription status.
+
+### Frontend
+#### [NEW] `components/SubscriptionGuard.jsx`
+- HOC or wrapper component to check `subscription_status`.
+- Redirects inactive users to the new billing page.
+- Modeled after `LicenseWrapper.jsx`.
+
+#### [MODIFY] `contexts/AuthContext.jsx`
+- Add `subscriptionStatus`, `subscriptionTier`, `isSubscriptionActive` to the context for easy access in components.
+
+#### [NEW] `app/dashboard/billing/page.jsx` (Billing Dashboard)
+- Display current plan, status, and renewal date.
+- "Manage Subscription" link to GHL SaaS customer portal.
+- "Upgrade" button linking to GHL SaaS checkout.
+
+#### [MODIFY] `app/layout.jsx`
+- Wrap application with `SubscriptionGuard` (likely inside `LicenseWrapper` or alongside it).
+
+### Migration Script
+#### [NEW] `scripts/migrate_existing_billing.js`
+- One-time script to set existing users' `subscription_status` to `'active'` (grace period) to prevent lockout.
+
+## Verification Plan
+
+### Automated Tests
+- None planned for this phase (reliance on manual verification due to external GHL dependency).
+
+### Manual Verification
+1.  **GHL Setup**: Verify Authorize.Net connection and SaaS product creation in GHL.
+2.  **Webhook Discovery**:
+    - Trigger test events (sub create, update, cancel) from GHL.
+    - Check logs in `webhook_logs` (or console) to identify exact event names/shapes.
+3.  **End-to-End Flow**:
+    - Sign up a new user (Status: pending).
+    - Complete GHL SaaS checkout (Status: active).
+    - Verify sub-account creation.
+    - Cancel subscription in GHL (Status: cancelled/past_due).
+    - Verify access is revoked via `SubscriptionGuard`.
+4.  **Existing Users**: Run migration script and verify access is maintained.
