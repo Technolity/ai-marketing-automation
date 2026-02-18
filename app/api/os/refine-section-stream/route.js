@@ -246,7 +246,36 @@ async function handleParallelRefinement({
     const fullContextInfo = getFullContextPrompt(sectionId);
 
     // Process chunks in parallel
-    const chunkPromises = chunks.map(async (chunkContent, index) => {
+    const maxConcurrency =
+        process.env.NODE_ENV === 'production' || process.env.VERCEL ? 2 : 4;
+
+    const runWithConcurrency = async (items, worker, concurrency) => {
+        const results = new Array(items.length);
+        let index = 0;
+
+        const runner = async () => {
+            while (true) {
+                const current = index++;
+                if (current >= items.length) break;
+                try {
+                    const value = await worker(items[current], current);
+                    results[current] = { status: 'fulfilled', value };
+                } catch (error) {
+                    results[current] = { status: 'rejected', reason: error };
+                }
+            }
+        };
+
+        const runners = Array.from(
+            { length: Math.min(concurrency, items.length) },
+            () => runner()
+        );
+
+        await Promise.all(runners);
+        return results;
+    };
+
+    const chunkPromises = async (chunkContent, index) => {
         const chunkName = strategy.chunkNames[index];
         const chunkStartTime = Date.now();
         console.log(`[ParallelRefinement] Chunk ${index + 1}/${chunks.length} (${chunkName}) STARTING at ${new Date().toISOString()}`);
@@ -294,8 +323,14 @@ INSTRUCTIONS:
 
         for (let attempt = 1; attempt <= 2; attempt++) {
             const hardTimeoutMs = (chunkTimeouts[sectionId] || 90000) + 15000;
-            const chunkResult = await Promise.race([
-                streamWithProvider(
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+            }, hardTimeoutMs);
+
+            let chunkResult;
+            try {
+                chunkResult = await streamWithProvider(
                     systemPrompt + (attempt === 2 ? ' CRITICAL: Output MUST be valid JSON only. No backticks, no commentary.' : ''),
                     userPrompt,
                     () => { }, // No token callback for parallel chunks
@@ -303,11 +338,18 @@ INSTRUCTIONS:
                         temperature: attempt === 2 ? 0.4 : 0.7,
                         maxTokens: chunkTokenLimits[sectionId] || 3000,
                         timeout: chunkTimeouts[sectionId] || 90000,
-                        jsonMode: true
+                        jsonMode: true,
+                        signal: controller.signal
                     }
-                ),
-                new Promise((_, reject) => setTimeout(() => reject(new Error(`Chunk ${index + 1} timed out after ${hardTimeoutMs}ms`)), hardTimeoutMs))
-            ]);
+                );
+            } catch (error) {
+                if (controller.signal.aborted) {
+                    throw new Error(`Chunk ${index + 1} timed out after ${hardTimeoutMs}ms`);
+                }
+                throw error;
+            } finally {
+                clearTimeout(timeoutId);
+            }
 
             // Parse the chunk result
             let cleanedText = chunkResult
@@ -343,7 +385,7 @@ INSTRUCTIONS:
         console.log(`[ParallelRefinement] Chunk ${index + 1}/${chunks.length} (${chunkName}) COMPLETED in ${chunkDurationMs}ms (${Math.round(chunkDurationMs / 1000)}s):`, Object.keys(parsedChunk));
 
         return parsedChunk;
-    });
+    };
 
     // Wait for all chunks — use allSettled so partial success is possible
     await sendEvent('progress', { message: 'Refining chunks in parallel...' });
@@ -356,7 +398,11 @@ INSTRUCTIONS:
 
     let settledResults;
     try {
-        settledResults = await Promise.allSettled(chunkPromises);
+        settledResults = await runWithConcurrency(
+            chunks,
+            (chunkContent, index) => chunkPromises(chunkContent, index),
+            maxConcurrency
+        );
     } finally {
         clearInterval(heartbeatInterval);
     }
