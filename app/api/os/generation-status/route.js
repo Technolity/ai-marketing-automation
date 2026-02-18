@@ -3,7 +3,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 /**
- * GET /api/os/generation-status?jobId=xxx
+ * GET /api/os/generation-status?id=xxx
  * Poll the status of a background generation job
  */
 export async function GET(req) {
@@ -18,10 +18,11 @@ export async function GET(req) {
     }
 
     const { searchParams } = new URL(req.url);
-    const jobId = searchParams.get('jobId');
+    // Accept both `id` and `jobId` for backwards compatibility
+    const jobId = searchParams.get('id') || searchParams.get('jobId');
 
     if (!jobId) {
-        return Response.json({ error: 'jobId parameter is required' }, { status: 400 });
+        return Response.json({ error: 'id parameter is required' }, { status: 400 });
     }
 
     // Fetch job details
