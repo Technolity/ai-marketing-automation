@@ -134,7 +134,8 @@ export async function POST(req) {
                 .eq('user_id', targetUserId)
                 .eq('is_active', true)
                 .eq('is_deleted', false)
-                .single();
+                .limit(1)
+                .maybeSingle();
 
             if (activeFunnel) {
                 resolvedSessionId = activeFunnel.id;
@@ -150,7 +151,8 @@ export async function POST(req) {
             .select('id')
             .eq('id', resolvedSessionId)
             .eq('user_id', targetUserId)
-            .single();
+            .limit(1)
+            .maybeSingle();
 
         if (ownedError || !ownedFunnel) {
             return NextResponse.json({ error: 'Funnel not found or unauthorized' }, { status: 404 });
@@ -163,7 +165,7 @@ export async function POST(req) {
             4: 120000,
             5: 120000,
             7: 120000,
-            8: 120000,
+            8: 180000,  // Emails — large context, needs 3 min
             17: 120000
         };
 
@@ -181,7 +183,8 @@ export async function POST(req) {
                 .select('wizard_answers')
                 .eq('id', resolvedSessionId)
                 .eq('user_id', targetUserId)
-                .single();
+                .limit(1)
+                .maybeSingle();
 
             const answersFromDB = funnelData?.wizard_answers || {};
 
@@ -194,7 +197,7 @@ export async function POST(req) {
                     .eq('user_id', targetUserId)
                     .order('created_at', { ascending: false })
                     .limit(1)
-                    .single();
+                    .maybeSingle();
                 baseData = intakeAnswers?.answers || {};
             }
 
@@ -208,7 +211,7 @@ export async function POST(req) {
                 .eq('user_id', targetUserId)
                 .order('updated_at', { ascending: false })
                 .limit(1)
-                .single();
+                .maybeSingle();
             enrichedData = latestSession?.intake_data || latestSession?.answers || {};
         }
 
@@ -278,7 +281,7 @@ export async function POST(req) {
 
         } else if (key === 8) { // Emails (Key 8)
             console.log('[Regenerate] Using CHUNKED generation for Emails');
-            const chunkTimeout = 120000;
+            const chunkTimeout = 180000;
             const chunkMaxTokens = 4000;
             promptUsed = "[CHUNKED GENERATION] Emails: 4 Chunks";
 

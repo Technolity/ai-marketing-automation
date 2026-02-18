@@ -80,30 +80,47 @@ const SECTION_SYSTEM_PROMPTS = {
 };
 
 // Chunked sections that need multi-part generation
+// Per-section timeouts for single-prompt sections (ms)
+const SECTION_TIMEOUTS = {
+    idealClient: 90000,
+    message: 90000,
+    story: 90000,
+    offer: 120000,
+    leadMagnet: 90000,
+    vsl: 120000,
+    facebookAds: 90000,
+    bio: 90000,
+    appointmentReminders: 90000,
+};
+
 const CHUNKED_SECTIONS = {
     emails: {
         chunks: [emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt],
         merger: mergeEmailChunks,
         validator: validateMergedEmails,
         systemPrompt: 'You are TED-OS Email Engine. Return ONLY valid JSON. No markdown — use HTML tags for email bodies, plain text for subjects/previews.',
+        timeout: 180000, // 3 min — large context
     },
     sms: {
         chunks: [smsChunk1Prompt, smsChunk2Prompt],
         merger: mergeSmsChunks,
         validator: validateMergedSms,
         systemPrompt: 'You are TED-OS SMS Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+        timeout: 30000,
     },
     setterScript: {
         chunks: [setterChunk1Prompt, setterChunk2Prompt],
         merger: mergeSetterChunks,
         validator: validateMergedSetter,
         systemPrompt: 'You are TED-OS Setter Script Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+        timeout: 45000,
     },
     salesScripts: {
         chunks: [closerChunk1Prompt, closerChunk2Prompt],
         merger: mergeCloserChunks,
         validator: validateMergedCloser,
         systemPrompt: 'You are TED-OS Closer Script Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+        timeout: 90000,
     },
     funnelCopy: {
         // funnelCopyChunks is an object {chunk1_optinPage, ...} not an array
@@ -112,6 +129,7 @@ const CHUNKED_SECTIONS = {
         merger: mergeFunnelCopyChunks,
         validator: validateMergedFunnelCopy,
         systemPrompt: 'You are TED-OS Funnel Copy Engine. Return ONLY valid JSON.' + NO_MARKDOWN,
+        timeout: 90000,
     },
 };
 
@@ -167,7 +185,8 @@ export async function POST(req) {
                 current_section: sections[0] || null
             })
             .select()
-            .single();
+            .limit(1)
+            .maybeSingle();
 
         if (jobError) {
             console.error('[regenerate-dependent] Failed to create job:', jobError);
@@ -244,7 +263,8 @@ async function processRegenerations(userId, sessionId, sections, context) {
             .select('wizard_answers')
             .eq('id', sessionId)
             .eq('user_id', userId)
-            .single();
+            .limit(1)
+            .maybeSingle();
         baseData = funnelData?.wizard_answers || {};
     } catch (err) {
         console.warn('[regenerate-dependent] Failed to fetch wizard_answers:', err?.message);
@@ -390,7 +410,8 @@ async function appendJobSection(jobId, field, sectionId) {
         .from('generation_jobs')
         .select('sections_completed, sections_failed')
         .eq('id', jobId)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
     const current = (job?.[field] || []);
     const next = Array.from(new Set([...(current || []), sectionId]));
@@ -440,11 +461,13 @@ async function generateSingleSection(sectionId, sectionConfig, enrichedData, dep
     const baseSystemPrompt = SECTION_SYSTEM_PROMPTS[sectionId] || 'You are an expert marketing copywriter. Return ONLY valid JSON. No markdown formatting — plain text only.';
     const systemPrompt = baseSystemPrompt + dependencyContext;
 
+    const sectionTimeout = SECTION_TIMEOUTS[sectionId] || 90000;
+
     const response = await retryWithBackoff(() =>
         generateWithProvider(
             systemPrompt,
             prompt,
-            { jsonMode: true, maxTokens: 4096, timeout: 90000 }
+            { jsonMode: true, maxTokens: 4096, timeout: sectionTimeout }
         ),
         3,
         2000
@@ -464,11 +487,14 @@ async function generateChunkedSection(sectionId, enrichedData, dependencyContext
     const baseSystemPrompt = chunkedConfig.systemPrompt || 'You are an expert marketing copywriter. Return ONLY valid JSON. No markdown formatting — plain text only.';
     const systemPrompt = baseSystemPrompt + dependencyContext;
 
-    console.log(`[regenerate-dependent] Generating ${chunkedConfig.chunks.length} chunks in PARALLEL for ${sectionId}`);
+    const chunkTimeout = chunkedConfig.timeout || 90000;
+    console.log(`[regenerate-dependent] Generating ${chunkedConfig.chunks.length} chunks in PARALLEL for ${sectionId} (timeout: ${chunkTimeout}ms)`);
 
     // Generate all chunks in parallel (matches generate-stream behavior)
-    const chunkResults = await Promise.all(
+    // Use Promise.allSettled for partial-failure resilience
+    const chunkSettled = await Promise.allSettled(
         chunkedConfig.chunks.map(async (chunkFn, i) => {
+            const chunkStartTime = Date.now();
             const chunkPrompt = chunkFn(enrichedData);
 
             if (!chunkPrompt) {
@@ -482,15 +508,27 @@ async function generateChunkedSection(sectionId, enrichedData, dependencyContext
                 generateWithProvider(
                     systemPrompt,
                     chunkPrompt,
-                    { jsonMode: true, maxTokens: 4096, timeout: 90000 }
+                    { jsonMode: true, maxTokens: 4096, timeout: chunkTimeout }
                 ),
                 3,
                 2000
             );
 
+            console.log(`[regenerate-dependent] Chunk ${i + 1} for ${sectionId} FINISHED in ${Date.now() - chunkStartTime}ms`);
             return parseJsonSafe(response);
         })
     );
+
+    // Extract results, using empty objects for failed chunks
+    const chunkResults = chunkSettled.map((result, i) => {
+        if (result.status === 'fulfilled') return result.value;
+        console.error(`[regenerate-dependent] Chunk ${i + 1} for ${sectionId} FAILED:`, result.reason?.message);
+        return {};
+    });
+    const failedCount = chunkSettled.filter(r => r.status === 'rejected').length;
+    if (failedCount > 0) {
+        console.warn(`[regenerate-dependent] ${failedCount}/${chunkedConfig.chunks.length} chunks failed for ${sectionId}`);
+    }
 
     // Merge chunks — spread results as individual args for mergers that expect (chunk1, chunk2, ...)
     const merged = chunkedConfig.merger(...chunkResults);
