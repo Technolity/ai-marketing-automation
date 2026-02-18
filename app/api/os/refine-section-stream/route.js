@@ -346,8 +346,20 @@ INSTRUCTIONS:
     });
 
     // Wait for all chunks — use allSettled so partial success is possible
-    await sendEvent('progress', { message: 'Merging refined chunks...' });
-    const settledResults = await Promise.allSettled(chunkPromises);
+    await sendEvent('progress', { message: 'Refining chunks in parallel...' });
+
+    // CRITICAL FIX: Send heartbeat to keep SSE connection alive during long parallel processing
+    // Vercel/proxies drop idle connections after ~10-15s if no data is sent.
+    const heartbeatInterval = setInterval(() => {
+        sendEvent('ping', { t: Date.now() }).catch(e => console.error('Heartbeat failed:', e.message));
+    }, 2500);
+
+    let settledResults;
+    try {
+        settledResults = await Promise.allSettled(chunkPromises);
+    } finally {
+        clearInterval(heartbeatInterval);
+    }
 
     // Categorise results
     const succeededChunks = [];
