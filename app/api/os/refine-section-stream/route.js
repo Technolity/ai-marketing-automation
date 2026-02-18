@@ -247,6 +247,8 @@ async function handleParallelRefinement({
     // Process chunks in parallel
     const chunkPromises = chunks.map(async (chunkContent, index) => {
         const chunkName = strategy.chunkNames[index];
+        const chunkStartTime = Date.now();
+        console.log(`[ParallelRefinement] Chunk ${index + 1}/${chunks.length} (${chunkName}) STARTING at ${new Date().toISOString()}`);
 
         await sendEvent('progress', {
             message: `Refining ${chunkName}...`,
@@ -336,7 +338,8 @@ INSTRUCTIONS:
             throw lastParseError || new Error('Failed to parse chunk JSON');
         }
 
-        console.log(`[ParallelRefinement] Chunk ${index + 1} completed:`, Object.keys(parsedChunk));
+        const chunkDurationMs = Date.now() - chunkStartTime;
+        console.log(`[ParallelRefinement] Chunk ${index + 1}/${chunks.length} (${chunkName}) COMPLETED in ${chunkDurationMs}ms (${Math.round(chunkDurationMs / 1000)}s):`, Object.keys(parsedChunk));
 
         return parsedChunk;
     });
