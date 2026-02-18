@@ -339,8 +339,7 @@ INSTRUCTIONS:
                         maxTokens: chunkTokenLimits[sectionId] || 3000,
                         timeout: chunkTimeouts[sectionId] || 90000,
                         jsonMode: true,
-                        signal: controller.signal
-                    }
+                                            }
                 );
             } catch (error) {
                 if (controller.signal.aborted) {
@@ -1716,4 +1715,5 @@ export async function GET() {
         headers: { 'Content-Type': 'application/json' }
     });
 }
+
 
