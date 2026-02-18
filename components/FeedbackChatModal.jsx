@@ -973,6 +973,23 @@ Be as specific as possible - for example:
                     }
                 }
 
+                // ── Abrupt stream termination detection ──
+                // If the reader finished (done=true) but we never received a
+                // 'validated' or 'complete' event, it means Vercel killed the
+                // function or the connection dropped. Show a clear error.
+                if (chatStep !== 3 && !suggestedChanges) {
+                    console.warn('[FeedbackChat] Stream ended without validated/complete events – likely Vercel timeout or connection drop');
+                    setStreamingMessage(null);
+                    setMessages(prev => [...prev, {
+                        role: 'assistant',
+                        content: '⏱️ The connection was interrupted before the AI finished generating. This can happen with large sections.\n\nPlease click **Try Again** to retry — the request often succeeds on a second attempt.',
+                        showRetry: true
+                    }]);
+                    setChatStep(2);
+                    setIsStreaming(false);
+                    setIsProcessing(false);
+                }
+
             } catch (error) {
                 if (error.name === 'AbortError') {
                     console.log('[FeedbackChat] Stream aborted by user');
@@ -1121,7 +1138,7 @@ Be as specific as possible - for example:
     };
 
     // Handle dependency regeneration
-        const pollDependencyJob = (jobId) => {
+    const pollDependencyJob = (jobId) => {
         const poll = setInterval(async () => {
             try {
                 const res = await fetch(`/api/os/generation-status?jobId=${jobId}`);
@@ -1152,7 +1169,7 @@ Be as specific as possible - for example:
         setTimeout(() => clearInterval(poll), 10 * 60 * 1000);
     };
 
-const handleRegenerateDependencies = async () => {
+    const handleRegenerateDependencies = async () => {
         // Save the changes first (deferred from handleSaveChanges)
         commitSave();
 

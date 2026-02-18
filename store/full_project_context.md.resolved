@@ -1,6 +1,6 @@
 # 🧠 TedOS / AI Marketing Automation - Full Project Context
 
-> **Last Updated**: 2026-02-11
+> **Last Updated**: 2026-02-18
 > **Purpose**: Definitive technical guide for developers. Covers architecture, data flow, API inventory, and integration logic.
 
 ---
@@ -33,6 +33,12 @@
 *   **Targeted Section Refresh**: `refreshTriggers` is now a **per-section map** (`{ [sectionId]: timestamp }`). Only *changed* sections trigger their granular field components to refetch, preventing loaders and scroll jumps in unchanged sections.
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
+
+### Recent Modifications (2026-02-18)
+| File | Change |
+| :--- | :--- |
+| `vercel.json` | **CRITICAL FIX**: Added `refine-section-stream` (300s), `regenerate-dependent` (300s), `refine-section` (120s), `refine-field` (120s) to explicit `maxDuration` overrides. Previously these fell under the 60s catch-all, causing Vercel to kill streaming requests mid-generation. |
+| `components/FeedbackChatModal.jsx` | Added abrupt stream termination detection — if the SSE stream ends without `validated`/`complete` events (e.g. Vercel timeout, connection drop), the user now sees a clear error message with a retry button instead of a frozen/blank UI. |
 
 ### Recent Modifications (2026-02-07)
 | File | Change |
