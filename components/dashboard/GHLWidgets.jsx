@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -447,6 +447,7 @@ function RevenueTrendWidget({ data }) {
 
 // Contact Sources Widget
 function ContactSourcesWidget({ data }) {
+    const [showInfo, setShowInfo] = useState(false);
     if (!data?.sourceBreakdown || data.sourceBreakdown.length === 0) {
         return (
             <div className="lg:col-span-1 bg-[#161617]/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 flex flex-col">
@@ -468,7 +469,6 @@ function ContactSourcesWidget({ data }) {
         color: colors[index]
     }));
 
-    const [showInfo, setShowInfo] = useState(false);
 
     return (
         <motion.div
@@ -669,7 +669,6 @@ function CustomBarTooltip({ active, payload, label }) {
 
 // Opportunity Status Pie Chart with Info Button Legend
 function OpportunityStatusPieChart({ data }) {
-    const [showInfo, setShowInfo] = useState(false);
 
     if (!data || data.length === 0) {
         return (
@@ -774,3 +773,5 @@ function OpportunityStatusPieChart({ data }) {
         </div>
     );
 }
+
+

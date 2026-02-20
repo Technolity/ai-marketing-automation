@@ -45,7 +45,7 @@ import {
 
 export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, funnelId = null, isRegenerationMode = false }) {
     const router = useRouter();
-    const { session, user, loading: authLoading } = useAuth();
+    const { session, user, loading: authLoading, isAdmin } = useAuth();
     const { getToken } = useClerkAuth();
 
     // Log regeneration mode for debugging
@@ -167,6 +167,8 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
     // Sample Data Selector
     const [showSampleSelector, setShowSampleSelector] = useState(false);
 
+    const canUseSampleData = isAdmin === true;
+
     // Real-time generation progress tracking
     const [generationProgress, setGenerationProgress] = useState({
         completedCount: 0,
@@ -286,7 +288,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                 console.log('[OSWizard] 🔄 Regeneration mode: keeping wizard unlocked despite complete status');
                             }
                         }
-                        if (savedProgress.isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') {
+                        if (canUseSampleData && (savedProgress.isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true')) {
                             setIsSampleDataLoaded(true);
                         }
                         setIsSessionSaved(true);
@@ -701,6 +703,10 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
     // Fill form with sample data for testing/demo purposes
     const fillSampleData = (selectedSample = null) => {
+        if (!canUseSampleData) {
+            toast.error('Sample data is available to admins only.');
+            return;
+        }
         // If no sample selected, show the selector modal
         if (!selectedSample) {
             setShowSampleSelector(true);
@@ -1290,7 +1296,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                 nextStepInputs.forEach(input => {
                     if (stepData[input.name] !== undefined) {
                         loadedInput[input.name] = stepData[input.name];
-                    } else if ((isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
+                    } else if (canUseSampleData && (isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
                         loadedInput[input.name] = SAMPLE_DATA[input.name];
                     }
                 });
@@ -1363,7 +1369,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                     const sourceData = updatedData || stepData;
                     if (sourceData[input.name] !== undefined) {
                         loadedInput[input.name] = sourceData[input.name];
-                    } else if (isSampleDataLoaded && SAMPLE_DATA[input.name] !== undefined) {
+                    } else if (canUseSampleData && isSampleDataLoaded && SAMPLE_DATA[input.name] !== undefined) {
                         // Reliable fallback if sample data is loaded
                         loadedInput[input.name] = SAMPLE_DATA[input.name];
                     }
@@ -1396,7 +1402,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
             stepInputs.forEach(input => {
                 if (mergedData[input.name] !== undefined) {
                     loadedInput[input.name] = mergedData[input.name];
-                } else if ((isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
+                } else if (canUseSampleData && (isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
                     loadedInput[input.name] = SAMPLE_DATA[input.name];
                 }
             });
@@ -1730,25 +1736,27 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                     </button>
 
                                     {/* Sample Data Sub-menu */}
-                                    <div className="border-t border-[#2a2a2d] pt-2 mt-2">
-                                        <div className="px-4 py-2 text-xs text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                                            <Sparkles className="w-3 h-3" />
-                                            Load Sample Data
+                                    {canUseSampleData && (
+                                        <div className="border-t border-[#2a2a2d] pt-2 mt-2">
+                                            <div className="px-4 py-2 text-xs text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                                                <Sparkles className="w-3 h-3" />
+                                                Load Sample Data
+                                            </div>
+                                            {SAMPLE_DATA_OPTIONS.map((sample) => (
+                                                <button
+                                                    key={sample.id}
+                                                    onClick={() => {
+                                                        fillSampleData(sample);
+                                                        setShowManageDataDropdown(false);
+                                                    }}
+                                                    className="w-full flex flex-col px-4 py-2 text-left text-gray-300 hover:bg-purple-600/10 hover:text-purple-400 transition-all"
+                                                >
+                                                    <span className="font-medium text-sm">{sample.name}</span>
+                                                    <span className="text-xs text-gray-500">{sample.description}</span>
+                                                </button>
+                                            ))}
                                         </div>
-                                        {SAMPLE_DATA_OPTIONS.map((sample) => (
-                                            <button
-                                                key={sample.id}
-                                                onClick={() => {
-                                                    fillSampleData(sample);
-                                                    setShowManageDataDropdown(false);
-                                                }}
-                                                className="w-full flex flex-col px-4 py-2 text-left text-gray-300 hover:bg-purple-600/10 hover:text-purple-400 transition-all"
-                                            >
-                                                <span className="font-medium text-sm">{sample.name}</span>
-                                                <span className="text-xs text-gray-500">{sample.description}</span>
-                                            </button>
-                                        ))}
-                                    </div>
+                                    )}
 
                                     {/* Edit Current Session - only when wizard is complete */}
                                     {isWizardComplete && (
@@ -1826,7 +1834,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
                     {/* Sample Data Selector Modal */}
                     <AnimatePresence>
-                        {showSampleSelector && (
+                        {canUseSampleData && showSampleSelector && (
                             <motion.div
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
@@ -2162,7 +2170,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                             {/* Header with Progress Bar */}
                             <div className="mb-8">
                                 {/* Sample Data Button - Show on first few steps for easy testing */}
-                                {(currentStep === 1 || (currentStep <= 3 && completedSteps.length < 2)) && (
+                                {canUseSampleData && (currentStep === 1 || (currentStep <= 3 && completedSteps.length < 2)) && (
                                     <div className="flex justify-end mb-4 relative">
                                         <div className="relative">
                                             <button
@@ -2989,7 +2997,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                     // SAMPLE_DATA is guaranteed to have latest values if sample data was loaded
                                                     if (stepData[input.name] !== undefined) {
                                                         loadedInput[input.name] = stepData[input.name];
-                                                    } else if ((isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
+                                                    } else if (canUseSampleData && (isSampleDataLoaded || localStorage.getItem('isSampleDataLoaded') === 'true') && SAMPLE_DATA[input.name] !== undefined) {
                                                         // Fallback to SAMPLE_DATA for cases where stepData hasn't synced yet
                                                         loadedInput[input.name] = SAMPLE_DATA[input.name];
                                                     }

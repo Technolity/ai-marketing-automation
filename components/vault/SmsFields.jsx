@@ -118,28 +118,144 @@ export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, 
 
         // FeedbackChatModal passes { refinedContent, subSection }
         const refinedContent = saveData?.refinedContent || saveData;
+        const subSection = saveData?.subSection;
+        let valueToSave = refinedContent;
+        let saveFieldId = selectedField.field_id;
+
+        // Detect hierarchical sub-field refinement:
+        // subSection may be "sms1.message" while selectedField.field_id is "sms1"
+        let isHierarchicalRefinement = false;
+        let hierarchicalParentId = null;
+        let hierarchicalChildId = null;
+
+        if (subSection && subSection.includes('.')) {
+            const [parentPart, childPart] = subSection.split('.');
+            // Verify this is a child of the selected field
+            if (parentPart === selectedField.field_id) {
+                isHierarchicalRefinement = true;
+                hierarchicalParentId = parentPart;
+                hierarchicalChildId = childPart;
+                console.log('[SmsFields] Hierarchical refinement detected:', { parentPart, childPart, subSection });
+            }
+        }
+
+        // Extract value if needed
+        if (refinedContent && typeof refinedContent === 'object') {
+            if (isHierarchicalRefinement && hierarchicalChildId && hierarchicalChildId in refinedContent) {
+                // Hierarchical case: refinedContent = { message: "..." }, extract the child value
+                valueToSave = refinedContent[hierarchicalChildId];
+                console.log('[SmsFields] Extracted child value from hierarchical refinement:', { childId: hierarchicalChildId, valuePreview: String(valueToSave).substring(0, 100) });
+            } else if (subSection && subSection in refinedContent) {
+                valueToSave = refinedContent[subSection];
+            } else if (selectedField.field_id in refinedContent) {
+                valueToSave = refinedContent[selectedField.field_id];
+            } else if (selectedField.field_id?.endsWith('.message') && typeof refinedContent.message === 'string') {
+                valueToSave = refinedContent.message;
+            }
+        }
+
+        // If this is a nested SMS subfield (e.g., sms1.message) OR a hierarchical refinement, update the parent object
+        if (selectedField.field_id.includes('.') || isHierarchicalRefinement) {
+            const parentId = hierarchicalParentId || selectedField.field_id.split('.')[0];
+            const childId = hierarchicalChildId || selectedField.field_id.split('.')[1];
+            if (valueToSave && typeof valueToSave === 'object' && childId in valueToSave) {
+                valueToSave = valueToSave[childId];
+            }
+
+            // CRITICAL FIX: Fetch parent field value fresh from API instead of using stale state
+            // This prevents overwriting the entire SMS object with just the child field
+            let parentObject = {};
+
+            try {
+                console.log('[SmsFields] Fetching fresh parent field value for:', parentId);
+                const parentResponse = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
+                if (parentResponse.ok) {
+                    const parentData = await parentResponse.json();
+                    const freshParentField = parentData.fields?.find(f => f.field_id === parentId);
+
+                    if (freshParentField?.field_value) {
+                        if (typeof freshParentField.field_value === 'string') {
+                            try {
+                                parentObject = JSON.parse(freshParentField.field_value);
+                                console.log('[SmsFields] Parsed parent field value:', parentObject);
+                            } catch (e) {
+                                console.error('[SmsFields] Failed to parse parent field value:', e);
+                                // Initialize with default SMS structure
+                                parentObject = { timing: '', message: '' };
+                            }
+                        } else if (typeof freshParentField.field_value === 'object') {
+                            parentObject = { ...freshParentField.field_value };
+                        }
+                    } else {
+                        // Parent field doesn't exist - initialize with default SMS structure
+                        console.warn('[SmsFields] Parent field not found, using default structure');
+                        parentObject = { timing: '', message: '' };
+                    }
+                } else {
+                    console.error('[SmsFields] Failed to fetch parent field, falling back to local state');
+                    // Fallback to local state if API call fails
+                    const parentField = fields.find(f => f.field_id === parentId);
+                    if (parentField?.field_value) {
+                        if (typeof parentField.field_value === 'string') {
+                            try {
+                                parentObject = JSON.parse(parentField.field_value);
+                            } catch {
+                                parentObject = { timing: '', message: '' };
+                            }
+                        } else if (typeof parentField.field_value === 'object') {
+                            parentObject = { ...parentField.field_value };
+                        }
+                    } else {
+                        parentObject = { timing: '', message: '' };
+                    }
+                }
+            } catch (fetchError) {
+                console.error('[SmsFields] Error fetching parent field:', fetchError);
+                // Final fallback to local state
+                const parentField = fields.find(f => f.field_id === parentId);
+                if (parentField?.field_value) {
+                    if (typeof parentField.field_value === 'string') {
+                        try {
+                            parentObject = JSON.parse(parentField.field_value);
+                        } catch {
+                            parentObject = { timing: '', message: '' };
+                        }
+                    } else if (typeof parentField.field_value === 'object') {
+                        parentObject = { ...parentField.field_value };
+                    }
+                } else {
+                    parentObject = { timing: '', message: '' };
+                }
+            }
+
+            parentObject[childId] = valueToSave;
+            valueToSave = parentObject;
+            saveFieldId = parentId;
+
+            console.log('[SmsFields] Final merged parent object:', { parentId, childId, valueToSave: JSON.stringify(valueToSave).substring(0, 200) });
+        }
 
         try {
-            const response = await fetch('/api/os/vault-field', {
+            const response = await fetchWithAuth('/api/os/vault-field', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     funnel_id: funnelId,
                     section_id: sectionId,
-                    field_id: selectedField.field_id,
-                    field_value: refinedContent
+                    field_id: saveFieldId,
+                    field_value: valueToSave
                 })
             });
 
             if (!response.ok) throw new Error('Failed to save');
             const result = await response.json();
 
-            console.log('[SmsFields] AI feedback saved for field:', selectedField.field_id);
+            console.log('[SmsFields] AI feedback saved for field:', saveFieldId);
 
             // Update local state with new content
             setFields(prev => prev.map(f =>
-                f.field_id === selectedField.field_id
-                    ? { ...f, field_value: refinedContent, version: result.version, is_approved: false }
+                f.field_id === saveFieldId
+                    ? { ...f, field_value: valueToSave, version: result.version, is_approved: false }
                     : f
             ));
 

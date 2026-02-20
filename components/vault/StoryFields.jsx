@@ -1,8 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Sparkles, BookOpen, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
+import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 

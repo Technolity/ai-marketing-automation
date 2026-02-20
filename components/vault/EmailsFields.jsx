@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { CheckCircle, Mail, ChevronDown, ChevronUp } from 'lucide-react';
@@ -99,17 +99,132 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
 
         // FeedbackChatModal passes { refinedContent, subSection }
         const refinedContent = saveData?.refinedContent || saveData;
+        const subSection = saveData?.subSection;
+        let valueToSave = refinedContent;
+        let saveFieldId = selectedField.field_id;
+
+        // Detect hierarchical sub-field refinement:
+        // subSection may be "email1.body" while selectedField.field_id is "email1"
+        let isHierarchicalRefinement = false;
+        let hierarchicalParentId = null;
+        let hierarchicalChildId = null;
+
+        if (subSection && subSection.includes('.')) {
+            const [parentPart, childPart] = subSection.split('.');
+            // Verify this is a child of the selected field
+            if (parentPart === selectedField.field_id) {
+                isHierarchicalRefinement = true;
+                hierarchicalParentId = parentPart;
+                hierarchicalChildId = childPart;
+                console.log('[EmailsFields] Hierarchical refinement detected:', { parentPart, childPart, subSection });
+            }
+        }
+
+        if (refinedContent && typeof refinedContent === 'object') {
+            if (isHierarchicalRefinement && hierarchicalChildId && hierarchicalChildId in refinedContent) {
+                // Hierarchical case: refinedContent = { body: "..." }, extract the child value
+                valueToSave = refinedContent[hierarchicalChildId];
+                console.log('[EmailsFields] Extracted child value from hierarchical refinement:', { childId: hierarchicalChildId, valuePreview: String(valueToSave).substring(0, 100) });
+            } else if (subSection && subSection in refinedContent) {
+                valueToSave = refinedContent[subSection];
+            } else if (selectedField.field_id in refinedContent) {
+                valueToSave = refinedContent[selectedField.field_id];
+            } else if (selectedField.field_id?.endsWith('.body') && typeof refinedContent.body === 'string') {
+                valueToSave = refinedContent.body;
+            }
+        }
+
+        // If this is a nested email subfield (e.g., email1.body) OR a hierarchical refinement, update the parent object
+        if (selectedField.field_id.includes('.') || isHierarchicalRefinement) {
+            const parentId = hierarchicalParentId || selectedField.field_id.split('.')[0];
+            const childId = hierarchicalChildId || selectedField.field_id.split('.')[1];
+            if (valueToSave && typeof valueToSave === 'object' && childId in valueToSave) {
+                valueToSave = valueToSave[childId];
+            }
+
+            // CRITICAL FIX: Fetch parent field value fresh from API instead of using stale state
+            // This prevents overwriting the entire email object with just the child field
+            let parentObject = {};
+
+            try {
+                console.log('[EmailsFields] Fetching fresh parent field value for:', parentId);
+                const parentResponse = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
+                if (parentResponse.ok) {
+                    const parentData = await parentResponse.json();
+                    const freshParentField = parentData.fields?.find(f => f.field_id === parentId);
+
+                    if (freshParentField?.field_value) {
+                        if (typeof freshParentField.field_value === 'string') {
+                            try {
+                                parentObject = JSON.parse(freshParentField.field_value);
+                                console.log('[EmailsFields] Parsed parent field value:', parentObject);
+                            } catch (e) {
+                                console.error('[EmailsFields] Failed to parse parent field value:', e);
+                                // Initialize with default email structure
+                                parentObject = { subject: '', preview: '', body: '' };
+                            }
+                        } else if (typeof freshParentField.field_value === 'object') {
+                            parentObject = { ...freshParentField.field_value };
+                        }
+                    } else {
+                        // Parent field doesn't exist - initialize with default email structure
+                        console.warn('[EmailsFields] Parent field not found, using default structure');
+                        parentObject = { subject: '', preview: '', body: '' };
+                    }
+                } else {
+                    console.error('[EmailsFields] Failed to fetch parent field, falling back to local state');
+                    // Fallback to local state if API call fails
+                    const parentField = fields.find(f => f.field_id === parentId);
+                    if (parentField?.field_value) {
+                        if (typeof parentField.field_value === 'string') {
+                            try {
+                                parentObject = JSON.parse(parentField.field_value);
+                            } catch {
+                                parentObject = { subject: '', preview: '', body: '' };
+                            }
+                        } else if (typeof parentField.field_value === 'object') {
+                            parentObject = { ...parentField.field_value };
+                        }
+                    } else {
+                        parentObject = { subject: '', preview: '', body: '' };
+                    }
+                }
+            } catch (fetchError) {
+                console.error('[EmailsFields] Error fetching parent field:', fetchError);
+                // Final fallback to local state
+                const parentField = fields.find(f => f.field_id === parentId);
+                if (parentField?.field_value) {
+                    if (typeof parentField.field_value === 'string') {
+                        try {
+                            parentObject = JSON.parse(parentField.field_value);
+                        } catch {
+                            parentObject = { subject: '', preview: '', body: '' };
+                        }
+                    } else if (typeof parentField.field_value === 'object') {
+                        parentObject = { ...parentField.field_value };
+                    }
+                } else {
+                    parentObject = { subject: '', preview: '', body: '' };
+                }
+            }
+
+            parentObject[childId] = valueToSave;
+            valueToSave = parentObject;
+            saveFieldId = parentId;
+
+            console.log('[EmailsFields] Final merged parent object:', { parentId, childId, valueToSave: JSON.stringify(valueToSave).substring(0, 200) });
+        }
 
         try {
             const response = await fetchWithAuth('/api/os/vault-field', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, field_id: selectedField.field_id, field_value: refinedContent })
+                body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, field_id: saveFieldId, field_value: valueToSave })
             });
             if (!response.ok) throw new Error('Failed to save');
             const result = await response.json();
-            console.log('[EmailsFields] AI feedback saved for field:', selectedField.field_id);
-            setFields(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version, is_approved: false } : f));
+            console.log('[EmailsFields] AI feedback saved for field:', saveFieldId);
+            setFields(prev => prev.map(f => f.field_id === saveFieldId ? { ...f, field_value: valueToSave, version: result.version, is_approved: false } : f));
             setSectionApproved(false);
             setFeedbackModalOpen(false);
             setSelectedField(null);

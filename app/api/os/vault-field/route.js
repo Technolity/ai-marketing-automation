@@ -1,7 +1,6 @@
-import { auth } from '@clerk/nextjs';
+﻿import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getFieldDefinition, validateFieldValue } from '@/lib/vault/fieldStructures';
-import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { performFieldAtomicUpdate } from '@/lib/vault/atomicUpdater';
 import { isAtomicField } from '@/lib/vault/dependencyGraph';
@@ -272,10 +271,11 @@ export async function PATCH(req) {
             });
         }
 
-        // NESTED FIELD DETECTION: Handle fields like "optinPage.headline_text"
+        // NESTED FIELD DETECTION: Handle fields like \"optinPage.headline_text\"
         let actualFieldId = field_id;
         let actualFieldValue = field_value;
-        let isNestedField = field_id.includes('.');
+        const directFieldDef = getFieldDefinition(section_id, field_id);
+        let isNestedField = field_id.includes('.') && !directFieldDef;
 
         if (isNestedField) {
             // Split into parent and child (e.g., "optinPage.headline_text" -> "optinPage" + "headline_text")
@@ -315,7 +315,16 @@ export async function PATCH(req) {
             }
 
             // Update the child property
-            parentObject[childId] = field_value;
+            // Safety: unwrap if field_value is a wrapper object containing childId
+            // e.g., field_value = {body: "<p>..."} for childId "body" → extract just the string
+            let childValue = field_value;
+            if (childValue && typeof childValue === 'object' && !Array.isArray(childValue)) {
+                if (childId in childValue && Object.keys(childValue).length === 1) {
+                    console.log('[VaultField PATCH] Unwrapping nested value wrapper:', { childId, wrappedType: typeof childValue[childId] });
+                    childValue = childValue[childId];
+                }
+            }
+            parentObject[childId] = childValue;
 
             // Update variables to save the merged parent object
             actualFieldId = parentId;
@@ -547,7 +556,7 @@ export async function PATCH(req) {
                         if (refetched) {
                             latestField = refetched;
                         } else {
-                            // No current version found — find the highest version
+                            // No current version found â€” find the highest version
                             const { data: maxVersion } = await supabaseAdmin
                                 .from('vault_content_fields')
                                 .select('*')
