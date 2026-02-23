@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Upload, Video, Mail, MessageSquare, FileText, StickyNote,
@@ -72,13 +72,7 @@ export default function VoiceUploadWidget({ onProfileComplete }) {
     const [uploadTitle, setUploadTitle] = useState('');
     const [isUploading, setIsUploading] = useState(false);
 
-    // Load existing content on mount
-    useEffect(() => {
-        fetchContent();
-        fetchProfile();
-    }, []);
-
-    const fetchContent = async () => {
+    const fetchContent = useCallback(async () => {
         try {
             const res = await fetch('/api/voice-model/upload');
             const data = await res.json();
@@ -89,9 +83,9 @@ export default function VoiceUploadWidget({ onProfileComplete }) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
-    const fetchProfile = async () => {
+    const fetchProfile = useCallback(async () => {
         try {
             const res = await fetch('/api/voice-model/analyze');
             const data = await res.json();
@@ -102,7 +96,13 @@ export default function VoiceUploadWidget({ onProfileComplete }) {
         } catch (error) {
             console.error('Failed to fetch profile:', error);
         }
-    };
+    }, [onProfileComplete]);
+
+    // Load existing content on mount
+    useEffect(() => {
+        fetchContent();
+        fetchProfile();
+    }, [fetchContent, fetchProfile]);
 
     const handleUpload = async (contentType) => {
         if (!uploadText.trim() || uploadText.length < 50) {

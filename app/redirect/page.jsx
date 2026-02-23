@@ -7,7 +7,7 @@
  * - Has businesses → Dashboard (view/continue their work)
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -18,18 +18,7 @@ export default function RedirectPage() {
     const { session, authLoading } = useAuth();
     const [checking, setChecking] = useState(true);
 
-    useEffect(() => {
-        if (authLoading) return;
-
-        if (!session) {
-            router.push("/auth/login");
-            return;
-        }
-
-        checkUserState();
-    }, [session, authLoading, router]);
-
-    const checkUserState = async () => {
+    const checkUserState = useCallback(async () => {
         try {
             // Check if user has any businesses
             const res = await fetchWithAuth('/api/user/funnels');
@@ -56,7 +45,18 @@ export default function RedirectPage() {
             // On error, default to introduction
             router.replace('/introduction');
         }
-    };
+    }, [router]);
+
+    useEffect(() => {
+        if (authLoading) return;
+
+        if (!session) {
+            router.push("/auth/login");
+            return;
+        }
+
+        checkUserState();
+    }, [session, authLoading, router, checkUserState]);
 
     return (
         <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center">

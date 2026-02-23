@@ -63,7 +63,7 @@ export default function BuilderSetupStep({
         };
 
         checkExistingSetup();
-    }, []);
+    }, [currentInput.businessName, existingBusinessName, onInputChange]);
 
     const handleSetupComplete = async () => {
         if (!currentInput.businessName || currentInput.businessName.trim().length < 2) {

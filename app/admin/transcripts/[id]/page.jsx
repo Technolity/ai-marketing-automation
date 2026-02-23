@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,16 +38,7 @@ export default function TranscriptDetailPage() {
   const [processing, setProcessing] = useState(false);
   const [copiedChunk, setCopiedChunk] = useState(null);
 
-  useEffect(() => {
-    if (!authLoading && session && transcriptId) {
-      fetchTranscript();
-    } else if (!authLoading && !session) {
-      setLoading(false);
-      setError("Not authenticated");
-    }
-  }, [authLoading, session, transcriptId]);
-
-  const fetchTranscript = async () => {
+  const fetchTranscript = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/admin/transcripts/${transcriptId}?include_chunks=true`, {
@@ -71,7 +62,16 @@ export default function TranscriptDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [transcriptId]);
+
+  useEffect(() => {
+    if (!authLoading && session && transcriptId) {
+      fetchTranscript();
+    } else if (!authLoading && !session) {
+      setLoading(false);
+      setError("Not authenticated");
+    }
+  }, [authLoading, session, transcriptId, fetchTranscript]);
 
   const handleProcess = async () => {
     setProcessing(true);

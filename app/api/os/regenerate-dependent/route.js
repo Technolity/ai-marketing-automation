@@ -271,6 +271,20 @@ async function processRegenerations(userId, sessionId, sections, context) {
         console.warn('[regenerate-dependent] Failed to fetch wizard_answers:', err?.message);
     }
 
+    // Fetch full_name from user_profiles for bio generation
+    try {
+        const { data: profileRow } = await supabaseAdmin
+            .from('user_profiles')
+            .select('full_name')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (profileRow?.full_name) {
+            baseData.fullName = profileRow.full_name;
+        }
+    } catch (err) {
+        console.warn('[regenerate-dependent] Failed to fetch full_name:', err?.message);
+    }
+
     await updateJob(jobId, {
         status: 'processing',
         started_at: new Date().toISOString(),

@@ -1,5 +1,6 @@
 "use client";
 import Link from 'next/link';
+import Image from 'next/image';
 /**
  * Dashboard Page - V3 (Tabbed Layout)
  * 
@@ -10,7 +11,7 @@ import Link from 'next/link';
  * - Tier Controls
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -70,29 +71,7 @@ export default function Dashboard() {
 
 
 
-    useEffect(() => {
-        if (authLoading) return;
-
-        if (isAdmin) {
-            setCanManageTeam(true);
-        }
-
-        if (!session) {
-            router.push("/auth/login");
-            return;
-        }
-
-        // Redirect to onboarding if profile is incomplete
-        if (isProfileComplete === false) {
-            console.log('[Dashboard] Profile incomplete, redirecting to onboarding');
-            router.push("/onboarding");
-            return;
-        }
-
-        loadUserData();
-    }, [session, authLoading, router, isProfileComplete]);
-
-    const loadUserData = async () => {
+    const loadUserData = useCallback(async () => {
         try {
             // Load user profile for tier info
             const profileRes = await fetchWithAuth('/api/user/profile');
@@ -125,7 +104,29 @@ export default function Dashboard() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isAdmin, router]);
+
+    useEffect(() => {
+        if (authLoading) return;
+
+        if (isAdmin) {
+            setCanManageTeam(true);
+        }
+
+        if (!session) {
+            router.push("/auth/login");
+            return;
+        }
+
+        // Redirect to onboarding if profile is incomplete
+        if (isProfileComplete === false) {
+            console.log('[Dashboard] Profile incomplete, redirecting to onboarding');
+            router.push("/onboarding");
+            return;
+        }
+
+        loadUserData();
+    }, [session, authLoading, router, isProfileComplete, isAdmin, loadUserData]);
 
     const handleCreateBusiness = async () => {
         if (!newBusinessName.trim()) {
@@ -232,7 +233,7 @@ export default function Dashboard() {
                 <header className="flex items-center justify-between py-6 mb-10 border-b border-white/5">
                     {/* Left: Brand */}
                     <Link href="/" className="flex items-center gap-4 group cursor-pointer">
-                        <img src="/tedos-logo.png" alt="TedOS" className="h-14 w-auto object-contain drop-shadow-[0_0_15px_rgba(0,229,255,0.3)]" />
+                        <Image src="/tedos-logo.png" alt="TedOS" width={56} height={56} className="h-14 w-auto object-contain drop-shadow-[0_0_15px_rgba(0,229,255,0.3)]" priority />
                         <div className="h-8 w-px bg-white/10" />
                         <span className="text-2xl font-bold bg-gradient-to-r from-cyan via-white to-cyan bg-clip-text text-transparent tracking-tight opacity-90 group-hover:opacity-100 transition-opacity">
                             Console

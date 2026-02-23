@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
 
 const AuthContext = createContext({
@@ -60,21 +60,7 @@ function ClerkAuthProvider({ children }) {
     const isTeamMember = role === 'team_member';
     const activeWorkspaceId = isTeamMember && workspaceOwnerId ? workspaceOwnerId : user?.id;
 
-    // Sync user to Supabase and fetch admin status on login
-    useEffect(() => {
-        if (clerkUser && isLoaded && !userSynced) {
-            syncUserAndCheckAdmin();
-        }
-        if (!clerkUser && isLoaded) {
-            setIsAdmin(false);
-            setUserSynced(false);
-            setRole('owner');
-            setWorkspaceOwnerId(null);
-            setWorkspaceName(null);
-        }
-    }, [clerkUser, isLoaded]);
-
-    const syncUserAndCheckAdmin = async () => {
+    const syncUserAndCheckAdmin = useCallback(async () => {
         try {
             console.log('[AuthContext] Syncing user to database...');
 
@@ -152,7 +138,21 @@ function ClerkAuthProvider({ children }) {
         } finally {
             setUserSynced(true);
         }
-    };
+    }, [clerkUser]);
+
+    // Sync user to Supabase and fetch admin status on login
+    useEffect(() => {
+        if (clerkUser && isLoaded && !userSynced) {
+            syncUserAndCheckAdmin();
+        }
+        if (!clerkUser && isLoaded) {
+            setIsAdmin(false);
+            setUserSynced(false);
+            setRole('owner');
+            setWorkspaceOwnerId(null);
+            setWorkspaceName(null);
+        }
+    }, [clerkUser, isLoaded, userSynced, syncUserAndCheckAdmin]);
 
     // Sign out function
     const signOut = async () => {

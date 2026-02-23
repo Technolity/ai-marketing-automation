@@ -38,7 +38,7 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
 

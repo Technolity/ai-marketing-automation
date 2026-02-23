@@ -207,6 +207,16 @@ export async function POST(req) {
             }, { status: 404 });
         }
 
+        // Fetch full_name from user_profiles for bio generation
+        const { data: profileRow } = await supabaseAdmin
+            .from('user_profiles')
+            .select('full_name')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (profileRow?.full_name) {
+            intakeData.fullName = profileRow.full_name;
+        }
+
         // Get the prompt function
         const promptConfig = SECTION_PROMPTS[section];
         const promptFn = promptConfig.fn;

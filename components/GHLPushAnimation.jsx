@@ -54,7 +54,7 @@ export default function GHLPushAnimation({
         }, 2500);
 
         return () => clearInterval(interval);
-    }, [isPushing, completedItems.length]);
+    }, [isPushing, completedItems]);
 
     // Smooth progress animation
     useEffect(() => {
@@ -66,7 +66,7 @@ export default function GHLPushAnimation({
         }, 50);
 
         return () => clearInterval(progressInterval);
-    }, [completed.length]);
+    }, [completed]);
 
     return (
         <div className="fixed inset-0 z-[100] bg-[#0a0a0b] flex items-center justify-center overflow-hidden">

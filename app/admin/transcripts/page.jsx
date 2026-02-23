@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -40,17 +40,7 @@ export default function TranscriptsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedTranscript, setSelectedTranscript] = useState(null);
 
-  useEffect(() => {
-    if (!authLoading && session) {
-      fetchTranscripts();
-      fetchStats();
-    } else if (!authLoading && !session) {
-      setLoading(false);
-      setError("Not authenticated");
-    }
-  }, [authLoading, session, currentPage, searchQuery, statusFilter]);
-
-  const fetchTranscripts = async () => {
+  const fetchTranscripts = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams({
@@ -79,7 +69,17 @@ export default function TranscriptsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, searchQuery, statusFilter]);
+
+  useEffect(() => {
+    if (!authLoading && session) {
+      fetchTranscripts();
+      fetchStats();
+    } else if (!authLoading && !session) {
+      setLoading(false);
+      setError("Not authenticated");
+    }
+  }, [authLoading, session, fetchTranscripts]);
 
   const fetchStats = async () => {
     try {

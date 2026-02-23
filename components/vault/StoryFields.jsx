@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CheckCircle, ChevronDown, ChevronUp, Sparkles, BookOpen, RefreshCw } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
@@ -21,7 +21,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
     const sectionId = 'story';
     const predefinedFields = getFieldsForSection(sectionId);
 
-    const fetchFields = async () => {
+    const fetchFields = useCallback(async () => {
         setIsLoading(true);
         try {
             const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
@@ -35,11 +35,11 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [funnelId, sectionId, isApproved]);
 
     useEffect(() => {
         if (funnelId) fetchFields();
-    }, [funnelId, refreshTrigger]);
+    }, [funnelId, refreshTrigger, fetchFields]);
 
     // Sync with parent approval state
     useEffect(() => {
@@ -94,7 +94,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
         setSectionApproved(false);
     };
 
-    const handleApproveSection = async () => {
+    const handleApproveSection = useCallback(async () => {
         setIsApproving(true);
         try {
             const response = await fetchWithAuth('/api/os/vault-section-approve', {
@@ -111,7 +111,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
         } finally {
             setIsApproving(false);
         }
-    };
+    }, [funnelId, sectionId, onApprove]);
 
     const handleRegenerateSection = async () => {
         setIsRegenerating(true);
@@ -140,7 +140,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
     };
 
     // Expose approve button for parent to render in header
-    const approveButton = !sectionApproved ? (
+    const approveButton = useMemo(() => !sectionApproved ? (
         <button
             onClick={handleApproveSection}
             disabled={isApproving}
@@ -158,7 +158,7 @@ export default function StoryFields({ funnelId, onApprove, onRenderApproveButton
                 </>
             )}
         </button>
-    ) : null;
+    ) : null, [sectionApproved, handleApproveSection, isApproving]);
 
     // Portal the button to the header
     useEffect(() => {

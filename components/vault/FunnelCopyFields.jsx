@@ -52,7 +52,7 @@ export default function FunnelCopyFields({ funnelId, onUnapprove, isApproved, re
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     useEffect(() => {
         let isMounted = true;

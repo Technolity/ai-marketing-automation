@@ -66,7 +66,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     // Initial fetch
     useEffect(() => {

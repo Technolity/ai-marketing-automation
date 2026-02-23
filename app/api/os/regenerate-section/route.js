@@ -222,6 +222,16 @@ export async function POST(req) {
             }, { status: 404 });
         }
 
+        // Fetch full_name from user_profiles for bio generation
+        const { data: profileRow } = await supabaseAdmin
+            .from('user_profiles')
+            .select('full_name')
+            .eq('user_id', targetUserId)
+            .maybeSingle();
+        if (profileRow?.full_name) {
+            enrichedData.fullName = profileRow.full_name;
+        }
+
         console.log(`[Regenerate] Generating ${promptConfig.name} (Key: ${key})...`);
 
         let parsedContent;

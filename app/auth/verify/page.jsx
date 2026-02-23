@@ -21,7 +21,7 @@ export default function VerifyEmail() {
         };
 
         checkSession();
-    }, []);
+    }, [supabase.auth]);
 
     return (
         <div className="min-h-screen flex items-center justify-center px-6 bg-[#0e0e0f] relative overflow-x-hidden">

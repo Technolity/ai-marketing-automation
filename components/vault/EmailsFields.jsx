@@ -57,7 +57,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
 

@@ -24,6 +24,9 @@ const BuildingAnimation = ({
     useEffect(() => {
         if (!isGenerating) return;
 
+        // Reset progress when generation starts
+        setFakeProgress(0);
+
         // Fast initial progress
         const interval = setInterval(() => {
             setFakeProgress(prev => {

@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import Image from 'next/image';
 import { Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon, Info, RefreshCw } from 'lucide-react';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
 import { getSyncPreviewMessage } from '@/lib/vault/fieldSync';
@@ -176,7 +177,7 @@ function FieldEditor({
         }
 
         setValue(newParsedValue);
-    }, [initialValue, field_type]);
+    }, [initialValue, field_type, value]);
 
     // Validate on value change
     useEffect(() => {
@@ -185,15 +186,7 @@ function FieldEditor({
         setValidationWarnings(validation.warnings || []);
     }, [value, fieldDef]);
 
-    // Create debounced save function
-    const debouncedSave = useCallback(
-        debounce((newValue) => {
-            handleSave(newValue);
-        }, 2000), // 2 second debounce
-        [funnelId, sectionId, field_id]
-    );
-
-    const handleSave = async (newValue = value) => {
+    const handleSave = useCallback(async (newValue = value) => {
         // Unwrap array IDs before saving
         let saveValue = newValue;
         if (field_type === 'array' && Array.isArray(newValue)) {
@@ -275,7 +268,20 @@ function FieldEditor({
         } finally {
             setIsSaving(false);
         }
-    };
+    }, [value, funnelId, sectionId, field_id, field_type, onSave, fieldDef]);
+
+    // Create debounced save function with useMemo
+    const debouncedSave = useMemo(
+        () => debounce((newValue) => handleSave(newValue), 2000),
+        [handleSave]
+    );
+
+    // Cleanup debounced function on unmount
+    useEffect(() => {
+        return () => {
+            debouncedSave.cancel?.();
+        };
+    }, [debouncedSave]);
 
     const handleBlur = () => {
         // Only save if value has changed from initial
@@ -853,7 +859,7 @@ function FieldEditor({
                                     </div>
                                 ) : (
                                     <div className="w-12 h-12 bg-[#2a2a2d] rounded-lg overflow-hidden flex-shrink-0 relative">
-                                        <img src={value} alt="Preview" className="w-full h-full object-cover" />
+                                        <Image src={value} alt="Preview" fill className="object-cover" unoptimized />
                                     </div>
                                 )}
 

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -80,13 +80,7 @@ export default function AdminUsers() {
     const [savingFields, setSavingFields] = useState({});
     const [toast, setToast] = useState(null);
 
-    useEffect(() => {
-        if (!authLoading && session) {
-            fetchUsers();
-        }
-    }, [authLoading, session, pagination.page, globalFilter]);
-
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         if (!session) return;
 
         setLoading(true);
@@ -122,10 +116,16 @@ export default function AdminUsers() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [session, pagination.page, pagination.limit, globalFilter]);
+
+    useEffect(() => {
+        if (!authLoading && session) {
+            fetchUsers();
+        }
+    }, [authLoading, session, fetchUsers]);
 
     // Handle field updates via inline editing
-    const handleFieldUpdate = async (field, value, userId) => {
+    const handleFieldUpdate = useCallback(async (field, value, userId) => {
         setSavingFields(prev => ({ ...prev, [`${userId}-${field}`]: true }));
 
         try {
@@ -167,11 +167,11 @@ export default function AdminUsers() {
                 return newState;
             });
         }
-    };
+    }, []);
 
-    const handleViewFunnels = (userId) => {
+    const handleViewFunnels = useCallback((userId) => {
         router.push(`/admin/funnels?userId=${userId}`);
-    };
+    }, [router]);
 
     const columns = useMemo(
         () => [

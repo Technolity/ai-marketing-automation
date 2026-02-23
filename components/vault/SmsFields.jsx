@@ -61,7 +61,7 @@ export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, 
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     // Initial fetch
     useEffect(() => {

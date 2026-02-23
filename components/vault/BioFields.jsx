@@ -42,7 +42,7 @@ export default function BioFields({ funnelId, onApprove, onRenderApproveButton, 
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
 

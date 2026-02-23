@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@clerk/nextjs';
 import { Loader2, Check, X, RefreshCw, Send, Save, Image as ImageIcon, Film, Layout, Database } from 'lucide-react';
 import { toast } from 'sonner';
@@ -357,7 +358,7 @@ export default function GHLDebugPage() {
                                             <div key={idx} className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden hover:border-zinc-700 transition-colors group">
                                                 <div className="aspect-video bg-black flex items-center justify-center relative">
                                                     {asset.type === 'image' ? (
-                                                        <img src={asset.url} alt={asset.label} className="w-full h-full object-cover" />
+                                                        <Image src={asset.url} alt={asset.label} fill className="object-cover" unoptimized />
                                                     ) : (
                                                         <div className="flex flex-col items-center gap-2 text-zinc-600">
                                                             <Film size={32} />

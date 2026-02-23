@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import {
@@ -147,10 +148,13 @@ export default function Onboarding() {
             {/* Header */}
             <div className="mb-8 text-center">
               <div className="flex justify-center mb-4">
-                <img
+                <Image
                   src="/tedos-logo.png"
                   alt="TedOS"
+                  width={56}
+                  height={56}
                   className="h-14 w-auto object-contain"
+                  priority
                 />
               </div>
               <h1 className="text-3xl font-bold text-cyan text-glow mb-2">

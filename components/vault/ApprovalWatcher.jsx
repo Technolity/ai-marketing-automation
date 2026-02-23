@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 
 /**
@@ -9,6 +9,59 @@ import { toast } from 'sonner';
  */
 export default function ApprovalWatcher({ funnelId, userId }) {
   const [lastCheck, setLastCheck] = useState(null);
+
+  /**
+   * Poll the generation job status until completion
+   */
+  const pollGenerationStatus = useCallback(async (jobId) => {
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/os/generation-status?jobId=${jobId}`);
+
+        if (!res.ok) {
+          console.error('[ApprovalWatcher] Status polling failed');
+          return;
+        }
+
+        const job = await res.json();
+        console.log('[ApprovalWatcher] Job status:', job.status, `${job.progressPercentage}%`);
+
+        if (job.status === 'completed') {
+          clearInterval(poll);
+
+          // Emit custom event for real-time content update (no page refresh!)
+          window.dispatchEvent(new CustomEvent('funnelCopyGenerated', {
+            detail: { funnelId, jobId }
+          }));
+
+          toast.success('Funnel Copy generated successfully!', {
+            description: 'Your funnel page copy is now ready',
+            duration: 5000
+          });
+
+          // Clear the localStorage throttle so future generations work
+          const lastTriggerKey = `funnelCopy_trigger_${funnelId}`;
+          localStorage.removeItem(lastTriggerKey);
+
+        } else if (job.status === 'failed') {
+          clearInterval(poll);
+          toast.error('Funnel Copy generation failed', {
+            description: job.errorMessage || 'Please try regenerating or contact support',
+            duration: 10000
+          });
+          setLastCheck(null); // Reset so user can retry
+        }
+      } catch (error) {
+        console.error('[ApprovalWatcher] Polling error:', error);
+      }
+    }, 3000); // Poll every 3 seconds
+
+    // Stop polling after 5 minutes (max generation time)
+    setTimeout(() => {
+      clearInterval(poll);
+      console.log('[ApprovalWatcher] Stopped polling after 5 minutes');
+    }, 300000);
+  }, [funnelId]);
 
   useEffect(() => {
     const checkApprovals = async () => {
@@ -119,60 +172,7 @@ export default function ApprovalWatcher({ funnelId, userId }) {
     const interval = setInterval(checkApprovals, 5000);
 
     return () => clearInterval(interval);
-  }, [funnelId, userId, lastCheck]);
-
-  /**
-   * Poll the generation job status until completion
-   */
-  const pollGenerationStatus = async (jobId) => {
-    const poll = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/os/generation-status?jobId=${jobId}`);
-
-        if (!res.ok) {
-          console.error('[ApprovalWatcher] Status polling failed');
-          return;
-        }
-
-        const job = await res.json();
-        console.log('[ApprovalWatcher] Job status:', job.status, `${job.progressPercentage}%`);
-
-        if (job.status === 'completed') {
-          clearInterval(poll);
-
-          // Emit custom event for real-time content update (no page refresh!)
-          window.dispatchEvent(new CustomEvent('funnelCopyGenerated', {
-            detail: { funnelId, jobId }
-          }));
-
-          toast.success('Funnel Copy generated successfully!', {
-            description: 'Your funnel page copy is now ready',
-            duration: 5000
-          });
-
-          // Clear the localStorage throttle so future generations work
-          const lastTriggerKey = `funnelCopy_trigger_${funnelId}`;
-          localStorage.removeItem(lastTriggerKey);
-
-        } else if (job.status === 'failed') {
-          clearInterval(poll);
-          toast.error('Funnel Copy generation failed', {
-            description: job.errorMessage || 'Please try regenerating or contact support',
-            duration: 10000
-          });
-          setLastCheck(null); // Reset so user can retry
-        }
-      } catch (error) {
-        console.error('[ApprovalWatcher] Polling error:', error);
-      }
-    }, 3000); // Poll every 3 seconds
-
-    // Stop polling after 5 minutes (max generation time)
-    setTimeout(() => {
-      clearInterval(poll);
-      console.log('[ApprovalWatcher] Stopped polling after 5 minutes');
-    }, 300000);
-  };
+  }, [funnelId, userId, lastCheck, pollGenerationStatus]);
 
   // This component has no UI - just background monitoring
   return null;

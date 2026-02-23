@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Shield, LayoutDashboard, Users } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
@@ -17,7 +18,7 @@ export default function AppNavbar() {
       <nav className="fixed top-0 left-0 right-0 z-50 h-20 border-b border-white/5 bg-dark/60 backdrop-blur-2xl">
         <div className="max-w-7xl mx-auto px-6 h-full flex justify-between items-center">
           <span className="flex items-center">
-            <img src="/tedos-logo.png" alt="TedOS" className="h-12 w-auto object-contain" />
+            <Image src="/tedos-logo.png" alt="TedOS" width={48} height={48} className="h-12 w-auto object-contain" priority />
           </span>
         </div>
       </nav>
@@ -29,7 +30,7 @@ export default function AppNavbar() {
       <div className="max-w-7xl mx-auto px-6 h-full flex justify-between items-center">
         {/* Logo */}
         <Link href="/" className="text-2xl font-bold tracking-tight flex items-center group">
-          <img src="/tedos-logo.png" alt="TedOS" className="h-12 w-auto object-contain" />
+          <Image src="/tedos-logo.png" alt="TedOS" width={48} height={48} className="h-12 w-auto object-contain" priority />
         </Link>
 
         <div className="flex gap-4 items-center">

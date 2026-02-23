@@ -63,7 +63,7 @@ export default function SetterScriptFields({ funnelId, onUnapprove, isApproved, 
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     // Initial fetch
     useEffect(() => {

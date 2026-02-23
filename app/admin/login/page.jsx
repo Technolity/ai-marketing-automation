@@ -28,7 +28,7 @@ export default function AdminLogin() {
             setChecking(true);
             verifyAdminStatus();
         }
-    }, [isSignedIn, user]);
+    }, [isSignedIn, user, checking]);
 
     const verifyAdminStatus = async () => {
         try {

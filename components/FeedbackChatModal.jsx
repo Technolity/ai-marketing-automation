@@ -708,7 +708,7 @@ export default function FeedbackChatModal({
             setPreviousAlternatives([]); // Reset previous alternatives for fresh session
             setStreamingMessage(null);
         }
-    }, [isOpen]);
+    }, [isOpen, subSection]);
 
     // Handle sub-section selection
     const handleSubSectionSelect = (option) => {

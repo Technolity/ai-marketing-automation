@@ -34,6 +34,13 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-02-23)
+| File | Change |
+| :--- | :--- |
+| `lib/vault/fieldStructures.js` | Restored `thankyou_video` to the active `media` section, marked Testimonial fields as optional, and kept `profile_photo`, `banner_image`, and `vsl_video` IDs to preserve user data. |
+| `lib/ghl/customValuesMap.js` | Updated `MEDIA_MAP` to correctly map `profile_photo`, `banner_image`, and `vsl_video` to `03_vsl_bio_image`, `03_optin_mockup_image`, and `03_vsl_video_link`, fixing the GHL sync bug. |
+| `app/api/ghl/push-media/route.js` | Updated `DEFAULT_MEDIA_VALUES` keys to match the `fieldStructures.js` UI field definition for consistent fallback handling. |
+
 ### Recent Modifications (2026-02-18)
 | File | Change |
 | :--- | :--- |

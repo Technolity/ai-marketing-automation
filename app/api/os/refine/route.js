@@ -256,6 +256,16 @@ export async function POST(req) {
                 });
         }
 
+        // Fetch full_name from user_profiles for bio generation
+        const { data: profileRow } = await supabaseAdmin
+            .from('user_profiles')
+            .select('full_name')
+            .eq('user_id', userId)
+            .maybeSingle();
+        if (profileRow?.full_name) {
+            mergedAnswers.fullName = profileRow.full_name;
+        }
+
         // Fetch user's voice context for TheirDNA™ integration
         const voiceContext = await getVoiceContext(userId);
         if (voiceContext.hasVoiceModel) {

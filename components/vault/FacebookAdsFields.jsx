@@ -38,7 +38,7 @@ export default function FacebookAdsFields({ funnelId, onApprove, onRenderApprove
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
 

@@ -247,7 +247,7 @@ export function useWizardState(mode = 'dashboard', startAtStepOne = false) {
         loadProgress();
 
         return () => { mounted = false; };
-    }, [session, authLoading, router, mode]);
+    }, [session, authLoading, router, mode, currentStep]);
 
     // Handle startAtStepOne prop
     useEffect(() => {

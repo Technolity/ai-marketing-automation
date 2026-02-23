@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -85,13 +85,7 @@ export default function AdminGHLAccounts() {
     // Token refresh state
     const [isRefreshingToken, setIsRefreshingToken] = useState(null); // userId for token refresh
 
-    useEffect(() => {
-        if (!authLoading && session) {
-            fetchAccounts();
-        }
-    }, [authLoading, session, pagination.page, globalFilter, activeFilter]);
-
-    const fetchAccounts = async () => {
+    const fetchAccounts = useCallback(async () => {
         if (!session) return;
 
         setLoading(true);
@@ -121,9 +115,15 @@ export default function AdminGHLAccounts() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [session, pagination.page, pagination.limit, globalFilter, activeFilter]);
 
-    const handleRetry = async (userId) => {
+    useEffect(() => {
+        if (!authLoading && session) {
+            fetchAccounts();
+        }
+    }, [authLoading, session, fetchAccounts]);
+
+    const handleRetry = useCallback(async (userId) => {
         if (isRetrying) return;
         setIsRetrying(userId);
 
@@ -149,9 +149,9 @@ export default function AdminGHLAccounts() {
         } finally {
             setIsRetrying(null);
         }
-    };
+    }, [isRetrying, fetchAccounts]);
 
-    const handleImportSnapshot = async (userId) => {
+    const handleImportSnapshot = useCallback(async (userId) => {
         if (isImportingSnapshot) return;
         setIsImportingSnapshot(userId);
 
@@ -189,9 +189,9 @@ export default function AdminGHLAccounts() {
         } finally {
             setIsImportingSnapshot(null);
         }
-    };
+    }, [isImportingSnapshot, fetchAccounts]);
 
-    const handleMarkSnapshotImported = async (userId) => {
+    const handleMarkSnapshotImported = useCallback(async (userId) => {
         if (isMarkingSnapshot) return;
         setIsMarkingSnapshot(userId);
 
@@ -217,9 +217,9 @@ export default function AdminGHLAccounts() {
         } finally {
             setIsMarkingSnapshot(null);
         }
-    };
+    }, [isMarkingSnapshot, fetchAccounts]);
 
-    const handleCreateBuilderLogin = async (userId) => {
+    const handleCreateBuilderLogin = useCallback(async (userId) => {
         if (isCreatingUser) return;
         setIsCreatingUser(userId);
 
@@ -245,9 +245,9 @@ export default function AdminGHLAccounts() {
         } finally {
             setIsCreatingUser(null);
         }
-    };
+    }, [isCreatingUser, fetchAccounts]);
 
-    const handleRetryUserCreation = async (userId) => {
+    const handleRetryUserCreation = useCallback(async (userId) => {
         if (isRetryingUser) return;
         setIsRetryingUser(userId);
 
@@ -272,9 +272,9 @@ export default function AdminGHLAccounts() {
         } finally {
             setIsRetryingUser(null);
         }
-    };
+    }, [isRetryingUser, fetchAccounts]);
 
-    const handleRefreshToken = async (userId, companyId) => {
+    const handleRefreshToken = useCallback(async (userId, companyId) => {
         if (isRefreshingToken) return;
         setIsRefreshingToken(userId);
 
@@ -307,7 +307,7 @@ export default function AdminGHLAccounts() {
         } finally {
             setIsRefreshingToken(null);
         }
-    };
+    }, [isRefreshingToken, fetchAccounts]);
 
     const handleBulkCreateUsers = async () => {
         if (isBulkCreating || selectedUsers.length === 0) return;
@@ -461,14 +461,14 @@ export default function AdminGHLAccounts() {
         );
     };
 
-    const toggleSelectAll = () => {
+    const toggleSelectAll = useCallback(() => {
         const selectableUsers = accounts.filter(acc => acc.has_subaccount);
         if (selectedUsers.length === selectableUsers.length) {
             setSelectedUsers([]);
         } else {
             setSelectedUsers(selectableUsers.map(acc => acc.id));
         }
-    };
+    }, [accounts, selectedUsers.length]);
 
     const closeBulkModal = () => {
         setBulkProgress(null);
@@ -476,7 +476,7 @@ export default function AdminGHLAccounts() {
     };
 
     // Edit Profile Modal handlers
-    const openEditModal = (user) => {
+    const openEditModal = useCallback((user) => {
         setEditingUser(user);
         setEditFormData({
             first_name: user.first_name || '',
@@ -489,7 +489,7 @@ export default function AdminGHLAccounts() {
             phone: user.phone || ''
         });
         setEditModalOpen(true);
-    };
+    }, []);
 
     const closeEditModal = () => {
         setEditModalOpen(false);
@@ -877,7 +877,7 @@ export default function AdminGHLAccounts() {
                 },
             },
         ],
-        [isRetrying, isImportingSnapshot, isMarkingSnapshot, isCreatingUser, isRetryingUser, selectedUsers, accounts, openEditModal]
+        [isRetrying, isImportingSnapshot, isMarkingSnapshot, isCreatingUser, isRetryingUser, isRefreshingToken, selectedUsers, accounts, openEditModal, handleRetry, handleImportSnapshot, handleMarkSnapshotImported, handleCreateBuilderLogin, handleRetryUserCreation, handleRefreshToken, toggleSelectAll]
     );
 
     const table = useReactTable({

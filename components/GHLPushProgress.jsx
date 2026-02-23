@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle,
@@ -42,24 +42,7 @@ export default function GHLPushProgress({
     nonMatched: false
   });
 
-  // Poll for operation status
-  useEffect(() => {
-    if (!operationId || !isActive) return;
-
-    if (operation?.status === 'completed' || operation?.status === 'failed' || operation?.status === 'partial') {
-      return;
-    }
-
-    const pollInterval = setInterval(async () => {
-      await fetchOperationStatus();
-    }, 2000);
-
-    fetchOperationStatus();
-
-    return () => clearInterval(pollInterval);
-  }, [operationId, isActive, operation?.status]);
-
-  const fetchOperationStatus = async () => {
+  const fetchOperationStatus = useCallback(async () => {
     if (!operationId) return;
 
     try {
@@ -75,14 +58,17 @@ export default function GHLPushProgress({
           ...(data.operation.custom_values_pushed?.updated || [])
         ];
 
-        if (allItems.length > streamItems.length) {
-          const newItems = allItems.slice(streamItems.length).map(item => ({
-            id: Math.random().toString(36).substr(2, 9),
-            key: typeof item === 'string' ? item : item.key,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          }));
-          setStreamItems(prev => [...newItems, ...prev].slice(0, 10));
-        }
+        setStreamItems(prev => {
+          if (allItems.length > prev.length) {
+            const newItems = allItems.slice(prev.length).map(item => ({
+              id: Math.random().toString(36).substr(2, 9),
+              key: typeof item === 'string' ? item : item.key,
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            }));
+            return [...newItems, ...prev].slice(0, 10);
+          }
+          return prev;
+        });
 
         const isFinished = data.operation.status === 'completed' ||
           data.operation.status === 'failed' ||
@@ -98,7 +84,24 @@ export default function GHLPushProgress({
     } catch (error) {
       console.error('Error fetching operation status:', error);
     }
-  };
+  }, [operationId, onComplete]);
+
+  // Poll for operation status
+  useEffect(() => {
+    if (!operationId || !isActive) return;
+
+    if (operation?.status === 'completed' || operation?.status === 'failed' || operation?.status === 'partial') {
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      await fetchOperationStatus();
+    }, 2000);
+
+    fetchOperationStatus();
+
+    return () => clearInterval(pollInterval);
+  }, [operationId, isActive, operation?.status, fetchOperationStatus]);
 
   const copyToClipboard = async (text) => {
     try {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import { CheckCircle, ChevronDown, ChevronUp, Image as ImageIcon, Upload, Link as LinkIcon, X, Loader2 } from 'lucide-react';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
@@ -65,7 +66,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     // Initial fetch
     useEffect(() => {
@@ -318,11 +319,14 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                 {currentValue && !isUploading && (
                     <div className="mb-4 relative group">
                         {isImage ? (
-                            <div className="relative">
-                                <img
+                            <div className="relative w-full max-h-64">
+                                <Image
                                     src={currentValue}
                                     alt={fieldDef.field_label}
+                                    width={800}
+                                    height={256}
                                     className="w-full max-h-64 object-contain rounded-lg bg-black/20"
+                                    unoptimized
                                 />
                                 <button
                                     onClick={() => handleFieldSave(fieldDef.field_id, '')}

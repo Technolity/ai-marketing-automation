@@ -43,7 +43,7 @@ export default function LeadMagnetFields({ funnelId, onApprove, onRenderApproveB
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);
 

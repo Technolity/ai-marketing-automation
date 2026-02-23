@@ -447,6 +447,16 @@ export async function POST(req) {
 
     const { step, data, completedSteps } = await req.json();
 
+    // Fetch full_name from user_profiles for bio generation
+    const { data: profileRow } = await supabaseAdmin
+      .from('user_profiles')
+      .select('full_name')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (profileRow?.full_name) {
+      data.fullName = profileRow.full_name;
+    }
+
     // Handle preview mode - generate content based on completed steps
     if (step === 'preview') {
       const stepsCompleted = completedSteps || 1;

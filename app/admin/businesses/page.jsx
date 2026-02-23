@@ -1,5 +1,5 @@
-"use client";
-import { useState, useEffect, useMemo } from "react";
+﻿"use client";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -45,13 +45,7 @@ export default function AdminBusinesses() {
     // Actions menu
     const [menuOpen, setMenuOpen] = useState(null);
 
-    useEffect(() => {
-        if (!authLoading && session) {
-            fetchBusinesses();
-        }
-    }, [authLoading, session, pagination.page, globalFilter]);
-
-    const fetchBusinesses = async () => {
+    const fetchBusinesses = useCallback(async () => {
         if (!session) return;
 
         setLoading(true);
@@ -85,7 +79,13 @@ export default function AdminBusinesses() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [session, pagination.page, pagination.limit, globalFilter]);
+
+    useEffect(() => {
+        if (!authLoading && session) {
+            fetchBusinesses();
+        }
+    }, [authLoading, session, fetchBusinesses]);
 
     const handleViewDetails = (business) => {
         setSelectedBusiness(business);
@@ -103,7 +103,7 @@ export default function AdminBusinesses() {
         URL.revokeObjectURL(url);
     };
 
-    const handleDeleteSession = async (businessId) => {
+    const handleDeleteSession = useCallback(async (businessId) => {
         if (!confirm('Are you sure you want to delete this session? This action cannot be undone.')) return;
 
         try {
@@ -118,7 +118,7 @@ export default function AdminBusinesses() {
             console.error('Error deleting session:', err);
             alert('Failed to delete session');
         }
-    };
+    }, [fetchBusinesses]);
 
     const columns = useMemo(
         () => [
@@ -254,7 +254,7 @@ export default function AdminBusinesses() {
                 ),
             },
         ],
-        []
+        [handleDeleteSession, menuOpen]
     );
 
     const table = useReactTable({

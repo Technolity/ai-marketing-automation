@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RefreshCw, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
@@ -30,7 +30,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
     const predefinedFields = getFieldsForSection(sectionId);
 
     // Fetch fields from database
-    const fetchFields = async () => {
+    const fetchFields = useCallback(async () => {
         console.log('[IdealClientFields] ========== FETCH START ==========');
         console.log('[IdealClientFields] Fetching fields for:', { funnelId, sectionId });
         setIsLoading(true);
@@ -56,14 +56,14 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
             setIsLoading(false);
             console.log('[IdealClientFields] ========== FETCH COMPLETE ==========');
         }
-    };
+    }, [funnelId, sectionId, isApproved]);
 
     useEffect(() => {
         console.log('[IdealClientFields] useEffect triggered:', { funnelId, refreshTrigger });
         if (funnelId) {
             fetchFields();
         }
-    }, [funnelId, refreshTrigger]);
+    }, [funnelId, refreshTrigger, fetchFields]);
 
     // Sync with parent approval state (from header's approve button)
     // The header approve button in page.jsx calls handleApprove() -> updates approvedPhase1
@@ -80,7 +80,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
             const firstGroup = predefinedFields[0]?.group || 'Other';
             setExpandedGroup(firstGroup);
         }
-    }, [fields, expandedGroup]);
+    }, [fields, expandedGroup, predefinedFields]);
 
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {
@@ -210,7 +210,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
     };
 
     // Handle section approval
-    const handleApproveSection = async () => {
+    const handleApproveSection = useCallback(async () => {
         console.log('[IdealClientFields] Approve button clicked');
         setIsApproving(true);
         try {
@@ -251,7 +251,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
         } finally {
             setIsApproving(false);
         }
-    };
+    }, [funnelId, sectionId, onApprove]);
 
     // Handle section regeneration
     const handleRegenerateSection = async () => {
@@ -285,7 +285,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
     };
 
     // Expose approve button for parent to render in header
-    const approveButton = !sectionApproved ? (
+    const approveButton = useMemo(() => !sectionApproved ? (
         <button
             onClick={handleApproveSection}
             disabled={isApproving}
@@ -305,7 +305,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
                 </>
             )}
         </button>
-    ) : null;
+    ) : null, [sectionApproved, handleApproveSection, isApproving]);
 
     // Portal the button to the header
     useEffect(() => {

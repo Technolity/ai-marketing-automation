@@ -33,7 +33,7 @@ export default function GuidePage() {
 
     useEffect(() => {
         console.log(`[GuidePage] Component mounted. Active guide: ${activeGuide.title}`);
-    }, []);
+    }, [activeGuide?.title]);
 
     useEffect(() => {
         console.log(`[GuidePage] Switched to guide: ${activeGuide.title} (${activeGuide.pdfPath})`);

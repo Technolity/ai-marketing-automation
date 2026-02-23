@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -93,13 +93,7 @@ export default function AdminFunnels() {
     const [showVaultModal, setShowVaultModal] = useState(false);
     const [toast, setToast] = useState(null);
 
-    useEffect(() => {
-        if (!authLoading && session) {
-            fetchFunnels();
-        }
-    }, [authLoading, session, pagination.page, statusFilter, filterUserId]);
-
-    const fetchFunnels = async () => {
+    const fetchFunnels = useCallback(async () => {
         if (!session) return;
 
         setLoading(true);
@@ -129,9 +123,15 @@ export default function AdminFunnels() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [session, pagination.page, pagination.limit, filterUserId, statusFilter]);
 
-    const handleFunnelAction = async (funnelId, action) => {
+    useEffect(() => {
+        if (!authLoading && session) {
+            fetchFunnels();
+        }
+    }, [authLoading, session, fetchFunnels]);
+
+    const handleFunnelAction = useCallback(async (funnelId, action) => {
         try {
             const response = await fetchWithAuth('/api/admin/funnels', {
                 method: 'PUT',
@@ -160,7 +160,7 @@ export default function AdminFunnels() {
             console.error(`Error performing action ${action}:`, error);
             setToast({ message: `Failed: ${error.message}`, type: 'error' });
         }
-    };
+    }, [fetchFunnels]);
 
     const handleViewVault = (funnel) => {
         setSelectedFunnel(funnel);
@@ -296,7 +296,7 @@ export default function AdminFunnels() {
                 ),
             },
         ],
-        []
+        [handleFunnelAction]
     );
 
     const table = useReactTable({

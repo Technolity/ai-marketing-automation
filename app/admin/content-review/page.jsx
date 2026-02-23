@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -54,13 +54,7 @@ export default function AdminContentReview() {
     const [expandedSessions, setExpandedSessions] = useState(new Set());
     const [expandedContent, setExpandedContent] = useState(new Set());
 
-    useEffect(() => {
-        if (!authLoading && session) {
-            fetchContents();
-        }
-    }, [authLoading, session, pagination.page, statusFilter]);
-
-    const fetchContents = async () => {
+    const fetchContents = useCallback(async () => {
         if (!session) return;
 
         setLoading(true);
@@ -87,7 +81,13 @@ export default function AdminContentReview() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [session, pagination.page, pagination.limit, statusFilter]);
+
+    useEffect(() => {
+        if (!authLoading && session) {
+            fetchContents();
+        }
+    }, [authLoading, session, fetchContents]);
 
     const handleApprove = async (id) => {
         try {

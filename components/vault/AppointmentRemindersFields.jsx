@@ -61,7 +61,7 @@ export default function AppointmentRemindersFields({ funnelId, onApprove, onRend
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, [funnelId]);
+    }, [funnelId, isApproved]);
 
     // Initial fetch
     useEffect(() => { if (funnelId) fetchFields(); }, [funnelId, fetchFields]);

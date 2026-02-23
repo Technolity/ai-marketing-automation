@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 import { Users, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
@@ -172,7 +173,7 @@ export default function JoinPage() {
             {/* Header */}
             <header className="border-b border-white/5 bg-dark/60 backdrop-blur-xl">
                 <div className="max-w-4xl mx-auto px-6 py-4 flex items-center">
-                    <img src="/tedos-logo.png" alt="TedOS" className="h-10 w-auto" />
+                    <Image src="/tedos-logo.png" alt="TedOS" width={40} height={40} className="h-10 w-auto" priority />
                 </div>
             </header>
 

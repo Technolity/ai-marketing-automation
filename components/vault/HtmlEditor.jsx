@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Eye, Code } from 'lucide-react';
 
 /**
@@ -31,28 +31,28 @@ export default function HtmlEditor({ value, onChange, onBlur, placeholder, disab
         }
     }, [localValue, mode]);
 
-    const handleContentEditableInput = () => {
+    const handleContentEditableInput = useCallback(() => {
         if (contentEditableRef.current) {
             const html = contentEditableRef.current.innerHTML;
             setLocalValue(html);
             onChange(html);
         }
-    };
+    }, [onChange]);
 
-    const handleTextareaChange = (e) => {
+    const handleTextareaChange = useCallback((e) => {
         const newValue = e.target.value;
         setLocalValue(newValue);
         onChange(newValue);
-    };
+    }, [onChange]);
 
-    const handleModeToggle = () => {
+    const handleModeToggle = useCallback(() => {
         if (mode === 'visual' && contentEditableRef.current) {
             // Switching from visual to source - get HTML from contentEditable
             const html = contentEditableRef.current.innerHTML;
             setLocalValue(html);
         }
         setMode(mode === 'visual' ? 'source' : 'visual');
-    };
+    }, [mode]);
 
     return (
         <div className="w-full">

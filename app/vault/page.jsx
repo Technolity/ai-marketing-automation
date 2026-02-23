@@ -9,7 +9,7 @@
  * Reset only when business is reset.
  */
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
@@ -788,6 +788,68 @@ export default function VaultPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [session, authLoading, isProfileComplete]); // Added isProfileComplete dependency
 
+    const loadApprovals = useCallback(async (sId = null) => {
+        // Priority: passed parameter > URL param > dataSource.id > 'current' (fallback)
+        const funnelIdFromUrl = searchParams.get('funnel_id') || searchParams.get('session_id');
+        const activeSessionId = sId || funnelIdFromUrl || dataSource?.id;
+
+        // Validate UUID format to prevent invalid requests
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!activeSessionId || !uuidRegex.test(activeSessionId)) {
+            console.log('[Vault] Skipping approvals load - no valid funnel ID:', { sId, funnelIdFromUrl, dataSourceId: dataSource?.id });
+            return;
+        }
+
+        console.log('[Vault] Loading approvals for funnel:', activeSessionId);
+
+        try {
+            const approvalsRes = await fetchWithAuth(`/api/os/approvals?session_id=${activeSessionId}`);
+            if (approvalsRes.ok) {
+                const data = await approvalsRes.json();
+
+                // Deduplicate arrays to prevent count issues
+                const phase1Deduped = [...new Set(data.businessCoreApprovals || [])];
+                const phase2Deduped = [...new Set(data.funnelAssetsApprovals || [])];
+
+                console.log('[Vault] Approvals loaded:', {
+                    phase1: phase1Deduped,
+                    phase2: phase2Deduped,
+                    phase1Count: phase1Deduped.length,
+                    phase2Count: phase2Deduped.length
+                });
+
+                setApprovedPhase1(phase1Deduped);
+                setApprovedPhase2(phase2Deduped);
+
+                // Handle Phase 3 if present
+                const phase3Raw = data.scriptsApprovals || [];
+                const phase3Deduped = [...new Set(phase3Raw)];
+                setApprovedPhase3(phase3Deduped);
+
+                // Keep local storage in sync
+                const approvals = {
+                    phase1: phase1Deduped,
+                    phase2: phase2Deduped,
+                    phase3: phase3Deduped
+                };
+                localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
+            }
+        } catch (e) {
+            console.error('[Vault] Error loading approvals:', e);
+            // Fallback to localStorage
+            const saved = localStorage.getItem(`vault_approvals_${session.user.id}_${activeSessionId}`);
+            if (saved) {
+                const approvals = JSON.parse(saved);
+                // Deduplicate from localStorage too
+                const phase1Deduped = [...new Set(approvals.phase1 || [])];
+                const phase2Deduped = [...new Set(approvals.phase2 || [])];
+                const phase3Deduped = [...new Set(approvals.phase3 || [])];
+                setApprovedPhase1(phase1Deduped);
+                setApprovedPhase2(phase2Deduped);
+                setApprovedPhase3(phase3Deduped);
+            }
+        }
+    }, [searchParams, session, dataSource]);
 
     // Listen for funnelCopyGenerated custom event from ApprovalWatcher
     // This enables real-time updates when background generation completes
@@ -821,7 +883,7 @@ export default function VaultPage() {
 
         window.addEventListener('funnelCopyGenerated', handleFunnelCopyGenerated);
         return () => window.removeEventListener('funnelCopyGenerated', handleFunnelCopyGenerated);
-    }, [searchParams, session]);
+    }, [searchParams, session, loadApprovals]);
 
     // Listen for regeneration events from FeedbackChatModal to show spinners immediately
     useEffect(() => {
@@ -872,7 +934,7 @@ export default function VaultPage() {
 
         window.addEventListener('dependencyRegenerationComplete', handleDependencyComplete);
         return () => window.removeEventListener('dependencyRegenerationComplete', handleDependencyComplete);
-    }, [searchParams, session]);
+    }, [searchParams, session, loadApprovals]);
 
     useEffect(() => {
         const funnelId = searchParams.get('funnel_id');
@@ -1105,71 +1167,8 @@ export default function VaultPage() {
             if (pollInterval) clearInterval(pollInterval);
             console.log('[Vault] Polling stopped');
         };
-    }, [searchParams, session, initialLoadComplete, isGeneratingMode, pollVersion]); // pollVersion restarts polling on regeneration trigger
+    }, [searchParams, session, initialLoadComplete, isGeneratingMode, pollVersion, loadApprovals]); // pollVersion restarts polling on regeneration trigger
 
-
-    const loadApprovals = async (sId = null) => {
-        // Priority: passed parameter > URL param > dataSource.id > 'current' (fallback)
-        const funnelIdFromUrl = searchParams.get('funnel_id') || searchParams.get('session_id');
-        const activeSessionId = sId || funnelIdFromUrl || dataSource?.id;
-
-        // Validate UUID format to prevent invalid requests
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!activeSessionId || !uuidRegex.test(activeSessionId)) {
-            console.log('[Vault] Skipping approvals load - no valid funnel ID:', { sId, funnelIdFromUrl, dataSourceId: dataSource?.id });
-            return;
-        }
-
-        console.log('[Vault] Loading approvals for funnel:', activeSessionId);
-
-        try {
-            const approvalsRes = await fetchWithAuth(`/api/os/approvals?session_id=${activeSessionId}`);
-            if (approvalsRes.ok) {
-                const data = await approvalsRes.json();
-
-                // Deduplicate arrays to prevent count issues
-                const phase1Deduped = [...new Set(data.businessCoreApprovals || [])];
-                const phase2Deduped = [...new Set(data.funnelAssetsApprovals || [])];
-
-                console.log('[Vault] Approvals loaded:', {
-                    phase1: phase1Deduped,
-                    phase2: phase2Deduped,
-                    phase1Count: phase1Deduped.length,
-                    phase2Count: phase2Deduped.length
-                });
-
-                setApprovedPhase1(phase1Deduped);
-                setApprovedPhase2(phase2Deduped);
-
-                // Handle Phase 3 if present
-                const phase3Raw = data.scriptsApprovals || [];
-                const phase3Deduped = [...new Set(phase3Raw)];
-                setApprovedPhase3(phase3Deduped);
-
-                // Keep local storage in sync
-                const approvals = {
-                    phase1: phase1Deduped,
-                    phase2: phase2Deduped,
-                    phase3: phase3Deduped
-                };
-                localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
-            }
-        } catch (e) {
-            console.error('[Vault] Error loading approvals:', e);
-            // Fallback to localStorage
-            const saved = localStorage.getItem(`vault_approvals_${session.user.id}_${activeSessionId}`);
-            if (saved) {
-                const approvals = JSON.parse(saved);
-                // Deduplicate from localStorage too
-                const phase1Deduped = [...new Set(approvals.phase1 || [])];
-                const phase2Deduped = [...new Set(approvals.phase2 || [])];
-                const phase3Deduped = [...new Set(approvals.phase3 || [])];
-                setApprovedPhase1(phase1Deduped);
-                setApprovedPhase2(phase2Deduped);
-                setApprovedPhase3(phase3Deduped);
-            }
-        }
-    };
 
     const saveApprovals = async (phase1, phase2, phase3 = []) => {
         // Priority: dataSource.id > URL param > 'current'
@@ -1979,34 +1978,45 @@ export default function VaultPage() {
                 fieldIds: Object.keys(fieldsToSave)
             });
 
-            const fieldSavePromises = Object.entries(fieldsToSave).map(async ([fieldId, fieldValue]) => {
-                try {
-                    console.log(`[Vault] Saving field ${fieldId}:`, JSON.stringify(fieldValue).substring(0, 200));
-                    const response = await fetchWithAuth('/api/os/vault-field', {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            funnel_id: funnelId,
-                            section_id: feedbackSection.id,
-                            field_id: fieldId,
-                            field_value: fieldValue
-                        })
-                    });
+            // Save fields in batches of 3 to avoid overwhelming Supabase connections
+            const fieldEntries = Object.entries(fieldsToSave);
+            const BATCH_SIZE = 3;
+            const saveResults = [];
 
-                    if (!response.ok) {
-                        const errData = await response.json();
-                        console.warn(`[Vault] Field ${fieldId} save warning:`, errData);
-                    } else {
-                        console.log(`[Vault] Field ${fieldId} saved successfully`);
-                    }
-                    return { fieldId, success: response.ok };
-                } catch (err) {
-                    console.warn(`[Vault] Field ${fieldId} save error:`, err);
-                    return { fieldId, success: false };
-                }
-            });
+            for (let i = 0; i < fieldEntries.length; i += BATCH_SIZE) {
+                const batch = fieldEntries.slice(i, i + BATCH_SIZE);
+                console.log(`[Vault] Saving batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(fieldEntries.length / BATCH_SIZE)} (${batch.map(([id]) => id).join(', ')})`);
 
-            const saveResults = await Promise.all(fieldSavePromises);
+                const batchResults = await Promise.all(
+                    batch.map(async ([fieldId, fieldValue]) => {
+                        try {
+                            console.log(`[Vault] Saving field ${fieldId}:`, JSON.stringify(fieldValue).substring(0, 200));
+                            const response = await fetchWithAuth('/api/os/vault-field', {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    funnel_id: funnelId,
+                                    section_id: feedbackSection.id,
+                                    field_id: fieldId,
+                                    field_value: fieldValue
+                                })
+                            });
+
+                            if (!response.ok) {
+                                const errData = await response.json();
+                                console.warn(`[Vault] Field ${fieldId} save warning:`, errData);
+                            } else {
+                                console.log(`[Vault] Field ${fieldId} saved successfully`);
+                            }
+                            return { fieldId, success: response.ok };
+                        } catch (err) {
+                            console.warn(`[Vault] Field ${fieldId} save error:`, err);
+                            return { fieldId, success: false };
+                        }
+                    })
+                );
+                saveResults.push(...batchResults);
+            }
             console.log('[Vault] All field saves complete:', saveResults);
 
             // 2. Also update vault_content JSONB for backwards compatibility
