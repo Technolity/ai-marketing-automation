@@ -1,7 +1,8 @@
 ﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronDown, ChevronUp, Video, Download, Table } from 'lucide-react';
+import { ChevronDown, ChevronUp, Video, Download, Table, MonitorPlay } from 'lucide-react';
+import TeleprompterModal from './TeleprompterModal';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
@@ -17,6 +18,7 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
     const [expandedGroup, setExpandedGroup] = useState(null);
+    const [teleprompterOpen, setTeleprompterOpen] = useState(false);
     const previousApprovalRef = useRef(false);
 
     const sectionId = 'vsl';
@@ -220,21 +222,31 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
             </div>
 
             {!isLoading && fields.length > 0 && (
-                <div className="mt-6 pt-4 border-t border-[#2a2a2d] flex items-center justify-end gap-2">
+                <div className="mt-6 pt-4 border-t border-[#2a2a2d] flex items-center justify-between">
                     <button
-                        onClick={() => exportSectionToPDF(fields, 'VSL Script')}
-                        className="p-2 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
-                        title="Download PDF"
+                        onClick={() => setTeleprompterOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-cyan/10 border border-cyan/30 text-cyan hover:bg-cyan/20 transition-colors font-medium text-sm"
+                        title="Open Teleprompter"
                     >
-                        <Download className="w-4 h-4" />
+                        <MonitorPlay className="w-4 h-4" />
+                        <span>Teleprompter</span>
                     </button>
-                    <button
-                        onClick={() => exportSectionToCSV(fields, 'VSL Script')}
-                        className="p-2 rounded-lg border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-colors"
-                        title="Download CSV"
-                    >
-                        <Table className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => exportSectionToPDF(fields, 'VSL Script')}
+                            className="p-2 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
+                            title="Download PDF"
+                        >
+                            <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => exportSectionToCSV(fields, 'VSL Script')}
+                            className="p-2 rounded-lg border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-colors"
+                            title="Download CSV"
+                        >
+                            <Table className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -256,6 +268,17 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
                     onSave={handleFeedbackSave}
                 />
             )}
+
+            {/* Teleprompter Modal */}
+            <TeleprompterModal
+                isOpen={teleprompterOpen}
+                onClose={() => setTeleprompterOpen(false)}
+                title="Funnel Video Script"
+                scriptSections={predefinedFields.map(def => ({
+                    label: def.field_label,
+                    text: fields.find(f => f.field_id === def.field_id)?.field_value || ''
+                })).filter(s => s.text)}
+            />
         </>
     );
 }

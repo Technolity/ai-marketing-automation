@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import Image from 'next/image';
 import { Check, X, AlertCircle, Upload, Loader2, Image as ImageIcon, Video, Trash2, Link as LinkIcon, Info, RefreshCw } from 'lucide-react';
 import { validateFieldValue } from '@/lib/vault/fieldStructures';
@@ -37,14 +37,7 @@ const unwrapArrayIds = (arr) => {
     });
 };
 
-// Custom debounce function
-const debounce = (func, wait) => {
-    let timeout;
-    return (...args) => {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func(...args), wait);
-    };
-};
+
 
 // Helper to auto-resize a textarea element (no max height - grows with content)
 const autoResizeTextarea = (el) => {
@@ -157,6 +150,9 @@ function FieldEditor({
     const [validationWarnings, setValidationWarnings] = useState([]);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const saveTimeoutRef = useRef(null);
+    const idleTimerRef = useRef(null);       // Refs for Option C hybrid fix
+    const abortRef = useRef(null);           // AbortController for cancelling stale saves
+    const latestValueRef = useRef(value);    // Always holds latest value without re-render deps
 
     const {
         field_id,
@@ -166,9 +162,10 @@ function FieldEditor({
     } = fieldDef;
 
     // Sync with external changes - ONLY if the parsed value is actually different
+    // FIX: Removed `value` from deps to prevent cursor-reset feedback loops
     useEffect(() => {
         const newParsedValue = parseValue(initialValue, field_type);
-        const currentStr = JSON.stringify(value);
+        const currentStr = JSON.stringify(latestValueRef.current);
         const newStr = JSON.stringify(newParsedValue);
 
         // Skip update if content is identical - prevents unnecessary re-renders/loader flashes
@@ -177,7 +174,13 @@ function FieldEditor({
         }
 
         setValue(newParsedValue);
-    }, [initialValue, field_type, value]);
+        latestValueRef.current = newParsedValue;
+    }, [initialValue, field_type]);
+
+    // Keep ref in sync with state (no re-render)
+    useEffect(() => {
+        latestValueRef.current = value;
+    }, [value]);
 
     // Validate on value change
     useEffect(() => {
@@ -186,12 +189,16 @@ function FieldEditor({
         setValidationWarnings(validation.warnings || []);
     }, [value, fieldDef]);
 
-    const handleSave = useCallback(async (newValue = value) => {
+    // FIX: handleSave no longer depends on `value` — value is passed as argument
+    const handleSave = useCallback(async (newValue) => {
+        // Use latest value from ref if none provided
+        const valueToSave = newValue !== undefined ? newValue : latestValueRef.current;
+
         // Unwrap array IDs before saving
-        let saveValue = newValue;
-        if (field_type === 'array' && Array.isArray(newValue)) {
-            saveValue = unwrapArrayIds(newValue);
-            console.log('[FieldEditor] Unwrapping array for save:', { field_id, wrapped: newValue.length, unwrapped: saveValue.length });
+        let saveValue = valueToSave;
+        if (field_type === 'array' && Array.isArray(valueToSave)) {
+            saveValue = unwrapArrayIds(valueToSave);
+            console.log('[FieldEditor] Unwrapping array for save:', { field_id, wrapped: valueToSave.length, unwrapped: saveValue.length });
         }
 
         // Validate before save
@@ -200,6 +207,13 @@ function FieldEditor({
             setValidationErrors(validation.errors);
             return;
         }
+
+        // Cancel any in-flight save to prevent race conditions
+        if (abortRef.current) {
+            abortRef.current.abort();
+        }
+        const controller = new AbortController();
+        abortRef.current = controller;
 
         setIsSaving(true);
         setSaveSuccess(false);
@@ -213,7 +227,8 @@ function FieldEditor({
                     section_id: sectionId,
                     field_id,
                     field_value: saveValue
-                })
+                }),
+                signal: controller.signal
             });
 
             if (!response.ok) {
@@ -228,7 +243,6 @@ function FieldEditor({
             setTimeout(() => setSaveSuccess(false), 2000);
 
             // === FREE GIFT TITLE DEPENDENCY TRACKING ===
-            // If this is the Lead Magnet Title, notify about dependent sections
             if (sectionId === 'freeGift' && field_id === 'mainTitle') {
                 const dependentSections = [
                     'Video Script (VSL)',
@@ -238,7 +252,6 @@ function FieldEditor({
                     'Funnel Page Copy'
                 ];
 
-                // Show toast with option to regenerate
                 toast.info(
                     `Free Gift Title updated! This is used in: ${dependentSections.join(', ')}. Consider regenerating these sections to reflect the new title.`,
                     {
@@ -246,7 +259,6 @@ function FieldEditor({
                         action: {
                             label: 'Regenerate All',
                             onClick: () => {
-                                // TODO: Trigger batch regeneration
                                 toast.info('Batch regeneration coming soon!');
                             }
                         }
@@ -258,46 +270,60 @@ function FieldEditor({
 
             // Callback to parent
             if (onSave) {
-                onSave(field_id, newValue, result);
+                onSave(field_id, valueToSave, result);
             }
 
         } catch (error) {
+            // Ignore aborted requests (they are intentional)
+            if (error.name === 'AbortError') return;
             console.error('[FieldEditor] Save error:', error);
             setValidationErrors([error.message]);
             toast.error(`Failed to save: ${error.message}`);
         } finally {
             setIsSaving(false);
         }
-    }, [value, funnelId, sectionId, field_id, field_type, onSave, fieldDef]);
+    }, [funnelId, sectionId, field_id, field_type, onSave, fieldDef]);
+    // ↑ FIX: `value` removed from deps — passed as argument instead
 
-    // Create debounced save function with useMemo
-    const debouncedSave = useMemo(
-        () => debounce((newValue) => handleSave(newValue), 2000),
-        [handleSave]
-    );
-
-    // Cleanup debounced function on unmount
+    // Cleanup timers and abort on unmount
     useEffect(() => {
         return () => {
-            debouncedSave.cancel?.();
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+            if (abortRef.current) abortRef.current.abort();
         };
-    }, [debouncedSave]);
+    }, []);
 
-    const handleBlur = () => {
+    const handleBlur = useCallback(() => {
+        // Cancel any pending idle timer — we're saving NOW
+        if (idleTimerRef.current) {
+            clearTimeout(idleTimerRef.current);
+            idleTimerRef.current = null;
+        }
+
         // Only save if value has changed from initial
-        const currentValue = JSON.stringify(value);
+        const currentValue = JSON.stringify(latestValueRef.current);
         const startValue = JSON.stringify(parseValue(initialValue, field_type));
 
         if (currentValue !== startValue) {
-            handleSave();
+            handleSave(latestValueRef.current);
         }
-    };
+    }, [handleSave, initialValue, field_type]);
 
-    const handleChange = (newValue) => {
+    const handleChange = useCallback((newValue) => {
+        // FIX: Local state only — no API call on every keystroke
         setValue(newValue);
-        // Trigger debounced auto-save after 2 seconds of no typing
-        debouncedSave(newValue);
-    };
+        latestValueRef.current = newValue;
+
+        // Schedule idle auto-save (5s safety net)
+        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = setTimeout(() => {
+            const currentStr = JSON.stringify(latestValueRef.current);
+            const initialStr = JSON.stringify(parseValue(initialValue, field_type));
+            if (currentStr !== initialStr) {
+                handleSave(latestValueRef.current);
+            }
+        }, 5000);
+    }, [handleSave, initialValue, field_type]);
 
     // Helper to detect if content contains HTML tags
     const containsHtml = (str) => {

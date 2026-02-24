@@ -1,12 +1,11 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import {
     useReactTable,
     getCoreRowModel,
-    getFilteredRowModel,
     getPaginationRowModel,
     getSortedRowModel,
     flexRender,
@@ -58,7 +57,9 @@ export default function AdminGHLAccounts() {
     const { session, loading: authLoading } = useAuth();
     const [accounts, setAccounts] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [globalFilter, setGlobalFilter] = useState("");
+    const [searchInput, setSearchInput] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const debounceRef = useRef(null);
     const [sorting, setSorting] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
     const [stats, setStats] = useState({ synced: 0, pending: 0, failed: 0, permanently_failed: 0, total: 0 });
@@ -93,7 +94,7 @@ export default function AdminGHLAccounts() {
             const params = new URLSearchParams({
                 page: pagination.page.toString(),
                 limit: pagination.limit.toString(),
-                search: globalFilter,
+                search: debouncedSearch,
                 ...(activeFilter && { filter: activeFilter })
             });
 
@@ -115,7 +116,17 @@ export default function AdminGHLAccounts() {
         } finally {
             setLoading(false);
         }
-    }, [session, pagination.page, pagination.limit, globalFilter, activeFilter]);
+    }, [session, pagination.page, pagination.limit, debouncedSearch, activeFilter]);
+
+    // Debounced search handler
+    const handleSearchChange = useCallback((value) => {
+        setSearchInput(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setDebouncedSearch(value);
+            setPagination(prev => ({ ...prev, page: 1 }));
+        }, 400);
+    }, []);
 
     useEffect(() => {
         if (!authLoading && session) {
@@ -883,11 +894,9 @@ export default function AdminGHLAccounts() {
     const table = useReactTable({
         data: accounts,
         columns,
-        state: { globalFilter, sorting },
-        onGlobalFilterChange: setGlobalFilter,
+        state: { sorting },
         onSortingChange: setSorting,
         getCoreRowModel: getCoreRowModel(),
-        getFilteredRowModel: getFilteredRowModel(),
         getSortedRowModel: getSortedRowModel(),
         manualPagination: true,
     });
@@ -964,9 +973,9 @@ export default function AdminGHLAccounts() {
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         <input
                             type="text"
-                            placeholder="Search by user, email, or location ID..."
-                            value={globalFilter ?? ""}
-                            onChange={(e) => setGlobalFilter(e.target.value)}
+                            placeholder="Search by user, email, or business name..."
+                            value={searchInput}
+                            onChange={(e) => handleSearchChange(e.target.value)}
                             className="w-full pl-12 pr-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors"
                         />
                     </div>

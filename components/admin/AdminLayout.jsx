@@ -6,10 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     LayoutDashboard,
     Users,
-    Building2,
     BookOpen,
     FileText,
-    FileSearch,
     CreditCard,
     Settings,
     ChevronLeft,
@@ -30,10 +28,8 @@ const MENU_ITEMS = [
     { href: "/admin/funnels", label: "Funnels", icon: FolderKanban },
     { href: "/admin/ghl-accounts", label: "GHL Sub-Accounts", icon: Database },
     { href: "/admin/database", label: "Database Manager", icon: Database, badge: "GOD MODE" },
-    { href: "/admin/businesses", label: "Marketing Engine", icon: Building2 },
     { href: "/admin/transcripts", label: "Transcripts", icon: FileText },
     { href: "/admin/knowledge-base", label: "Knowledge Base", icon: BookOpen },
-    { href: "/admin/content-review", label: "Content Review", icon: FileSearch },
     { href: "/admin/billing", label: "Billing / Tiers", icon: CreditCard },
     { href: "/admin/settings", label: "Settings", icon: Settings },
 ];

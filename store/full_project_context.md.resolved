@@ -40,6 +40,20 @@
 | `lib/vault/fieldStructures.js` | Restored `thankyou_video` to the active `media` section, marked Testimonial fields as optional, and kept `profile_photo`, `banner_image`, and `vsl_video` IDs to preserve user data. |
 | `lib/ghl/customValuesMap.js` | Updated `MEDIA_MAP` to correctly map `profile_photo`, `banner_image`, and `vsl_video` to `03_vsl_bio_image`, `03_optin_mockup_image`, and `03_vsl_video_link`, fixing the GHL sync bug. |
 | `app/api/ghl/push-media/route.js` | Updated `DEFAULT_MEDIA_VALUES` keys to match the `fieldStructures.js` UI field definition for consistent fallback handling. |
+| `components/vault/TeleprompterModal.jsx` | **[NEW]** Full-screen teleprompter with auto-scroll via `requestAnimationFrame`, countdown timer, speed/font controls, mirror mode, and keyboard shortcuts. |
+| `components/vault/VslFields.jsx` | Added Teleprompter button and modal integration for the VSL Script section. |
+| `components/vault/SalesScriptsFields.jsx` | Added Teleprompter button and modal integration for the Closer Script section. |
+| `components/vault/SetterScriptFields.jsx` | Added Teleprompter button and modal integration for the Setter Script section. |
+| `app/admin/users/page.jsx` | Added debounced search (400ms), wired "View details" Eye button to `/admin/users/[id]`, added `min-w-[800px]` on table for responsive horizontal scrolling, added `router` to `useMemo` deps. |
+| `app/admin/funnels/page.jsx` | Added `min-w-[800px]` on table for responsive horizontal scrolling on tablets. |
+| `app/admin/users/[id]/page.jsx` | **[NEW]** User Detail page with profile card, feature access controls (tier, max funnels, admin toggle), and user funnels list. Uses existing `PUT /api/admin/users` endpoint. |
+
+### Recent Modifications (2026-02-24)
+| File | Change |
+| :--- | :--- |
+| `app/admin/funnels/page.jsx` | Replaced simple vault modal with full content viewer: expandable accordion sections grouped by phase, recursive JSON content renderer, inline JSON editor with save. |
+| `app/api/admin/funnels/route.js` | Updated vault_content query to return full data (`section_id, section_title, content, phase, status, version`), filtered to current versions. Added `update_vault_content` PUT action. |
+| `components/admin/AdminLayout.jsx` | Removed "Marketing Engine" and "Content Review" sidebar links (consolidated into Funnels page). |
 
 ### Recent Modifications (2026-02-18)
 | File | Change |

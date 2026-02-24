@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -14,6 +14,8 @@ import {
     Search,
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
+    ChevronUp,
     Loader2,
     RefreshCw,
     RotateCcw,
@@ -27,7 +29,11 @@ import {
     X,
     Sparkles,
     XCircle,
-    TrendingUp
+    TrendingUp,
+    Edit3,
+    Save,
+    FileText,
+    Rocket
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
@@ -52,10 +58,10 @@ function Toast({ message, type = 'success', onClose }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
             className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border backdrop-blur-xl ${type === 'success'
-                    ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
-                    : type === 'error'
-                        ? 'bg-red-500/20 border-red-500/30 text-red-400'
-                        : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
+                ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                : type === 'error'
+                    ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                    : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
                 }`}
         >
             {type === 'success' && <CheckCircle className="w-5 h-5" />}
@@ -85,12 +91,18 @@ export default function AdminFunnels() {
     const [funnels, setFunnels] = useState([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchInput, setSearchInput] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const debounceRef = useRef(null);
     const [sorting, setSorting] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
     const [statusStats, setStatusStats] = useState({});
     const [selectedFunnel, setSelectedFunnel] = useState(null);
     const [showVaultModal, setShowVaultModal] = useState(false);
+    const [expandedSections, setExpandedSections] = useState(new Set());
+    const [editingItem, setEditingItem] = useState(null);
+    const [editValue, setEditValue] = useState('');
+    const [savingEdit, setSavingEdit] = useState(false);
     const [toast, setToast] = useState(null);
 
     const fetchFunnels = useCallback(async () => {
@@ -105,6 +117,7 @@ export default function AdminFunnels() {
 
             if (filterUserId) params.append('userId', filterUserId);
             if (statusFilter) params.append('status', statusFilter);
+            if (debouncedSearch) params.append('search', debouncedSearch);
 
             const response = await fetchWithAuth(`/api/admin/funnels?${params}`);
 
@@ -123,7 +136,17 @@ export default function AdminFunnels() {
         } finally {
             setLoading(false);
         }
-    }, [session, pagination.page, pagination.limit, filterUserId, statusFilter]);
+    }, [session, pagination.page, pagination.limit, filterUserId, statusFilter, debouncedSearch]);
+
+    // Debounced search handler
+    const handleSearchChange = useCallback((value) => {
+        setSearchInput(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setDebouncedSearch(value);
+            setPagination(prev => ({ ...prev, page: 1 }));
+        }, 400);
+    }, []);
 
     useEffect(() => {
         if (!authLoading && session) {
@@ -164,27 +187,109 @@ export default function AdminFunnels() {
 
     const handleViewVault = (funnel) => {
         setSelectedFunnel(funnel);
+        setExpandedSections(new Set());
+        setEditingItem(null);
         setShowVaultModal(true);
     };
 
-    const filteredFunnels = useMemo(() => {
-        if (!searchQuery) return funnels;
-        return funnels.filter(funnel =>
-            funnel.business_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            funnel.user_profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            funnel.user_profiles?.email?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [funnels, searchQuery]);
+    const toggleSection = (sectionId) => {
+        setExpandedSections(prev => {
+            const next = new Set(prev);
+            if (next.has(sectionId)) {
+                next.delete(sectionId);
+            } else {
+                next.add(sectionId);
+            }
+            return next;
+        });
+    };
+
+    const handleStartEdit = (item) => {
+        setEditingItem(item.id);
+        setEditValue(JSON.stringify(item.content, null, 2));
+    };
+
+    const handleSaveEdit = async (item) => {
+        setSavingEdit(true);
+        try {
+            let parsedContent;
+            try {
+                parsedContent = JSON.parse(editValue);
+            } catch {
+                setToast({ message: 'Invalid JSON format', type: 'error' });
+                setSavingEdit(false);
+                return;
+            }
+
+            const response = await fetchWithAuth('/api/admin/funnels', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    funnelId: selectedFunnel.id,
+                    action: 'update_vault_content',
+                    vaultItemId: item.id,
+                    content: parsedContent
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to save');
+
+            setToast({ message: 'Vault content updated!', type: 'success' });
+            setEditingItem(null);
+            fetchFunnels();
+        } catch (error) {
+            console.error('Error saving vault content:', error);
+            setToast({ message: `Save failed: ${error.message}`, type: 'error' });
+        } finally {
+            setSavingEdit(false);
+        }
+    };
+
+    const renderContentValue = (value, level = 0) => {
+        if (value === null || value === undefined) {
+            return <span className="text-gray-500 italic">null</span>;
+        }
+        if (Array.isArray(value)) {
+            if (value.length === 0) return <span className="text-gray-500 italic">[]</span>;
+            return (
+                <ul className="list-disc list-inside space-y-1 ml-4">
+                    {value.map((item, idx) => (
+                        <li key={idx} className="text-gray-300">
+                            {typeof item === 'object' ? renderContentValue(item, level + 1) : String(item)}
+                        </li>
+                    ))}
+                </ul>
+            );
+        }
+        if (typeof value === 'object') {
+            return (
+                <div className={`space-y-2 ${level > 0 ? 'ml-4 pl-4 border-l border-gray-700' : ''}`}>
+                    {Object.entries(value).map(([k, v]) => (
+                        <div key={k}>
+                            <span className="text-cyan font-medium">{k}:</span>{' '}
+                            <span className="text-gray-300">{renderContentValue(v, level + 1)}</span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        if (typeof value === 'string' && value.length > 200) {
+            return <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{value}</p>;
+        }
+        return <span className="text-gray-300">{String(value)}</span>;
+    };
+
+
 
     const columns = useMemo(
         () => [
             {
-                accessorKey: "business_name",
-                header: "Business Name",
+                accessorKey: "funnel_name",
+                header: "Funnel Name",
                 cell: ({ row }) => (
                     <div>
                         <div className="font-medium text-white">
-                            {row.original.business_name || 'Unnamed Funnel'}
+                            {row.original.funnel_name || 'Unnamed Funnel'}
                         </div>
                         <div className="text-xs text-gray-500">
                             ID: {row.original.id.substring(0, 8)}...
@@ -207,16 +312,49 @@ export default function AdminFunnels() {
                 ),
             },
             {
-                accessorKey: "vault_generation_status",
-                header: "Status",
+                id: "progress_status",
+                header: "Progress & Status",
                 cell: ({ row }) => {
-                    const status = row.original.vault_generation_status || 'not_started';
-                    const StatusIcon = statusIcons[status];
+                    const progress = row.original.progress_percent || 0;
+                    const isDeployed = row.original.is_deployed;
+                    const vaultItems = row.original.vault_items_count || 0;
+
+                    const barColor = progress >= 100 ? 'bg-emerald-500' : progress > 0 ? 'bg-cyan' : 'bg-gray-600';
+                    const textColor = progress >= 100 ? 'text-emerald-400' : progress > 0 ? 'text-cyan' : 'text-gray-500';
+
                     return (
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize inline-flex items-center gap-1.5 ${statusColors[status]}`}>
-                            <StatusIcon className={`w-3.5 h-3.5 ${status === 'in_progress' ? 'animate-spin' : ''}`} />
-                            {status.replace('_', ' ')}
-                        </span>
+                        <div className="flex flex-col gap-2 min-w-[140px]">
+                            {/* Progress bar */}
+                            <div className="flex items-center gap-2.5">
+                                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                                        style={{ width: `${progress}%` }}
+                                    />
+                                </div>
+                                <span className={`text-xs font-bold ${textColor} min-w-[32px] text-right`}>
+                                    {progress}%
+                                </span>
+                            </div>
+                            {/* Deployment badge */}
+                            <div className="flex items-center gap-1.5">
+                                {isDeployed ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                        <Rocket className="w-3 h-3" />
+                                        Deployed
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-500/10 text-gray-500 border border-gray-500/20">
+                                        Not Deployed
+                                    </span>
+                                )}
+                                {vaultItems > 0 && (
+                                    <span className="text-[10px] text-gray-500">
+                                        {vaultItems} sections
+                                    </span>
+                                )}
+                            </div>
+                        </div>
                     );
                 },
             },
@@ -260,7 +398,11 @@ export default function AdminFunnels() {
                         <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
-                            onClick={() => handleFunnelAction(row.original.id, 'reset_status')}
+                            onClick={() => {
+                                if (confirm(`Are you sure you want to reset the funnel "${row.original.business_name || 'Unnamed'}" to not started?`)) {
+                                    handleFunnelAction(row.original.id, 'reset_status');
+                                }
+                            }}
                             className="p-2.5 hover:bg-blue-500/20 rounded-xl transition-all group border border-transparent hover:border-blue-500/30"
                             title="Reset to not started"
                         >
@@ -300,7 +442,7 @@ export default function AdminFunnels() {
     );
 
     const table = useReactTable({
-        data: filteredFunnels,
+        data: funnels,
         columns,
         state: { sorting },
         onSortingChange: setSorting,
@@ -390,8 +532,8 @@ export default function AdminFunnels() {
                                 whileTap={{ scale: 0.98 }}
                                 onClick={() => setStatusFilter(statusFilter === status ? '' : status)}
                                 className={`bg-gradient-to-br ${gradients[status]} rounded-2xl p-5 border transition-all shadow-lg ${statusFilter === status
-                                        ? 'border-cyan/50 shadow-cyan/20 ring-2 ring-cyan/30'
-                                        : statusColors[status]?.split(' ')[2] || 'border-gray-500/30'
+                                    ? 'border-cyan/50 shadow-cyan/20 ring-2 ring-cyan/30'
+                                    : statusColors[status]?.split(' ')[2] || 'border-gray-500/30'
                                     }`}
                             >
                                 <div className="flex items-center justify-between mb-2">
@@ -419,9 +561,9 @@ export default function AdminFunnels() {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400/50" />
                     <input
                         type="text"
-                        placeholder="Search by business name, user name, or email..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search by funnel name, user name, or email..."
+                        value={searchInput}
+                        onChange={(e) => handleSearchChange(e.target.value)}
                         className="w-full pl-12 pr-4 py-3 bg-[#0e0e0f] border border-purple-500/30 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-all"
                     />
                 </motion.div>
@@ -442,8 +584,8 @@ export default function AdminFunnels() {
                     ) : (
                         <>
                             <div className="overflow-x-auto">
-                                <div className="max-h-[calc(100vh-550px)] overflow-y-auto custom-scrollbar">
-                                    <table className="w-full">
+                                <div>
+                                    <table className="w-full min-w-[800px]">
                                         <thead className="bg-gradient-to-r from-[#0e0e0f] to-[#1a1a1c] sticky top-0 z-10 border-b border-purple-500/20">
                                             {table.getHeaderGroups().map((headerGroup) => (
                                                 <tr key={headerGroup.id}>
@@ -521,12 +663,21 @@ export default function AdminFunnels() {
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] max-w-4xl w-full max-h-[80vh] overflow-hidden flex flex-col"
+                            className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
                         >
-                            <div className="p-6 border-b border-[#2a2a2d] flex items-center justify-between">
+                            {/* Modal Header */}
+                            <div className="p-6 border-b border-[#2a2a2d] flex items-center justify-between shrink-0">
                                 <div>
                                     <h2 className="text-2xl font-bold">Vault Content</h2>
-                                    <p className="text-gray-400 text-sm">{selectedFunnel.business_name}</p>
+                                    <p className="text-gray-400 text-sm">
+                                        {selectedFunnel.funnel_name || 'Unnamed Funnel'}
+                                        <span className="mx-2">·</span>
+                                        {selectedFunnel.user_profiles?.full_name || selectedFunnel.user_profiles?.email || ''}
+                                        <span className="mx-2">·</span>
+                                        <span className={`inline-flex px-2 py-0.5 rounded text-xs ${statusColors[selectedFunnel.vault_generation_status] || statusColors.not_started}`}>
+                                            {selectedFunnel.vault_generation_status || 'not_started'}
+                                        </span>
+                                    </p>
                                 </div>
                                 <button
                                     onClick={() => setShowVaultModal(false)}
@@ -536,25 +687,125 @@ export default function AdminFunnels() {
                                 </button>
                             </div>
 
-                            <div className="p-6 overflow-y-auto">
+                            {/* Modal Body */}
+                            <div className="overflow-y-auto flex-1 p-6">
                                 {selectedFunnel.vault_items?.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {selectedFunnel.vault_items.map((item, index) => (
-                                            <div
-                                                key={item.id}
-                                                className="bg-[#0e0e0f] rounded-lg p-4 border border-[#2a2a2d]"
-                                            >
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <h3 className="font-semibold text-cyan">{item.phase_name}</h3>
-                                                    <span className={`px-2 py-1 rounded text-xs ${statusColors[item.status]}`}>
-                                                        {item.status}
-                                                    </span>
+                                    <div className="space-y-3">
+                                        {/* Group by phase */}
+                                        {(() => {
+                                            const phases = {};
+                                            selectedFunnel.vault_items.forEach(item => {
+                                                const p = item.phase || 1;
+                                                if (!phases[p]) phases[p] = [];
+                                                phases[p].push(item);
+                                            });
+                                            return Object.entries(phases).map(([phase, items]) => (
+                                                <div key={phase} className="space-y-2">
+                                                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider px-1">
+                                                        Phase {phase} · {items.length} section{items.length !== 1 ? 's' : ''}
+                                                    </h3>
+                                                    {items.map(item => {
+                                                        const isExpanded = expandedSections.has(item.id);
+                                                        const isEditing = editingItem === item.id;
+                                                        return (
+                                                            <div key={item.id} className="bg-[#0e0e0f] rounded-xl border border-[#2a2a2d] overflow-hidden">
+                                                                {/* Section Header - Click to expand */}
+                                                                <button
+                                                                    onClick={() => toggleSection(item.id)}
+                                                                    className="w-full flex items-center justify-between p-4 hover:bg-[#1b1b1d] transition-colors text-left"
+                                                                >
+                                                                    <div className="flex items-center gap-3 min-w-0">
+                                                                        <FileText className="w-5 h-5 text-cyan shrink-0" />
+                                                                        <div className="min-w-0">
+                                                                            <span className="font-medium text-white block truncate">
+                                                                                {item.section_title || item.section_id}
+                                                                            </span>
+                                                                            <span className="text-xs text-gray-500">
+                                                                                v{item.version} · {new Date(item.updated_at || item.created_at).toLocaleDateString()}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 shrink-0">
+                                                                        <span className={`px-2 py-0.5 rounded text-xs ${statusColors[item.status] || 'bg-gray-500/20 text-gray-400'}`}>
+                                                                            {item.status}
+                                                                        </span>
+                                                                        {isExpanded ? (
+                                                                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                                                                        ) : (
+                                                                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                                                                        )}
+                                                                    </div>
+                                                                </button>
+
+                                                                {/* Expanded Content */}
+                                                                <AnimatePresence>
+                                                                    {isExpanded && (
+                                                                        <motion.div
+                                                                            initial={{ height: 0, opacity: 0 }}
+                                                                            animate={{ height: 'auto', opacity: 1 }}
+                                                                            exit={{ height: 0, opacity: 0 }}
+                                                                            transition={{ duration: 0.2 }}
+                                                                            className="border-t border-[#2a2a2d]"
+                                                                        >
+                                                                            <div className="p-4">
+                                                                                {/* Action bar */}
+                                                                                <div className="flex items-center justify-end gap-2 mb-3">
+                                                                                    {isEditing ? (
+                                                                                        <>
+                                                                                            <button
+                                                                                                onClick={() => setEditingItem(null)}
+                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg transition-colors"
+                                                                                            >
+                                                                                                <X className="w-3.5 h-3.5" />
+                                                                                                Cancel
+                                                                                            </button>
+                                                                                            <button
+                                                                                                onClick={() => handleSaveEdit(item)}
+                                                                                                disabled={savingEdit}
+                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-cyan/20 hover:bg-cyan/30 text-cyan rounded-lg transition-colors disabled:opacity-50"
+                                                                                            >
+                                                                                                {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                                                                                Save
+                                                                                            </button>
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <button
+                                                                                            onClick={() => handleStartEdit(item)}
+                                                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg transition-colors"
+                                                                                        >
+                                                                                            <Edit3 className="w-3.5 h-3.5" />
+                                                                                            Edit JSON
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                {/* Content display or editor */}
+                                                                                {isEditing ? (
+                                                                                    <textarea
+                                                                                        value={editValue}
+                                                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                                                        className="w-full h-96 p-4 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-sm text-gray-300 font-mono resize-y focus:outline-none focus:border-cyan transition-colors"
+                                                                                        spellCheck={false}
+                                                                                    />
+                                                                                ) : (
+                                                                                    <div className="max-h-96 overflow-y-auto pr-2 custom-scrollbar">
+                                                                                        {item.content ? (
+                                                                                            renderContentValue(item.content)
+                                                                                        ) : (
+                                                                                            <p className="text-gray-500 italic">No content data</p>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </motion.div>
+                                                                    )}
+                                                                </AnimatePresence>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                                <p className="text-xs text-gray-500">
-                                                    Created: {new Date(item.created_at).toLocaleString()}
-                                                </p>
-                                            </div>
-                                        ))}
+                                            ));
+                                        })()}
                                     </div>
                                 ) : (
                                     <div className="text-center py-12">

@@ -29,6 +29,7 @@ export async function GET(req) {
         const { searchParams } = new URL(req.url);
         const userId = searchParams.get('userId'); // Filter by user
         const status = searchParams.get('status'); // Filter by vault_generation_status
+        const search = searchParams.get('search') || '';
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '20');
 
@@ -36,6 +37,7 @@ export async function GET(req) {
             adminUserId,
             userId,
             status,
+            search,
             page,
             limit
         });
@@ -63,6 +65,25 @@ export async function GET(req) {
             query = query.eq('vault_generation_status', status);
         }
 
+        // Server-side search by funnel name or user name/email
+        if (search) {
+            // First, find user IDs matching the search term
+            const { data: matchingUsers } = await supabase
+                .from('user_profiles')
+                .select('id')
+                .or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+
+            const matchingUserIds = (matchingUsers || []).map(u => u.id);
+
+            if (matchingUserIds.length > 0) {
+                // Search funnel name OR user is in matching set
+                query = query.or(`funnel_name.ilike.%${search}%,user_id.in.(${matchingUserIds.join(',')})`);
+            } else {
+                // No matching users, just search funnel name
+                query = query.ilike('funnel_name', `%${search}%`);
+            }
+        }
+
         query = query
             .range(offset, offset + limit - 1)
             .order('created_at', { ascending: false });
@@ -79,13 +100,35 @@ export async function GET(req) {
             (funnels || []).map(async (funnel) => {
                 const { data: vaultContent } = await supabase
                     .from('vault_content')
-                    .select('id, phase_name, status, created_at')
-                    .eq('funnel_id', funnel.id);
+                    .select('id, section_id, section_title, content, phase, status, version, is_locked, created_at, updated_at')
+                    .eq('funnel_id', funnel.id)
+                    .eq('is_current_version', true)
+                    .order('phase', { ascending: true })
+                    .order('numeric_key', { ascending: true });
+
+                // Calculate approved count from vault items
+                const approvedCount = (vaultContent || []).filter(v => v.status === 'approved').length;
+                const isDeployed = !!funnel.deployed_at;
+                const vaultGenerated = !!funnel.vault_generated;
+
+                // Progress calculation (matches dashboard logic)
+                let progressPercent;
+                if (isDeployed) {
+                    progressPercent = 100;
+                } else if (vaultGenerated) {
+                    progressPercent = Math.min(100, Math.round((approvedCount / 16) * 100));
+                } else {
+                    const completedSteps = funnel.completed_steps_count || 0;
+                    progressPercent = Math.min(100, Math.round((completedSteps / 20) * 100));
+                }
 
                 return {
                     ...funnel,
                     vault_items_count: vaultContent?.length || 0,
-                    vault_items: vaultContent || []
+                    vault_items: vaultContent || [],
+                    approved_count: approvedCount,
+                    progress_percent: progressPercent,
+                    is_deployed: isDeployed
                 };
             })
         );
@@ -290,6 +333,41 @@ export async function PUT(req) {
             });
 
             return NextResponse.json({ success: true, funnel: data });
+        }
+
+        // Action: Update vault content (admin edit)
+        if (action === 'update_vault_content') {
+            const { vaultItemId, content, status: vaultStatus } = body;
+
+            if (!vaultItemId) {
+                return NextResponse.json({ error: 'Vault item ID required' }, { status: 400 });
+            }
+
+            const updates = { updated_at: new Date().toISOString() };
+            if (content !== undefined) updates.content = content;
+            if (vaultStatus !== undefined) updates.status = vaultStatus;
+
+            const { data, error } = await supabase
+                .from('vault_content')
+                .update(updates)
+                .eq('id', vaultItemId)
+                .select()
+                .single();
+
+            if (error) {
+                adminLogger.error(LOG_CATEGORIES.DATABASE, 'Failed to update vault content', {
+                    error: error.message,
+                    vaultItemId
+                });
+                throw error;
+            }
+
+            adminLogger.logFunnelOperation('update_vault_content', funnelId, funnel.user_id, {
+                vaultItemId,
+                updatedFields: Object.keys(updates)
+            });
+
+            return NextResponse.json({ success: true, vaultItem: data });
         }
 
         adminLogger.warn(LOG_CATEGORIES.FUNNEL_MANAGEMENT, 'Invalid action in PUT request', {

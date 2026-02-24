@@ -1654,6 +1654,9 @@ export default function VaultPage() {
                 setDataSource(prev => prev ? { ...prev, deployed_at: new Date().toISOString() } : prev); // Persist deployed state in memory so button stays greyed out after modal closes
                 setShowDeployModal(true); // Show success modal with dual actions
                 toast.success('Funnel deployed successfully!');
+                if (accountResult.emailSent) {
+                    toast.info('A login setup email has been sent to your inbox.');
+                }
             } else {
                 console.error('[Vault] Deployment error:', result);
                 toast.error(result.error || 'Failed to deploy assets');

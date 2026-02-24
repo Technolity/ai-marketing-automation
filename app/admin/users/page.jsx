@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -50,13 +50,12 @@ function Toast({ message, type = 'success', onClose }) {
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border backdrop-blur-xl ${
-                type === 'success'
-                    ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
-                    : type === 'error'
+            className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border backdrop-blur-xl ${type === 'success'
+                ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
+                : type === 'error'
                     ? 'bg-red-500/20 border-red-500/30 text-red-400'
                     : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
-            }`}
+                }`}
         >
             {type === 'success' && <CheckCircle className="w-5 h-5" />}
             {type === 'error' && <XCircle className="w-5 h-5" />}
@@ -74,11 +73,23 @@ export default function AdminUsers() {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [globalFilter, setGlobalFilter] = useState("");
+    const [searchInput, setSearchInput] = useState("");
     const [sorting, setSorting] = useState([]);
     const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 0 });
     const [tierStats, setTierStats] = useState({ starter: 0, growth: 0, scale: 0 });
     const [savingFields, setSavingFields] = useState({});
     const [toast, setToast] = useState(null);
+    const debounceRef = useRef(null);
+
+    // Debounced search handler
+    const handleSearchChange = useCallback((value) => {
+        setSearchInput(value);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setGlobalFilter(value);
+            setPagination(prev => ({ ...prev, page: 1 }));
+        }, 400);
+    }, []);
 
     const fetchUsers = useCallback(async () => {
         if (!session) return;
@@ -291,6 +302,7 @@ export default function AdminUsers() {
                         <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
+                            onClick={() => router.push(`/admin/users/${row.original.id}`)}
                             className="p-2.5 hover:bg-cyan/20 rounded-xl transition-all group border border-transparent hover:border-cyan/30"
                             title="View details"
                         >
@@ -300,7 +312,7 @@ export default function AdminUsers() {
                 ),
             },
         ],
-        [handleFieldUpdate, handleViewFunnels]
+        [handleFieldUpdate, handleViewFunnels, router]
     );
 
     const table = useReactTable({
@@ -423,8 +435,8 @@ export default function AdminUsers() {
                     <input
                         type="text"
                         placeholder="Search users by name or email..."
-                        value={globalFilter ?? ""}
-                        onChange={(e) => setGlobalFilter(e.target.value)}
+                        value={searchInput}
+                        onChange={(e) => handleSearchChange(e.target.value)}
                         className="w-full pl-12 pr-4 py-3 bg-[#0e0e0f] border border-cyan/30 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan focus:ring-2 focus:ring-cyan/20 transition-all"
                     />
                 </motion.div>
@@ -445,8 +457,8 @@ export default function AdminUsers() {
                     ) : (
                         <>
                             <div className="overflow-x-auto">
-                                <div className="max-h-[calc(100vh-450px)] overflow-y-auto custom-scrollbar">
-                                    <table className="w-full">
+                                <div>
+                                    <table className="w-full min-w-[800px]">
                                         <thead className="bg-gradient-to-r from-[#0e0e0f] to-[#1a1a1c] sticky top-0 z-10 border-b border-cyan/20">
                                             {table.getHeaderGroups().map((headerGroup) => (
                                                 <tr key={headerGroup.id}>
