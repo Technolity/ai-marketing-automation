@@ -1301,6 +1301,21 @@ export default function VaultPage() {
     };
 
     const handleApprove = async (sectionId, phaseNumber) => {
+        // FLUSH all pending inline edits for this section and AWAIT completion
+        const registry = window.__vaultFlushRegistry || {};
+        const flushPromises = Object.entries(registry)
+            .filter(([key]) => key.startsWith(`${sectionId}-`))
+            .map(([key, flush]) => {
+                console.log(`[Vault] Flushing pending edit: ${key}`);
+                return flush();
+            });
+
+        if (flushPromises.length > 0) {
+            console.log(`[Vault] Awaiting ${flushPromises.length} field flush(es) before approve...`);
+            await Promise.allSettled(flushPromises);
+            console.log('[Vault] All field flushes settled, proceeding with approve');
+        }
+
         if (sectionId === 'media') {
             try {
                 const funnelId = searchParams.get('funnel_id');
@@ -1324,6 +1339,8 @@ export default function VaultPage() {
                 : PHASE_3_SECTIONS;
         const currentIndex = phaseSections.findIndex(s => s.id === sectionId);
 
+        const willPush = (deploymentComplete || dataSource?.deployed_at) && ['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'].includes(sectionId);
+
         if (phaseNumber === 1) {
             if (approvedPhase1.includes(sectionId)) {
                 console.log('[Vault] Section already approved:', sectionId);
@@ -1337,7 +1354,7 @@ export default function VaultPage() {
             if (newApprovals.length >= PHASE_1_SECTIONS.length) {
                 toast.success("🎉 Phase 1 Complete! Choose your funnel to unlock Phase 2.");
             } else {
-                toast.success("Section approved!");
+                toast.success(willPush ? "Approved! Pushing to Builder..." : "Section approved!");
             }
         } else if (phaseNumber === 2) {
             if (approvedPhase2.includes(sectionId)) {
@@ -1352,7 +1369,7 @@ export default function VaultPage() {
             if (newApprovals.length >= PHASE_2_SECTIONS.length) {
                 toast.success("🎉 Phase 2 Complete! Deploy your funnel or continue to Phase 3.");
             } else {
-                toast.success("Section approved!");
+                toast.success(willPush ? "Approved! Pushing to Builder..." : "Section approved!");
             }
         } else {
             // Phase 3
@@ -1368,7 +1385,7 @@ export default function VaultPage() {
             if (newApprovals.length >= PHASE_3_SECTIONS.length) {
                 toast.success("🎉 All Phases Complete! Ready to Deploy.");
             } else {
-                toast.success("Section approved!");
+                toast.success(willPush ? "Approved! Pushing to Builder..." : "Section approved!");
             }
         }
 
@@ -1376,7 +1393,7 @@ export default function VaultPage() {
 
         // Auto-push to GHL if funnel is already deployed and section is pushable
         const pushableSections = ['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'];
-        if (dataSource?.deployed_at && pushableSections.includes(sectionId)) {
+        if ((deploymentComplete || dataSource?.deployed_at) && pushableSections.includes(sectionId)) {
             const endpointMap = {
                 funnelCopy: 'push-funnel-copy',
                 emails: 'push-emails',
@@ -1385,7 +1402,9 @@ export default function VaultPage() {
                 appointmentReminders: 'push-appointmentReminders',
                 colors: 'push-colors',
             };
+            const sectionLabel = sectionId === 'funnelCopy' ? 'Funnel Copy' : sectionId === 'appointmentReminders' ? 'Appointment Reminders' : sectionId.charAt(0).toUpperCase() + sectionId.slice(1);
             const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+            const pushToastId = toast.loading(`Pushing ${sectionLabel} to Builder...`);
             try {
                 const pushRes = await fetchWithAuth(`/api/ghl/${endpointMap[sectionId]}`, {
                     method: 'POST',
@@ -1394,17 +1413,16 @@ export default function VaultPage() {
                 });
                 const pushResult = await pushRes.json();
                 if (pushRes.ok && pushResult.success) {
-                    const sectionLabel = sectionId === 'funnelCopy' ? 'Funnel Copy' : sectionId === 'appointmentReminders' ? 'Appointment Reminders' : sectionId.charAt(0).toUpperCase() + sectionId.slice(1);
                     const updated = pushResult.updated || pushResult.pushed || 0;
                     const unchanged = pushResult.unchanged || 0;
                     const detail = unchanged > 0 ? ` (${updated} updated, ${unchanged} unchanged)` : '';
-                    toast.success(`${sectionLabel} pushed to Builder!${detail}`);
+                    toast.success(`${sectionLabel} pushed to Builder!${detail}`, { id: pushToastId });
                 } else {
-                    toast.error(`Approved, but failed to push to Builder: ${pushResult.error || 'Unknown error'}`);
+                    toast.error(`Failed to push ${sectionLabel} to Builder: ${pushResult.error || 'Unknown error'}`, { id: pushToastId });
                 }
             } catch (pushError) {
                 console.error('[Vault] Auto-push to GHL failed:', pushError);
-                toast.error('Approved, but failed to push to Builder.');
+                toast.error(`Failed to push ${sectionLabel} to Builder.`, { id: pushToastId });
             }
         }
     };
@@ -3156,12 +3174,20 @@ export default function VaultPage() {
                                             </div>
                                         </div>
                                     ) : (
-                                        <button
-                                            onClick={() => handleApprove(section.id, phase)}
-                                            className="px-2 py-1.5 sm:px-4 sm:py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
-                                        >
-                                            <CheckCircle className="w-4 h-4" /> <span className="hidden sm:inline">Approve</span>
-                                        </button>
+                                        (() => {
+                                            const isPushable = ['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'].includes(section.id);
+                                            const isDeployed = !!(deploymentComplete || dataSource?.deployed_at);
+                                            const showPush = isPushable && isDeployed;
+                                            return (
+                                                <button
+                                                    onClick={() => handleApprove(section.id, phase)}
+                                                    className="px-2 py-1.5 sm:px-4 sm:py-2 bg-cyan text-black hover:bg-cyan/90 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
+                                                >
+                                                    <CheckCircle className="w-4 h-4" />
+                                                    <span className="hidden sm:inline">{showPush ? 'Approve & Push' : 'Approve'}</span>
+                                                </button>
+                                            );
+                                        })()
                                     )}
                                 </div>
                             )}
