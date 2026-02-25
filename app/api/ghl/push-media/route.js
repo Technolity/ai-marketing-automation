@@ -10,7 +10,7 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { MEDIA_MAP } from '@/lib/ghl/customValuesMap';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
-import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { toEmbedUrl } from '@/lib/utils/videoUrl';
 
@@ -140,6 +140,7 @@ export async function POST(req) {
         // Build custom values using MEDIA_MAP (flat structure)
         const customValues = [];
         const notFoundKeys = [];
+        let unchangedCount = 0;
 
         console.log('[PushMedia] Mapping media fields to GHL custom values...');
         for (const [vaultFieldId, ghlKey] of Object.entries(MEDIA_MAP)) {
@@ -152,6 +153,14 @@ export async function POST(req) {
                 if (match) {
                     // Convert YouTube watch URLs to embed format for video fields
                     const pushValue = VIDEO_FIELDS.has(vaultFieldId) ? toEmbedUrl(mediaUrl) : mediaUrl;
+
+                    // Skip if value is unchanged
+                    if (match.value !== undefined && normalizeForComparison(pushValue) === normalizeForComparison(match.value)) {
+                        unchangedCount++;
+                        console.log(`[PushMedia] = UNCHANGED: ${vaultFieldId} → ${ghlKey} (skipping)`);
+                        continue;
+                    }
+
                     customValues.push({
                         vaultField: vaultFieldId,
                         key: ghlKey,
@@ -180,7 +189,7 @@ export async function POST(req) {
         console.log('[PushMedia] Pushing', customValues.length, 'media values to GHL...');
 
         // Push to GHL (ONLY UPDATE, never create)
-        const results = { success: true, updated: 0, skipped: 0, failed: 0, errors: [], notFoundKeys };
+        const results = { success: true, updated: 0, unchanged: unchangedCount, skipped: 0, failed: 0, errors: [], notFoundKeys };
 
         for (const { vaultField, key, value, existingId, ghlName } of customValues) {
             try {
@@ -219,6 +228,7 @@ export async function POST(req) {
 
         console.log('[PushMedia] ========== COMPLETE ==========');
         console.log('[PushMedia] Updated:', results.updated);
+        console.log('[PushMedia] Unchanged (skipped):', results.unchanged);
         console.log('[PushMedia] Skipped (not found in GHL):', results.skipped);
         console.log('[PushMedia] Failed:', results.failed);
 

@@ -11,7 +11,7 @@ import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
-import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
@@ -234,7 +234,7 @@ export async function POST(req) {
 
         // Process in concurrent batches (polish + push together)
         const BATCH_SIZE = 5;
-        const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [], validated: itemsToPush.length };
+        const results = { success: true, pushed: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0, errors: [], validated: itemsToPush.length };
 
         const totalBatches = Math.ceil(itemsToPush.length / BATCH_SIZE);
 
@@ -260,6 +260,16 @@ export async function POST(req) {
 
                         // Polish content (AI call)
                         const polished = await polishTextContent(item.raw, item.polishType);
+
+                        // Skip if polished value matches what's already in GHL
+                        if (item.match?.value !== undefined &&
+                            normalizeForComparison(polished) === normalizeForComparison(item.match.value)) {
+                            return {
+                                status: 'unchanged',
+                                key: item.ghlKey,
+                                vaultKey: item.vaultKey
+                            };
+                        }
 
                         // Push to GHL with retry (API call)
                         const response = await pushWithRetry(
@@ -305,6 +315,9 @@ export async function POST(req) {
                         results.pushed++;
                         results.updated++;
                         console.log(`[PushEmails] ✓ UPDATED: ${value.vaultKey} → ${value.key}`);
+                    } else if (value.status === 'unchanged') {
+                        results.unchanged++;
+                        console.log(`[PushEmails] = UNCHANGED: ${value.vaultKey} → ${value.key} (skipped)`);
                     } else if (value.status === 'skipped') {
                         results.skipped++;
                         console.log(`[PushEmails] ⊘ SKIPPED: ${value.vaultKey} → ${value.key} (${value.reason})`);
@@ -331,7 +344,7 @@ export async function POST(req) {
             }
         }
 
-        console.log(`[PushEmails] Complete: ${results.pushed} pushed, ${results.skipped} skipped, ${results.failed} failed`);
+        console.log(`[PushEmails] Complete: ${results.pushed} pushed, ${results.unchanged} unchanged, ${results.skipped} skipped, ${results.failed} failed`);
 
         results.success = results.failed === 0;
 

@@ -13,7 +13,7 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
-import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export const dynamic = 'force-dynamic';
@@ -129,6 +129,7 @@ export async function POST(req) {
 
         const customValues = [];
         const notFoundKeys = [];
+        let unchangedCount = 0;
 
         console.log('[PushColors] ========== MAPPING COLORS ==========');
         for (const [ghlKey, hexValue] of Object.entries(colorMappings)) {
@@ -138,9 +139,17 @@ export async function POST(req) {
             const matchResult = findExistingId(existingMap, ghlKey);
 
             if (matchResult) {
-                // matchResult may be just the ID string or an object { id, name }
+                // matchResult may be just the ID string or an object { id, name, value }
                 const existingId = typeof matchResult === 'string' ? matchResult : matchResult.id;
                 const existingName = typeof matchResult === 'object' ? matchResult.name : null;
+                const existingValue = typeof matchResult === 'object' ? matchResult.value : undefined;
+
+                // Skip if value is unchanged
+                if (existingValue !== undefined && normalizeForComparison(hexValue) === normalizeForComparison(existingValue)) {
+                    unchangedCount++;
+                    console.log(`[PushColors] = UNCHANGED: ${ghlKey} = ${hexValue} (skipping)`);
+                    continue;
+                }
 
                 customValues.push({
                     key: ghlKey,
@@ -168,7 +177,7 @@ export async function POST(req) {
         console.log('[PushColors] Pushing', customValues.length, 'color values to GHL...');
 
         // Push to GHL (ONLY UPDATE, never create)
-        const results = { success: true, updated: 0, skipped: 0, failed: 0, errors: [], notFoundKeys };
+        const results = { success: true, updated: 0, unchanged: unchangedCount, skipped: 0, failed: 0, errors: [], notFoundKeys };
 
         for (const { key, value, existingId, ghlName } of customValues) {
             try {
@@ -207,6 +216,7 @@ export async function POST(req) {
 
         console.log('[PushColors] ========== COMPLETE ==========');
         console.log('[PushColors] Updated:', results.updated);
+        console.log('[PushColors] Unchanged (skipped):', results.unchanged);
         console.log('[PushColors] Skipped (not found in GHL):', results.skipped);
         console.log('[PushColors] Failed:', results.failed);
 
