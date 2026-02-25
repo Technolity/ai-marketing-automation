@@ -48,7 +48,7 @@ export async function GET(request) {
         }
 
         // Construct the builder URL
-        const builderUrl = `https://app.tedos.ai/location/${subaccount.location_id}/dashboard`;
+        const builderUrl = `https://app.tedos.ai/v2/location/${subaccount.location_id}/funnels-websites/funnels`;
 
         return NextResponse.json({
             available: true,

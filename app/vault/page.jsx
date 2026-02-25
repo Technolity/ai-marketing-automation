@@ -67,7 +67,6 @@ import AppointmentRemindersFields from "@/components/vault/AppointmentRemindersF
 import MediaFields from "@/components/vault/MediaFields";
 import ColorsFields from "@/components/vault/ColorsFields";
 import ApprovalWatcher from "@/components/vault/ApprovalWatcher";
-import PushToGHLButton from "@/components/vault/PushToGHLButton";
 
 // UX Enhancement Components
 import PhaseWarningBanner from "@/components/vault/PhaseWarningBanner";
@@ -764,6 +763,22 @@ export default function VaultPage() {
                     setInitialLoadComplete(true);
                     console.log('[Vault] Successfully loaded funnel:', result.source?.id, result.source?.name);
 
+                    // If funnel is deployed, fetch builder location_id from ghl_subaccounts
+                    if (result.source?.deployed_at) {
+                        try {
+                            const builderRes = await fetchWithAuth('/api/builder/location');
+                            if (builderRes.ok) {
+                                const builderData = await builderRes.json();
+                                if (builderData.available && builderData.locationId) {
+                                    setGhlLocationId(builderData.locationId);
+                                    console.log('[Vault] Builder location loaded:', builderData.locationId);
+                                }
+                            }
+                        } catch (err) {
+                            console.error('[Vault] Builder location fetch error:', err);
+                        }
+                    }
+
                     // Load approvals - prioritize URL param which we confirmed exists
                     const activeSessionId = funnelId || result.source?.id;
                     if (activeSessionId) {
@@ -1358,6 +1373,40 @@ export default function VaultPage() {
         }
 
         // NOTE: Section expansion is manual only (no auto-open/close on approve)
+
+        // Auto-push to GHL if funnel is already deployed and section is pushable
+        const pushableSections = ['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'];
+        if (dataSource?.deployed_at && pushableSections.includes(sectionId)) {
+            const endpointMap = {
+                funnelCopy: 'push-funnel-copy',
+                emails: 'push-emails',
+                sms: 'push-sms',
+                media: 'push-media',
+                appointmentReminders: 'push-appointmentReminders',
+                colors: 'push-colors',
+            };
+            const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+            try {
+                const pushRes = await fetchWithAuth(`/api/ghl/${endpointMap[sectionId]}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ funnelId }),
+                });
+                const pushResult = await pushRes.json();
+                if (pushRes.ok && pushResult.success) {
+                    const sectionLabel = sectionId === 'funnelCopy' ? 'Funnel Copy' : sectionId === 'appointmentReminders' ? 'Appointment Reminders' : sectionId.charAt(0).toUpperCase() + sectionId.slice(1);
+                    const updated = pushResult.updated || pushResult.pushed || 0;
+                    const unchanged = pushResult.unchanged || 0;
+                    const detail = unchanged > 0 ? ` (${updated} updated, ${unchanged} unchanged)` : '';
+                    toast.success(`${sectionLabel} pushed to Builder!${detail}`);
+                } else {
+                    toast.error(`Approved, but failed to push to Builder: ${pushResult.error || 'Unknown error'}`);
+                }
+            } catch (pushError) {
+                console.error('[Vault] Auto-push to GHL failed:', pushError);
+                toast.error('Approved, but failed to push to Builder.');
+            }
+        }
     };
 
     // Handle unapprove when fields are edited
@@ -2936,7 +2985,7 @@ export default function VaultPage() {
                                             Your content is now live in Builder. Check your email for login instructions.
                                         </p>
                                         <a
-                                            href="https://app.tedos.ai"
+                                            href={ghlLocationId ? `https://app.tedos.ai/v2/location/${ghlLocationId}/funnels-websites/funnels` : 'https://app.tedos.ai'}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center px-8 py-3 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold transition-all text-white shadow-lg shadow-cyan/30 hover:scale-105"
@@ -3102,14 +3151,6 @@ export default function VaultPage() {
                                             >
                                                 <Edit3 className="w-4 h-4" /> <span className="hidden sm:inline">Edit</span>
                                             </button>
-                                            {/* Push to GHL button for applicable sections */}
-                                            {['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'].includes(section.id) && (
-                                                <PushToGHLButton
-                                                    section={section.id}
-                                                    funnelId={searchParams.get('funnel_id') || dataSource?.id}
-                                                    isApproved={true}
-                                                />
-                                            )}
                                             <div className="px-2 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 font-medium flex items-center gap-2 text-xs sm:text-sm">
                                                 <CheckCircle className="w-4 h-4" /> <span className="hidden sm:inline">Approved</span>
                                             </div>
@@ -3501,7 +3542,7 @@ export default function VaultPage() {
                                                                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                                             </button>
                                                             <a
-                                                                href="https://app.tedos.ai"
+                                                                href={ghlLocationId ? `https://app.tedos.ai/v2/location/${ghlLocationId}/funnels-websites/funnels` : 'https://app.tedos.ai'}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 border border-[#2a2a2d] transition-all"
@@ -3674,7 +3715,7 @@ export default function VaultPage() {
                     isProcessing={isDeploying}
                     processingText="Deploying..."
                     primaryAction={deploymentComplete
-                        ? () => window.open('https://app.tedos.ai', '_blank')
+                        ? () => window.open(ghlLocationId ? `https://app.tedos.ai/v2/location/${ghlLocationId}/funnels-websites/funnels` : 'https://app.tedos.ai', '_blank')
                         : handleDeployToGHL
                     }
                     primaryActionText={deploymentComplete ? "Go to Builder" : "Start Deployment"}

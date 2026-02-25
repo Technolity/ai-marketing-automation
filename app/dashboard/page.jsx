@@ -67,6 +67,7 @@ export default function Dashboard() {
     const [isCreating, setIsCreating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(null);
     const [hasDeployedFunnel, setHasDeployedFunnel] = useState(false);
+    const [builderLocationId, setBuilderLocationId] = useState('');
     const tabRefs = useRef({});
 
 
@@ -97,6 +98,21 @@ export default function Dashboard() {
                 // Check if any funnel has been deployed
                 const deployed = userFunnels.some(f => f.deployed_at);
                 setHasDeployedFunnel(deployed);
+
+                // Fetch builder location_id if there's a deployed funnel
+                if (deployed) {
+                    try {
+                        const builderRes = await fetchWithAuth('/api/builder/location');
+                        if (builderRes.ok) {
+                            const builderData = await builderRes.json();
+                            if (builderData.available && builderData.locationId) {
+                                setBuilderLocationId(builderData.locationId);
+                            }
+                        }
+                    } catch (err) {
+                        console.error('[Dashboard] Builder location fetch error:', err);
+                    }
+                }
             }
         } catch (error) {
             console.error('[Dashboard] Load error:', error);
@@ -441,7 +457,7 @@ export default function Dashboard() {
 
                                                     {status === 'deployed' ? (
                                                         <a
-                                                            href="https://app.tedos.ai"
+                                                            href={builderLocationId ? `https://app.tedos.ai/v2/location/${builderLocationId}/funnels-websites/funnels` : 'https://app.tedos.ai'}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-black rounded-xl text-sm font-black hover:brightness-110 hover:shadow-[0_0_15px_rgba(34,197,94,0.4)] transition-all flex items-center gap-2 shadow-md"
