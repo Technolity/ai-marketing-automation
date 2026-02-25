@@ -9,7 +9,7 @@ import { auth } from '@clerk/nextjs';
 import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
-import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { replaceCustomValues } from '@/lib/ghl/contentPolisher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 
@@ -254,7 +254,7 @@ export async function POST(req) {
 
     // Process in concurrent batches (no polishing needed for appointment reminders, just push)
     const BATCH_SIZE = 5;
-    const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [], validated: itemsToPush.length };
+    const results = { success: true, pushed: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0, errors: [], validated: itemsToPush.length };
 
     const totalBatches = Math.ceil(itemsToPush.length / BATCH_SIZE);
 
@@ -278,8 +278,20 @@ export async function POST(req) {
                         };
                     }
 
-                    // Push to GHL with retry (API call) - apply GHL custom value replacements
+                    // Apply GHL custom value replacements
                     const processedContent = replaceCustomValues(item.raw, 'appointment');
+
+                    // Skip if processed value matches what's already in GHL
+                    if (item.match?.value !== undefined &&
+                        normalizeForComparison(processedContent) === normalizeForComparison(item.match.value)) {
+                        return {
+                            status: 'unchanged',
+                            key: item.ghlKey,
+                            identifier: item.emailIndex || item.vaultKey
+                        };
+                    }
+
+                    // Push to GHL with retry (API call)
                     const response = await pushWithRetry(
                         `https://services.leadconnectorhq.com/locations/${subaccount.location_id}/customValues/${item.match.id}`,
                         {
@@ -323,6 +335,9 @@ export async function POST(req) {
                     results.pushed++;
                     results.updated++;
                     console.log(`[PushAppointmentReminders] ✓ UPDATED: ${value.identifier} → ${value.key}`);
+                } else if (value.status === 'unchanged') {
+                    results.unchanged++;
+                    console.log(`[PushAppointmentReminders] = UNCHANGED: ${value.identifier} → ${value.key} (skipped)`);
                 } else if (value.status === 'skipped') {
                     results.skipped++;
                     console.log(`[PushAppointmentReminders] ⊘ SKIPPED: ${value.identifier} → ${value.key} (${value.reason})`);
@@ -349,7 +364,7 @@ export async function POST(req) {
         }
     }
 
-    console.log(`[PushAppointmentReminders] Complete: ${results.pushed} pushed, ${results.skipped} skipped, ${results.failed} failed`);
+    console.log(`[PushAppointmentReminders] Complete: ${results.pushed} pushed, ${results.unchanged} unchanged, ${results.skipped} skipped, ${results.failed} failed`);
 
     results.success = results.failed === 0;
 

@@ -4,6 +4,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { mapToVSLFunnel, validateVSLMapping } from '@/lib/ghl/vslFunnelMapper';
 import { generateFunnelImages } from '@/lib/ghl/funnelImageGenerator';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 
 export const dynamic = 'force-dynamic';
 
@@ -276,6 +277,7 @@ export async function POST(req) {
         const results = {
             created: [],
             updated: [],
+            unchanged: [],
             failed: []
         };
 
@@ -304,6 +306,12 @@ export async function POST(req) {
                 : `https://services.leadconnectorhq.com/locations/${locationId}/customValues`;
 
             if (existingId) {
+                // Skip if value is unchanged
+                if (existing?.value !== undefined && normalizeForComparison(String(value)) === normalizeForComparison(existing.value)) {
+                    results.unchanged.push({ key });
+                    console.log(`[PushVSL] = UNCHANGED: ${key} (skipping)`);
+                    continue;
+                }
                 console.log(`[PushVSL] ✅ UPDATE: ${key} (ID: ${existingId})`);
             } else {
                 console.log(`[PushVSL] ❌ CREATE (not found): ${key}`);
@@ -345,6 +353,7 @@ export async function POST(req) {
         console.log('[PushVSL] Push complete:', {
             created: results.created.length,
             updated: results.updated.length,
+            unchanged: results.unchanged.length,
             failed: results.failed.length
         });
 
@@ -374,6 +383,7 @@ export async function POST(req) {
                 total: Object.keys(customValues).length,
                 created: results.created.length,
                 updated: results.updated.length,
+                unchanged: results.unchanged.length,
                 failed: results.failed.length,
                 images: images.length
             },

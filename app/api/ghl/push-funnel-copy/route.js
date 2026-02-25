@@ -11,7 +11,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { FUNNEL_COPY_MAP, UNIVERSAL_MAP } from '@/lib/ghl/customValuesMap';
 import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
-import { buildExistingMap, findExistingId, fetchExistingCustomValues } from '@/lib/ghl/ghlKeyMatcher';
+import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 
@@ -153,7 +153,8 @@ export async function POST(req) {
                 key: companyNameKey,
                 value: companyName,
                 existingId: match?.id || null,
-                ghlName: match?.name || companyNameKey
+                ghlName: match?.name || companyNameKey,
+                existingGhlValue: match?.value ?? null
             });
             console.log(`[PushFunnelCopy]   ✓ company_name → ${companyNameKey} = ${companyName}`);
         }
@@ -166,7 +167,8 @@ export async function POST(req) {
                 key: companyEmailKey,
                 value: companyEmail,
                 existingId: match?.id || null,
-                ghlName: match?.name || companyEmailKey
+                ghlName: match?.name || companyEmailKey,
+                existingGhlValue: match?.value ?? null
             });
             console.log(`[PushFunnelCopy]   ✓ company_email → ${companyEmailKey} = ${companyEmail}`);
         }
@@ -214,7 +216,8 @@ export async function POST(req) {
                         key: ghlKey,
                         value: polishedValue,
                         existingId: match?.id || null,
-                        ghlName: match?.name || ghlKey  // Use actual GHL name for API body
+                        ghlName: match?.name || ghlKey,  // Use actual GHL name for API body
+                        existingGhlValue: match?.value ?? null
                     });
 
                     pageMapped++;
@@ -280,14 +283,22 @@ export async function POST(req) {
  * ONLY updates existing values (never creates new ones)
  */
 async function pushToGHL(locationId, accessToken, customValues) {
-    const results = { success: true, pushed: 0, updated: 0, skipped: 0, failed: 0, errors: [] };
+    const results = { success: true, pushed: 0, updated: 0, unchanged: 0, skipped: 0, failed: 0, errors: [] };
 
-    for (const { key, value, existingId, ghlName } of customValues) {
+    for (const { key, value, existingId, ghlName, existingGhlValue } of customValues) {
         try {
             // ONLY UPDATE existing values (never create)
             if (!existingId) {
                 results.skipped++;
                 console.log(`[PushFunnelCopy] SKIPPED: ${key} (not found in GHL)`);
+                continue;
+            }
+
+            // Skip if value is unchanged
+            if (existingGhlValue !== null &&
+                normalizeForComparison(value) === normalizeForComparison(existingGhlValue)) {
+                results.unchanged++;
+                console.log(`[PushFunnelCopy] = UNCHANGED: ${key} (skipped)`);
                 continue;
             }
 
