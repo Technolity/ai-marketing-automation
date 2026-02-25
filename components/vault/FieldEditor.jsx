@@ -285,6 +285,34 @@ function FieldEditor({
     }, [funnelId, sectionId, field_id, field_type, onSave, fieldDef]);
     // ↑ FIX: `value` removed from deps — passed as argument instead
 
+    // Register a flush function so the Approve button can await pending saves
+    useEffect(() => {
+        const key = `${sectionId}-${field_id}`;
+        if (!window.__vaultFlushRegistry) window.__vaultFlushRegistry = {};
+
+        window.__vaultFlushRegistry[key] = () => {
+            // Cancel any pending idle timer
+            if (idleTimerRef.current) {
+                clearTimeout(idleTimerRef.current);
+                idleTimerRef.current = null;
+            }
+
+            // Only save if value actually changed
+            const currentValue = JSON.stringify(latestValueRef.current);
+            const startValue = JSON.stringify(parseValue(initialValue, field_type));
+
+            if (currentValue !== startValue) {
+                console.log(`[FieldEditor] Flush-saving ${field_id} for section ${sectionId}`);
+                return handleSave(latestValueRef.current); // returns Promise
+            }
+            return Promise.resolve();
+        };
+
+        return () => {
+            delete window.__vaultFlushRegistry?.[key];
+        };
+    }, [sectionId, field_id, initialValue, field_type, handleSave]);
+
     // Cleanup timers and abort on unmount
     useEffect(() => {
         return () => {

@@ -418,7 +418,7 @@ export default function FunnelCopyFields({ funnelId, onUnapprove, isApproved, re
 
     const tabs = [
         { id: 'optin', label: 'Optin Page', icon: FileText },
-        { id: 'sales', label: 'VSL / Sales Page', icon: FileText },
+        { id: 'sales', label: 'Appointment Booking Page', icon: FileText },
         { id: 'calendar', label: 'Calendar Page', icon: FileText },
         { id: 'thankyou', label: 'Thank You Page', icon: FileText }
     ];
