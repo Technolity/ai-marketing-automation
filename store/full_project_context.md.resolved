@@ -34,6 +34,16 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-02-27)
+| File | Change |
+| :--- | :--- |
+| `app/api/os/generate/route.js`, etc. | **Bug Fix**: Fixed Bio section Name Fallback by correcting `user_id` to `id` in profile queries and injecting `fullName` in stream data. |
+| `components/vault/ActionModal.jsx` | **Bug Fix**: Prevented "Phase Jumping" (auto-advancing from Phase 1 to Phase 3) when editing content. |
+| `components/vault/AppointmentBookingFields.jsx` | **Consistency**: UI aligned with Calendar page copy (DB/Schema matches, pending GHL push sync). |
+| `lib/prompts/funnelCopyMerger.js` | **Warning Fix**: Corrected salesPage expected field count from 69 to 68 to eliminate false-positive merge warnings. |
+| `lib/schemas/vaultSchemas.js` | **Warning Fix**: Increased `colorPalette.reasoning` character limit from 500 to 1500 to prevent AI validation failures. |
+| `app/api/os/vault-field/route.js` | **Warning Fix**: Rewrote concurrent save logic to INSERT-first strategy, eliminating "No current version found" micro-gaps. |
+
 ### Recent Modifications (2026-02-23)
 | File | Change |
 | :--- | :--- |
