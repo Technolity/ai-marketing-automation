@@ -573,7 +573,7 @@ INSTRUCTIONS:
         }
     });
 
-    
+
     // If any chunks failed, retry only those with strict mode once
     if (failedChunkIndices.length > 0) {
         console.warn('[ParallelRefinement] Retrying failed chunks only (strict mode)...', failedChunkIndices);
@@ -608,7 +608,7 @@ INSTRUCTIONS:
         }
     }
 
-// If ALL chunks failed, throw so the caller shows an error
+    // If ALL chunks failed, throw so the caller shows an error
     if (succeededChunks.length === 0) {
         throw new Error(`All ${chunks.length} chunks failed during parallel refinement`);
     }
@@ -864,33 +864,30 @@ export async function POST(req) {
                 }
             }
 
-            // Fetch Company Name from user_profiles (for funnel copy)
+            // Fetch Company Name and Full Name from user_profiles (for funnel copy and bio)
             let companyName = null;
             try {
                 let userProfile = null;
                 const { data: byIdProfile } = await supabaseAdmin
                     .from('user_profiles')
-                    .select('business_name')
+                    .select('business_name, full_name')
                     .eq('id', targetUserId)
                     .maybeSingle();
 
                 userProfile = byIdProfile;
 
-                if (!userProfile?.business_name) {
-                    const { data: byUserIdProfile } = await supabaseAdmin
-                        .from('user_profiles')
-                        .select('business_name')
-                        .eq('user_id', targetUserId)
-                        .maybeSingle();
-                    userProfile = byUserIdProfile;
-                }
-
                 if (userProfile?.business_name) {
                     companyName = userProfile.business_name;
                     console.log('[RefineStream] Found Company Name:', companyName);
                 }
+
+                // Inject full_name into intakeData for bio generation/refinement
+                if (userProfile?.full_name) {
+                    intakeData.fullName = userProfile.full_name;
+                    console.log('[RefineStream] Found Full Name for bio:', userProfile.full_name);
+                }
             } catch (profileError) {
-                console.log('[RefineStream] No company name found in user_profiles:', profileError.message);
+                console.log('[RefineStream] No profile data found in user_profiles:', profileError.message);
             }
 
             // Brand colors removed for funnel copy refinement (not used in generation)

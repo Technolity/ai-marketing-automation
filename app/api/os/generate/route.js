@@ -451,7 +451,7 @@ export async function POST(req) {
     const { data: profileRow } = await supabaseAdmin
       .from('user_profiles')
       .select('full_name')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .maybeSingle();
     if (profileRow?.full_name) {
       data.fullName = profileRow.full_name;
@@ -588,6 +588,10 @@ export async function POST(req) {
       // Re-parse to get data
       const body = await req.clone().json();
       const userData = body.data || data;
+      // Ensure full_name from user_profiles is always available for bio generation
+      if (profileRow?.full_name) {
+        userData.fullName = profileRow.full_name;
+      }
       const sectionsToGenerate = body.missingSections || [];
 
       if (!sectionsToGenerate || sectionsToGenerate.length === 0) {
