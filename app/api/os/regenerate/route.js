@@ -211,7 +211,7 @@ export async function POST(req) {
         const { data: profileRow } = await supabaseAdmin
             .from('user_profiles')
             .select('full_name')
-            .eq('user_id', userId)
+            .eq('id', userId)
             .maybeSingle();
         if (profileRow?.full_name) {
             intakeData.fullName = profileRow.full_name;

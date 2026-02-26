@@ -226,7 +226,7 @@ export async function POST(req) {
         const { data: profileRow } = await supabaseAdmin
             .from('user_profiles')
             .select('full_name')
-            .eq('user_id', targetUserId)
+            .eq('id', targetUserId)
             .maybeSingle();
         if (profileRow?.full_name) {
             enrichedData.fullName = profileRow.full_name;

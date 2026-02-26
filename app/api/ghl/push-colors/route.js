@@ -52,7 +52,7 @@ export async function POST(req) {
             .single();
 
         if (!subaccount?.location_id) {
-            return Response.json({ error: 'GHL sub-account not found' }, { status: 400 });
+            return Response.json({ error: 'Builder sub-account not found' }, { status: 400 });
         }
 
         console.log('[PushColors] Location ID:', subaccount.location_id);
@@ -69,10 +69,10 @@ export async function POST(req) {
 
         // Fetch existing custom values using shared utility
         const existingValues = await fetchExistingCustomValues(locationId, accessToken);
-        console.log('[PushColors] Found', existingValues.length, 'existing custom values in GHL');
+        console.log('[PushColors] Found', existingValues.length, 'existing custom values in Buildere');
 
         // ========== LOG COLOR-RELATED CUSTOM VALUES ==========
-        console.log('[PushColors] ========== COLOR CUSTOM VALUES IN GHL ==========');
+        console.log('[PushColors] ========== COLOR CUSTOM VALUES IN BUILDER ==========');
         const colorRelated = existingValues.filter(v =>
             v.name.toLowerCase().includes('color') ||
             v.name.toLowerCase().includes('primary') ||
@@ -168,13 +168,13 @@ export async function POST(req) {
 
         if (customValues.length === 0) {
             return Response.json({
-                error: 'No color custom values found in GHL',
+                error: 'No color custom values found in Builder',
                 notFoundKeys,
-                hint: 'Make sure primary_color, secondary_color, and tertiary_color exist in GHL'
+                hint: 'Make sure primary_color, secondary_color, and tertiary_color exist in your Builder account. If they already exist and match but no changes were needed, you can safely ignore this.'
             }, { status: 400 });
         }
 
-        console.log('[PushColors] Pushing', customValues.length, 'color values to GHL...');
+        console.log('[PushColors] Pushing', customValues.length, 'color values to Builder...');
 
         // Push to GHL (ONLY UPDATE, never create)
         const results = { success: true, updated: 0, unchanged: unchangedCount, skipped: 0, failed: 0, errors: [], notFoundKeys };
@@ -217,7 +217,7 @@ export async function POST(req) {
         console.log('[PushColors] ========== COMPLETE ==========');
         console.log('[PushColors] Updated:', results.updated);
         console.log('[PushColors] Unchanged (skipped):', results.unchanged);
-        console.log('[PushColors] Skipped (not found in GHL):', results.skipped);
+        console.log('[PushColors] Skipped (not found in Builder):', results.skipped);
         console.log('[PushColors] Failed:', results.failed);
 
         // Log push operation

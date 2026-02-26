@@ -625,13 +625,26 @@ export default function VaultPage() {
     const [pollVersion, setPollVersion] = useState(0);
 
     // Tab state - determine initial tab from URL param
-    const initialTab = searchParams.get('phase') === '2' ? 'assets' : 'dna';
+    const initialTab = searchParams.get('phase') === '2' ? 'assets' : searchParams.get('phase') === '3' ? 'scripts' : 'dna';
     const [activeTab, setActiveTab] = useState(initialTab);
 
     // Phase completion tracking
     const phase1FullyApproved = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const phase2FullyApproved = approvedPhase2.length >= PHASE_2_SECTIONS.length;
     const phase3FullyApproved = approvedPhase3.length >= PHASE_3_SECTIONS.length;
+
+    // Track if Phase 2 was ever fully approved to prevent locking user out of Phase 3
+    // when they unapprove a single Phase 2 section for editing
+    const phase2WasFullyApprovedRef = useRef(false);
+    useEffect(() => {
+        if (phase2FullyApproved) {
+            phase2WasFullyApprovedRef.current = true;
+        }
+    }, [phase2FullyApproved]);
+
+    // Phase 3 should be accessible if Phase 2 is fully approved OR if user is currently
+    // on Phase 3 (they got there when it was approved and are now editing)
+    const isPhase3Accessible = phase2FullyApproved || activeTab === 'scripts' || phase2WasFullyApprovedRef.current;
 
     // Handler for automated account setup
     const handleSetupAccount = async () => {
@@ -1244,9 +1257,9 @@ export default function VaultPage() {
 
         // 2. Phase gating
         if (phaseNumber === 2 && !hasFunnelChoice) return 'locked';
-        // FIXED: Phase 3 should only be locked if Phase 2 is not approved AND Phase 3 is not already approved
-        // This prevents the bug where Phase 3 appears locked on return from dashboard due to loading timing
-        if (phaseNumber === 3 && !phase2FullyApproved && !phase3FullyApproved && !approvedPhase3.includes(sectionId)) return 'locked';
+        // FIXED: Phase 3 uses isPhase3Accessible to remain unlocked when user is actively
+        // editing Phase 2 sections (unapproved for editing) while on Phase 3 tab
+        if (phaseNumber === 3 && !isPhase3Accessible && !phase3FullyApproved && !approvedPhase3.includes(sectionId)) return 'locked';
 
         // 3. Check for explicit error in data (from DB or normalization)
         if (sectionData?.error) {
@@ -3409,8 +3422,8 @@ export default function VaultPage() {
                         </button>
                         <button
                             onClick={() => { setActiveTab('scripts'); setShowMediaLibrary(false); }}
-                            disabled={!phase2FullyApproved}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scripts' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : phase2FullyApproved ? 'text-gray-500 hover:text-gray-300' : 'text-gray-700 cursor-not-allowed'}`}
+                            disabled={!isPhase3Accessible}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scripts' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : isPhase3Accessible ? 'text-gray-500 hover:text-gray-300' : 'text-gray-700 cursor-not-allowed'}`}
                         >
                             Phase 3
                         </button>

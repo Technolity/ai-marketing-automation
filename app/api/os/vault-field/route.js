@@ -502,21 +502,19 @@ export async function PATCH(req) {
             }
 
         } else {
-            // Field exists - VERSION IT (with retry for concurrent requests)
+            // Field exists - VERSION IT (insert-first strategy for concurrency safety)
+            // Strategy: INSERT new version first, THEN mark old as non-current.
+            // This prevents the "no current version" gap that occurs when we mark
+            // the old version as non-current before the insert commits.
             const MAX_RETRIES = 3;
             let retries = 0;
             let latestField = currentField;
 
             while (retries < MAX_RETRIES) {
-                console.log('[VaultField PATCH] Versioning existing field:', { field_id: actualFieldId, currentVersion: latestField.version, isNested: isNestedField, attempt: retries + 1 });
+                const attemptVersion = latestField.version + 1;
+                console.log('[VaultField PATCH] Versioning existing field:', { field_id: actualFieldId, currentVersion: latestField.version, targetVersion: attemptVersion, isNested: isNestedField, attempt: retries + 1 });
 
-                // Mark current version as old
-                await supabaseAdmin
-                    .from('vault_content_fields')
-                    .update({ is_current_version: false })
-                    .eq('id', latestField.id);
-
-                // Insert new version
+                // Step 1: INSERT new version first (don't touch existing records yet)
                 const { data: insertedField, error: insertError } = await supabaseAdmin
                     .from('vault_content_fields')
                     .insert({
@@ -531,7 +529,7 @@ export async function PATCH(req) {
                         is_custom: latestField.is_custom,
                         is_approved: false, // Reset approval on edit
                         display_order: latestField.display_order,
-                        version: latestField.version + 1,
+                        version: attemptVersion,
                         is_current_version: true
                     })
                     .select()
@@ -539,46 +537,39 @@ export async function PATCH(req) {
 
                 if (insertError) {
                     if (insertError.code === '23505' && retries < MAX_RETRIES - 1) {
-                        // Duplicate key - concurrent request already versioned this field
-                        console.warn('[VaultField PATCH] Duplicate version detected, retrying...', { field_id: actualFieldId, attemptedVersion: latestField.version + 1 });
+                        // Duplicate key — a concurrent request already created this version
+                        console.warn('[VaultField PATCH] Duplicate version detected, retrying...', { field_id: actualFieldId, attemptedVersion: attemptVersion });
                         retries++;
 
-                        // Re-fetch the latest version
-                        const { data: refetched } = await supabaseAdmin
+                        // Re-fetch the absolute highest version (don't rely on is_current_version flag)
+                        const { data: maxVersion } = await supabaseAdmin
                             .from('vault_content_fields')
                             .select('*')
                             .eq('funnel_id', funnel_id)
                             .eq('section_id', section_id)
                             .eq('field_id', actualFieldId)
-                            .eq('is_current_version', true)
+                            .order('version', { ascending: false })
+                            .limit(1)
                             .single();
 
-                        if (refetched) {
-                            latestField = refetched;
+                        if (maxVersion) {
+                            latestField = maxVersion;
                         } else {
-                            // No current version found â€” find the highest version
-                            const { data: maxVersion } = await supabaseAdmin
-                                .from('vault_content_fields')
-                                .select('*')
-                                .eq('funnel_id', funnel_id)
-                                .eq('section_id', section_id)
-                                .eq('field_id', actualFieldId)
-                                .order('version', { ascending: false })
-                                .limit(1)
-                                .single();
-
-                            if (maxVersion) {
-                                latestField = maxVersion;
-                            } else {
-                                console.error('[VaultField PATCH] Cannot find any version of field:', actualFieldId);
-                                throw insertError;
-                            }
+                            console.error('[VaultField PATCH] Cannot find any version of field:', actualFieldId);
+                            throw insertError;
                         }
                         continue;
                     }
                     console.error('[VaultField PATCH] Insert error:', insertError);
                     throw insertError;
                 }
+
+                // Step 2: INSERT succeeded — now safely mark the OLD version as non-current
+                // This is a non-destructive operation; if it fails the new version is still valid
+                await supabaseAdmin
+                    .from('vault_content_fields')
+                    .update({ is_current_version: false })
+                    .eq('id', latestField.id);
 
                 newVersion = insertedField;
                 console.log('[VaultField PATCH] Field updated successfully:', {

@@ -57,7 +57,7 @@ const OPTIN_PAGE_MAP = {
     'popup_form_headline': '03_opt_in_popup_form_headline'
 };
 
-// === VSL/SALES PAGE MAPPINGS (69 fields; footer handled elsewhere) ===
+// === APPOINTMENT BOOKING PAGE MAPPINGS (69 fields; footer handled elsewhere) ===
 const SALES_PAGE_MAP = {
     // Hero Section (4)
     'hero_headline_text': '03_vsl_hero_headline_text',
