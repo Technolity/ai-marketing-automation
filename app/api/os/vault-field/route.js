@@ -337,42 +337,6 @@ export async function PATCH(req) {
             });
         }
 
-        // Get current field for validation and versioning (using actual field ID)
-        let currentField = null;
-        let fetchError = null;
-
-        // First try: find current active version
-        const { data: activeField, error: activeError } = await supabaseAdmin
-            .from('vault_content_fields')
-            .select('*')
-            .eq('funnel_id', funnel_id)
-            .eq('section_id', section_id)
-            .eq('field_id', actualFieldId)
-            .eq('is_current_version', true)
-            .single();
-
-        if (activeField) {
-            currentField = activeField;
-        } else {
-            // Fallback: find highest version (handles orphaned fields where is_current_version was set to false but new version never created)
-            const { data: latestField } = await supabaseAdmin
-                .from('vault_content_fields')
-                .select('*')
-                .eq('funnel_id', funnel_id)
-                .eq('section_id', section_id)
-                .eq('field_id', actualFieldId)
-                .order('version', { ascending: false })
-                .limit(1)
-                .single();
-
-            if (latestField) {
-                console.warn('[VaultField PATCH] No current version found, using highest version as base:', { field_id: actualFieldId, version: latestField.version, is_current_version: latestField.is_current_version });
-                currentField = latestField;
-            } else {
-                fetchError = activeError;
-            }
-        }
-
         // Validate field value if field definition exists (use actualFieldValue for validation)
         const fieldDef = getFieldDefinition(section_id, actualFieldId);
         if (fieldDef) {
@@ -396,192 +360,58 @@ export async function PATCH(req) {
                 ? JSON.stringify(actualFieldValue)
                 : actualFieldValue;
 
-        let newVersion;
+        // Fetch old field value BEFORE the upsert (needed for atomic dependency propagation)
+        let currentField = null;
+        const { data: preUpdateField } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_value')
+            .eq('funnel_id', funnel_id)
+            .eq('section_id', section_id)
+            .eq('field_id', actualFieldId)
+            .eq('is_current_version', true)
+            .maybeSingle();
 
-        // UPSERT LOGIC: Handle both new fields and existing fields
-        if (!currentField || fetchError) {
-            // Field doesn't exist yet - CREATE IT
-            console.log('[VaultField PATCH] Creating new field (first save):', { field_id: actualFieldId, isNested: isNestedField });
-
-            // Get field definition for defaults
-            const fieldStructure = fieldDef || {};
-
-            // Get next display_order
-            const { data: maxOrderField } = await supabaseAdmin
-                .from('vault_content_fields')
-                .select('display_order')
-                .eq('funnel_id', funnel_id)
-                .eq('section_id', section_id)
-                .order('display_order', { ascending: false })
-                .limit(1)
-                .single();
-
-            const display_order = (maxOrderField?.display_order || 0) + 1;
-
-            const { data: insertedField, error: insertError } = await supabaseAdmin
-                .from('vault_content_fields')
-                .insert({
-                    funnel_id,
-                    user_id: userId,
-                    section_id,
-                    field_id: actualFieldId,
-                    field_label: fieldStructure.field_label || actualFieldId,
-                    field_value: serializedValue,
-                    field_type: fieldStructure.field_type || 'text',
-                    field_metadata: fieldStructure.field_metadata || {},
-                    is_custom: fieldStructure.is_custom || false,
-                    is_approved: false,
-                    display_order,
-                    version: 1,
-                    is_current_version: true
-                })
-                .select()
-                .single();
-
-            if (insertError) {
-                if (insertError.code === '23505') {
-                    // Field already exists (orphaned or stale) - find highest version and version it
-                    console.warn('[VaultField PATCH] New field insert hit 23505, falling back to versioning:', { field_id: actualFieldId });
-
-                    const { data: existingField } = await supabaseAdmin
-                        .from('vault_content_fields')
-                        .select('*')
-                        .eq('funnel_id', funnel_id)
-                        .eq('section_id', section_id)
-                        .eq('field_id', actualFieldId)
-                        .order('version', { ascending: false })
-                        .limit(1)
-                        .single();
-
-                    if (existingField) {
-                        // Mark existing as old
-                        await supabaseAdmin
-                            .from('vault_content_fields')
-                            .update({ is_current_version: false })
-                            .eq('id', existingField.id);
-
-                        // Insert new version
-                        const { data: versionedField, error: versionError } = await supabaseAdmin
-                            .from('vault_content_fields')
-                            .insert({
-                                funnel_id,
-                                user_id: userId,
-                                section_id,
-                                field_id: actualFieldId,
-                                field_label: existingField.field_label || fieldStructure.field_label || actualFieldId,
-                                field_value: serializedValue,
-                                field_type: existingField.field_type || fieldStructure.field_type || 'text',
-                                field_metadata: existingField.field_metadata || fieldStructure.field_metadata || {},
-                                is_custom: existingField.is_custom || false,
-                                is_approved: false,
-                                display_order: existingField.display_order || display_order,
-                                version: existingField.version + 1,
-                                is_current_version: true
-                            })
-                            .select()
-                            .single();
-
-                        if (versionError) {
-                            console.error('[VaultField PATCH] Fallback versioning also failed:', versionError);
-                            throw versionError;
-                        }
-
-                        newVersion = versionedField;
-                        console.log('[VaultField PATCH] Fallback versioning succeeded:', { field_id: actualFieldId, version: versionedField.version });
-                    } else {
-                        console.error('[VaultField PATCH] 23505 but cannot find existing field:', actualFieldId);
-                        throw insertError;
-                    }
-                } else {
-                    console.error('[VaultField PATCH] Insert error:', insertError);
-                    throw insertError;
-                }
-            } else {
-                newVersion = insertedField;
-                console.log('[VaultField PATCH] New field created:', { field_id: actualFieldId, version: 1, isNested: isNestedField });
-            }
-
-        } else {
-            // Field exists - VERSION IT (insert-first strategy for concurrency safety)
-            // Strategy: INSERT new version first, THEN mark old as non-current.
-            // This prevents the "no current version" gap that occurs when we mark
-            // the old version as non-current before the insert commits.
-            const MAX_RETRIES = 3;
-            let retries = 0;
-            let latestField = currentField;
-
-            while (retries < MAX_RETRIES) {
-                const attemptVersion = latestField.version + 1;
-                console.log('[VaultField PATCH] Versioning existing field:', { field_id: actualFieldId, currentVersion: latestField.version, targetVersion: attemptVersion, isNested: isNestedField, attempt: retries + 1 });
-
-                // Step 1: INSERT new version first (don't touch existing records yet)
-                const { data: insertedField, error: insertError } = await supabaseAdmin
-                    .from('vault_content_fields')
-                    .insert({
-                        funnel_id,
-                        user_id: userId,
-                        section_id,
-                        field_id: actualFieldId,
-                        field_label: latestField.field_label,
-                        field_value: serializedValue,
-                        field_type: latestField.field_type,
-                        field_metadata: latestField.field_metadata,
-                        is_custom: latestField.is_custom,
-                        is_approved: false, // Reset approval on edit
-                        display_order: latestField.display_order,
-                        version: attemptVersion,
-                        is_current_version: true
-                    })
-                    .select()
-                    .single();
-
-                if (insertError) {
-                    if (insertError.code === '23505' && retries < MAX_RETRIES - 1) {
-                        // Duplicate key — a concurrent request already created this version
-                        console.warn('[VaultField PATCH] Duplicate version detected, retrying...', { field_id: actualFieldId, attemptedVersion: attemptVersion });
-                        retries++;
-
-                        // Re-fetch the absolute highest version (don't rely on is_current_version flag)
-                        const { data: maxVersion } = await supabaseAdmin
-                            .from('vault_content_fields')
-                            .select('*')
-                            .eq('funnel_id', funnel_id)
-                            .eq('section_id', section_id)
-                            .eq('field_id', actualFieldId)
-                            .order('version', { ascending: false })
-                            .limit(1)
-                            .single();
-
-                        if (maxVersion) {
-                            latestField = maxVersion;
-                        } else {
-                            console.error('[VaultField PATCH] Cannot find any version of field:', actualFieldId);
-                            throw insertError;
-                        }
-                        continue;
-                    }
-                    console.error('[VaultField PATCH] Insert error:', insertError);
-                    throw insertError;
-                }
-
-                // Step 2: INSERT succeeded — now safely mark the OLD version as non-current
-                // This is a non-destructive operation; if it fails the new version is still valid
-                await supabaseAdmin
-                    .from('vault_content_fields')
-                    .update({ is_current_version: false })
-                    .eq('id', latestField.id);
-
-                newVersion = insertedField;
-                console.log('[VaultField PATCH] Field updated successfully:', {
-                    field_id: actualFieldId,
-                    originalFieldId: field_id,
-                    oldVersion: latestField.version,
-                    newVersion: newVersion.version,
-                    isNested: isNestedField
-                });
-                break; // Success - exit retry loop
-            }
+        if (preUpdateField) {
+            currentField = preUpdateField;
         }
+
+        // ATOMIC UPSERT via Postgres RPC — handles both new and existing fields
+        // in a single transaction with row-level locking to prevent race conditions.
+        console.log('[VaultField PATCH] Calling atomic upsert RPC:', { field_id: actualFieldId, isNested: isNestedField });
+
+        const rpcArgs = {
+            p_funnel_id: funnel_id,
+            p_user_id: userId,
+            p_section_id: section_id,
+            p_field_id: actualFieldId,
+            p_field_value: typeof serializedValue === 'string' ? serializedValue : JSON.stringify(serializedValue),
+        };
+
+        // Pass field metadata for new fields
+        if (fieldDef) {
+            rpcArgs.p_field_label = fieldDef.field_label || actualFieldId;
+            rpcArgs.p_field_type = fieldDef.field_type || 'text';
+            rpcArgs.p_field_metadata = fieldDef.field_metadata || {};
+            rpcArgs.p_is_custom = fieldDef.is_custom || false;
+        }
+
+        const { data: rpcResult, error: rpcError } = await supabaseAdmin
+            .rpc('upsert_vault_field_version', rpcArgs);
+
+        if (rpcError) {
+            console.error('[VaultField PATCH] Atomic upsert RPC failed:', rpcError);
+            throw new Error(`Atomic upsert failed: ${rpcError.message}`);
+        }
+
+        console.log('[VaultField PATCH] Atomic upsert succeeded:', rpcResult);
+
+        // Build a newVersion-like object for the response and downstream logic
+        const newVersion = {
+            id: rpcResult.id,
+            version: rpcResult.version,
+            field_id: rpcResult.field_id,
+            field_value: actualFieldValue,
+        };
 
         // ATOMIC UPDATE: Check if this is an atomic field and trigger propagation (fire-and-forget)
         if (currentField && currentField.field_value !== undefined) {

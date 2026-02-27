@@ -164,165 +164,58 @@ export async function POST(req) {
                 const resolvedField = currentField || orphanedFieldMap[field_id];
 
                 if (!resolvedField) {
-                    // CREATE new field
-                    console.log('[VaultSectionSave] Creating new field:', field_id);
+                    // CREATE new field via atomic RPC
+                    console.log('[VaultSectionSave] Creating new field via RPC:', field_id);
 
-                    // Get next display_order
-                    const maxOrder = Math.max(
-                        0,
-                        ...(existingFields || []).map(f => f.display_order || 0)
-                    );
+                    const rpcArgs = {
+                        p_funnel_id: funnel_id,
+                        p_user_id: targetUserId,
+                        p_section_id: section_id,
+                        p_field_id: field_id,
+                        p_field_value: serializedValue,
+                        p_field_label: fieldDef?.field_label || field_id,
+                        p_field_type: fieldDef?.field_type || 'text',
+                        p_field_metadata: fieldDef?.field_metadata || {},
+                        p_is_custom: false,
+                    };
 
-                    const { data: insertedField, error: insertError } = await supabaseAdmin
-                        .from('vault_content_fields')
-                        .insert({
-                            funnel_id,
-                            user_id: targetUserId,
-                            section_id,
-                            field_id,
-                            field_label: fieldDef?.field_label || field_id,
-                            field_value: serializedValue,
-                            field_type: fieldDef?.field_type || 'text',
-                            field_metadata: fieldDef?.field_metadata || {},
-                            is_custom: false,
-                            is_approved: false,
-                            display_order: maxOrder + savedFields.length + 1,
-                            version: 1,
-                            is_current_version: true
-                        })
-                        .select()
-                        .single();
+                    const { data: rpcResult, error: rpcError } = await supabaseAdmin
+                        .rpc('upsert_vault_field_version', rpcArgs);
 
-                    if (insertError) {
-                        if (insertError.code === '23505') {
-                            // Orphaned field exists — fall back to versioning
-                            console.warn('[VaultSectionSave] 23505 on new field, falling back to versioning:', field_id);
-                            const { data: orphaned } = await supabaseAdmin
-                                .from('vault_content_fields')
-                                .select('*')
-                                .eq('funnel_id', funnel_id)
-                                .eq('section_id', section_id)
-                                .eq('field_id', field_id)
-                                .order('version', { ascending: false })
-                                .limit(1)
-                                .single();
-
-                            if (orphaned) {
-                                await supabaseAdmin
-                                    .from('vault_content_fields')
-                                    .update({ is_current_version: false })
-                                    .eq('id', orphaned.id);
-
-                                const { error: vErr } = await supabaseAdmin
-                                    .from('vault_content_fields')
-                                    .insert({
-                                        funnel_id, user_id: targetUserId, section_id, field_id,
-                                        field_label: orphaned.field_label || fieldDef?.field_label || field_id,
-                                        field_value: serializedValue,
-                                        field_type: orphaned.field_type || fieldDef?.field_type || 'text',
-                                        field_metadata: orphaned.field_metadata || fieldDef?.field_metadata || {},
-                                        is_custom: orphaned.is_custom || false,
-                                        is_approved: false,
-                                        display_order: orphaned.display_order || maxOrder + savedFields.length + 1,
-                                        version: orphaned.version + 1,
-                                        is_current_version: true
-                                    })
-                                    .select().single();
-
-                                if (vErr) {
-                                    errors.push({ field_id, error: vErr.message });
-                                    continue;
-                                }
-                                savedFields.push({ field_id, action: 'versioned_from_orphan', version: orphaned.version + 1 });
-                                continue;
-                            }
-                        }
-                        errors.push({ field_id, error: insertError.message });
+                    if (rpcError) {
+                        console.error('[VaultSectionSave] RPC error for', field_id, ':', rpcError);
+                        errors.push({ field_id, error: rpcError.message });
                         continue;
                     }
 
-                    savedFields.push({ field_id, action: 'created', version: 1 });
+                    savedFields.push({ field_id, action: rpcResult.action, version: rpcResult.version });
 
                 } else {
-                    // UPDATE existing field (create new version)
-                    console.log('[VaultSectionSave] Updating field:', field_id, 'version:', resolvedField.version, resolvedField === currentField ? '(active)' : '(orphaned)');
+                    // UPDATE existing field via atomic RPC (handles versioning atomically)
+                    console.log('[VaultSectionSave] Updating field via RPC:', field_id, 'current version:', resolvedField.version);
 
-                    // Mark current version as old
-                    await supabaseAdmin
-                        .from('vault_content_fields')
-                        .update({ is_current_version: false })
-                        .eq('id', resolvedField.id);
+                    const rpcArgs = {
+                        p_funnel_id: funnel_id,
+                        p_user_id: targetUserId,
+                        p_section_id: section_id,
+                        p_field_id: field_id,
+                        p_field_value: serializedValue,
+                    };
 
-                    // Insert new version
-                    const { data: newVersion, error: updateError } = await supabaseAdmin
-                        .from('vault_content_fields')
-                        .insert({
-                            funnel_id,
-                            user_id: targetUserId,
-                            section_id,
-                            field_id,
-                            field_label: resolvedField.field_label,
-                            field_value: serializedValue,
-                            field_type: resolvedField.field_type,
-                            field_metadata: resolvedField.field_metadata,
-                            is_custom: resolvedField.is_custom,
-                            is_approved: false, // Reset approval
-                            display_order: resolvedField.display_order,
-                            version: resolvedField.version + 1,
-                            is_current_version: true
-                        })
-                        .select()
-                        .single();
+                    const { data: rpcResult, error: rpcError } = await supabaseAdmin
+                        .rpc('upsert_vault_field_version', rpcArgs);
 
-                    if (updateError) {
-                        if (updateError.code === '23505') {
-                            console.warn('[VaultSectionSave] 23505 on version update, retrying:', field_id);
-                            // Re-fetch latest version and retry once
-                            const { data: latest } = await supabaseAdmin
-                                .from('vault_content_fields')
-                                .select('*')
-                                .eq('funnel_id', funnel_id)
-                                .eq('section_id', section_id)
-                                .eq('field_id', field_id)
-                                .order('version', { ascending: false })
-                                .limit(1)
-                                .single();
-
-                            if (latest) {
-                                await supabaseAdmin
-                                    .from('vault_content_fields')
-                                    .update({ is_current_version: false })
-                                    .eq('id', latest.id);
-
-                                const { data: retryVersion, error: retryErr } = await supabaseAdmin
-                                    .from('vault_content_fields')
-                                    .insert({
-                                        funnel_id, user_id: targetUserId, section_id, field_id,
-                                        field_label: latest.field_label, field_value: serializedValue,
-                                        field_type: latest.field_type, field_metadata: latest.field_metadata,
-                                        is_custom: latest.is_custom, is_approved: false,
-                                        display_order: latest.display_order,
-                                        version: latest.version + 1, is_current_version: true
-                                    })
-                                    .select().single();
-
-                                if (retryErr) {
-                                    errors.push({ field_id, error: retryErr.message });
-                                    continue;
-                                }
-                                savedFields.push({ field_id, action: 'updated_retry', oldVersion: latest.version, newVersion: retryVersion.version });
-                                continue;
-                            }
-                        }
-                        errors.push({ field_id, error: updateError.message });
+                    if (rpcError) {
+                        console.error('[VaultSectionSave] RPC error for', field_id, ':', rpcError);
+                        errors.push({ field_id, error: rpcError.message });
                         continue;
                     }
 
                     savedFields.push({
                         field_id,
-                        action: 'updated',
-                        oldVersion: resolvedField.version,
-                        newVersion: newVersion.version
+                        action: rpcResult.action,
+                        oldVersion: rpcResult.old_version,
+                        newVersion: rpcResult.version
                     });
                 }
 
