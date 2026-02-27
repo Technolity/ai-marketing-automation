@@ -162,8 +162,8 @@ export async function POST(req) {
 
 /**
  * PATCH /api/user/funnels
- * Update funnel choice for a business
- * Body: { funnelId, funnelType }
+ * Update funnel properties (name and/or funnel type)
+ * Body: { funnelId, funnelType?, name? }
  */
 export async function PATCH(req) {
     try {
@@ -172,10 +172,14 @@ export async function PATCH(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { funnelId, funnelType } = await req.json();
+        const { funnelId, funnelType, name } = await req.json();
 
-        if (!funnelId || !funnelType) {
-            return NextResponse.json({ error: 'Funnel ID and type are required' }, { status: 400 });
+        if (!funnelId) {
+            return NextResponse.json({ error: 'Funnel ID is required' }, { status: 400 });
+        }
+
+        if (!funnelType && !name) {
+            return NextResponse.json({ error: 'At least one field to update is required (funnelType or name)' }, { status: 400 });
         }
 
         // Verify ownership
@@ -190,13 +194,19 @@ export async function PATCH(req) {
             return NextResponse.json({ error: 'Business not found or access denied' }, { status: 404 });
         }
 
-        // Update funnel type
+        // Build update payload conditionally
+        const updatePayload = {};
+        if (funnelType) {
+            updatePayload.selected_funnel_type = funnelType;
+            updatePayload.funnel_choice_made_at = new Date().toISOString();
+        }
+        if (name?.trim()) {
+            updatePayload.funnel_name = name.trim();
+        }
+
         const { data: updated, error: updateError } = await supabaseAdmin
             .from('user_funnels')
-            .update({
-                selected_funnel_type: funnelType,
-                funnel_choice_made_at: new Date().toISOString()
-            })
+            .update(updatePayload)
             .eq('id', funnelId)
             .eq('user_id', userId)
             .select()
@@ -207,12 +217,12 @@ export async function PATCH(req) {
         return NextResponse.json({
             success: true,
             funnel: updated,
-            message: 'Funnel choice saved successfully'
+            message: name ? 'Marketing Engine name updated' : 'Funnel choice saved successfully'
         });
 
     } catch (error) {
-        console.error('[API] Update funnel choice error:', error);
-        return NextResponse.json({ error: 'Failed to save funnel choice' }, { status: 500 });
+        console.error('[API] Update funnel error:', error);
+        return NextResponse.json({ error: 'Failed to update funnel' }, { status: 500 });
     }
 }
 

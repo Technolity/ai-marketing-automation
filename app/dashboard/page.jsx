@@ -18,7 +18,7 @@ import {
     Loader2, Plus, FolderOpen, ChevronRight, Sparkles,
     Clock, CheckCircle2, Lock, Building2, Trash2,
     Crown, ExternalLink, Settings, Users, Rocket,
-    BarChart3, Zap
+    BarChart3, Zap, Pencil, Check, X
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserButton } from "@clerk/nextjs";
@@ -68,6 +68,10 @@ export default function Dashboard() {
     const [isDeleting, setIsDeleting] = useState(null);
     const [hasDeployedFunnel, setHasDeployedFunnel] = useState(false);
     const [builderLocationId, setBuilderLocationId] = useState('');
+    const [editingFunnelId, setEditingFunnelId] = useState(null);
+    const [editNameValue, setEditNameValue] = useState('');
+    const [isSavingName, setIsSavingName] = useState(false);
+    const editInputRef = useRef(null);
     const tabRefs = useRef({});
 
 
@@ -204,6 +208,56 @@ export default function Dashboard() {
             toast.error("Failed to delete");
         } finally {
             setIsDeleting(null);
+        }
+    };
+
+    const startEditing = (business) => {
+        setEditingFunnelId(business.id);
+        setEditNameValue(business.funnel_name);
+        setTimeout(() => editInputRef.current?.focus(), 50);
+    };
+
+    const cancelEditing = () => {
+        setEditingFunnelId(null);
+        setEditNameValue('');
+    };
+
+    const handleRenameBusiness = async (funnelId) => {
+        const trimmed = editNameValue.trim();
+        if (!trimmed) {
+            toast.error('Name cannot be empty');
+            return;
+        }
+
+        // Find the current name to check if it actually changed
+        const current = businesses.find(b => b.id === funnelId);
+        if (current && current.funnel_name === trimmed) {
+            cancelEditing();
+            return;
+        }
+
+        setIsSavingName(true);
+        try {
+            const res = await fetchWithAuth('/api/user/funnels', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ funnelId, name: trimmed })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to rename');
+            }
+
+            toast.success('Marketing Engine name updated');
+            // Optimistically update local state
+            setBusinesses(prev => prev.map(b => b.id === funnelId ? { ...b, funnel_name: trimmed } : b));
+            cancelEditing();
+        } catch (error) {
+            console.error('[Dashboard] Rename error:', error);
+            toast.error(error.message || 'Failed to rename');
+        } finally {
+            setIsSavingName(false);
         }
     };
 
@@ -420,7 +474,49 @@ export default function Dashboard() {
                                                 {/* Content */}
                                                 <div className="flex-1 min-w-0 py-1">
                                                     <div className="flex items-center gap-3 mb-2">
-                                                        <h3 className="text-xl font-semibold text-white truncate tracking-tight">{business.funnel_name}</h3>
+                                                        {editingFunnelId === business.id ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <input
+                                                                    ref={editInputRef}
+                                                                    type="text"
+                                                                    value={editNameValue}
+                                                                    onChange={(e) => setEditNameValue(e.target.value)}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') handleRenameBusiness(business.id);
+                                                                        if (e.key === 'Escape') cancelEditing();
+                                                                    }}
+                                                                    disabled={isSavingName}
+                                                                    className="text-xl font-semibold text-white tracking-tight bg-white/5 border border-cyan/30 rounded-lg px-3 py-1 focus:outline-none focus:border-cyan/60 focus:ring-1 focus:ring-cyan/40 transition-all w-64"
+                                                                />
+                                                                <button
+                                                                    onClick={() => handleRenameBusiness(business.id)}
+                                                                    disabled={isSavingName}
+                                                                    className="p-1.5 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors"
+                                                                    title="Save"
+                                                                >
+                                                                    {isSavingName ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                                                </button>
+                                                                <button
+                                                                    onClick={cancelEditing}
+                                                                    disabled={isSavingName}
+                                                                    className="p-1.5 text-gray-400 hover:bg-white/10 rounded-lg transition-colors"
+                                                                    title="Cancel"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 group/name">
+                                                                <h3 className="text-xl font-semibold text-white truncate tracking-tight">{business.funnel_name}</h3>
+                                                                <button
+                                                                    onClick={() => startEditing(business)}
+                                                                    className="p-1 text-gray-500 hover:text-cyan opacity-0 group-hover/name:opacity-100 transition-all rounded-md hover:bg-white/5"
+                                                                    title="Edit name"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                         <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider border ${status === 'deployed' ? 'bg-green-500 text-black border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' :
                                                             status === 'complete' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
                                                                 'bg-white/5 text-gray-400 border-white/5'

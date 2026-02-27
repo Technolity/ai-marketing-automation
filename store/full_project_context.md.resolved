@@ -43,6 +43,7 @@
 | `lib/prompts/funnelCopyMerger.js` | **Warning Fix**: Corrected salesPage expected field count from 69 to 68 to eliminate false-positive merge warnings. |
 | `lib/schemas/vaultSchemas.js` | **Warning Fix**: Increased `colorPalette.reasoning` character limit from 500 to 1500 to prevent AI validation failures. |
 | `app/api/os/vault-field/route.js` | **Warning Fix**: Rewrote concurrent save logic to INSERT-first strategy, eliminating "No current version found" micro-gaps. |
+| `lib/schemas/vaultSchemas.js`, `lib/vault/fieldStructures.js`, `lib/prompts/*` | **Feature Update**: Increased `bio_paragraph_text` character limit from 500 to 8000 (approx. 1000 words) as requested by the user. |
 
 ### Recent Modifications (2026-02-23)
 | File | Change |
