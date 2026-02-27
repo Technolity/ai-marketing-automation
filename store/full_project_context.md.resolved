@@ -44,6 +44,9 @@
 | `lib/schemas/vaultSchemas.js` | **Warning Fix**: Increased `colorPalette.reasoning` character limit from 500 to 1500 to prevent AI validation failures. |
 | `app/api/os/vault-field/route.js` | **Warning Fix**: Rewrote concurrent save logic to INSERT-first strategy, eliminating "No current version found" micro-gaps. |
 | `lib/schemas/vaultSchemas.js`, `lib/vault/fieldStructures.js`, `lib/prompts/*` | **Feature Update**: Increased `bio_paragraph_text` character limit from 500 to 8000 (approx. 1000 words) as requested by the user. |
+| `supabase/migrations/20260228000000_atomic_vault_versioning.sql` | **[NEW] Bug Fix**: Added `upsert_vault_field_version` PL/pgSQL RPC for atomic vault field versioning. Includes data cleanup, partial unique index on `is_current_version=true`, eliminating race conditions. |
+| `app/api/os/vault-field/route.js` | **Bug Fix**: Replaced 240-line INSERT/UPDATE retry loop with single atomic `upsert_vault_field_version` RPC call. Eliminates duplicate/orphaned `is_current_version` flags. |
+| `app/api/os/vault-section-save/route.js` | **Bug Fix**: Replaced 160-line batch versioning logic with atomic RPC calls per field. |
 
 ### Recent Modifications (2026-02-23)
 | File | Change |
