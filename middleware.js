@@ -16,6 +16,7 @@ export default authMiddleware({
     "/api/integrations/oauth/callback",
     "/api/integrations/oauth/debug",
     "/api/oauth/callback",  // GHL OAuth callback
+    "/api/maintenance-status",  // Public maintenance check
   ],
   ignoredRoutes: [
     "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",
@@ -28,7 +29,8 @@ export default authMiddleware({
     "/auth/login",
     "/auth/signup",
     "/auth/forgot-password",
-    "/auth/verify"
+    "/auth/verify",
+    "/api/maintenance-status"  // Public maintenance check
   ]
 });
 
