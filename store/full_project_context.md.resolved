@@ -34,6 +34,14 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-02-28)
+| File | Change |
+| :--- | :--- |
+| `app/admin/settings/page.jsx` | **Bug Fix**: `handleSave` now only saves the active tab's settings (was saving ALL categories, overwriting maintenance mode with stale state). Maintenance toggle now saves instantly to DB — no need to click "Save All Changes". |
+| `app/api/maintenance-status/route.js` | **Bug Fix**: Removed unreliable in-memory cache, creates fresh Supabase client per request. Fixes stale `maintenanceMode: false` being served. |
+| `app/api/admin/settings/route.js` | **Bug Fix**: Reduced settings GET cache from 15 min → 30 sec. Added PUT logging for diagnostics. |
+| `app/api/os/vault-section-save/route.js` | **Bug Fix**: Batch save now skips unchanged fields (compares serialized value) to prevent `is_approved` progress resets when only some fields were modified. |
+
 ### Recent Modifications (2026-02-27)
 | File | Change |
 | :--- | :--- |
