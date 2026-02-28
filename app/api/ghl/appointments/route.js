@@ -105,7 +105,7 @@ async function fetchAppointmentsMetrics(accessToken, locationId) {
 
         try {
             const eventsRes = await fetch(
-                `${GHL_API_URL}/calendars/events?locationId=${locationId}&startTime=${thirtyDaysAgo.toISOString()}&endTime=${sevenDaysFromNow.toISOString()}`,
+                `${GHL_API_URL}/calendars/events?locationId=${locationId}&startTime=${thirtyDaysAgo.getTime()}&endTime=${sevenDaysFromNow.getTime()}`,
                 { headers }
             );
 

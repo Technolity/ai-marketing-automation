@@ -669,6 +669,7 @@ function CustomBarTooltip({ active, payload, label }) {
 
 // Opportunity Status Pie Chart with Info Button Legend
 function OpportunityStatusPieChart({ data }) {
+    const [showInfo, setShowInfo] = useState(false);
 
     if (!data || data.length === 0) {
         return (

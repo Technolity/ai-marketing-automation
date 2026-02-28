@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { auth } from '@clerk/nextjs/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +16,8 @@ const supabase = createClient(
  * Receives the authorization code, exchanges it for access/refresh tokens,
  * and stores them in the database.
  * 
- * NOTE: We use state parameter to pass user ID instead of Clerk session
- * because the OAuth redirect doesn't preserve the session context.
+ * NOTE: We use state parameter to pass user ID when available.
+ * For GHL Marketplace direct installs (no state), we fallback to Clerk session auth.
  */
 export async function GET(req) {
     try {
@@ -49,31 +50,44 @@ export async function GET(req) {
             );
         }
 
-        if (!state) {
-            console.error('[OAuth Callback] No state parameter received');
-            return NextResponse.redirect(
-                `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?ghl_error=missing_state`
-            );
+        // Resolve userId from state parameter or Clerk session
+        let userId;
+
+        if (state) {
+            // Decode state parameter to get user ID
+            try {
+                const stateData = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
+                userId = stateData.userId;
+
+                // Optional: Check timestamp to prevent replay attacks (state older than 10 minutes)
+                const stateAge = Date.now() - stateData.timestamp;
+                if (stateAge > 10 * 60 * 1000) {
+                    console.warn('[OAuth Callback] State parameter expired, falling back to Clerk session');
+                    userId = null; // Will try Clerk fallback below
+                }
+            } catch (e) {
+                console.warn('[OAuth Callback] Invalid state parameter, falling back to Clerk session:', e.message);
+                userId = null; // Will try Clerk fallback below
+            }
         }
 
-        // Decode state parameter to get user ID
-        let userId;
-        try {
-            const stateData = JSON.parse(Buffer.from(state, 'base64').toString('utf-8'));
-            userId = stateData.userId;
-
-            // Optional: Check timestamp to prevent replay attacks (state older than 10 minutes)
-            const stateAge = Date.now() - stateData.timestamp;
-            if (stateAge > 10 * 60 * 1000) {
-                console.error('[OAuth Callback] State parameter expired');
-                return NextResponse.redirect(
-                    `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?ghl_error=state_expired`
-                );
+        // Fallback: If no userId from state (e.g., GHL Marketplace direct install), use Clerk session
+        if (!userId) {
+            try {
+                const { userId: clerkUserId } = await auth();
+                if (clerkUserId) {
+                    userId = clerkUserId;
+                    console.log('[OAuth Callback] Resolved userId from Clerk session:', userId);
+                }
+            } catch (authErr) {
+                console.warn('[OAuth Callback] Clerk auth fallback failed:', authErr.message);
             }
-        } catch (e) {
-            console.error('[OAuth Callback] Invalid state parameter:', e);
+        }
+
+        if (!userId) {
+            console.error('[OAuth Callback] Could not resolve user identity from state or session');
             return NextResponse.redirect(
-                `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?ghl_error=invalid_state`
+                `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?ghl_error=missing_user_identity`
             );
         }
 
