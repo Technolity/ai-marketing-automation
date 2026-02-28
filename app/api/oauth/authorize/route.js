@@ -36,22 +36,219 @@ export async function GET(req) {
             }, { status: 500 });
         }
 
-        // Scopes required for our use case (including users.write for user creation)
+        // Full GHL Marketplace scopes
         const scopes = [
-            'businesses.write',           // Create sub-accounts
-            'businesses.readonly',        // Read business info
-            'locations.write',            // Manage locations
-            'locations.readonly',         // Read location data
-            'locations/customValues.write', // Update custom values
-            'locations/customValues.readonly', //Read custom values
-            'snapshots.write',            // Import snapshots (if available)
-            'oauth.write',                // Generate location tokens from agency token
-            'users.write',                // Create GHL users (REQUIRED for Builder Login)
-            'users.readonly',             // Read GHL user data
-            'contacts.readonly',          // Read contacts for dashboard metrics
-            'opportunities.readonly',     // Read opportunities for pipeline metrics
-            'calendars.readonly',         // Read calendar data and availability
-            // 'calendars/events.readonly',  // Read appointment details and calendar events
+            // --- Existing core scopes ---
+            'businesses.write',
+            'businesses.readonly',
+            'locations.write',
+            'locations.readonly',
+            'locations/customValues.write',
+            'locations/customValues.readonly',
+            'snapshots.write',
+            'oauth.write',
+            'oauth.readonly',
+            'users.write',
+            'users.readonly',
+            'contacts.readonly',
+            'opportunities.readonly',
+
+            // --- Calendars ---
+            'calendars.readonly',
+            'calendars/events.readonly',
+            'calendars/events.write',
+            'calendars/groups.readonly',
+            'calendars/groups.write',
+            'calendars/resources.readonly',
+            'calendars/resources.write',
+
+            // --- Companies ---
+            'companies.readonly',
+
+            // --- Campaigns ---
+            'campaigns.readonly',
+
+            // --- Conversations ---
+            'conversations.readonly',
+            'conversations.write',
+            'conversations/message.readonly',
+            'conversations/message.write',
+            'conversations/reports.readonly',
+            'conversations/livechat.write',
+
+            // --- Objects / Associations ---
+            'objects/schema.readonly',
+            'objects/schema.write',
+            'objects/record.readonly',
+            'objects/record.write',
+            'associations.write',
+            'associations.readonly',
+            'associations/relation.readonly',
+            'associations/relation.write',
+
+            // --- Courses ---
+            'courses.write',
+            'courses.readonly',
+
+            // --- Forms ---
+            'forms.readonly',
+            'forms.write',
+
+            // --- Invoices ---
+            'invoices.readonly',
+            'invoices.write',
+            'invoices/schedule.readonly',
+            'invoices/schedule.write',
+            'invoices/template.readonly',
+            'invoices/template.write',
+            'invoices/estimate.readonly',
+            'invoices/estimate.write',
+
+            // --- Links ---
+            'links.readonly',
+            'links.write',
+
+            // --- Email ---
+            'lc-email.readonly',
+
+            // --- Locations extras ---
+            'locations/customFields.readonly',
+            'locations/customFields.write',
+            'locations/tasks.readonly',
+            'locations/tasks.write',
+            'locations/tags.readonly',
+            'locations/tags.write',
+            'locations/templates.readonly',
+
+            // --- Recurring tasks ---
+            'recurring-tasks.readonly',
+            'recurring-tasks.write',
+
+            // --- Media ---
+            'medias.readonly',
+            'medias.write',
+
+            // --- Funnels ---
+            'funnels/page.readonly',
+            'funnels/redirect.readonly',
+            'funnels/redirect.write',
+            'funnels/funnel.readonly',
+            'funnels/pagecount.readonly',
+
+            // --- Payments ---
+            'payments/orders.readonly',
+            'payments/orders.write',
+            'payments/orders.collectPayment',
+            'payments/integration.readonly',
+            'payments/integration.write',
+            'payments/transactions.readonly',
+            'payments/subscriptions.readonly',
+            'payments/coupons.readonly',
+            'payments/coupons.write',
+            'payments/custom-provider.readonly',
+            'payments/custom-provider.write',
+
+            // --- Products ---
+            'products.readonly',
+            'products.write',
+            'products/prices.readonly',
+            'products/prices.write',
+            'products/collection.readonly',
+            'products/collection.write',
+
+            // --- SaaS ---
+            'saas/company.read',
+            'saas/company.write',
+            'saas/location.read',
+            'saas/location.write',
+
+            // --- Social Planner ---
+            'socialplanner/oauth.readonly',
+            'socialplanner/oauth.write',
+            'socialplanner/post.readonly',
+            'socialplanner/post.write',
+            'socialplanner/account.readonly',
+            'socialplanner/account.write',
+            'socialplanner/csv.readonly',
+            'socialplanner/csv.write',
+            'socialplanner/category.readonly',
+            'socialplanner/category.write',
+            'socialplanner/statistics.readonly',
+            'socialplanner/tag.readonly',
+            'socialplanner/tag.write',
+
+            // --- Store ---
+            'store/shipping.readonly',
+            'store/shipping.write',
+            'store/setting.readonly',
+            'store/setting.write',
+
+            // --- Surveys ---
+            'surveys.readonly',
+
+            // --- Workflows ---
+            'workflows.readonly',
+
+            // --- Emails builder ---
+            'emails/builder.write',
+            'emails/builder.readonly',
+            'emails/schedule.readonly',
+
+            // --- WordPress / Blogs ---
+            'wordpress.site.readonly',
+            'blogs/post.write',
+            'blogs/check-slug.readonly',
+            'blogs/post-update.write',
+            'blogs/category.readonly',
+            'blogs/author.readonly',
+            'blogs/posts.readonly',
+            'blogs/list.readonly',
+
+            // --- Custom menu ---
+            'custom-menu-link.readonly',
+            'custom-menu-link.write',
+
+            // --- Brand boards ---
+            'brand-boards/design-kit.readonly',
+            'brand-boards/design-kit.write',
+
+            // --- Charges ---
+            'charges.readonly',
+            'charges.write',
+
+            // --- Marketplace ---
+            'marketplace-installer-details.readonly',
+            'marketplace-external-auth-migration.write',
+
+            // --- Twilio ---
+            'twilioaccount.read',
+            'phonenumbers.read',
+            'numberpools.read',
+
+            // --- Documents / Contracts ---
+            'documents_contracts/list.readonly',
+            'documents_contracts/sendLink.write',
+            'documents_contracts_template/sendLink.write',
+            'documents_contracts_template/list.readonly',
+
+            // --- Voice AI ---
+            'voice-ai-dashboard.readonly',
+            'voice-ai-agents.readonly',
+            'voice-ai-agents.write',
+            'voice-ai-agent-goals.readonly',
+            'voice-ai-agent-goals.write',
+
+            // --- Knowledge bases ---
+            'knowledge-bases.write',
+            'knowledge-bases.readonly',
+
+            // --- Conversation AI ---
+            'conversation-ai.readonly',
+            'conversation-ai.write',
+
+            // --- Agent Studio ---
+            'agent-studio.readonly',
+            'agent-studio.write',
         ].join(' ');
 
         // Create state parameter with user ID (Base64 encoded for safety)
