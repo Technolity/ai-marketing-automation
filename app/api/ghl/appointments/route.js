@@ -104,41 +104,51 @@ async function fetchAppointmentsMetrics(accessToken, locationId) {
         let appointments = [];
 
         try {
-            const eventsRes = await fetch(
-                `${GHL_API_URL}/calendars/events?locationId=${locationId}&startTime=${thirtyDaysAgo.getTime()}&endTime=${sevenDaysFromNow.getTime()}`,
+            // Step 1: Get all calendars for this location
+            const calendarsRes = await fetch(
+                `${GHL_API_URL}/calendars/?locationId=${locationId}`,
                 { headers }
             );
 
-            if (eventsRes.ok) {
-                const eventsData = await eventsRes.json();
-                appointments = eventsData.events || [];
+            let calendarIds = [];
+
+            if (calendarsRes.ok) {
+                const calendarsData = await calendarsRes.json();
+                calendarIds = (calendarsData.calendars || []).map(cal => cal.id);
+                console.log(`[GHL Appointments] Found ${calendarIds.length} calendars`);
             } else {
-                console.warn('[GHL Appointments] Calendar API returned:', eventsRes.status);
+                const errBody = await calendarsRes.text();
+                console.warn('[GHL Appointments] Calendars list API returned:', calendarsRes.status, errBody.substring(0, 200));
+            }
 
-                // Specific handling for scope/authorization errors
-                if (eventsRes.status === 401) {
-                    const errorText = await eventsRes.clone().text();
-                    console.error('[GHL Appointments] SCOPE ERROR: Token not authorized for this scope');
-                    console.error('[GHL Appointments] Required scopes: calendars.readonly AND calendars/events.readonly');
-                    console.error('[GHL Appointments] Error response:', errorText);
-                    console.error('[GHL Appointments] Troubleshooting steps:');
-                    console.error('[GHL Appointments] 1. Delete all rows from ghl_tokens table in Supabase');
-                    console.error('[GHL Appointments] 2. Visit /api/oauth/authorize?user_type=Company to re-authorize');
-                    console.error('[GHL Appointments] 3. Ensure both calendars.readonly and calendars/events.readonly scopes are included');
-                }
+            // Step 2: Fetch events for each calendar (or use groupId approach)
+            if (calendarIds.length > 0) {
+                // Fetch events for all calendars in parallel
+                const eventPromises = calendarIds.map(async (calId) => {
+                    try {
+                        const eventsRes = await fetch(
+                            `${GHL_API_URL}/calendars/events?locationId=${locationId}&calendarId=${calId}&startTime=${thirtyDaysAgo.getTime()}&endTime=${sevenDaysFromNow.getTime()}`,
+                            { headers }
+                        );
+                        if (eventsRes.ok) {
+                            const eventsData = await eventsRes.json();
+                            return eventsData.events || [];
+                        } else {
+                            const errBody = await eventsRes.text();
+                            console.warn(`[GHL Appointments] Events API returned ${eventsRes.status} for calendar ${calId}:`, errBody.substring(0, 200));
+                            return [];
+                        }
+                    } catch (err) {
+                        console.warn(`[GHL Appointments] Error fetching events for calendar ${calId}:`, err.message);
+                        return [];
+                    }
+                });
 
-                // Try alternative endpoint if primary fails
-                const altRes = await fetch(
-                    `${GHL_API_URL}/appointments/?locationId=${locationId}`,
-                    { headers }
-                );
-                if (altRes.ok) {
-                    const altData = await altRes.json();
-                    appointments = altData.appointments || [];
-                } else if (altRes.status === 401) {
-                    const altErrorText = await altRes.clone().text();
-                    console.error('[GHL Appointments] Alternative endpoint also returned 401:', altErrorText);
-                }
+                const allResults = await Promise.all(eventPromises);
+                appointments = allResults.flat();
+                console.log(`[GHL Appointments] Total events fetched: ${appointments.length}`);
+            } else {
+                console.warn('[GHL Appointments] No calendars found for location, returning empty data');
             }
         } catch (apiError) {
             console.warn('[GHL Appointments] API not available:', apiError.message);
