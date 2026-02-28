@@ -41,11 +41,14 @@ export default function MaintenanceGuard({ children }) {
 
         const checkMaintenance = async () => {
             try {
+                console.log('[MaintenanceGuard] Checking maintenance status...');
                 const res = await fetch('/api/maintenance-status');
                 const data = await res.json();
+                console.log('[MaintenanceGuard] API response:', JSON.stringify(data));
                 if (isMounted) {
                     setMaintenanceMode(data.maintenanceMode === true);
                     setChecked(true);
+                    console.log('[MaintenanceGuard] State set — maintenanceMode:', data.maintenanceMode === true);
                 }
             } catch (error) {
                 console.error('[MaintenanceGuard] Error checking status:', error);
@@ -67,6 +70,18 @@ export default function MaintenanceGuard({ children }) {
             clearInterval(interval);
         };
     }, []);
+
+    // Log the decision-making process
+    useEffect(() => {
+        console.log('[MaintenanceGuard] Decision state:', {
+            checked,
+            maintenanceMode,
+            isAdmin,
+            authLoading,
+            pathname,
+            isAllowedPath: isAlwaysAllowed(pathname)
+        });
+    }, [checked, maintenanceMode, isAdmin, authLoading, pathname]);
 
     // --- Always-allowed paths pass through immediately ---
     if (isAlwaysAllowed(pathname)) {
@@ -114,6 +129,7 @@ export default function MaintenanceGuard({ children }) {
     }
 
     // Auth loaded — non-admin gets blocked
+    console.log('[MaintenanceGuard] BLOCKING non-admin user on path:', pathname);
     return <MaintenancePage />;
 }
 
