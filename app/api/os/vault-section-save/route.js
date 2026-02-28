@@ -163,6 +163,24 @@ export async function POST(req) {
                 // Check orphaned map if not in active map
                 const resolvedField = currentField || orphanedFieldMap[field_id];
 
+                // ─── SKIP UNCHANGED FIELDS ───────────────────────────
+                // If the field already exists and the value hasn't changed,
+                // skip the RPC entirely to preserve is_approved status.
+                // This prevents progress resets when batch-saving sections
+                // where only some fields were actually modified.
+                if (resolvedField) {
+                    const existingValue = typeof resolvedField.field_value === 'string'
+                        ? resolvedField.field_value
+                        : JSON.stringify(resolvedField.field_value);
+
+                    if (existingValue === serializedValue) {
+                        console.log('[VaultSectionSave] Skipping unchanged field:', field_id, '(version', resolvedField.version, 'preserved)');
+                        savedFields.push({ field_id, action: 'skipped_unchanged', version: resolvedField.version });
+                        continue;
+                    }
+                }
+                // ─────────────────────────────────────────────────────
+
                 if (!resolvedField) {
                     // CREATE new field via atomic RPC
                     console.log('[VaultSectionSave] Creating new field via RPC:', field_id);
