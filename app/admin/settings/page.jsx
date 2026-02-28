@@ -153,58 +153,118 @@ export default function AdminSettings() {
         { id: "advanced", label: "Advanced", icon: Server }
     ];
 
+    // Map of active tab → category key and which settings fields belong to it
+    const getCategoryData = (tab) => {
+        switch (tab) {
+            case 'general':
+                return {
+                    category: 'general',
+                    settings: {
+                        siteName: settings.siteName,
+                        siteDescription: settings.siteDescription,
+                        userRegistration: settings.userRegistration,
+                        maintenanceMode: settings.maintenanceMode
+                    }
+                };
+            case 'users':
+                return {
+                    category: 'users',
+                    settings: {
+                        autoApproveContent: settings.autoApproveContent,
+                        maxUsersPerTier: settings.maxUsersPerTier
+                    }
+                };
+            case 'notifications':
+                return {
+                    category: 'notifications',
+                    settings: {
+                        emailNotifications: settings.emailNotifications,
+                        adminEmail: settings.adminEmail
+                    }
+                };
+            case 'security':
+                return {
+                    category: 'security',
+                    settings: {
+                        require2FA: settings.require2FA,
+                        allowAPIAccess: settings.allowAPIAccess
+                    }
+                };
+            case 'advanced':
+                return {
+                    category: 'advanced',
+                    settings: {
+                        apiEndpoint: settings.apiEndpoint,
+                        webhookUrl: settings.webhookUrl,
+                        customCSS: settings.customCSS
+                    }
+                };
+            default:
+                return null;
+        }
+    };
+
+    // Save only the active tab's settings (prevents cross-category overwrites)
     const handleSave = async () => {
         try {
             setSaving(true);
 
-            // Save settings by category
-            const categorySettings = {
-                general: {
-                    siteName: settings.siteName,
-                    siteDescription: settings.siteDescription,
-                    userRegistration: settings.userRegistration,
-                    maintenanceMode: settings.maintenanceMode
-                },
-                users: {
-                    autoApproveContent: settings.autoApproveContent,
-                    maxUsersPerTier: settings.maxUsersPerTier
-                },
-                notifications: {
-                    emailNotifications: settings.emailNotifications,
-                    adminEmail: settings.adminEmail
-                },
-                security: {
-                    require2FA: settings.require2FA,
-                    allowAPIAccess: settings.allowAPIAccess
-                },
-                advanced: {
-                    apiEndpoint: settings.apiEndpoint,
-                    webhookUrl: settings.webhookUrl,
-                    customCSS: settings.customCSS
-                }
-            };
-
-            // Save each category
-            for (const [category, categoryData] of Object.entries(categorySettings)) {
-                const response = await fetchWithAuth('/api/admin/settings', {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        category,
-                        settings: categoryData
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`Failed to save ${category} settings`);
-                }
+            const data = getCategoryData(activeTab);
+            if (!data) {
+                toast.info('No saveable settings for this tab');
+                return;
             }
 
-            toast.success("All settings saved successfully!");
+            const response = await fetchWithAuth('/api/admin/settings', {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to save ${data.category} settings`);
+            }
+
+            toast.success(`${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} settings saved!`);
         } catch (error) {
             console.error('Error saving settings:', error);
             toast.error('Failed to save settings');
         } finally {
             setSaving(false);
+        }
+    };
+
+    // Immediately save maintenance mode toggle to DB (no need to click Save)
+    const toggleMaintenanceMode = async (newValue) => {
+        try {
+            // Optimistically update local state
+            setSettings(prev => ({ ...prev, maintenanceMode: newValue }));
+
+            const response = await fetchWithAuth('/api/admin/settings', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    category: 'general',
+                    settings: {
+                        siteName: settings.siteName,
+                        siteDescription: settings.siteDescription,
+                        userRegistration: settings.userRegistration,
+                        maintenanceMode: newValue
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                // Revert on failure
+                setSettings(prev => ({ ...prev, maintenanceMode: !newValue }));
+                throw new Error('Failed to toggle maintenance mode');
+            }
+
+            toast.success(newValue
+                ? '🔧 Maintenance Mode ENABLED — users will be blocked within 60 seconds'
+                : '✅ Maintenance Mode DISABLED — users can access the site again'
+            );
+        } catch (error) {
+            console.error('Error toggling maintenance mode:', error);
+            toast.error('Failed to toggle maintenance mode');
         }
     };
 
@@ -399,11 +459,11 @@ export default function AdminSettings() {
                                                 if (!settings.maintenanceMode) {
                                                     // Turning ON — confirm first
                                                     if (confirm('⚠️ Enable Maintenance Mode?\n\nAll non-admin users will immediately be blocked from using the site and will see a maintenance page.\n\nOnly admins will be able to access the site.\n\nContinue?')) {
-                                                        setSettings({ ...settings, maintenanceMode: true });
+                                                        toggleMaintenanceMode(true);
                                                     }
                                                 } else {
-                                                    // Turning OFF — no confirmation needed
-                                                    setSettings({ ...settings, maintenanceMode: false });
+                                                    // Turning OFF
+                                                    toggleMaintenanceMode(false);
                                                 }
                                             }}
                                             className={`relative w-14 h-7 rounded-full transition-colors ${settings.maintenanceMode ? "bg-red-500" : "bg-gray-600"
@@ -417,7 +477,7 @@ export default function AdminSettings() {
                                     </div>
                                     {settings.maintenanceMode && (
                                         <p className="mt-3 text-xs text-red-300/80 pl-12">
-                                            Remember to click &quot;Save All Changes&quot; for this to take effect. Users will be blocked within 60 seconds of saving.
+                                            ✅ Maintenance mode is saved and active. Users will be blocked within 60 seconds.
                                         </p>
                                     )}
                                 </div>
