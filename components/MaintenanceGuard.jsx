@@ -68,9 +68,26 @@ export default function MaintenanceGuard({ children }) {
         };
     }, []);
 
-    // While we haven't checked yet, render children normally (fail-open)
-    if (!checked) {
+    // --- Always-allowed paths pass through immediately ---
+    if (isAlwaysAllowed(pathname)) {
+        // show admin banner if applicable
+        if (checked && maintenanceMode && !authLoading && isAdmin) {
+            return (
+                <>
+                    <MaintenanceBanner />
+                    {children}
+                </>
+            );
+        }
         return <>{children}</>;
+    }
+
+    // --- For protected routes ---
+
+    // While we haven't checked maintenance status yet, show a blank loading screen
+    // (NOT the children — that would leak content)
+    if (!checked) {
+        return <MaintenanceLoadingScreen />;
     }
 
     // If maintenance mode is OFF, render normally
@@ -78,20 +95,16 @@ export default function MaintenanceGuard({ children }) {
         return <>{children}</>;
     }
 
-    // Maintenance mode is ON
+    // Maintenance mode is ON and we are on a protected route
 
-    // Always allow admin routes, auth routes, and landing page
-    if (isAlwaysAllowed(pathname)) {
-        return (
-            <>
-                {isAdmin && <MaintenanceBanner />}
-                {children}
-            </>
-        );
+    // If auth is still loading, show loading screen (NOT children)
+    // We must wait to know if user is admin before deciding
+    if (authLoading) {
+        return <MaintenanceLoadingScreen />;
     }
 
-    // If user is admin, let them through with a banner
-    if (!authLoading && isAdmin) {
+    // Auth loaded — admin gets through with banner
+    if (isAdmin) {
         return (
             <>
                 <MaintenanceBanner />
@@ -100,13 +113,20 @@ export default function MaintenanceGuard({ children }) {
         );
     }
 
-    // Non-admin user on a protected route → show maintenance page
-    if (!authLoading) {
-        return <MaintenancePage />;
-    }
+    // Auth loaded — non-admin gets blocked
+    return <MaintenancePage />;
+}
 
-    // Auth is loading — show children, guard will re-render once loaded
-    return <>{children}</>;
+/**
+ * Minimal loading screen shown while checking maintenance status or auth.
+ * Prevents content from flashing before the guard makes a decision.
+ */
+function MaintenanceLoadingScreen() {
+    return (
+        <div className="fixed inset-0 z-[9999] bg-[#0a0a0b] flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-gray-700 border-t-cyan rounded-full animate-spin" />
+        </div>
+    );
 }
 
 /**
