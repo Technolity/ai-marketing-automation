@@ -47,6 +47,12 @@
 | `supabase/migrations/20260228000000_atomic_vault_versioning.sql` | **[NEW] Bug Fix**: Added `upsert_vault_field_version` PL/pgSQL RPC for atomic vault field versioning. Includes data cleanup, partial unique index on `is_current_version=true`, eliminating race conditions. |
 | `app/api/os/vault-field/route.js` | **Bug Fix**: Replaced 240-line INSERT/UPDATE retry loop with single atomic `upsert_vault_field_version` RPC call. Eliminates duplicate/orphaned `is_current_version` flags. |
 | `app/api/os/vault-section-save/route.js` | **Bug Fix**: Replaced 160-line batch versioning logic with atomic RPC calls per field. |
+| `components/MaintenanceGuard.jsx` | **[NEW] Feature**: Wrapper component that blocks non-admin users when maintenance mode is active. Shows amber banner for admins, polls status every 60s. |
+| `components/MaintenancePage.jsx` | **[NEW] Feature**: Premium full-screen maintenance page with animated gradients, wrench icon, and pulsing status indicator. |
+| `app/api/maintenance-status/route.js` | **[NEW] Feature**: Public API endpoint returning maintenance mode status from `admin_settings` table, cached 30s. |
+| `app/layout.jsx` | **Feature**: Wrapped app children in `<MaintenanceGuard>` inside `AuthProvider` for site-wide enforcement. |
+| `middleware.js` | **Feature**: Added `/api/maintenance-status` to public and ignored routes. |
+| `app/admin/settings/page.jsx` | **UI Enhancement**: Upgraded Maintenance Mode toggle with danger-zone styling, confirmation dialog, and active warning text. |
 
 ### Recent Modifications (2026-02-23)
 | File | Change |

@@ -375,21 +375,51 @@ export default function AdminSettings() {
                                     </button>
                                 </div>
 
-                                <div className="flex items-center justify-between p-4 bg-[#0e0e0f] rounded-lg">
-                                    <div>
-                                        <p className="font-medium">Maintenance Mode</p>
-                                        <p className="text-sm text-gray-400">Put site in maintenance mode</p>
-                                    </div>
-                                    <button
-                                        onClick={() => setSettings({ ...settings, maintenanceMode: !settings.maintenanceMode })}
-                                        className={`relative w-14 h-7 rounded-full transition-colors ${settings.maintenanceMode ? "bg-red-500" : "bg-gray-600"
-                                            }`}
-                                    >
-                                        <div
-                                            className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.maintenanceMode ? "translate-x-7" : "translate-x-0"
+                                {/* Maintenance Mode — Prominent Danger Toggle */}
+                                <div className={`p-4 rounded-lg border transition-all ${settings.maintenanceMode
+                                    ? "bg-red-500/10 border-red-500/40"
+                                    : "bg-[#0e0e0f] border-[#2a2a2d]"
+                                    }`}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${settings.maintenanceMode ? 'bg-red-500/20' : 'bg-gray-700/30'}`}>
+                                                <AlertTriangle className={`w-5 h-5 ${settings.maintenanceMode ? 'text-red-400' : 'text-gray-500'}`} />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium">Maintenance Mode</p>
+                                                <p className="text-sm text-gray-400">
+                                                    {settings.maintenanceMode
+                                                        ? "⚠️ Site is BLOCKED for all non-admin users"
+                                                        : "Block all non-admin users from accessing the site"}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                if (!settings.maintenanceMode) {
+                                                    // Turning ON — confirm first
+                                                    if (confirm('⚠️ Enable Maintenance Mode?\n\nAll non-admin users will immediately be blocked from using the site and will see a maintenance page.\n\nOnly admins will be able to access the site.\n\nContinue?')) {
+                                                        setSettings({ ...settings, maintenanceMode: true });
+                                                    }
+                                                } else {
+                                                    // Turning OFF — no confirmation needed
+                                                    setSettings({ ...settings, maintenanceMode: false });
+                                                }
+                                            }}
+                                            className={`relative w-14 h-7 rounded-full transition-colors ${settings.maintenanceMode ? "bg-red-500" : "bg-gray-600"
                                                 }`}
-                                        />
-                                    </button>
+                                        >
+                                            <div
+                                                className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.maintenanceMode ? "translate-x-7" : "translate-x-0"
+                                                    }`}
+                                            />
+                                        </button>
+                                    </div>
+                                    {settings.maintenanceMode && (
+                                        <p className="mt-3 text-xs text-red-300/80 pl-12">
+                                            Remember to click &quot;Save All Changes&quot; for this to take effect. Users will be blocked within 60 seconds of saving.
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
