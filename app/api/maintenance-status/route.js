@@ -1,58 +1,35 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/adminAuth';
+import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
-
-// Use the same Supabase client as the rest of the admin system
-const supabase = getSupabaseClient();
-
-// In-memory cache to avoid hammering DB on every page load
-let maintenanceCache = { enabled: false, timestamp: 0 };
-const CACHE_TTL = 30 * 1000; // 30 seconds
 
 /**
  * GET /api/maintenance-status
  *
  * Public endpoint (no auth required) that returns whether maintenance mode is active.
- * Cached for 30 seconds to prevent excessive DB queries.
+ * Creates its own Supabase client to ensure a completely fresh connection.
  */
 export async function GET() {
     try {
-        const now = Date.now();
+        // Create a fresh client every time to avoid any module-level caching
+        const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY,
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        );
 
-        // Return cached value if fresh
-        if (now - maintenanceCache.timestamp < CACHE_TTL) {
-            console.log('[MaintenanceStatus] Returning cached value:', maintenanceCache.enabled);
-            return NextResponse.json({ maintenanceMode: maintenanceCache.enabled });
-        }
-
-        // Fetch the 'general' settings row from admin_settings
         const { data, error } = await supabase
             .from('admin_settings')
-            .select('setting_value')
+            .select('setting_key, setting_value')
             .eq('setting_key', 'general')
             .maybeSingle();
 
         if (error) {
-            // If table doesn't exist yet, maintenance is off
-            if (error.code === '42P01') {
-                console.log('[MaintenanceStatus] Table not found, returning false');
-                maintenanceCache = { enabled: false, timestamp: now };
-                return NextResponse.json({ maintenanceMode: false });
-            }
-            console.error('[MaintenanceStatus] DB error:', error.message, error.code);
-            // On error, default to NOT in maintenance (fail-open)
+            console.error('[MaintenanceStatus] DB error:', error.message);
             return NextResponse.json({ maintenanceMode: false });
         }
 
-        console.log('[MaintenanceStatus] Raw DB data:', JSON.stringify(data));
-
         const enabled = data?.setting_value?.maintenanceMode === true;
-
-        console.log('[MaintenanceStatus] maintenanceMode resolved to:', enabled);
-
-        // Update cache
-        maintenanceCache = { enabled, timestamp: now };
 
         return NextResponse.json({ maintenanceMode: enabled });
     } catch (error) {

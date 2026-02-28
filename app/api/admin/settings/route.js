@@ -7,11 +7,11 @@ export const dynamic = 'force-dynamic';
 
 const supabase = getSupabaseClient();
 
-// Cache for admin settings (15 minute TTL)
+// Cache for admin settings (30 second TTL)
 const settingsCache = {
   data: null,
   timestamp: 0,
-  TTL: 15 * 60 * 1000 // 15 minutes
+  TTL: 30 * 1000 // 30 seconds
 };
 
 // GET - Retrieve all admin settings
@@ -126,6 +126,9 @@ export async function PUT(request) {
         { status: 400 }
       );
     }
+
+    // Log what's being saved (especially maintenanceMode)
+    console.log(`[AdminSettings PUT] category=${category}, settings=${JSON.stringify(newSettings)}`);
 
     // Map frontend categories to database keys
     const categoryMap = {
