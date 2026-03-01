@@ -33,7 +33,10 @@ import {
     Edit3,
     Save,
     FileText,
-    Rocket
+    Rocket,
+    History,
+    Clock,
+    Undo2,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
@@ -104,6 +107,15 @@ export default function AdminFunnels() {
     const [editValue, setEditValue] = useState('');
     const [savingEdit, setSavingEdit] = useState(false);
     const [toast, setToast] = useState(null);
+
+    // ── Version History state ────────────────────────────────
+    // historyField: { sectionId, fieldId, fieldLabel } — which field's history is being viewed
+    const [historyField, setHistoryField] = useState(null);
+    const [historyVersions, setHistoryVersions] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    // The version object selected in the dropdown for preview
+    const [selectedHistoryVersion, setSelectedHistoryVersion] = useState(null);
+    const [restoringVersion, setRestoringVersion] = useState(false);
 
     const fetchFunnels = useCallback(async () => {
         if (!session) return;
@@ -189,6 +201,10 @@ export default function AdminFunnels() {
         setSelectedFunnel(funnel);
         setExpandedSections(new Set());
         setEditingItem(null);
+        // Reset version history state when opening a new funnel
+        setHistoryField(null);
+        setHistoryVersions([]);
+        setSelectedHistoryVersion(null);
         setShowVaultModal(true);
     };
 
@@ -203,6 +219,99 @@ export default function AdminFunnels() {
             return next;
         });
     };
+
+    // ── Version History Handlers ─────────────────────────────
+
+    /**
+     * Fetch all versions of a specific field from the admin API.
+     * Called when admin clicks "History" on a field inside the vault modal.
+     */
+    const handleFetchHistory = useCallback(async (sectionId, fieldId, fieldLabel) => {
+        if (!selectedFunnel) return;
+
+        console.log(`[AdminHistory] Fetching history for ${sectionId}.${fieldId}`);
+        setHistoryField({ sectionId, fieldId, fieldLabel });
+        setHistoryLoading(true);
+        setSelectedHistoryVersion(null);
+
+        try {
+            const params = new URLSearchParams({ sectionId, fieldId });
+            const response = await fetchWithAuth(
+                `/api/admin/funnels/${selectedFunnel.id}/vault/history?${params}`
+            );
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || 'Failed to fetch history');
+            }
+
+            const data = await response.json();
+            console.log(`[AdminHistory] Got ${data.versions?.length || 0} versions`);
+            setHistoryVersions(data.versions || []);
+        } catch (error) {
+            console.error('[AdminHistory] Error fetching history:', error);
+            setToast({ message: `Failed to load history: ${error.message}`, type: 'error' });
+            setHistoryField(null);
+        } finally {
+            setHistoryLoading(false);
+        }
+    }, [selectedFunnel]);
+
+    /**
+     * Restore a previously saved version of a field.
+     * Creates a new current version with the old data (preserves audit trail).
+     */
+    const handleRestoreVersion = useCallback(async (targetVersion) => {
+        if (!selectedFunnel || !historyField) return;
+
+        const confirmed = confirm(
+            `Are you sure you want to restore ${historyField.fieldLabel || historyField.fieldId} to version ${targetVersion}?\n\nThis will create a new version with the old data and make it the current active version for the user.`
+        );
+        if (!confirmed) return;
+
+        console.log(`[AdminHistory] Restoring ${historyField.sectionId}.${historyField.fieldId} to v${targetVersion}`);
+        setRestoringVersion(true);
+
+        try {
+            const response = await fetchWithAuth(
+                `/api/admin/funnels/${selectedFunnel.id}/vault/restore`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sectionId: historyField.sectionId,
+                        fieldId: historyField.fieldId,
+                        targetVersion,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || 'Failed to restore version');
+            }
+
+            setToast({ message: `Restored to version ${targetVersion} successfully!`, type: 'success' });
+
+            // Re-fetch history to show the newly created version at the top
+            await handleFetchHistory(historyField.sectionId, historyField.fieldId, historyField.fieldLabel);
+
+            // Refresh the funnel data so the modal reflects the restored content
+            fetchFunnels();
+        } catch (error) {
+            console.error('[AdminHistory] Error restoring version:', error);
+            setToast({ message: `Restore failed: ${error.message}`, type: 'error' });
+        } finally {
+            setRestoringVersion(false);
+        }
+    }, [selectedFunnel, historyField, handleFetchHistory, fetchFunnels]);
+
+    /** Close the history panel and go back to normal content view */
+    const closeHistory = useCallback(() => {
+        setHistoryField(null);
+        setHistoryVersions([]);
+        setSelectedHistoryVersion(null);
+    }, []);
 
     const handleStartEdit = (item) => {
         setEditingItem(item.id);
@@ -769,17 +878,153 @@ export default function AdminFunnels() {
                                                                                             </button>
                                                                                         </>
                                                                                     ) : (
-                                                                                        <button
-                                                                                            onClick={() => handleStartEdit(item)}
-                                                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg transition-colors"
-                                                                                        >
-                                                                                            <Edit3 className="w-3.5 h-3.5" />
-                                                                                            Edit JSON
-                                                                                        </button>
+                                                                                        <>
+                                                                                            {/* History button — opens field-level version history */}
+                                                                                            {historyField?.sectionId === item.section_id ? (
+                                                                                                <button
+                                                                                                    onClick={closeHistory}
+                                                                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-colors"
+                                                                                                >
+                                                                                                    <X className="w-3.5 h-3.5" />
+                                                                                                    Close History
+                                                                                                </button>
+                                                                                            ) : (
+                                                                                                <button
+                                                                                                    onClick={() => {
+                                                                                                        // Auto-pick first field of item.content for history
+                                                                                                        if (item.content && typeof item.content === 'object') {
+                                                                                                            const firstFieldId = Object.keys(item.content)[0];
+                                                                                                            if (firstFieldId) {
+                                                                                                                handleFetchHistory(item.section_id, firstFieldId, firstFieldId);
+                                                                                                            }
+                                                                                                        }
+                                                                                                    }}
+                                                                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2a2a2d] hover:bg-purple-500/20 hover:text-purple-400 rounded-lg transition-colors"
+                                                                                                >
+                                                                                                    <History className="w-3.5 h-3.5" />
+                                                                                                    History
+                                                                                                </button>
+                                                                                            )}
+
+                                                                                            <button
+                                                                                                onClick={() => handleStartEdit(item)}
+                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg transition-colors"
+                                                                                            >
+                                                                                                <Edit3 className="w-3.5 h-3.5" />
+                                                                                                Edit JSON
+                                                                                            </button>
+                                                                                        </>
                                                                                     )}
                                                                                 </div>
 
-                                                                                {/* Content display or editor */}
+                                                                                {/* ── Version History Panel ─────────────────────── */}
+                                                                                {historyField?.sectionId === item.section_id && !isEditing && (
+                                                                                    <div className="mb-4 bg-[#1b1b1d] border border-purple-500/20 rounded-xl p-4 space-y-4">
+                                                                                        {/* Field selector dropdown */}
+                                                                                        <div className="flex items-center gap-3 flex-wrap">
+                                                                                            <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Field:</label>
+                                                                                            <select
+                                                                                                value={historyField.fieldId}
+                                                                                                onChange={(e) => {
+                                                                                                    const newFieldId = e.target.value;
+                                                                                                    handleFetchHistory(item.section_id, newFieldId, newFieldId);
+                                                                                                }}
+                                                                                                className="bg-[#0e0e0f] border border-[#2a2a2d] text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-400 transition-colors min-w-[200px]"
+                                                                                            >
+                                                                                                {item.content && typeof item.content === 'object' && Object.keys(item.content).map(fieldKey => (
+                                                                                                    <option key={fieldKey} value={fieldKey}>{fieldKey}</option>
+                                                                                                ))}
+                                                                                            </select>
+                                                                                            <span className="text-xs text-gray-500">
+                                                                                                {historyLoading ? 'Loading...' : `${historyVersions.length} version${historyVersions.length !== 1 ? 's' : ''}`}
+                                                                                            </span>
+                                                                                        </div>
+
+                                                                                        {/* Version list */}
+                                                                                        {historyLoading ? (
+                                                                                            <div className="flex items-center justify-center py-8">
+                                                                                                <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                                                                                            </div>
+                                                                                        ) : historyVersions.length === 0 ? (
+                                                                                            <p className="text-gray-500 text-sm text-center py-4">No version history found for this field.</p>
+                                                                                        ) : (
+                                                                                            <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                                                                                {historyVersions.map((ver) => {
+                                                                                                    const isSelected = selectedHistoryVersion?.id === ver.id;
+                                                                                                    const isCurrent = ver.is_current_version;
+                                                                                                    return (
+                                                                                                        <button
+                                                                                                            key={ver.id}
+                                                                                                            onClick={() => setSelectedHistoryVersion(ver)}
+                                                                                                            className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all text-xs ${isSelected
+                                                                                                                    ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
+                                                                                                                    : 'border-[#2a2a2d] bg-[#0e0e0f] hover:border-gray-600'
+                                                                                                                }`}
+                                                                                                        >
+                                                                                                            <div className="flex items-center gap-2">
+                                                                                                                <Clock className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                                                                                                                <span className="font-medium text-white">v{ver.version}</span>
+                                                                                                                {isCurrent && (
+                                                                                                                    <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[10px] font-semibold">
+                                                                                                                        CURRENT
+                                                                                                                    </span>
+                                                                                                                )}
+                                                                                                                {ver.is_approved && (
+                                                                                                                    <span className="px-1.5 py-0.5 bg-cyan/20 text-cyan rounded text-[10px] font-semibold">
+                                                                                                                        APPROVED
+                                                                                                                    </span>
+                                                                                                                )}
+                                                                                                            </div>
+                                                                                                            <span className="text-gray-500">
+                                                                                                                {new Date(ver.updated_at || ver.created_at).toLocaleString('en-US', {
+                                                                                                                    month: 'short', day: 'numeric', year: 'numeric',
+                                                                                                                    hour: '2-digit', minute: '2-digit'
+                                                                                                                })}
+                                                                                                            </span>
+                                                                                                        </button>
+                                                                                                    );
+                                                                                                })}
+                                                                                            </div>
+                                                                                        )}
+
+                                                                                        {/* Selected version preview + restore button */}
+                                                                                        {selectedHistoryVersion && (
+                                                                                            <div className="border-t border-[#2a2a2d] pt-4 space-y-3">
+                                                                                                <div className="flex items-center justify-between">
+                                                                                                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                                                                                        Preview — v{selectedHistoryVersion.version}
+                                                                                                        {selectedHistoryVersion.is_current_version && ' (Current)'}
+                                                                                                    </h4>
+                                                                                                    {/* Show restore button only for non-current versions */}
+                                                                                                    {!selectedHistoryVersion.is_current_version && (
+                                                                                                        <button
+                                                                                                            onClick={() => handleRestoreVersion(selectedHistoryVersion.version)}
+                                                                                                            disabled={restoringVersion}
+                                                                                                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-lg transition-colors disabled:opacity-50"
+                                                                                                        >
+                                                                                                            {restoringVersion ? (
+                                                                                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                                                            ) : (
+                                                                                                                <Undo2 className="w-3.5 h-3.5" />
+                                                                                                            )}
+                                                                                                            Restore this version
+                                                                                                        </button>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                                {/* Read-only JSON view of historical data */}
+                                                                                                <div className="max-h-64 overflow-y-auto bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-3 custom-scrollbar">
+                                                                                                    <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap break-words">
+                                                                                                        {typeof selectedHistoryVersion.field_value === 'object'
+                                                                                                            ? JSON.stringify(selectedHistoryVersion.field_value, null, 2)
+                                                                                                            : String(selectedHistoryVersion.field_value ?? 'null')}
+                                                                                                    </pre>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {/* Content display or editor (shown when NOT in history mode for this section) */}
                                                                                 {isEditing ? (
                                                                                     <textarea
                                                                                         value={editValue}
@@ -787,7 +1032,7 @@ export default function AdminFunnels() {
                                                                                         className="w-full h-96 p-4 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-sm text-gray-300 font-mono resize-y focus:outline-none focus:border-cyan transition-colors"
                                                                                         spellCheck={false}
                                                                                     />
-                                                                                ) : (
+                                                                                ) : historyField?.sectionId !== item.section_id ? (
                                                                                     <div className="max-h-96 overflow-y-auto pr-2 custom-scrollbar">
                                                                                         {item.content ? (
                                                                                             renderContentValue(item.content)
@@ -795,7 +1040,7 @@ export default function AdminFunnels() {
                                                                                             <p className="text-gray-500 italic">No content data</p>
                                                                                         )}
                                                                                     </div>
-                                                                                )}
+                                                                                ) : null}
                                                                             </div>
                                                                         </motion.div>
                                                                     )}

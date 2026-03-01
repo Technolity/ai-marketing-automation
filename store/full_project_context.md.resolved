@@ -42,6 +42,9 @@
 | `app/api/admin/settings/route.js` | **Bug Fix**: Reduced settings GET cache from 15 min → 30 sec. Added PUT logging for diagnostics. |
 | `app/api/os/vault-section-save/route.js` | **Bug Fix**: Batch save now skips unchanged fields (compares parsed normalized values instead of raw stringified JSON) to prevent `is_approved` progress resets and unnecessary version increments due to formatting differences. |
 | `app/api/os/vault-field/route.js` | **Bug Fix**: Added identical skip-unchanged logic with deep object normalization before the atomic upsert RPC to prevent continuous version bumping when saving nested objects like `optinPage.headline_text`. |
+| `app/api/admin/funnels/[funnelId]/vault/history/route.js` | **New**: Admin API to fetch complete version history of any vault field (all versions, ordered newest-first). |
+| `app/api/admin/funnels/[funnelId]/vault/restore/route.js` | **New**: Admin API to restore a historical version of a vault field. Creates a new current version with the old data via atomic RPC, preserving audit trail. |
+| `app/admin/funnels/page.jsx` | **Feature**: Added Version History UI to VaultContentModal — field picker dropdown, version timeline, read-only JSON preview, and "Restore this version" button with confirmation. |
 
 ### Recent Modifications (2026-02-27)
 | File | Change |
