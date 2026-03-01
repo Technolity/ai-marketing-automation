@@ -116,6 +116,8 @@ export default function AdminFunnels() {
     // The version object selected in the dropdown for preview
     const [selectedHistoryVersion, setSelectedHistoryVersion] = useState(null);
     const [restoringVersion, setRestoringVersion] = useState(false);
+    // Tracks the data source ("vault_content_fields" or "vault_content_extracted" etc.)
+    const [historySource, setHistorySource] = useState(null);
 
     const fetchFunnels = useCallback(async () => {
         if (!session) return;
@@ -246,8 +248,9 @@ export default function AdminFunnels() {
             }
 
             const data = await response.json();
-            console.log(`[AdminHistory] Got ${data.versions?.length || 0} versions`);
+            console.log(`[AdminHistory] Got ${data.versions?.length || 0} versions (source: ${data.meta?.source})`);
             setHistoryVersions(data.versions || []);
+            setHistorySource(data.meta?.source || null);
         } catch (error) {
             console.error('[AdminHistory] Error fetching history:', error);
             setToast({ message: `Failed to load history: ${error.message}`, type: 'error' });
@@ -282,6 +285,7 @@ export default function AdminFunnels() {
                         sectionId: historyField.sectionId,
                         fieldId: historyField.fieldId,
                         targetVersion,
+                        source: historySource || 'vault_content_fields',
                     }),
                 }
             );
@@ -311,6 +315,7 @@ export default function AdminFunnels() {
         setHistoryField(null);
         setHistoryVersions([]);
         setSelectedHistoryVersion(null);
+        setHistorySource(null);
     }, []);
 
     const handleStartEdit = (item) => {
@@ -957,8 +962,8 @@ export default function AdminFunnels() {
                                                                                                             key={ver.id}
                                                                                                             onClick={() => setSelectedHistoryVersion(ver)}
                                                                                                             className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all text-xs ${isSelected
-                                                                                                                    ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
-                                                                                                                    : 'border-[#2a2a2d] bg-[#0e0e0f] hover:border-gray-600'
+                                                                                                                ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
+                                                                                                                : 'border-[#2a2a2d] bg-[#0e0e0f] hover:border-gray-600'
                                                                                                                 }`}
                                                                                                         >
                                                                                                             <div className="flex items-center gap-2">

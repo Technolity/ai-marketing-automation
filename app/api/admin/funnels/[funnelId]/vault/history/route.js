@@ -8,14 +8,20 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/admin/funnels/[funnelId]/vault/history
  * 
- * Fetches the complete version history for a specific vault field.
+ * Fetches version history for a vault section (and optionally a specific field).
  * 
  * Query params:
  *   - sectionId (required): The section_id to look up (e.g., "idealClient")
- *   - fieldId   (required): The field_id to look up (e.g., "bestIdealClient")
+ *   - fieldId   (optional): A specific field_id within the section to drill into
  * 
- * Returns all versions of that field in descending order (newest first).
- * Each version includes: version, field_value, is_current_version, is_approved, created_at, updated_at.
+ * Strategy:
+ *   1. Always query `vault_content` for section-level versions (every funnel has these).
+ *   2. If fieldId is provided, also query `vault_content_fields` for field-level versions.
+ *   3. Return whichever dataset has results (preferring field-level if available).
+ * 
+ * This dual-source approach ensures history works for:
+ *   - Old funnels (data only in vault_content.content JSONB blob)
+ *   - New funnels (data in both vault_content and vault_content_fields)
  */
 export async function GET(req, { params }) {
     const startTime = Date.now();
@@ -38,45 +44,112 @@ export async function GET(req, { params }) {
         // ── Parse query params ───────────────────────────────────
         const { searchParams } = new URL(req.url);
         const sectionId = searchParams.get('sectionId');
-        const fieldId = searchParams.get('fieldId');
+        const fieldId = searchParams.get('fieldId'); // optional for field-level drill-down
 
-        if (!sectionId || !fieldId) {
-            console.log('[VaultHistory] Missing required params', { sectionId, fieldId, funnelId });
+        if (!sectionId) {
+            console.log('[VaultHistory] Missing required sectionId param', { funnelId });
             return NextResponse.json(
-                { error: 'sectionId and fieldId are required query parameters' },
+                { error: 'sectionId is a required query parameter' },
                 { status: 400 }
             );
         }
 
-        console.log(`[VaultHistory] Fetching history for funnel=${funnelId}, section=${sectionId}, field=${fieldId}`);
+        console.log(`[VaultHistory] Fetching history for funnel=${funnelId}, section=${sectionId}, field=${fieldId || '(all)'}`);
 
-        // ── Query all versions of this field ─────────────────────
         const supabase = getSupabaseClient();
-        const { data: versions, error } = await supabase
-            .from('vault_content_fields')
-            .select('id, funnel_id, section_id, field_id, field_value, version, is_current_version, is_approved, created_at, updated_at')
-            .eq('funnel_id', funnelId)
-            .eq('section_id', sectionId)
-            .eq('field_id', fieldId)
-            .order('version', { ascending: false });
 
-        if (error) {
-            console.error('[VaultHistory] DB query error:', error.message);
-            adminLogger.error(LOG_CATEGORIES.DATABASE, '[VaultHistory] Failed to fetch version history', {
-                funnelId, sectionId, fieldId, error: error.message
-            });
-            return NextResponse.json({ error: 'Failed to fetch version history' }, { status: 500 });
+        // ── Strategy: Try field-level first (if fieldId provided), fallback to section-level ──
+
+        let versions = [];
+        let source = 'none';
+
+        // Attempt 1: Field-level history from vault_content_fields
+        if (fieldId) {
+            const { data: fieldVersions, error: fieldError } = await supabase
+                .from('vault_content_fields')
+                .select('id, funnel_id, section_id, field_id, field_value, version, is_current_version, is_approved, created_at, updated_at')
+                .eq('funnel_id', funnelId)
+                .eq('section_id', sectionId)
+                .eq('field_id', fieldId)
+                .order('version', { ascending: false });
+
+            if (fieldError) {
+                console.error('[VaultHistory] vault_content_fields query error:', fieldError.message);
+                // Don't fail — fall through to section-level
+            } else if (fieldVersions && fieldVersions.length > 0) {
+                console.log(`[VaultHistory] Found ${fieldVersions.length} field-level versions from vault_content_fields`);
+                versions = fieldVersions;
+                source = 'vault_content_fields';
+            }
         }
 
-        console.log(`[VaultHistory] Found ${versions?.length || 0} versions for ${sectionId}.${fieldId} in ${Date.now() - startTime}ms`);
+        // Attempt 2: Section-level history from vault_content (always available)
+        if (versions.length === 0) {
+            console.log('[VaultHistory] No field-level versions found, falling back to vault_content (section-level)');
+
+            const { data: sectionVersions, error: sectionError } = await supabase
+                .from('vault_content')
+                .select('id, funnel_id, section_id, section_title, content, version, is_current_version, status, created_at, updated_at')
+                .eq('funnel_id', funnelId)
+                .eq('section_id', sectionId)
+                .order('version', { ascending: false });
+
+            if (sectionError) {
+                console.error('[VaultHistory] vault_content query error:', sectionError.message);
+                adminLogger.error(LOG_CATEGORIES.DATABASE, '[VaultHistory] Failed to fetch version history', {
+                    funnelId, sectionId, fieldId, error: sectionError.message
+                });
+                return NextResponse.json({ error: 'Failed to fetch version history' }, { status: 500 });
+            }
+
+            // If a fieldId was requested, extract just that field's value from each section version
+            if (fieldId && sectionVersions && sectionVersions.length > 0) {
+                console.log(`[VaultHistory] Extracting field "${fieldId}" from ${sectionVersions.length} section-level versions`);
+                versions = sectionVersions.map(sv => ({
+                    id: sv.id,
+                    funnel_id: sv.funnel_id,
+                    section_id: sv.section_id,
+                    field_id: fieldId,
+                    // Extract the specific field value from the section's content blob
+                    field_value: sv.content?.[fieldId] ?? null,
+                    version: sv.version,
+                    is_current_version: sv.is_current_version,
+                    is_approved: sv.status === 'approved',
+                    created_at: sv.created_at,
+                    updated_at: sv.updated_at,
+                    // Flag so UI knows this came from section-level data
+                    _source: 'vault_content',
+                }));
+                source = 'vault_content_extracted';
+            } else {
+                // No fieldId requested — return full section versions
+                versions = (sectionVersions || []).map(sv => ({
+                    id: sv.id,
+                    funnel_id: sv.funnel_id,
+                    section_id: sv.section_id,
+                    field_id: null,
+                    field_value: sv.content,
+                    version: sv.version,
+                    is_current_version: sv.is_current_version,
+                    is_approved: sv.status === 'approved',
+                    created_at: sv.created_at,
+                    updated_at: sv.updated_at,
+                    _source: 'vault_content',
+                }));
+                source = 'vault_content_full';
+            }
+        }
+
+        console.log(`[VaultHistory] Returning ${versions.length} versions (source: ${source}) in ${Date.now() - startTime}ms`);
 
         return NextResponse.json({
-            versions: versions || [],
+            versions,
             meta: {
                 funnelId,
                 sectionId,
-                fieldId,
-                totalVersions: versions?.length || 0,
+                fieldId: fieldId || null,
+                totalVersions: versions.length,
+                source,
             }
         });
 

@@ -8,19 +8,19 @@ export const dynamic = 'force-dynamic';
 /**
  * POST /api/admin/funnels/[funnelId]/vault/restore
  * 
- * Restores a specific historical version of a vault field to become the current active version.
+ * Restores a specific historical version of a vault section or field.
  * 
- * This does NOT delete any data. Instead, it:
- *   1. Reads the field_value from the target historical version.
- *   2. Calls the `upsert_vault_field_version` RPC, which atomically:
- *      - Marks all existing versions as is_current_version = false
- *      - Inserts a NEW version row with the old data as is_current_version = true
- *   3. The user's UI will immediately pick up the restored data on next load.
+ * Supports two restore modes:
+ *   1. Section-level restore (source = "vault_content"): Overwrites the entire section content
+ *      by updating the current version in `vault_content` with the historical content blob.
+ *   2. Field-level restore (source = "vault_content_fields"): Uses the atomic RPC to create a
+ *      new field version with the old data.
  * 
  * Body params:
- *   - sectionId      (required): The section_id of the field
- *   - fieldId        (required): The field_id to restore
- *   - targetVersion  (required): The version number to restore from
+ *   - sectionId        (required): The section_id of the field
+ *   - fieldId          (optional): The field_id to restore (for field-level)
+ *   - targetVersion    (required): The version number to restore from
+ *   - source           (optional): "vault_content" or "vault_content_fields" (default)
  */
 export async function POST(req, { params }) {
     const startTime = Date.now();
@@ -42,21 +42,107 @@ export async function POST(req, { params }) {
 
         // ── Parse request body ───────────────────────────────────
         const body = await req.json();
-        const { sectionId, fieldId, targetVersion } = body;
+        const { sectionId, fieldId, targetVersion, source } = body;
 
-        if (!sectionId || !fieldId || targetVersion === undefined || targetVersion === null) {
+        if (!sectionId || targetVersion === undefined || targetVersion === null) {
             console.log('[VaultRestore] Missing required params:', { sectionId, fieldId, targetVersion, funnelId });
             return NextResponse.json(
-                { error: 'sectionId, fieldId, and targetVersion are required' },
+                { error: 'sectionId and targetVersion are required' },
                 { status: 400 }
             );
         }
 
-        console.log(`[VaultRestore] Admin ${adminUserId} restoring funnel=${funnelId}, section=${sectionId}, field=${fieldId} to version=${targetVersion}`);
+        const restoreSource = source || 'vault_content_fields';
+        console.log(`[VaultRestore] Admin ${adminUserId} restoring funnel=${funnelId}, section=${sectionId}, field=${fieldId || '(section-level)'}, version=${targetVersion}, source=${restoreSource}`);
 
         const supabase = getSupabaseClient();
 
-        // ── Step 1: Fetch the historical version's field_value ───
+        // ══════════════════════════════════════════════════════════
+        // SECTION-LEVEL RESTORE (from vault_content)
+        // ══════════════════════════════════════════════════════════
+        if (restoreSource === 'vault_content' || restoreSource === 'vault_content_extracted' || restoreSource === 'vault_content_full') {
+            // Step 1: Fetch the historical version from vault_content
+            const { data: historicalSection, error: fetchError } = await supabase
+                .from('vault_content')
+                .select('id, content, version, is_current_version, status')
+                .eq('funnel_id', funnelId)
+                .eq('section_id', sectionId)
+                .eq('version', targetVersion)
+                .single();
+
+            if (fetchError || !historicalSection) {
+                console.error('[VaultRestore] Could not find target section version:', fetchError?.message || 'Not found');
+                return NextResponse.json(
+                    { error: `Section version ${targetVersion} not found for ${sectionId}` },
+                    { status: 404 }
+                );
+            }
+
+            if (historicalSection.is_current_version === true) {
+                console.log(`[VaultRestore] Section version ${targetVersion} is already the current. No action needed.`);
+                return NextResponse.json({
+                    message: 'This version is already the current active version',
+                    restoredVersion: targetVersion,
+                    alreadyCurrent: true,
+                });
+            }
+
+            console.log(`[VaultRestore] Found historical section v${targetVersion}, content keys: ${Object.keys(historicalSection.content || {}).join(', ')}`);
+
+            // Step 2: Find the current version row and update it with the old content
+            // We update the current version's content blob with the historical data
+            const { data: currentVersion, error: currentError } = await supabase
+                .from('vault_content')
+                .select('id, version')
+                .eq('funnel_id', funnelId)
+                .eq('section_id', sectionId)
+                .eq('is_current_version', true)
+                .single();
+
+            if (currentError || !currentVersion) {
+                console.error('[VaultRestore] Could not find current section version:', currentError?.message);
+                return NextResponse.json({ error: 'Could not find current section version' }, { status: 500 });
+            }
+
+            // Update the current version's content with the historical data
+            const { error: updateError } = await supabase
+                .from('vault_content')
+                .update({
+                    content: historicalSection.content,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', currentVersion.id);
+
+            if (updateError) {
+                console.error('[VaultRestore] Failed to update current section:', updateError.message);
+                return NextResponse.json({ error: 'Failed to restore section version' }, { status: 500 });
+            }
+
+            adminLogger.info(LOG_CATEGORIES.FUNNEL_MANAGEMENT, '[VaultRestore] Section version restored successfully', {
+                adminUserId, funnelId, sectionId, restoredFromVersion: targetVersion,
+                currentVersionId: currentVersion.id, durationMs: Date.now() - startTime,
+            });
+
+            console.log(`[VaultRestore] ✓ Section ${sectionId} restored from v${targetVersion} in ${Date.now() - startTime}ms`);
+
+            return NextResponse.json({
+                message: `Successfully restored section ${sectionId} to version ${targetVersion}`,
+                restoredVersion: targetVersion,
+                alreadyCurrent: false,
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════
+        // FIELD-LEVEL RESTORE (from vault_content_fields via RPC)
+        // ══════════════════════════════════════════════════════════
+        if (!fieldId) {
+            return NextResponse.json(
+                { error: 'fieldId is required for field-level restores' },
+                { status: 400 }
+            );
+        }
+
+        // Step 1: Fetch the historical version's field_value
         const { data: historicalVersion, error: fetchError } = await supabase
             .from('vault_content_fields')
             .select('id, field_value, version, is_current_version')
@@ -67,7 +153,7 @@ export async function POST(req, { params }) {
             .single();
 
         if (fetchError || !historicalVersion) {
-            console.error('[VaultRestore] Could not find target version:', fetchError?.message || 'Not found');
+            console.error('[VaultRestore] Could not find target field version:', fetchError?.message || 'Not found');
             return NextResponse.json(
                 { error: `Version ${targetVersion} not found for field ${sectionId}.${fieldId}` },
                 { status: 404 }
@@ -76,7 +162,7 @@ export async function POST(req, { params }) {
 
         // If this version is already the current one, no-op
         if (historicalVersion.is_current_version === true) {
-            console.log(`[VaultRestore] Version ${targetVersion} is already the current version. No action needed.`);
+            console.log(`[VaultRestore] Field version ${targetVersion} is already current. No action needed.`);
             return NextResponse.json({
                 message: 'This version is already the current active version',
                 restoredVersion: targetVersion,
@@ -84,16 +170,14 @@ export async function POST(req, { params }) {
             });
         }
 
-        console.log(`[VaultRestore] Found historical version ${targetVersion}, field_value type: ${typeof historicalVersion.field_value}`);
+        console.log(`[VaultRestore] Found historical field v${targetVersion}, value type: ${typeof historicalVersion.field_value}`);
 
-        // ── Step 2: Call the atomic upsert RPC to create a new version with the old data ──
-        // This ensures the old data becomes the new "current" version while preserving the full audit trail
+        // Step 2: Call the atomic upsert RPC to create a new version with the old data
         const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_vault_field_version', {
             p_funnel_id: funnelId,
             p_section_id: sectionId,
             p_field_id: fieldId,
             p_field_value: historicalVersion.field_value,
-            // Mark as approved since the admin is explicitly restoring this version
             p_is_approved: true,
         });
 
@@ -105,17 +189,12 @@ export async function POST(req, { params }) {
             return NextResponse.json({ error: 'Failed to restore version' }, { status: 500 });
         }
 
-        // ── Step 3: Log the successful restoration ───────────────
-        adminLogger.info(LOG_CATEGORIES.FUNNEL_MANAGEMENT, '[VaultRestore] Version restored successfully', {
-            adminUserId,
-            funnelId,
-            sectionId,
-            fieldId,
-            restoredFromVersion: targetVersion,
-            durationMs: Date.now() - startTime,
+        adminLogger.info(LOG_CATEGORIES.FUNNEL_MANAGEMENT, '[VaultRestore] Field version restored successfully', {
+            adminUserId, funnelId, sectionId, fieldId,
+            restoredFromVersion: targetVersion, durationMs: Date.now() - startTime,
         });
 
-        console.log(`[VaultRestore] ✓ Successfully restored ${sectionId}.${fieldId} from v${targetVersion} in ${Date.now() - startTime}ms`);
+        console.log(`[VaultRestore] ✓ Field ${sectionId}.${fieldId} restored from v${targetVersion} in ${Date.now() - startTime}ms`);
 
         return NextResponse.json({
             message: `Successfully restored ${sectionId}.${fieldId} to version ${targetVersion}`,
