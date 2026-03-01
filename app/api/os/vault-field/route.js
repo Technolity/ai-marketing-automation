@@ -379,6 +379,41 @@ export async function PATCH(req) {
         // in a single transaction with row-level locking to prevent race conditions.
         console.log('[VaultField PATCH] Calling atomic upsert RPC:', { field_id: actualFieldId, isNested: isNestedField });
 
+        // ─── SKIP UNCHANGED FIELDS ───────────────────────────
+        // Prevent unnecessary version bumps if the value hasn't changed.
+        if (currentField && currentField.field_value !== undefined) {
+            const normalizeValue = (val) => {
+                if (typeof val === 'string') {
+                    try { return JSON.parse(val); } catch (e) { return val; }
+                }
+                return val;
+            };
+
+            const normalizedExisting = normalizeValue(currentField.field_value);
+            const normalizedIncoming = normalizeValue(actualFieldValue);
+
+            const existingValueNormalized = typeof normalizedExisting === 'object' && normalizedExisting !== null
+                ? JSON.stringify(normalizedExisting)
+                : String(normalizedExisting);
+
+            const incomingValueNormalized = typeof normalizedIncoming === 'object' && normalizedIncoming !== null
+                ? JSON.stringify(normalizedIncoming)
+                : String(normalizedIncoming);
+
+            if (existingValueNormalized === incomingValueNormalized) {
+                console.log('[VaultField PATCH] Skipping unchanged field:', actualFieldId, '(version preserved)');
+                return new Response(JSON.stringify({
+                    success: true,
+                    skipped: true,
+                    message: "Value unchanged",
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+        // ─────────────────────────────────────────────────────
+
         const rpcArgs = {
             p_funnel_id: funnel_id,
             p_user_id: userId,

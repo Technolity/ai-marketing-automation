@@ -40,7 +40,8 @@
 | `app/admin/settings/page.jsx` | **Bug Fix**: `handleSave` now only saves the active tab's settings (was saving ALL categories, overwriting maintenance mode with stale state). Maintenance toggle now saves instantly to DB — no need to click "Save All Changes". |
 | `app/api/maintenance-status/route.js` | **Bug Fix**: Removed unreliable in-memory cache, creates fresh Supabase client per request. Fixes stale `maintenanceMode: false` being served. |
 | `app/api/admin/settings/route.js` | **Bug Fix**: Reduced settings GET cache from 15 min → 30 sec. Added PUT logging for diagnostics. |
-| `app/api/os/vault-section-save/route.js` | **Bug Fix**: Batch save now skips unchanged fields (compares serialized value) to prevent `is_approved` progress resets when only some fields were modified. |
+| `app/api/os/vault-section-save/route.js` | **Bug Fix**: Batch save now skips unchanged fields (compares parsed normalized values instead of raw stringified JSON) to prevent `is_approved` progress resets and unnecessary version increments due to formatting differences. |
+| `app/api/os/vault-field/route.js` | **Bug Fix**: Added identical skip-unchanged logic with deep object normalization before the atomic upsert RPC to prevent continuous version bumping when saving nested objects like `optinPage.headline_text`. |
 
 ### Recent Modifications (2026-02-27)
 | File | Change |
