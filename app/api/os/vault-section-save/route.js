@@ -169,11 +169,27 @@ export async function POST(req) {
                 // This prevents progress resets when batch-saving sections
                 // where only some fields were actually modified.
                 if (resolvedField) {
-                    const existingValue = typeof resolvedField.field_value === 'string'
-                        ? resolvedField.field_value
-                        : JSON.stringify(resolvedField.field_value);
+                    // Helper to safely parse strings to objects, or leave as objects/strings
+                    const normalizeValue = (val) => {
+                        if (typeof val === 'string') {
+                            try { return JSON.parse(val); } catch (e) { return val; }
+                        }
+                        return val;
+                    };
 
-                    if (existingValue === serializedValue) {
+                    const normalizedExisting = normalizeValue(resolvedField.field_value);
+                    const normalizedIncoming = normalizeValue(field_value);
+
+                    // Compare normalized values (handling objects and arrays robustly)
+                    const existingValueNormalized = typeof normalizedExisting === 'object' && normalizedExisting !== null
+                        ? JSON.stringify(normalizedExisting)
+                        : String(normalizedExisting);
+
+                    const incomingValueNormalized = typeof normalizedIncoming === 'object' && normalizedIncoming !== null
+                        ? JSON.stringify(normalizedIncoming)
+                        : String(normalizedIncoming);
+
+                    if (existingValueNormalized === incomingValueNormalized) {
                         console.log('[VaultSectionSave] Skipping unchanged field:', field_id, '(version', resolvedField.version, 'preserved)');
                         savedFields.push({ field_id, action: 'skipped_unchanged', version: resolvedField.version });
                         continue;
