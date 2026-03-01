@@ -925,25 +925,45 @@ export default function AdminFunnels() {
                                                                                 {/* ── Version History Panel ─────────────────────── */}
                                                                                 {historyField?.sectionId === item.section_id && !isEditing && (
                                                                                     <div className="mb-4 bg-[#1b1b1d] border border-purple-500/20 rounded-xl p-4 space-y-4">
-                                                                                        {/* Field selector dropdown */}
-                                                                                        <div className="flex items-center gap-3 flex-wrap">
-                                                                                            <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Field:</label>
-                                                                                            <select
-                                                                                                value={historyField.fieldId}
-                                                                                                onChange={(e) => {
-                                                                                                    const newFieldId = e.target.value;
-                                                                                                    handleFetchHistory(item.section_id, newFieldId, newFieldId);
-                                                                                                }}
-                                                                                                className="bg-[#0e0e0f] border border-[#2a2a2d] text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-400 transition-colors min-w-[200px]"
-                                                                                            >
-                                                                                                {item.content && typeof item.content === 'object' && Object.keys(item.content).map(fieldKey => (
-                                                                                                    <option key={fieldKey} value={fieldKey}>{fieldKey}</option>
-                                                                                                ))}
-                                                                                            </select>
-                                                                                            <span className="text-xs text-gray-500">
-                                                                                                {historyLoading ? 'Loading...' : `${historyVersions.length} version${historyVersions.length !== 1 ? 's' : ''}`}
-                                                                                            </span>
-                                                                                        </div>
+                                                                                        {/* Header — depends on data source */}
+                                                                                        {historySource === 'vault_content_fields' ? (
+                                                                                            /* Field-level: show field picker dropdown */
+                                                                                            <div className="flex items-center gap-3 flex-wrap">
+                                                                                                <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Field:</label>
+                                                                                                <select
+                                                                                                    value={historyField.fieldId}
+                                                                                                    onChange={(e) => {
+                                                                                                        const newFieldId = e.target.value;
+                                                                                                        handleFetchHistory(item.section_id, newFieldId, newFieldId);
+                                                                                                    }}
+                                                                                                    className="bg-[#0e0e0f] border border-[#2a2a2d] text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-400 transition-colors min-w-[200px]"
+                                                                                                >
+                                                                                                    {item.content && typeof item.content === 'object' && Object.keys(item.content).map(fieldKey => (
+                                                                                                        <option key={fieldKey} value={fieldKey}>{fieldKey}</option>
+                                                                                                    ))}
+                                                                                                </select>
+                                                                                                <span className="text-xs text-gray-500">
+                                                                                                    {historyLoading ? 'Loading...' : `${historyVersions.length} version${historyVersions.length !== 1 ? 's' : ''}`}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            /* Section-level: show snapshot label with info note */
+                                                                                            <div className="space-y-2">
+                                                                                                <div className="flex items-center gap-3 flex-wrap">
+                                                                                                    <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                                                                                                        <History className="w-3.5 h-3.5" />
+                                                                                                        Section Snapshots
+                                                                                                    </span>
+                                                                                                    <span className="text-xs text-gray-500">
+                                                                                                        {historyLoading ? 'Loading...' : `${historyVersions.length} version${historyVersions.length !== 1 ? 's' : ''}`}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                                <p className="text-[11px] text-gray-500 leading-relaxed">
+                                                                                                    Each version below is a full snapshot of the entire section at that point in time.
+                                                                                                    Versions are created when the section is generated or regenerated.
+                                                                                                </p>
+                                                                                            </div>
+                                                                                        )}
 
                                                                                         {/* Version list */}
                                                                                         {historyLoading ? (

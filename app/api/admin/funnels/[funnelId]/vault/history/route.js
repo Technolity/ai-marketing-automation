@@ -84,6 +84,8 @@ export async function GET(req, { params }) {
         }
 
         // Attempt 2: Section-level history from vault_content (always available)
+        // Always returns the FULL section content blob for each version — no per-field extraction.
+        // This avoids null values for older versions where a specific field didn't exist yet.
         if (versions.length === 0) {
             console.log('[VaultHistory] No field-level versions found, falling back to vault_content (section-level)');
 
@@ -102,42 +104,25 @@ export async function GET(req, { params }) {
                 return NextResponse.json({ error: 'Failed to fetch version history' }, { status: 500 });
             }
 
-            // If a fieldId was requested, extract just that field's value from each section version
-            if (fieldId && sectionVersions && sectionVersions.length > 0) {
-                console.log(`[VaultHistory] Extracting field "${fieldId}" from ${sectionVersions.length} section-level versions`);
-                versions = sectionVersions.map(sv => ({
-                    id: sv.id,
-                    funnel_id: sv.funnel_id,
-                    section_id: sv.section_id,
-                    field_id: fieldId,
-                    // Extract the specific field value from the section's content blob
-                    field_value: sv.content?.[fieldId] ?? null,
-                    version: sv.version,
-                    is_current_version: sv.is_current_version,
-                    is_approved: sv.status === 'approved',
-                    created_at: sv.created_at,
-                    updated_at: sv.updated_at,
-                    // Flag so UI knows this came from section-level data
-                    _source: 'vault_content',
-                }));
-                source = 'vault_content_extracted';
-            } else {
-                // No fieldId requested — return full section versions
-                versions = (sectionVersions || []).map(sv => ({
-                    id: sv.id,
-                    funnel_id: sv.funnel_id,
-                    section_id: sv.section_id,
-                    field_id: null,
-                    field_value: sv.content,
-                    version: sv.version,
-                    is_current_version: sv.is_current_version,
-                    is_approved: sv.status === 'approved',
-                    created_at: sv.created_at,
-                    updated_at: sv.updated_at,
-                    _source: 'vault_content',
-                }));
-                source = 'vault_content_full';
-            }
+            console.log(`[VaultHistory] Found ${sectionVersions?.length || 0} section-level versions from vault_content`);
+
+            // Return full section content for each version (admin sees the complete snapshot)
+            versions = (sectionVersions || []).map(sv => ({
+                id: sv.id,
+                funnel_id: sv.funnel_id,
+                section_id: sv.section_id,
+                section_title: sv.section_title,
+                field_id: null, // null = this is section-level data
+                field_value: sv.content, // FULL content blob (not a single extracted field)
+                version: sv.version,
+                is_current_version: sv.is_current_version,
+                is_approved: sv.status === 'approved',
+                status: sv.status,
+                created_at: sv.created_at,
+                updated_at: sv.updated_at,
+                _source: 'vault_content',
+            }));
+            source = 'vault_content';
         }
 
         console.log(`[VaultHistory] Returning ${versions.length} versions (source: ${source}) in ${Date.now() - startTime}ms`);
