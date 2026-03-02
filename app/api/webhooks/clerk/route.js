@@ -183,9 +183,20 @@ async function handleUserUpdated(data) {
   const email = email_addresses?.[0]?.email_address;
   const fullName = `${first_name || ''} ${last_name || ''}`.trim();
   // Check public_metadata for admin status (set in Clerk dashboard)
-  const isAdmin = public_metadata?.is_admin === true || public_metadata?.role === 'admin';
+  const isClerkAdmin = public_metadata?.is_admin === true || public_metadata?.role === 'admin';
 
-  console.log(`[Webhook] Updating user: ${email}, admin: ${isAdmin}`);
+  console.log(`[Webhook] Updating user: ${email}, clerk metadata admin: ${isClerkAdmin}`);
+
+  // Fetch current user so we don't accidentally demote them if they're already admin in our DB
+  const { data: currentProfile } = await supabase
+    .from('user_profiles')
+    .select('is_admin')
+    .eq('id', id)
+    .maybeSingle();
+
+  // If user is already an admin in our DB and Clerk metadata doesn't say otherwise explicitly
+  // preserving the truth from DB so admin status isn't wiped out via simple user.updated events
+  const finalIsAdmin = isClerkAdmin || (currentProfile?.is_admin === true);
 
   const { error } = await supabase
     .from('user_profiles')
@@ -193,7 +204,7 @@ async function handleUserUpdated(data) {
       email: email,
       full_name: fullName || email?.split('@')[0],
       avatar_url: image_url,
-      is_admin: isAdmin,
+      is_admin: finalIsAdmin,
       updated_at: new Date().toISOString()
     })
     .eq('id', id);  // Match by Clerk user ID
@@ -202,7 +213,7 @@ async function handleUserUpdated(data) {
     throw error;
   }
 
-  console.log(`[Webhook] User updated successfully: ${email}, admin: ${isAdmin}`);
+  console.log(`[Webhook] User updated successfully: ${email}, final admin status: ${finalIsAdmin}`);
 }
 
 /**

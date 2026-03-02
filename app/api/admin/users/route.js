@@ -33,6 +33,7 @@ export async function GET(req) {
         }
 
         const { searchParams } = new URL(req.url);
+        const specificUserId = searchParams.get('userId');
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '10');
         const search = searchParams.get('search') || '';
@@ -40,11 +41,35 @@ export async function GET(req) {
 
         adminLogger.info(LOG_CATEGORIES.USER_MANAGEMENT, 'Fetching users list', {
             adminUserId: userId,
+            specificUserId,
             page,
             limit,
             search,
             role
         });
+
+        // Fast path for single user fetch
+        if (specificUserId) {
+            const { data: user, error } = await supabase
+                .from('user_profiles')
+                .select('*, user_funnels!left(id)')
+                .eq('id', specificUserId)
+                .maybeSingle();
+
+            if (error) throw error;
+
+            if (!user) {
+                return NextResponse.json({ users: [] });
+            }
+
+            const processedUser = {
+                ...user,
+                current_funnel_count: user.user_funnels?.length || 0,
+                user_funnels: undefined
+            };
+
+            return NextResponse.json({ users: [processedUser] });
+        }
 
         const offset = (page - 1) * limit;
 
