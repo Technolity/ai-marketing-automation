@@ -98,16 +98,14 @@ export default function AdminUserDetail() {
 
         try {
             const params = new URLSearchParams({
-                page: '1',
-                limit: '100',
-                search: ''
+                userId: userId
             });
 
             const response = await fetchWithAuth(`/api/admin/users?${params}`);
-            if (!response.ok) throw new Error('Failed to fetch users');
+            if (!response.ok) throw new Error('Failed to fetch user');
 
             const data = await response.json();
-            const found = data.users?.find(u => u.id === userId);
+            const found = data.users?.[0];
 
             if (!found) {
                 setError('User not found');
