@@ -143,9 +143,10 @@ export async function POST(req, { params }) {
         }
 
         // Step 1: Fetch the historical version's field_value
+        console.log('[VaultRestore] Fetching historical field version:', { funnelId, sectionId, fieldId, targetVersion });
         const { data: historicalVersion, error: fetchError } = await supabase
             .from('vault_content_fields')
-            .select('id, field_value, version, is_current_version')
+            .select('id, field_value, field_label, field_type, field_metadata, is_custom, display_order, version, is_current_version')
             .eq('funnel_id', funnelId)
             .eq('section_id', sectionId)
             .eq('field_id', fieldId)
@@ -172,33 +173,68 @@ export async function POST(req, { params }) {
 
         console.log(`[VaultRestore] Found historical field v${targetVersion}, value type: ${typeof historicalVersion.field_value}`);
 
-        // Step 2: Call the atomic upsert RPC to create a new version with the old data
-        const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_vault_field_version', {
+        // Step 2: Resolve the funnel owner's user_id (required by the RPC)
+        const { data: funnelOwner, error: ownerError } = await supabase
+            .from('user_funnels')
+            .select('user_id')
+            .eq('id', funnelId)
+            .single();
+
+        if (ownerError || !funnelOwner) {
+            console.error('[VaultRestore] Could not resolve funnel owner:', ownerError?.message || 'Not found');
+            return NextResponse.json({ error: 'Could not resolve funnel owner' }, { status: 500 });
+        }
+
+        console.log('[VaultRestore] Resolved funnel owner:', funnelOwner.user_id);
+
+        // Step 3: Call the atomic upsert RPC to create a new version with the old data
+        // Pass all required params including p_user_id and p_is_approved
+        const rpcArgs = {
             p_funnel_id: funnelId,
+            p_user_id: funnelOwner.user_id,
             p_section_id: sectionId,
             p_field_id: fieldId,
             p_field_value: historicalVersion.field_value,
-            p_is_approved: true,
+            p_field_label: historicalVersion.field_label,
+            p_field_type: historicalVersion.field_type,
+            p_field_metadata: historicalVersion.field_metadata,
+            p_is_custom: historicalVersion.is_custom || false,
+            p_display_order: historicalVersion.display_order,
+            p_is_approved: true,  // Restored versions are always approved
+        };
+
+        console.log('[VaultRestore] Calling RPC upsert_vault_field_version with:', {
+            p_funnel_id: rpcArgs.p_funnel_id,
+            p_user_id: rpcArgs.p_user_id,
+            p_section_id: rpcArgs.p_section_id,
+            p_field_id: rpcArgs.p_field_id,
+            p_is_approved: rpcArgs.p_is_approved,
         });
+
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('upsert_vault_field_version', rpcArgs);
 
         if (rpcError) {
             console.error('[VaultRestore] RPC upsert_vault_field_version error:', rpcError.message);
             adminLogger.error(LOG_CATEGORIES.DATABASE, '[VaultRestore] RPC failed', {
-                funnelId, sectionId, fieldId, targetVersion, error: rpcError.message
+                funnelId, sectionId, fieldId, targetVersion, error: rpcError.message,
             });
-            return NextResponse.json({ error: 'Failed to restore version' }, { status: 500 });
+            return NextResponse.json({ error: `Failed to restore version: ${rpcError.message}` }, { status: 500 });
         }
+
+        console.log('[VaultRestore] RPC result:', rpcResult);
 
         adminLogger.info(LOG_CATEGORIES.FUNNEL_MANAGEMENT, '[VaultRestore] Field version restored successfully', {
             adminUserId, funnelId, sectionId, fieldId,
-            restoredFromVersion: targetVersion, durationMs: Date.now() - startTime,
+            restoredFromVersion: targetVersion, newVersion: rpcResult?.version,
+            durationMs: Date.now() - startTime,
         });
 
-        console.log(`[VaultRestore] ✓ Field ${sectionId}.${fieldId} restored from v${targetVersion} in ${Date.now() - startTime}ms`);
+        console.log(`[VaultRestore] ✓ Field ${sectionId}.${fieldId} restored from v${targetVersion} → v${rpcResult?.version} (approved) in ${Date.now() - startTime}ms`);
 
         return NextResponse.json({
             message: `Successfully restored ${sectionId}.${fieldId} to version ${targetVersion}`,
             restoredVersion: targetVersion,
+            newVersion: rpcResult?.version,
             alreadyCurrent: false,
         });
 
