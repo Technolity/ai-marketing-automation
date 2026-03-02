@@ -46,7 +46,7 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
             // Check if all fields are approved
             // FIX: If the parent component says it's approved (isApproved prop), we trust that override.
             // This prevents a race condition where fetching old field data overwrites the UI state.
-            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
+            const allApproved = isApproved !== undefined ? isApproved : (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
             console.log('[IdealClientFields] Section approved status:', allApproved);
 

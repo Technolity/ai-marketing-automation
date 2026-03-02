@@ -48,7 +48,7 @@ export default function EmailsFields({ funnelId, onApprove, onRenderApproveButto
             const data = await response.json();
             setFields(data.fields || []);
             // Check if all fields are approved
-            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
+            const allApproved = isApproved !== undefined ? isApproved : (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
             console.log(`[EmailsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {

@@ -58,7 +58,7 @@ export default function SalesScriptsFields({ funnelId, onApprove, onRenderApprov
             setFields(data.fields || []);
 
             // Calculate approval state
-            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
+            const allApproved = isApproved !== undefined ? isApproved : (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
 
             console.log(`[SalesScriptsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);

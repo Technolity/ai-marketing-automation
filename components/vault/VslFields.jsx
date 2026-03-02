@@ -31,7 +31,7 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
             if (!response.ok) throw new Error('Failed to fetch');
             const data = await response.json();
             setFields(data.fields || []);
-            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
+            const allApproved = isApproved !== undefined ? isApproved : (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
             console.log(`[VslFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
         } catch (error) {
