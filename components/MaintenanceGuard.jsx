@@ -42,7 +42,8 @@ export default function MaintenanceGuard({ children }) {
         const checkMaintenance = async () => {
             try {
                 console.log('[MaintenanceGuard] Checking maintenance status...');
-                const res = await fetch('/api/maintenance-status');
+                // cache: 'no-store' + timestamp param = double guarantee browser never serves stale cache
+                const res = await fetch(`/api/maintenance-status?t=${Date.now()}`, { cache: 'no-store' });
                 const data = await res.json();
                 console.log('[MaintenanceGuard] API response:', JSON.stringify(data));
                 if (isMounted) {

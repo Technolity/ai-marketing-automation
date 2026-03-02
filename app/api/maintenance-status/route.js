@@ -2,12 +2,22 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+// Strict no-cache headers to prevent CDN/browser from serving stale status
+const NO_CACHE_HEADERS = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+    'Pragma': 'no-cache',
+    'Expires': '0',
+};
 
 /**
  * GET /api/maintenance-status
  *
  * Public endpoint (no auth required) that returns whether maintenance mode is active.
  * Creates its own Supabase client to ensure a completely fresh connection.
+ * CRITICAL: Every response includes strict no-cache headers so toggling
+ *           maintenance off takes effect immediately for all users.
  */
 export async function GET() {
     try {
@@ -26,14 +36,14 @@ export async function GET() {
 
         if (error) {
             console.error('[MaintenanceStatus] DB error:', error.message);
-            return NextResponse.json({ maintenanceMode: false });
+            return NextResponse.json({ maintenanceMode: false }, { headers: NO_CACHE_HEADERS });
         }
 
         const enabled = data?.setting_value?.maintenanceMode === true;
 
-        return NextResponse.json({ maintenanceMode: enabled });
+        return NextResponse.json({ maintenanceMode: enabled }, { headers: NO_CACHE_HEADERS });
     } catch (error) {
         console.error('[MaintenanceStatus] Unexpected error:', error.message);
-        return NextResponse.json({ maintenanceMode: false });
+        return NextResponse.json({ maintenanceMode: false }, { headers: NO_CACHE_HEADERS });
     }
 }
