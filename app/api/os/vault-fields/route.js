@@ -89,7 +89,7 @@ export async function GET(req) {
             // Fetch raw content from vault_content
             const { data: vaultContent } = await supabaseAdmin
                 .from('vault_content')
-                .select('content')
+                .select('content, status')
                 .eq('funnel_id', funnel_id)
                 .eq('user_id', targetUserId)
                 .eq('section_id', section_id)
@@ -104,7 +104,8 @@ export async function GET(req) {
                     funnel_id,
                     section_id,
                     vaultContent.content,
-                    targetUserId
+                    targetUserId,
+                    { sourceStatus: vaultContent.status }
                 );
 
                 console.log(`[VaultFields GET] Population result:`, populateResult);
