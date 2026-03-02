@@ -51,7 +51,7 @@ export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, 
             setFields(data.fields || []);
 
             // Calculate approval state
-            const allApproved = isApproved || (data.fields.length > 0 && data.fields.every(f => f.is_approved));
+            const allApproved = isApproved !== undefined ? isApproved : (data.fields.length > 0 && data.fields.every(f => f.is_approved));
             setSectionApproved(allApproved);
 
             console.log(`[SmsFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
