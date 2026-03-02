@@ -37,6 +37,7 @@ import {
     History,
     Clock,
     Undo2,
+    ShieldCheck,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
@@ -125,6 +126,8 @@ export default function AdminFunnels() {
     // The version object selected for preview
     const [selectedHistoryVersion, setSelectedHistoryVersion] = useState(null);
     const [restoringVersion, setRestoringVersion] = useState(false);
+    // ── Bulk Approve state ────────────────────────────────────
+    const [approvingSection, setApprovingSection] = useState(null); // section_id currently being approved
 
     const fetchFunnels = useCallback(async () => {
         if (!session) return;
@@ -351,12 +354,61 @@ export default function AdminFunnels() {
         setHistoryFieldFilter(null);
     }, []);
 
+    // ── Bulk Approve Handler ──────────────────────────────────
+    const handleBulkApprove = useCallback(async (sectionId) => {
+        if (!selectedFunnel) return;
+
+        const confirmed = confirm(
+            `Approve ALL fields in section "${sectionId}"?\n\nThis will mark every current-version field as approved and sync the vault_content status.`
+        );
+        if (!confirmed) return;
+
+        console.log(`[AdminBulkApprove] Approving section=${sectionId} for funnel=${selectedFunnel.id}`);
+        setApprovingSection(sectionId);
+
+        try {
+            const response = await fetchWithAuth(
+                `/api/admin/funnels/${selectedFunnel.id}/vault/approve`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sectionId,
+                        approved: true,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || 'Failed to approve section');
+            }
+
+            const result = await response.json();
+            console.log(`[AdminBulkApprove] ✓ Section ${sectionId} approved:`, result);
+            setToast({ message: `Section "${sectionId}" approved (${result.updatedCount} fields)`, type: 'success' });
+
+            // Refresh funnel data to reflect new approval status
+            fetchFunnels();
+        } catch (error) {
+            console.error('[AdminBulkApprove] Error:', error);
+            setToast({ message: `Approve failed: ${error.message}`, type: 'error' });
+        } finally {
+            setApprovingSection(null);
+        }
+    }, [selectedFunnel, fetchFunnels]);
+
     const handleStartEdit = (item) => {
         setEditingItem(item.id);
         setEditValue(JSON.stringify(item.content, null, 2));
     };
 
-    const handleSaveEdit = async (item) => {
+    /**
+     * Save edits to vault content.
+     * @param {Object} item - The vault_content item being edited
+     * @param {boolean} approve - If true, also approve the content via admin fields endpoint
+     */
+    const handleSaveEdit = async (item, approve = false) => {
         setSavingEdit(true);
         try {
             let parsedContent;
@@ -368,6 +420,8 @@ export default function AdminFunnels() {
                 return;
             }
 
+            // Step 1: Save the vault_content (section-level JSON) as before
+            console.log(`[AdminEdit] Saving vault content for section ${item.section_id}, approve=${approve}`);
             const response = await fetchWithAuth('/api/admin/funnels', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -379,13 +433,43 @@ export default function AdminFunnels() {
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to save');
+            if (!response.ok) throw new Error('Failed to save vault content');
 
-            setToast({ message: 'Vault content updated!', type: 'success' });
+            // Step 2: If approve=true, also bulk-approve all fields in this section
+            if (approve) {
+                console.log(`[AdminEdit] Also approving section ${item.section_id}`);
+                const approveResp = await fetchWithAuth(
+                    `/api/admin/funnels/${selectedFunnel.id}/vault/approve`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sectionId: item.section_id,
+                            approved: true,
+                        }),
+                    }
+                );
+
+                if (!approveResp.ok) {
+                    const errData = await approveResp.json();
+                    console.warn('[AdminEdit] Approval failed (content was saved):', errData.error);
+                    setToast({ message: `Content saved but approval failed: ${errData.error}`, type: 'error' });
+                    setEditingItem(null);
+                    fetchFunnels();
+                    return;
+                }
+
+                const approveResult = await approveResp.json();
+                console.log(`[AdminEdit] ✓ Section approved: ${approveResult.updatedCount} fields`);
+                setToast({ message: `Content saved & approved (${approveResult.updatedCount} fields)!`, type: 'success' });
+            } else {
+                setToast({ message: 'Vault content saved as draft!', type: 'success' });
+            }
+
             setEditingItem(null);
             fetchFunnels();
         } catch (error) {
-            console.error('Error saving vault content:', error);
+            console.error('[AdminEdit] Error saving vault content:', error);
             setToast({ message: `Save failed: ${error.message}`, type: 'error' });
         } finally {
             setSavingEdit(false);
@@ -906,13 +990,23 @@ export default function AdminFunnels() {
                                                                                                 <X className="w-3.5 h-3.5" />
                                                                                                 Cancel
                                                                                             </button>
+                                                                                            {/* Save Draft — saves JSON without changing approval */}
                                                                                             <button
-                                                                                                onClick={() => handleSaveEdit(item)}
+                                                                                                onClick={() => handleSaveEdit(item, false)}
                                                                                                 disabled={savingEdit}
                                                                                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-cyan/20 hover:bg-cyan/30 text-cyan rounded-lg transition-colors disabled:opacity-50"
                                                                                             >
                                                                                                 {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                                                                                Save
+                                                                                                Save Draft
+                                                                                            </button>
+                                                                                            {/* Save & Approve — saves JSON AND marks all fields as approved */}
+                                                                                            <button
+                                                                                                onClick={() => handleSaveEdit(item, true)}
+                                                                                                disabled={savingEdit}
+                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors disabled:opacity-50"
+                                                                                            >
+                                                                                                {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                                                                                                Save & Approve
                                                                                             </button>
                                                                                         </>
                                                                                     ) : (
@@ -935,6 +1029,19 @@ export default function AdminFunnels() {
                                                                                                     History
                                                                                                 </button>
                                                                                             )}
+
+                                                                                            {/* Bulk Approve button — approves ALL fields in this section */}
+                                                                                            <button
+                                                                                                onClick={() => handleBulkApprove(item.section_id)}
+                                                                                                disabled={approvingSection === item.section_id}
+                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors disabled:opacity-50"
+                                                                                            >
+                                                                                                {approvingSection === item.section_id
+                                                                                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                                                    : <ShieldCheck className="w-3.5 h-3.5" />
+                                                                                                }
+                                                                                                {approvingSection === item.section_id ? 'Approving...' : 'Bulk Approve'}
+                                                                                            </button>
 
                                                                                             <button
                                                                                                 onClick={() => handleStartEdit(item)}
@@ -964,8 +1071,8 @@ export default function AdminFunnels() {
                                                                                                 <button
                                                                                                     onClick={() => { setHistoryTab('sections'); setSelectedHistoryVersion(null); }}
                                                                                                     className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${historyTab === 'sections'
-                                                                                                            ? 'bg-purple-500/20 text-purple-400 shadow-sm'
-                                                                                                            : 'text-gray-500 hover:text-gray-300'
+                                                                                                        ? 'bg-purple-500/20 text-purple-400 shadow-sm'
+                                                                                                        : 'text-gray-500 hover:text-gray-300'
                                                                                                         }`}
                                                                                                 >
                                                                                                     Section Snapshots ({historySectionVersions.length})
@@ -973,8 +1080,8 @@ export default function AdminFunnels() {
                                                                                                 <button
                                                                                                     onClick={() => { setHistoryTab('fields'); setSelectedHistoryVersion(null); }}
                                                                                                     className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${historyTab === 'fields'
-                                                                                                            ? 'bg-purple-500/20 text-purple-400 shadow-sm'
-                                                                                                            : 'text-gray-500 hover:text-gray-300'
+                                                                                                        ? 'bg-purple-500/20 text-purple-400 shadow-sm'
+                                                                                                        : 'text-gray-500 hover:text-gray-300'
                                                                                                         }`}
                                                                                                 >
                                                                                                     Field History ({historyFieldVersions.length})
@@ -1058,8 +1165,8 @@ export default function AdminFunnels() {
                                                                                                                     {/* Section status badge */}
                                                                                                                     {historyTab === 'sections' && ver.status && (
                                                                                                                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${ver.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400'
-                                                                                                                                : ver.status === 'generated' ? 'bg-blue-500/10 text-blue-400'
-                                                                                                                                    : 'bg-gray-500/10 text-gray-400'
+                                                                                                                            : ver.status === 'generated' ? 'bg-blue-500/10 text-blue-400'
+                                                                                                                                : 'bg-gray-500/10 text-gray-400'
                                                                                                                             }`}>
                                                                                                                             {ver.status}
                                                                                                                         </span>
