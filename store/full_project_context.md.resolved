@@ -34,6 +34,12 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-03-02)
+| File | Change |
+| :--- | :--- |
+| `app/api/os/vault-fields/route.js`, `lib/vault/fieldMapper.js` | **Bug Fix**: Fixed a data loss bug where auto-populated fields hardcoded `is_approved: false`. Now correctly inherits the `status='approved'` state from the source `vault_content` table during auto-population. |
+| `supabase/remediation_restore_auto_populated_approvals.sql` | **Data Fix**: Associated SQL remediation script that restored `is_approved=true` for 15,950 existing version 1 fields across 71 affected users. |
+
 ### Recent Modifications (2026-02-28)
 | File | Change |
 | :--- | :--- |
