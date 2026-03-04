@@ -69,6 +69,16 @@ export async function POST(req) {
       }, { status: 404 });
     }
 
+    // SaaS GUARD: Users provisioned via GHL SaaS Configurator already have a
+    // GHL location created by GHL — never create a duplicate via admin retry.
+    if (user.ghl_saas_provisioned) {
+      return NextResponse.json({
+        success: false,
+        error: 'This user was provisioned via GHL SaaS Configurator. Their GHL location was created automatically by GHL — use ensure-subaccount to map it, not retry.',
+        saasProvisioned: true
+      }, { status: 400 });
+    }
+
     // 4. Check if user already has a GHL sub-account (OAuth table)
     const { data: existingSubaccount } = await supabase
       .from('ghl_subaccounts')

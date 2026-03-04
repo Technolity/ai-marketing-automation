@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { createGHLSubAccount, importSnapshotToSubAccount, createGHLUser, sendGHLWelcomeEmail } from '@/lib/integrations/ghl';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { getAgencyToken, findLocationByEmail, mapLocationToUser } from '@/lib/ghl/locationUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ const supabase = createClient(
  * Team members will access their owner's GHL sub-account (read-only check, no creation).
  * Called from dashboard/vault when user needs to deploy.
  */
-export async function POST(req) {
+export async function POST(_req) {
     try {
         const { userId } = auth();
         if (!userId) {
@@ -130,7 +131,7 @@ export async function POST(req) {
             }, { status: 403 });
         }
 
-        // 2. Get user profile for sub-account creation (only for owners)
+        // 2. Get user profile (need it for both paths below)
         const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
             .select('*')
@@ -143,7 +144,6 @@ export async function POST(req) {
             }, { status: 404 });
         }
 
-        // Check if profile is complete enough to create sub-account
         if (!profile.first_name || !profile.email) {
             return NextResponse.json({
                 error: 'Profile incomplete. Please complete your profile first.',
@@ -151,7 +151,97 @@ export async function POST(req) {
             }, { status: 400 });
         }
 
-        console.log('[Ensure SubAccount] Creating sub-account for existing user:', profile.email);
+        // ── SaaS GUARD ─────────────────────────────────────────────────────
+        // If this user was provisioned via GHL SaaS Configurator, GHL already
+        // created their location. We must NEVER create a second one.
+        // Instead: search GHL by email to find the existing location and map it.
+        if (profile.ghl_saas_provisioned) {
+            console.log('[Ensure SubAccount] SaaS-provisioned user — searching GHL for existing location, not creating new');
+
+            const agencyToken = await getAgencyToken();
+
+            if (!agencyToken) {
+                console.error('[Ensure SubAccount] No agency token for SaaS location lookup');
+                return NextResponse.json({
+                    success: false,
+                    error: 'GHL agency not connected. Cannot look up your location.'
+                }, { status: 500 });
+            }
+
+            // Retry a bit more aggressively here since this is the fallback path
+            // (webhook already tried 3 times — give it a few more chances)
+            const found = await findLocationByEmail(
+                profile.email,
+                agencyToken.access_token,
+                agencyToken.company_id,
+                { maxAttempts: 4, delayMs: 3000 }
+            );
+
+            if (!found) {
+                console.error('[Ensure SubAccount] SaaS location not found in GHL for:', profile.email);
+                return NextResponse.json({
+                    success: false,
+                    error: 'Your GHL account is still being set up. Please try again in a few minutes or contact support.',
+                    retryable: true
+                }, { status: 404 });
+            }
+
+            // Map the found location to all relevant tables
+            await mapLocationToUser(
+                userId,
+                found.locationId,
+                found.locationName,
+                agencyToken.company_id
+            );
+
+            console.log('[Ensure SubAccount] SaaS location resolved and mapped:', found.locationId);
+
+            // Now handle GHL user creation for this location (same as normal path below)
+            const userResult = await createGHLUser({
+                firstName: profile.first_name,
+                lastName: profile.last_name || '',
+                email: profile.email,
+                locationId: found.locationId
+            });
+
+            let userCreated = false;
+            let ghlUserId = null;
+
+            if (userResult.success) {
+                userCreated = true;
+                ghlUserId = userResult.userId || null;
+
+                if (!userResult.userAlreadyExists) {
+                    await sendGHLWelcomeEmail(profile.email, profile.first_name);
+                    await supabase
+                        .from('ghl_subaccounts')
+                        .update({
+                            ghl_user_created: true,
+                            ghl_user_id: userResult.userId,
+                            user_created_at: new Date().toISOString()
+                        })
+                        .eq('user_id', userId)
+                        .eq('location_id', found.locationId);
+                }
+            }
+
+            return NextResponse.json({
+                success: true,
+                exists: false,
+                located: true,     // found via GHL search, not created
+                locationId: found.locationId,
+                locationName: found.locationName,
+                snapshotImported: false,
+                userCreated,
+                ghlUserId,
+                isTeamMember: false
+            });
+        }
+        // ── END SaaS GUARD ─────────────────────────────────────────────────
+
+        // Legacy path: manually onboarded users who need a new GHL location created.
+        // This path is NOT reached for any user with ghl_saas_provisioned = true.
+        console.log('[Ensure SubAccount] Creating sub-account for legacy onboarded user:', profile.email);
 
         // 3. Create sub-account
         const ghlResult = await createGHLSubAccount({
@@ -274,7 +364,7 @@ export async function POST(req) {
  * Check if user has a GHL sub-account without creating one.
  * Team members will check their owner's GHL sub-account.
  */
-export async function GET(req) {
+export async function GET(_req) {
     try {
         const { userId } = auth();
         if (!userId) {

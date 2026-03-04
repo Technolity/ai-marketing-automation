@@ -38,9 +38,18 @@ export async function POST(req) {
         // 3. Check if user already has a GHL location
         const { data: existingProfile } = await supabase
             .from('user_profiles')
-            .select('ghl_location_id, business_name')
+            .select('ghl_location_id, business_name, ghl_saas_provisioned')
             .eq('id', userId)
             .single();
+
+        // SaaS GUARD: GHL already created the location when the user subscribed
+        if (existingProfile?.ghl_saas_provisioned) {
+            return NextResponse.json({
+                success: false,
+                saasProvisioned: true,
+                message: 'Your GHL location was created automatically via your subscription. Please wait for it to be mapped or contact support.'
+            }, { status: 400 });
+        }
 
         if (existingProfile?.ghl_location_id) {
             return NextResponse.json({

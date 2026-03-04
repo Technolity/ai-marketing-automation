@@ -59,7 +59,7 @@ export async function POST(req) {
     // 4. Get user profile to get email and GHL status
     const { data: existingProfile, error: fetchError } = await supabase
       .from('user_profiles')
-      .select('email, ghl_setup_triggered_at')
+      .select('email, ghl_setup_triggered_at, ghl_saas_provisioned')
       .eq('id', userId)
       .single();
 
@@ -104,7 +104,11 @@ export async function POST(req) {
     console.log(`[Profile Save] Profile updated successfully for user: ${email}`);
 
     // 6. Create GHL sub-account via OAuth (Only if not already created)
-    if (!existingProfile.ghl_setup_triggered_at) {
+    // SaaS GUARD: Users who paid via GHL SaaS Configurator already have a location
+    // created by GHL — never create a duplicate. ensure-subaccount handles their mapping.
+    if (existingProfile.ghl_saas_provisioned) {
+      console.log('[Profile Save] SaaS-provisioned user — skipping GHL sub-account creation');
+    } else if (!existingProfile.ghl_setup_triggered_at) {
       console.log(`[Profile Save] Creating GHL sub-account for user...`);
 
       // Set flag BEFORE calling GHL to prevent race condition
