@@ -52,6 +52,7 @@ export async function GET(req) {
       .select('id, email, full_name, business_name, phone, timezone, ghl_retry_count, ghl_last_retry_at')
       .eq('ghl_sync_status', 'failed')
       .eq('ghl_permanently_failed', false)
+      .neq('ghl_saas_provisioned', true) // SaaS GUARD: never auto-create for SaaS-provisioned users
       .lt('ghl_retry_count', MAX_RETRY_ATTEMPTS)
       .or(`ghl_next_retry_at.is.null,ghl_next_retry_at.lte.${now}`)
       .is('ghl_location_id', null) // Only retry if no location created yet

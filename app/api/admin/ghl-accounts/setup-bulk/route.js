@@ -51,6 +51,12 @@ async function setupSubaccountForUser(userId, snapshotId, requestId) {
             return { userId, success: false, error: 'User not found', action: 'none' };
         }
 
+        // SaaS GUARD: Never create a location for GHL SaaS-provisioned users
+        if (user.ghl_saas_provisioned) {
+            console.log(`[${requestId}] Skipping SaaS-provisioned user ${user.email} — location created by GHL`);
+            return { userId, success: true, action: 'skipped_saas', email: user.email };
+        }
+
         // 2. Check if user has subaccount
         const { data: subaccount } = await supabase
             .from('ghl_subaccounts')

@@ -34,6 +34,20 @@ export async function POST(req) {
             );
         }
 
+        // SaaS GUARD: Users provisioned via GHL SaaS Configurator already have a location
+        const { data: userProfile } = await supabase
+            .from('user_profiles')
+            .select('ghl_saas_provisioned')
+            .eq('id', userId)
+            .single();
+
+        if (userProfile?.ghl_saas_provisioned) {
+            return NextResponse.json(
+                { error: 'Your GHL account was set up automatically via your subscription. A location was already created for you.' },
+                { status: 400 }
+            );
+        }
+
         // Get active agency token for this user
         const { data: tokenData, error: tokenError } = await supabase
             .rpc('get_active_agency_token', { p_user_id: userId });
