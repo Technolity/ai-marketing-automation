@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { createGHLSubAccount } from '@/lib/integrations/ghl';
+import { getAgencyToken, findLocationByEmail, mapLocationToUser } from '@/lib/ghl/locationUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,13 +71,45 @@ export async function POST(req) {
     }
 
     // SaaS GUARD: Users provisioned via GHL SaaS Configurator already have a
-    // GHL location created by GHL — never create a duplicate via admin retry.
+    // GHL location created by GHL — never create a duplicate.
+    // Instead: search GHL by email and map the existing location.
     if (user.ghl_saas_provisioned) {
+      console.log(`[Admin Retry] SaaS-provisioned user — searching GHL for location: ${user.email}`);
+
+      const agencyToken = await getAgencyToken();
+      if (!agencyToken) {
+        return NextResponse.json({
+          success: false,
+          error: 'GHL agency token not available. Cannot look up location.',
+        }, { status: 500 });
+      }
+
+      const found = await findLocationByEmail(
+        user.email,
+        agencyToken.access_token,
+        agencyToken.company_id,
+        { maxAttempts: 4, delayMs: 2000 }
+      );
+
+      if (!found) {
+        return NextResponse.json({
+          success: false,
+          error: `GHL location not found for ${user.email}. The sub-account may not have been created yet in GHL, or the email doesn't match.`,
+          retryable: true,
+        }, { status: 404 });
+      }
+
+      await mapLocationToUser(user.id, found.locationId, found.locationName, agencyToken.company_id);
+      console.log(`[Admin Retry] SaaS location resolved and mapped: ${found.locationId}`);
+
       return NextResponse.json({
-        success: false,
-        error: 'This user was provisioned via GHL SaaS Configurator. Their GHL location was created automatically by GHL — use ensure-subaccount to map it, not retry.',
-        saasProvisioned: true
-      }, { status: 400 });
+        success: true,
+        saasProvisioned: true,
+        located: true,
+        locationId: found.locationId,
+        locationName: found.locationName,
+        message: `SaaS location found and mapped: ${found.locationName}`,
+      });
     }
 
     // 4. Check if user already has a GHL sub-account (OAuth table)

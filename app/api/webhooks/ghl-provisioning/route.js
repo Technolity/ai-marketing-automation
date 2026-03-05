@@ -74,6 +74,9 @@ export async function POST(req) {
   }
 
   // ── 3. Resolve plan ──────────────────────────────────────────────────────
+  // Log raw values from GHL before resolution — critical for debugging plan mismatches
+  console.log(`[Provisioning] Raw payload — plan_id="${plan_id || ''}" plan_name="${plan_name || ''}" billing_cycle="${billing_cycle_payload || ''}" email="${email}"`);
+
   const plan = resolvePlan(plan_id || plan_name);
   if (!plan) {
     console.error('[Provisioning] Unknown plan:', { plan_id, plan_name });
