@@ -118,7 +118,7 @@ export async function POST(req) {
           emailAddress: [email],
           firstName: first_name || '',
           lastName: last_name || '',
-          password: crypto.randomUUID() + crypto.randomUUID(),
+          password: 'TedOS@123!',
         });
       } catch (createErr) {
         if (createErr?.errors?.[0]?.code === 'form_identifier_exists') {
