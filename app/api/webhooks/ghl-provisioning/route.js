@@ -197,13 +197,14 @@ export async function POST(req) {
     }
 
     // ── 6. Resolve and map GHL location ───────────────────────────────────
-    // Priority: payload location_id (future) → GHL API search by email → defer
+    // Priority: payload location_id → GHL API search by email → defer to first login
     let resolvedLocationId = location_id || null;
     let resolvedLocationName = null;
 
-    if (!resolvedLocationId) {
-      const agencyToken = await getAgencyToken();
+    // Fetch agency token once — reused for both search and mapping below
+    const agencyToken = await getAgencyToken();
 
+    if (!resolvedLocationId) {
       if (agencyToken) {
         const found = await findLocationByEmail(
           email,
@@ -222,7 +223,6 @@ export async function POST(req) {
     }
 
     if (resolvedLocationId) {
-      const agencyToken = await getAgencyToken();
       await mapLocationToUser(
         clerkUserId,
         resolvedLocationId,

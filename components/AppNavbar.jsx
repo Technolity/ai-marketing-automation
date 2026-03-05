@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Shield, LayoutDashboard, Users } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { useAuth } from "@/contexts/AuthContext";
+import PlanBadge from "@/components/PlanBadge";
 
 export default function AppNavbar() {
   const { isAdmin, loading, isTeamMember, workspaceName } = useAuth();
@@ -77,6 +78,9 @@ export default function AppNavbar() {
                 <span>Admin</span>
               </Link>
             )}
+
+            {/* Plan badge + upgrade dropdown */}
+            <PlanBadge />
 
             {/* Clerk User Button */}
             <UserButton afterSignOutUrl="/" />

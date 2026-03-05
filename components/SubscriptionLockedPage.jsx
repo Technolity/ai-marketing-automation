@@ -8,7 +8,19 @@ import { LockKeyhole, Calendar, ArrowRight, Mail } from "lucide-react";
  * Full-screen page shown when a user's subscription has expired,
  * been cancelled, or been suspended due to non-payment.
  */
-export default function SubscriptionLockedPage({ status, periodEnd, cancelledAt }) {
+const PLAN_URLS = {
+    starter_monthly: process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_STARTER_MONTHLY,
+    growth_monthly:  process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_GROWTH_MONTHLY,
+    scale_monthly:   process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_SCALE_MONTHLY,
+    starter_annual:  process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_STARTER_ANNUAL,
+    growth_annual:   process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_GROWTH_ANNUAL,
+    scale_annual:    process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_SCALE_ANNUAL,
+};
+
+export default function SubscriptionLockedPage({ status, periodEnd, cancelledAt, tier, billingCycle }) {
+    const paymentUrl = (tier && billingCycle && PLAN_URLS[`${tier}_${billingCycle}`])
+        || process.env.NEXT_PUBLIC_GHL_PAYMENT_URL
+        || 'https://go.highlevel.com';
     const isCancelled = status === 'cancelled';
     const isSuspended = status === 'suspended';
 
@@ -104,7 +116,7 @@ export default function SubscriptionLockedPage({ status, periodEnd, cancelledAt 
                     className="flex flex-col sm:flex-row gap-3 justify-center mb-10"
                 >
                     <a
-                        href={process.env.NEXT_PUBLIC_GHL_PAYMENT_URL || 'https://go.highlevel.com'}
+                        href={paymentUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan to-cyan/80 text-black font-semibold hover:opacity-90 transition-opacity"

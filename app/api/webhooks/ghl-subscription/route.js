@@ -71,8 +71,8 @@ export async function POST(req) {
   const { data: profile, error: lookupError } = await supabase
     .from('user_profiles')
     .select('id, subscription_status, subscription_current_period_end, billing_cycle')
-    .eq('email', email)
-    .single();
+    .ilike('email', email)
+    .maybeSingle();
 
   if (lookupError || !profile) {
     console.error('[Subscription] User not found for email:', email);
