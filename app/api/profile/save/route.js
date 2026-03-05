@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { createGHLSubAccount } from '@/lib/integrations/ghl';
+import { getAgencyToken, findLocationByEmail, mapLocationToUser } from '@/lib/ghl/locationUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,9 +106,45 @@ export async function POST(req) {
 
     // 6. Create GHL sub-account via OAuth (Only if not already created)
     // SaaS GUARD: Users who paid via GHL SaaS Configurator already have a location
-    // created by GHL — never create a duplicate. ensure-subaccount handles their mapping.
+    // created by GHL — never create a duplicate. We search GHL to map the existing one.
     if (existingProfile.ghl_saas_provisioned) {
-      console.log('[Profile Save] SaaS-provisioned user — skipping GHL sub-account creation');
+      console.log('[Profile Save] SaaS-provisioned user — resolving GHL location (not creating)');
+
+      // Check if location is already mapped (provisioning webhook may have resolved it)
+      const { data: existingSub } = await supabase
+        .from('ghl_subaccounts')
+        .select('location_id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existingSub?.location_id) {
+        console.log('[Profile Save] SaaS location already mapped:', existingSub.location_id);
+      } else {
+        // Location still pending — search GHL now that profile is complete
+        try {
+          const agencyToken = await getAgencyToken();
+          if (agencyToken) {
+            const found = await findLocationByEmail(
+              email,
+              agencyToken.access_token,
+              agencyToken.company_id,
+              { maxAttempts: 3, delayMs: 2000 }
+            );
+            if (found) {
+              await mapLocationToUser(userId, found.locationId, found.locationName, agencyToken.company_id);
+              console.log(`[Profile Save] SaaS location resolved and mapped: ${found.locationId}`);
+            } else {
+              console.warn('[Profile Save] SaaS location not found in GHL yet — will retry on vault deploy');
+            }
+          } else {
+            console.warn('[Profile Save] No agency token — SaaS location resolution skipped');
+          }
+        } catch (locErr) {
+          // Non-fatal — user can still access the app, vault deploy will retry
+          console.warn('[Profile Save] SaaS location resolution error (non-fatal):', locErr.message);
+        }
+      }
     } else if (!existingProfile.ghl_setup_triggered_at) {
       console.log(`[Profile Save] Creating GHL sub-account for user...`);
 
