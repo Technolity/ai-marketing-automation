@@ -842,9 +842,24 @@ function FieldEditor({
                         body: formData
                     });
 
+                    if (!res.ok) {
+                        let errorMessage = 'Upload failed';
+                        try {
+                            const errorData = await res.json();
+                            errorMessage = errorData.error || errorMessage;
+                        } catch {
+                            if (res.status === 413) {
+                                errorMessage = 'File is too large. Please use a smaller file (max 4.5MB for serverless uploads).';
+                            } else {
+                                errorMessage = `Upload failed (${res.status}: ${res.statusText})`;
+                            }
+                        }
+                        throw new Error(errorMessage);
+                    }
+
                     const data = await res.json();
 
-                    if (res.ok && data.success) {
+                    if (data.success) {
                         setValue(data.fullUrl);
                         handleSave(data.fullUrl); // Immediate save on upload
                         toast.success('File uploaded!', { id: toastId });

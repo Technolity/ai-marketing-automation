@@ -1894,8 +1894,23 @@ export default function VaultPage() {
                 body: formData
             });
 
+            if (!response.ok) {
+                let errorMessage = 'Upload failed';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.error || errorMessage;
+                } catch {
+                    if (response.status === 413) {
+                        errorMessage = 'File is too large. Please use a smaller file (max 4.5MB for serverless uploads).';
+                    } else {
+                        errorMessage = `Upload failed (${response.status}: ${response.statusText})`;
+                    }
+                }
+                throw new Error(errorMessage);
+            }
+
             const data = await response.json();
-            if (response.ok && data.success) {
+            if (data.success) {
                 if (isVideo) {
                     setVideoUrls(prev => ({ ...prev, [fileType]: data.fullUrl }));
                 } else {
