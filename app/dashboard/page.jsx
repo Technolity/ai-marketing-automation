@@ -17,7 +17,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     Loader2, Plus, FolderOpen, ChevronRight, Sparkles,
     Clock, CheckCircle2, Lock, Building2, Trash2,
-    Crown, ExternalLink, Settings, Users, Rocket,
+    ExternalLink, Settings, Users, Rocket,
     BarChart3, Zap, Pencil, Check, X
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import GHLWidgets from "@/components/dashboard/GHLWidgets";
 import LaunchBuilderButton from "@/components/LaunchBuilderButton";
 import DeployedFunnelCard from "@/components/vault/DeployedFunnelCard";
+import PlanBadge from "@/components/PlanBadge";
 
 // Tab definitions
 const TABS = [
@@ -349,14 +350,7 @@ export default function Dashboard() {
                                 Manage Team
                             </button>
                         )}
-                        {userTier !== 'tier1' && (
-                            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-full">
-                                <Crown className="w-3.5 h-3.5 text-amber-500" />
-                                <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">
-                                    {userTier === 'tier2' ? 'Pro' : 'Enterprise'}
-                                </span>
-                            </div>
-                        )}
+                        <PlanBadge tier={userTier} />
 
                         <div className="p-0.5 rounded-full bg-gradient-to-b from-white/10 to-transparent">
                             <div className="p-0.5 rounded-full bg-[#0e0e0f]">

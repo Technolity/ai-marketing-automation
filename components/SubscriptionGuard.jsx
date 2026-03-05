@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import SubscriptionLockedPage from "./SubscriptionLockedPage";
@@ -15,6 +15,9 @@ import SubscriptionLockedPage from "./SubscriptionLockedPage";
  * Routes starting with /admin, /auth, /sign-in, /sign-up, and / are always allowed.
  * Users who have never been on a paid plan (no subscription_status) also pass through
  * — this guard only activates for GHL SaaS-provisioned accounts.
+ *
+ * The check runs once per session (on first protected route visit).
+ * Subsequent navigations reuse the cached result — no repeated API calls.
  */
 
 const ALWAYS_ALLOWED = ['/admin', '/auth', '/sign-in', '/sign-up', '/'];
@@ -27,17 +30,23 @@ function isAlwaysAllowed(pathname) {
 export default function SubscriptionGuard({ children }) {
     const { isAdmin, loading: authLoading } = useAuth();
     const pathname = usePathname();
+    const hasFetched = useRef(false);
     const [subscriptionState, setSubscriptionState] = useState({
         checked: false,
         locked: false,
         status: null,
         periodEnd: null,
         cancelledAt: null,
+        tier: null,
+        billingCycle: null,
     });
 
     useEffect(() => {
         // Skip check for always-allowed paths and admins
         if (isAlwaysAllowed(pathname) || isAdmin) return;
+        // Only fetch once per session — subsequent navigations reuse cached result
+        if (hasFetched.current) return;
+        hasFetched.current = true;
 
         let isMounted = true;
 
@@ -54,6 +63,8 @@ export default function SubscriptionGuard({ children }) {
                 const status = profile.subscription_status;
                 const periodEnd = profile.subscription_current_period_end || null;
                 const cancelledAt = profile.subscription_cancelled_at || null;
+                const tier = profile.subscription_tier || null;
+                const billingCycle = profile.billing_cycle || null;
 
                 // Only enforce for GHL SaaS-provisioned accounts
                 if (!profile.ghl_saas_provisioned) {
@@ -67,7 +78,7 @@ export default function SubscriptionGuard({ children }) {
                 const locked = isCancelledOrSuspended || isPeriodExpired;
 
                 if (isMounted) {
-                    setSubscriptionState({ checked: true, locked, status, periodEnd, cancelledAt });
+                    setSubscriptionState({ checked: true, locked, status, periodEnd, cancelledAt, tier, billingCycle });
                 }
             } catch {
                 // Fail open — don't block the site if check fails
@@ -98,6 +109,8 @@ export default function SubscriptionGuard({ children }) {
                 status={subscriptionState.status}
                 periodEnd={subscriptionState.periodEnd}
                 cancelledAt={subscriptionState.cancelledAt}
+                tier={subscriptionState.tier}
+                billingCycle={subscriptionState.billingCycle}
             />
         );
     }
