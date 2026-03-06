@@ -19,9 +19,18 @@ export default authMiddleware({
     "/api/cron(.*)",
   ],
   ignoredRoutes: [
-    // Static files and Next.js internals only — never ignore API routes
-    "/_next(.*)",
-    "/favicon.ico",
+    "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",
+    "/api/webhooks/clerk",
+    "/api/integrations/oauth/callback",
+    "/api/integrations/oauth/debug",
+    "/api/oauth/callback",  // GHL OAuth callback
+    "/api/cron(.*)",
+    "/",
+    "/auth/login",
+    "/auth/signup",
+    "/auth/forgot-password",
+    "/auth/verify",
+    "/api/maintenance-status"  // Public maintenance check
   ],
 });
 
