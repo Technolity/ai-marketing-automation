@@ -10,28 +10,19 @@ export default authMiddleware({
     "/sign-in",
     "/sign-up",
     "/api/webhooks(.*)",
-    "/api/webhooks/clerk",
     "/api/rag(.*)",
     "/api/admin/setup-pgvector",
     "/api/integrations/oauth/callback",
     "/api/integrations/oauth/debug",
-    "/api/oauth/callback",  // GHL OAuth callback
-    "/api/maintenance-status",  // Public maintenance check
+    "/api/oauth/callback",
+    "/api/maintenance-status",
+    "/api/cron(.*)",
   ],
   ignoredRoutes: [
-    "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",
-    "/api/webhooks/clerk",
-    "/api/integrations/oauth/callback",
-    "/api/integrations/oauth/debug",
-    "/api/oauth/callback",  // GHL OAuth callback
-    "/api/cron(.*)",
-    "/",
-    "/auth/login",
-    "/auth/signup",
-    "/auth/forgot-password",
-    "/auth/verify",
-    "/api/maintenance-status"  // Public maintenance check
-  ]
+    // Static files and Next.js internals only — never ignore API routes
+    "/_next(.*)",
+    "/favicon.ico",
+  ],
 });
 
 export const config = {
