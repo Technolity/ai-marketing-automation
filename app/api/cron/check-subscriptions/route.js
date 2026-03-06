@@ -27,8 +27,9 @@ const supabase = createClient(
 const GRACE_PERIOD_DAYS = 3;
 
 export async function POST(req) {
-  // Verify cron secret
-  const secret = req.headers.get('x-cron-secret');
+  // Verify cron secret — Vercel sends Authorization: Bearer {CRON_SECRET}
+  const authHeader = req.headers.get('authorization') || '';
+  const secret = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
