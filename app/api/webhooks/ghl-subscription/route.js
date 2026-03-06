@@ -68,14 +68,25 @@ export async function POST(req) {
   console.log(`[Subscription] ${event_type} for ${email}`);
 
   // ── 3. Find user in Supabase by email ────────────────────────────────────
-  const { data: profile, error: lookupError } = await supabase
-    .from('user_profiles')
-    .select('id, subscription_status, subscription_current_period_end, billing_cycle')
-    .ilike('email', email)
-    .maybeSingle();
+  // Retry up to 4 times — on initial purchase, GHL fires both Order Submitted
+  // and Payment Received simultaneously, so provisioning may still be in progress.
+  let profile = null;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('id, subscription_status, subscription_current_period_end, billing_cycle')
+      .ilike('email', email)
+      .maybeSingle();
 
-  if (lookupError || !profile) {
-    console.error('[Subscription] User not found for email:', email);
+    if (data) { profile = data; break; }
+    if (error) console.warn(`[Subscription] Lookup error attempt ${attempt}:`, error.message);
+    else console.log(`[Subscription] User not found yet (attempt ${attempt}/4) — waiting...`);
+
+    if (attempt < 4) await new Promise((r) => setTimeout(r, 3000));
+  }
+
+  if (!profile) {
+    console.error('[Subscription] User not found after retries for email:', email);
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
   }
 
