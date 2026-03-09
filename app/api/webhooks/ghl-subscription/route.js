@@ -16,6 +16,14 @@
  *    Trigger:  GHL "Order Submitted" for a returning cancelled customer
  *    Action:   Reset status to active, recalculate period from now
  *
+ *  event_type: 'payment_failed'
+ *    Trigger:  GHL "Payment Failed" workflow
+ *    Action:   Log only — cron handles suspension after grace period
+ *
+ * payment_received also handles pre-SaaS migration: if plan_id is in the
+ * payload and user has ghl_saas_provisioned=false, updates tier/seats/funnels.
+ * Requires one Payment Received workflow per plan with hardcoded plan_id in body.
+ *
  * All events use the same x-webhook-secret as the provisioning webhook.
  * Idempotent — safe to call multiple times.
  */
@@ -23,6 +31,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { calculatePeriodEnd } from '@/lib/subscriptionUtils';
+import { resolvePlan } from '@/lib/plans';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -74,7 +83,7 @@ export async function POST(req) {
   for (let attempt = 1; attempt <= 4; attempt++) {
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('id, subscription_status, subscription_current_period_end, billing_cycle')
+      .select('id, subscription_status, subscription_current_period_end, billing_cycle, ghl_saas_provisioned')
       .ilike('email', email)
       .maybeSingle();
 
@@ -133,11 +142,30 @@ export async function POST(req) {
         subscription_current_period_end: newPeriodEnd,
         subscription_renewed_at: now,
         subscription_cancelled_at: null,
+        ghl_saas_provisioned: true,  // Mark as SaaS provisioned — they paid through GHL
         updated_at: now,
       };
 
-      // Update billing_cycle if provided (handles plan changes on renewal)
+      // Update billing_cycle if provided
       if (billing_cycle) updates.billing_cycle = billing_cycle;
+
+      // If plan_id is provided AND user is not yet SaaS-provisioned, update their tier.
+      // This handles existing pre-SaaS customers who pay via GHL payment_setup page —
+      // GHL fires Payment Received (not Order Submitted) for card-on-file setups,
+      // so provisioning webhook never runs. We do the plan update here instead.
+      if (plan_id && !profile.ghl_saas_provisioned) {
+        const plan = resolvePlan(plan_id);
+        if (plan) {
+          updates.subscription_tier = plan.tier;
+          updates.max_funnels = plan.max_funnels;
+          updates.max_seats = plan.max_seats;
+          updates.plan_id = plan_id;
+          if (!billing_cycle) updates.billing_cycle = plan.billing_cycle;
+          console.log(`[Subscription] Pre-SaaS user — updating tier to ${plan.tier} from plan_id ${plan_id}`);
+        } else {
+          console.warn(`[Subscription] plan_id ${plan_id} not found in PLAN_CONFIG — tier not updated`);
+        }
+      }
 
       await supabase
         .from('user_profiles')
@@ -151,6 +179,7 @@ export async function POST(req) {
         event: 'payment_received',
         userId,
         newPeriodEnd,
+        tierUpdated: !!(plan_id && !profile.ghl_saas_provisioned),
       });
 
     } else if (event_type === 'reactivated') {
@@ -176,6 +205,22 @@ export async function POST(req) {
         event: 'reactivated',
         userId,
         newPeriodEnd,
+      });
+
+    } else if (event_type === 'payment_failed') {
+      // ── Payment failed ────────────────────────────────────────────────────
+      // GHL fires this when NMI declines a charge. We log it but do NOT
+      // revert period_end — if payment_received already ran (race condition),
+      // reverting would wrongly lock a user who paid successfully.
+      // The daily cron is the safety net: once period_end passes grace period,
+      // the account gets suspended automatically.
+      console.warn(`[Subscription] Payment failed for ${email} — logging only, cron handles expiry`);
+
+      return NextResponse.json({
+        success: true,
+        event: 'payment_failed',
+        userId,
+        note: 'logged only — cron will suspend after grace period if not renewed',
       });
 
     } else {
