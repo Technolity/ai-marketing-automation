@@ -110,9 +110,20 @@ export async function POST(req) {
 
     const existingUser = await findClerkUserByEmail(email);
 
+    // For existing users, check if they already have a period_end set.
+    // If null, they're being migrated to SaaS for the first time — we must set it.
+    let existingPeriodEnd = null;
+
     if (existingUser) {
       clerkUserId = existingUser.id;
       console.log(`[Provisioning] Existing Clerk user: ${clerkUserId} — updating plan`);
+      const { data: existingProfile } = await supabase
+        .from('user_profiles')
+        .select('subscription_current_period_end')
+        .eq('id', clerkUserId)
+        .maybeSingle();
+      existingPeriodEnd = existingProfile?.subscription_current_period_end || null;
+      console.log(`[Provisioning] Existing period_end: ${existingPeriodEnd || 'null (migration)'}`);
     } else {
       // Try to create the user
       let newUser;
@@ -185,10 +196,15 @@ export async function POST(req) {
         subscription_status: 'active',
         ghl_saas_provisioned: true,
         updated_at: new Date().toISOString(),
-        // Subscription period timestamps — only set on new subscriptions (isNewUser),
-        // preserve existing values for plan upgrades on returning customers.
+        // New users: set full period timestamps
         ...(isNewUser && {
           subscription_started_at: new Date().toISOString(),
+        }),
+        // Set period_end if:
+        //   - new user (first ever subscription), OR
+        //   - existing user with no period_end (migrating from pre-SaaS to GHL SaaS)
+        // Preserve existing period_end for active users upgrading/changing plans mid-cycle.
+        ...((isNewUser || !existingPeriodEnd) && {
           subscription_current_period_end: calculatePeriodEnd(new Date(), billing_cycle),
           subscription_cancelled_at: null,
         }),
