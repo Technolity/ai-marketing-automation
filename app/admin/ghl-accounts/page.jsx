@@ -907,8 +907,8 @@ export default function AdminGHLAccounts() {
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold mb-2">GHL Sub-Accounts</h1>
-                        <p className="text-gray-400">Monitor and manage automated sub-account creation.</p>
+                        <h1 className="text-xl sm:text-2xl font-bold mb-1">GHL Sub-Accounts</h1>
+                        <p className="text-gray-400 text-sm">Monitor and manage automated sub-account creation.</p>
                     </div>
                     <button
                         onClick={fetchAccounts}
@@ -1007,7 +1007,7 @@ export default function AdminGHLAccounts() {
                                         {table.getHeaderGroups().map((headerGroup) => (
                                             <tr key={headerGroup.id} className="border-b border-[#2a2a2d] bg-[#131314]">
                                                 {headerGroup.headers.map((header) => (
-                                                    <th key={header.id} className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                                                    <th key={header.id} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">
                                                         {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                                     </th>
                                                 ))}
@@ -1025,7 +1025,7 @@ export default function AdminGHLAccounts() {
                                             table.getRowModel().rows.map((row) => (
                                                 <tr key={row.id} className="hover:bg-[#202022] transition-colors">
                                                     {row.getVisibleCells().map((cell) => (
-                                                        <td key={cell.id} className="px-6 py-4">
+                                                        <td key={cell.id} className="px-4 py-3">
                                                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                         </td>
                                                     ))}
@@ -1037,7 +1037,7 @@ export default function AdminGHLAccounts() {
                             </div>
 
                             {/* Pagination */}
-                            <div className="flex items-center justify-between px-6 py-4 border-t border-[#2a2a2d] bg-[#131314]">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-4 py-3 border-t border-[#2a2a2d] bg-[#131314]">
                                 <p className="text-sm text-gray-400">
                                     {pagination.total > 0 ? (
                                         <>Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries</>
@@ -1136,7 +1136,7 @@ export default function AdminGHLAccounts() {
             {/* Bulk Progress Modal */}
             {bulkProgress && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-8 w-full max-w-2xl shadow-2xl">
+                    <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-4 sm:p-8 w-full max-w-2xl shadow-2xl">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-2xl font-bold text-white">Bulk Creation Progress</h2>
                             {bulkProgress.completed + bulkProgress.failed === bulkProgress.total && (

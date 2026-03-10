@@ -172,7 +172,7 @@ export default function TranscriptsPage() {
   if (authLoading || loading) {
     return (
       <AdminLayout>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center h-96">
           <Loader2 className="h-8 w-8 text-cyan animate-spin" />
         </div>
       </AdminLayout>
@@ -182,7 +182,7 @@ export default function TranscriptsPage() {
   if (error) {
     return (
       <AdminLayout>
-        <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center justify-center h-96">
           <div className="text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <p className="text-white text-lg">{error}</p>
@@ -194,73 +194,73 @@ export default function TranscriptsPage() {
 
   return (
     <AdminLayout>
-      <div className="min-h-screen p-8">
+      <div className="space-y-6">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-              <FileText className="h-8 w-8 text-cyan" />
+        <div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-3">
+              <FileText className="h-6 w-6 text-cyan flex-shrink-0" />
               Transcript Management
             </h1>
             <button
               onClick={() => router.push('/admin/transcripts/add')}
-              className="px-4 py-2 bg-cyan text-black rounded-lg hover:bg-cyan/90 transition-colors flex items-center gap-2 font-medium"
+              className="flex items-center gap-2 px-4 py-2 bg-cyan text-black rounded-lg hover:bg-cyan/90 transition-colors font-medium text-sm whitespace-nowrap self-start sm:self-auto"
             >
-              <Plus className="h-5 w-5" />
+              <Plus className="h-4 w-4" />
               Add Transcript
             </button>
           </div>
-          <p className="text-gray-400">
+          <p className="text-gray-400 text-sm">
             Manage your RAG knowledge base transcripts and processing
           </p>
         </div>
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6"
+              className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
             >
-              <div className="text-gray-400 text-sm mb-2">Total Transcripts</div>
-              <div className="text-3xl font-bold text-white">{stats.transcripts?.total || 0}</div>
+              <div className="text-gray-400 text-xs mb-1">Total Transcripts</div>
+              <div className="text-2xl font-bold text-white">{stats.transcripts?.total || 0}</div>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6"
+              className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
             >
-              <div className="text-gray-400 text-sm mb-2">Total Chunks</div>
-              <div className="text-3xl font-bold text-cyan">{stats.chunks?.total || 0}</div>
+              <div className="text-gray-400 text-xs mb-1">Total Chunks</div>
+              <div className="text-2xl font-bold text-cyan">{stats.chunks?.total || 0}</div>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6"
+              className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
             >
-              <div className="text-gray-400 text-sm mb-2">Completed</div>
-              <div className="text-3xl font-bold text-green-500">{stats.transcripts?.completed || 0}</div>
+              <div className="text-gray-400 text-xs mb-1">Completed</div>
+              <div className="text-2xl font-bold text-green-500">{stats.transcripts?.completed || 0}</div>
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6"
+              className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
             >
-              <div className="text-gray-400 text-sm mb-2">Avg. Chunks/Transcript</div>
-              <div className="text-3xl font-bold text-white">{stats.chunks?.average_per_transcript || 0}</div>
+              <div className="text-gray-400 text-xs mb-1">Avg. Chunks/Transcript</div>
+              <div className="text-2xl font-bold text-white">{stats.chunks?.average_per_transcript || 0}</div>
             </motion.div>
           </div>
         )}
 
         {/* Filters and Search */}
-        <div className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4 mb-6">
+        <div className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search */}
             <div className="flex-1 relative">
@@ -301,22 +301,22 @@ export default function TranscriptsPage() {
             <table className="w-full">
               <thead className="bg-black/30 border-b border-[#2a2a2d]">
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Title
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Source
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Chunks
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Tags
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Created
                   </th>
                   <th className="px-6 py-4 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
@@ -348,7 +348,7 @@ export default function TranscriptsPage() {
                         className="hover:bg-white/5 transition-colors cursor-pointer"
                         onClick={() => router.push(`/admin/transcripts/${transcript.id}`)}
                       >
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="text-white font-medium">{transcript.title}</div>
                           {transcript.description && (
                             <div className="text-sm text-gray-400 mt-1 truncate max-w-md">
@@ -356,16 +356,16 @@ export default function TranscriptsPage() {
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex items-center gap-2 text-gray-400">
                             <SourceIcon className="h-4 w-4" />
                             <span className="text-sm capitalize">{transcript.source_type}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           {getStatusBadge(transcript.status)}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="text-white">
                             {transcript.status === 'processing' ? (
                               <span>{transcript.processed_chunks || 0} / {transcript.total_chunks || '?'}</span>
@@ -374,7 +374,7 @@ export default function TranscriptsPage() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">
                             {transcript.tags?.slice(0, 3).map((tag, idx) => (
                               <span
@@ -431,7 +431,7 @@ export default function TranscriptsPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="px-6 py-4 border-t border-[#2a2a2d] flex items-center justify-between">
+            <div className="px-4 py-3 border-t border-[#2a2a2d] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
               <div className="text-sm text-gray-400">
                 Page {currentPage} of {totalPages}
               </div>

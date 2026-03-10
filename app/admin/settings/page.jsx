@@ -340,8 +340,8 @@ export default function AdminSettings() {
                 {/* Header */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold mb-2">Settings</h1>
-                        <p className="text-gray-400">Manage your TedOS platform settings and configurations.</p>
+                        <h1 className="text-xl sm:text-2xl font-bold mb-1">Settings</h1>
+                        <p className="text-gray-400 text-sm">Manage your TedOS platform settings and configurations.</p>
                     </div>
                     <button
                         onClick={handleSave}
@@ -387,7 +387,7 @@ export default function AdminSettings() {
                     key={activeTab}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-8"
+                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-4 sm:p-6"
                 >
                     {/* General Settings */}
                     {activeTab === "general" && (

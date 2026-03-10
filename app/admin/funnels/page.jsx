@@ -773,7 +773,7 @@ export default function AdminFunnels() {
                                     </p>
                                     <TrendingUp className={`w-4 h-4 ${statusColors[status]?.split(' ')[1]}`} />
                                 </div>
-                                <p className={`text-4xl font-bold ${statusColors[status]?.split(' ')[1]}`}>
+                                <p className={`text-2xl sm:text-3xl font-bold ${statusColors[status]?.split(' ')[1]}`}>
                                     {count || 0}
                                 </p>
                                 <p className="text-gray-400 text-xs mt-1">funnels</p>
@@ -821,7 +821,7 @@ export default function AdminFunnels() {
                                             {table.getHeaderGroups().map((headerGroup) => (
                                                 <tr key={headerGroup.id}>
                                                     {headerGroup.headers.map((header) => (
-                                                        <th key={header.id} className="px-6 py-4 text-left text-xs font-bold text-purple-400 uppercase tracking-wider whitespace-nowrap">
+                                                        <th key={header.id} className="px-4 py-3 text-left text-xs font-bold text-purple-400 uppercase tracking-wider whitespace-nowrap">
                                                             {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                                         </th>
                                                     ))}
@@ -847,7 +847,7 @@ export default function AdminFunnels() {
                                                         className="border-b border-purple-500/5 hover:bg-[#0e0e0f]/50 transition-all"
                                                     >
                                                         {row.getVisibleCells().map((cell) => (
-                                                            <td key={cell.id} className="px-6 py-4">
+                                                            <td key={cell.id} className="px-4 py-3">
                                                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                             </td>
                                                         ))}
@@ -860,7 +860,7 @@ export default function AdminFunnels() {
                             </div>
 
                             {/* Pagination */}
-                            <div className="flex items-center justify-between px-6 py-4 border-t border-[#2a2a2d]">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-4 py-3 border-t border-[#2a2a2d]">
                                 <p className="text-sm text-gray-400">
                                     Total: {pagination.total} funnels
                                 </p>

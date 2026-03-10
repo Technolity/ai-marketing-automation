@@ -148,29 +148,29 @@ export default function AdminOverview() {
 
     return (
         <AdminLayout>
-            <div className="space-y-8">
+            <div className="space-y-6">
                 {/* Header */}
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">Dashboard Overview</h1>
-                    <p className="text-gray-400">Welcome back! Here's what's happening with TedOS today.</p>
+                    <h1 className="text-xl sm:text-2xl font-bold mb-1">Dashboard Overview</h1>
+                    <p className="text-gray-400 text-sm">Welcome back! Here's what's happening with TedOS today.</p>
                 </div>
 
                 {/* Launch GHL Builder - Admin Tool */}
-                <div className="bg-purple-950/20 border border-purple-500/30 rounded-xl p-6">
-                    <div className="flex items-center justify-between">
+                <div className="bg-purple-950/20 border border-purple-500/30 rounded-xl p-4 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div>
-                            <h3 className="text-lg font-semibold mb-1 flex items-center gap-2">
-                                <ExternalLink className="w-5 h-5 text-purple-400" />
+                            <h3 className="text-base sm:text-lg font-semibold mb-1 flex items-center gap-2">
+                                <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 flex-shrink-0" />
                                 GHL Builder Access
                             </h3>
                             <p className="text-gray-400 text-sm">Open your GoHighLevel subaccount builder with a single click</p>
                         </div>
-                        <LaunchBuilderButton />
+                        <div className="self-start sm:self-auto"><LaunchBuilderButton /></div>
                     </div>
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {STATS_CARDS.map((stat, index) => {
                         const Icon = stat.icon;
                         return (
@@ -190,7 +190,7 @@ export default function AdminOverview() {
                                         {stat.change}
                                     </div>
                                 </div>
-                                <h3 className="text-3xl font-bold mb-1">{stat.value}</h3>
+                                <h3 className="text-2xl sm:text-3xl font-bold mb-1">{stat.value}</h3>
                                 <p className="text-gray-400 text-sm">{stat.label}</p>
                             </motion.div>
                         );

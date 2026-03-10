@@ -114,8 +114,8 @@ export default function AdminBilling() {
             <div className="space-y-8">
                 {/* Header */}
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">Billing / Tiers</h1>
-                    <p className="text-gray-400">Manage subscription tiers and pricing plans.</p>
+                    <h1 className="text-xl sm:text-2xl font-bold mb-1">Billing / Tiers</h1>
+                    <p className="text-gray-400 text-sm">Manage subscription tiers and pricing plans.</p>
                 </div>
 
                 {/* Tiers Grid */}

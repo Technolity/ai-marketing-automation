@@ -391,7 +391,7 @@ export default function AdminUsers() {
                             <p className="text-green-400 text-sm font-semibold uppercase tracking-wide">Starter</p>
                             <TrendingUp className="w-4 h-4 text-green-400" />
                         </div>
-                        <p className="text-4xl font-bold text-green-400">{tierStats.starter || 0}</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-green-400">{tierStats.starter || 0}</p>
                         <p className="text-gray-400 text-xs mt-1">Active users</p>
                     </motion.div>
                     <motion.div
@@ -405,7 +405,7 @@ export default function AdminUsers() {
                             <p className="text-blue-400 text-sm font-semibold uppercase tracking-wide">Growth</p>
                             <TrendingUp className="w-4 h-4 text-blue-400" />
                         </div>
-                        <p className="text-4xl font-bold text-blue-400">{tierStats.growth || 0}</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-blue-400">{tierStats.growth || 0}</p>
                         <p className="text-gray-400 text-xs mt-1">Active users</p>
                     </motion.div>
                     <motion.div
@@ -419,7 +419,7 @@ export default function AdminUsers() {
                             <p className="text-purple-400 text-sm font-semibold uppercase tracking-wide">Scale</p>
                             <TrendingUp className="w-4 h-4 text-purple-400" />
                         </div>
-                        <p className="text-4xl font-bold text-purple-400">{tierStats.scale || 0}</p>
+                        <p className="text-2xl sm:text-3xl font-bold text-purple-400">{tierStats.scale || 0}</p>
                         <p className="text-gray-400 text-xs mt-1">Active users</p>
                     </motion.div>
                 </div>

@@ -224,7 +224,7 @@ export default function AdminKnowledgeBase() {
     if (authLoading || loading) {
         return (
             <AdminLayout>
-                <div className="flex items-center justify-center min-h-screen">
+                <div className="flex items-center justify-center h-96">
                     <Loader2 className="h-8 w-8 text-cyan animate-spin" />
                 </div>
             </AdminLayout>
@@ -234,7 +234,7 @@ export default function AdminKnowledgeBase() {
     if (error) {
         return (
             <AdminLayout>
-                <div className="flex items-center justify-center min-h-screen">
+                <div className="flex items-center justify-center h-96">
                     <div className="text-center">
                         <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
                         <p className="text-white text-lg">{error}</p>
@@ -246,72 +246,72 @@ export default function AdminKnowledgeBase() {
 
     return (
         <AdminLayout>
-            <div className="p-8 min-h-screen">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-between mb-2">
-                        <h1 className="text-3xl font-bold text-white">
+                <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                        <h1 className="text-xl sm:text-2xl font-bold text-white">
                             Knowledge Base
                         </h1>
                         <button
                             onClick={() => router.push('/admin/transcripts/add')}
-                            className="px-4 py-2 bg-cyan text-black rounded-lg hover:bg-cyan/90 transition-colors flex items-center gap-2 font-medium"
+                            className="flex items-center gap-2 px-4 py-2 bg-cyan text-black rounded-lg hover:bg-cyan/90 transition-colors font-medium text-sm whitespace-nowrap self-start sm:self-auto"
                         >
-                            <Plus className="w-5 h-5" />
+                            <Plus className="w-4 h-4" />
                             Add Content
                         </button>
                     </div>
-                    <p className="text-gray-400">
+                    <p className="text-gray-400 text-sm">
                         Ted McGrath's knowledge base powered by RAG (Retrieval Augmented Generation)
                     </p>
                 </div>
 
                 {/* Stats Cards */}
                 {stats && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6"
+                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
                         >
-                            <div className="text-gray-400 text-sm mb-2">Total Transcripts</div>
-                            <div className="text-3xl font-bold text-white">{stats.transcripts?.total || 0}</div>
+                            <div className="text-gray-400 text-xs mb-1">Total Transcripts</div>
+                            <div className="text-2xl font-bold text-white">{stats.transcripts?.total || 0}</div>
                         </motion.div>
 
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 }}
-                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6"
+                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
                         >
-                            <div className="text-gray-400 text-sm mb-2">Total Chunks</div>
-                            <div className="text-3xl font-bold text-cyan">{stats.chunks?.total || 0}</div>
+                            <div className="text-gray-400 text-xs mb-1">Total Chunks</div>
+                            <div className="text-2xl font-bold text-cyan">{stats.chunks?.total || 0}</div>
                         </motion.div>
 
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2 }}
-                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6"
+                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
                         >
-                            <div className="text-gray-400 text-sm mb-2">Completed</div>
-                            <div className="text-3xl font-bold text-green-500">{stats.transcripts?.completed || 0}</div>
+                            <div className="text-gray-400 text-xs mb-1">Completed</div>
+                            <div className="text-2xl font-bold text-green-500">{stats.transcripts?.completed || 0}</div>
                         </motion.div>
 
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.3 }}
-                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6"
+                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
                         >
-                            <div className="text-gray-400 text-sm mb-2">Avg. Chunks/Transcript</div>
-                            <div className="text-3xl font-bold text-white">{stats.chunks?.average_per_transcript || 0}</div>
+                            <div className="text-gray-400 text-xs mb-1">Avg. Chunks/Transcript</div>
+                            <div className="text-2xl font-bold text-white">{stats.chunks?.average_per_transcript || 0}</div>
                         </motion.div>
                     </div>
                 )}
 
                 {/* Search Bar */}
-                <div className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-6 mb-6">
+                <div className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4">
                     <div className="relative">
                         <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
                         <input
@@ -351,7 +351,7 @@ export default function AdminKnowledgeBase() {
                                                 {headerGroup.headers.map((header) => (
                                                     <th
                                                         key={header.id}
-                                                        className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider"
+                                                        className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider"
                                                     >
                                                         {header.isPlaceholder
                                                             ? null
@@ -373,7 +373,7 @@ export default function AdminKnowledgeBase() {
                                                 {row.getVisibleCells().map((cell) => (
                                                     <td
                                                         key={cell.id}
-                                                        className="px-6 py-4 whitespace-nowrap text-sm text-white"
+                                                        className="px-4 py-3 text-sm text-white"
                                                     >
                                                         {flexRender(
                                                             cell.column.columnDef.cell,
@@ -388,7 +388,7 @@ export default function AdminKnowledgeBase() {
                             </div>
 
                             {/* Pagination */}
-                            <div className="px-6 py-4 border-t border-[#2a2a2d] flex items-center justify-between bg-[#1a1a1c]">
+                            <div className="px-4 py-3 border-t border-[#2a2a2d] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-[#1a1a1c]">
                                 <div className="text-sm text-gray-400">
                                     Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
                                     {Math.min(
