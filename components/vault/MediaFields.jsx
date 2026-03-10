@@ -122,23 +122,22 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                 body: formData
             });
 
-            if (!uploadResponse.ok) {
-                let errorMessage = 'Upload failed';
-                try {
-                    const errorData = await uploadResponse.json();
-                    errorMessage = errorData.error || errorMessage;
-                } catch {
-                    // Response is not JSON (e.g., 413 "Request Entity Too Large")
-                    if (uploadResponse.status === 413) {
-                        errorMessage = 'File is too large. Please use a smaller file (max 4.5MB for serverless uploads).';
-                    } else {
-                        errorMessage = `Upload failed (${uploadResponse.status}: ${uploadResponse.statusText})`;
-                    }
+            const responseText = await uploadResponse.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (err) {
+                if (uploadResponse.status === 413 || responseText.includes('Too Large')) {
+                    throw new Error('File is too large. Please use a smaller file (max 4.5MB).');
                 }
-                throw new Error(errorMessage);
+                throw new Error(`Upload failed (${uploadResponse.status}): Invalid server response`);
             }
 
-            const { url } = await uploadResponse.json();
+            if (!uploadResponse.ok) {
+                throw new Error(data.error || `Upload failed (${uploadResponse.status})`);
+            }
+
+            const { url } = data;
 
             // Save URL to database
             await handleFieldSave(field_id, url);

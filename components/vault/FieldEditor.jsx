@@ -842,22 +842,20 @@ function FieldEditor({
                         body: formData
                     });
 
-                    if (!res.ok) {
-                        let errorMessage = 'Upload failed';
-                        try {
-                            const errorData = await res.json();
-                            errorMessage = errorData.error || errorMessage;
-                        } catch {
-                            if (res.status === 413) {
-                                errorMessage = 'File is too large. Please use a smaller file (max 4.5MB for serverless uploads).';
-                            } else {
-                                errorMessage = `Upload failed (${res.status}: ${res.statusText})`;
-                            }
+                    const responseText = await res.text();
+                    let data;
+                    try {
+                        data = JSON.parse(responseText);
+                    } catch (err) {
+                        if (res.status === 413 || responseText.includes('Too Large')) {
+                            throw new Error('File is too large. Please use a smaller file (max 4.5MB).');
                         }
-                        throw new Error(errorMessage);
+                        throw new Error(`Upload failed (${res.status}): Invalid server response`);
                     }
 
-                    const data = await res.json();
+                    if (!res.ok) {
+                        throw new Error(data.error || `Upload failed (${res.status})`);
+                    }
 
                     if (data.success) {
                         setValue(data.fullUrl);

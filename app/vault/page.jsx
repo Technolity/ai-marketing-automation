@@ -1894,22 +1894,21 @@ export default function VaultPage() {
                 body: formData
             });
 
-            if (!response.ok) {
-                let errorMessage = 'Upload failed';
-                try {
-                    const errorData = await response.json();
-                    errorMessage = errorData.error || errorMessage;
-                } catch {
-                    if (response.status === 413) {
-                        errorMessage = 'File is too large. Please use a smaller file (max 4.5MB for serverless uploads).';
-                    } else {
-                        errorMessage = `Upload failed (${response.status}: ${response.statusText})`;
-                    }
+            const responseText = await response.text();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (err) {
+                // Not JSON (e.g. 413 Payload Too Large plain text from proxy/Vercel)
+                if (response.status === 413 || responseText.includes('Too Large')) {
+                    throw new Error('File is too large. Please use a smaller file (max 4.5MB).');
                 }
-                throw new Error(errorMessage);
+                throw new Error(`Upload failed (${response.status}): Invalid server response`);
             }
 
-            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || `Upload failed (${response.status})`);
+            }
             if (data.success) {
                 if (isVideo) {
                     setVideoUrls(prev => ({ ...prev, [fileType]: data.fullUrl }));
