@@ -86,9 +86,9 @@ export async function POST(req) {
     );
   }
 
-  // billing_cycle: derived from plan_id (source of truth) — payload value is only
-  // a fallback in case someone sends a custom workflow without Activation plan IDs
-  const billing_cycle = plan.billing_cycle || billing_cycle_payload || 'monthly';
+  // billing_cycle: workflow payload is the source of truth — each workflow hardcodes
+  // the correct value. plan.billing_cycle is a fallback for backwards compatibility.
+  const billing_cycle = billing_cycle_payload || plan.billing_cycle || 'monthly';
 
   console.log(`[Provisioning] ${email} → ${plan.name} (${plan.tier}, ${billing_cycle})`);
 

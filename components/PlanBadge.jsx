@@ -56,21 +56,6 @@ const PLAN_META = {
     },
 };
 
-const UPGRADE_URLS = {
-    starter: {
-        monthly: process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_STARTER_MONTHLY,
-        annual:  process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_STARTER_ANNUAL,
-    },
-    growth: {
-        monthly: process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_GROWTH_MONTHLY,
-        annual:  process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_GROWTH_ANNUAL,
-    },
-    scale: {
-        monthly: process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_SCALE_MONTHLY,
-        annual:  process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_SCALE_ANNUAL,
-    },
-};
-
 const TIER_ORDER = ['starter', 'growth', 'scale'];
 
 export default function PlanBadge({ tier: tierProp }) {
@@ -121,13 +106,10 @@ export default function PlanBadge({ tier: tierProp }) {
     const meta = PLAN_META[tier];
     const Icon = meta.icon;
     const currentIndex = TIER_ORDER.indexOf(tier);
-    // Only include billing options where a URL is actually configured
     const upgradeOptions = TIER_ORDER.slice(currentIndex + 1).map((t) => ({
         ...PLAN_META[t],
         tier: t,
-        monthlyUrl: UPGRADE_URLS[t]?.monthly || null,
-        annualUrl:  UPGRADE_URLS[t]?.annual  || null,
-    })).filter((opt) => opt.monthlyUrl || opt.annualUrl);
+    }));
 
     return (
         <div ref={ref} className="relative hidden sm:block">
@@ -173,40 +155,30 @@ export default function PlanBadge({ tier: tierProp }) {
                                             </div>
                                             <span className={`text-xs font-bold ${opt.color}`}>{opt.label}</span>
                                         </div>
-                                        {/* Monthly option — only if URL is set */}
-                                        {opt.monthlyUrl && (
-                                            <a
-                                                href={opt.monthlyUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={() => setOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2"
-                                            >
-                                                <RefreshCw className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />
-                                                <div className="flex-1 min-w-0">
-                                                    <span className="text-xs text-gray-300 font-medium">Monthly</span>
-                                                    <span className="text-xs text-gray-500 ml-2">{opt.priceMonthly}</span>
-                                                </div>
-                                                <ArrowUpRight className="w-3 h-3 text-gray-600 group-hover:text-gray-400 transition-colors flex-shrink-0" />
-                                            </a>
-                                        )}
-                                        {/* Annual option — only if URL is set */}
-                                        {opt.annualUrl && (
-                                            <a
-                                                href={opt.annualUrl}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={() => setOpen(false)}
-                                                className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2"
-                                            >
-                                                <CalendarDays className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />
-                                                <div className="flex-1 min-w-0">
-                                                    <span className="text-xs text-gray-300 font-medium">Annual</span>
-                                                    <span className="text-xs text-gray-500 ml-2">{opt.priceAnnual}</span>
-                                                </div>
-                                                <ArrowUpRight className="w-3 h-3 text-gray-600 group-hover:text-gray-400 transition-colors flex-shrink-0" />
-                                            </a>
-                                        )}
+                                        {/* Monthly option */}
+                                        <button
+                                            type="button"
+                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2 w-full text-left"
+                                        >
+                                            <RefreshCw className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-xs text-gray-300 font-medium">Monthly</span>
+                                                <span className="text-xs text-gray-500 ml-2">{opt.priceMonthly}</span>
+                                            </div>
+                                            <ArrowUpRight className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                                        </button>
+                                        {/* Annual option */}
+                                        <button
+                                            type="button"
+                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2 w-full text-left"
+                                        >
+                                            <CalendarDays className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />
+                                            <div className="flex-1 min-w-0">
+                                                <span className="text-xs text-gray-300 font-medium">Annual</span>
+                                                <span className="text-xs text-gray-500 ml-2">{opt.priceAnnual}</span>
+                                            </div>
+                                            <ArrowUpRight className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                                        </button>
                                     </div>
                                 );
                             })}

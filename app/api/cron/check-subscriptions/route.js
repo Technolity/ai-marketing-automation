@@ -1,6 +1,6 @@
 /**
  * Cron: Check Expired Subscriptions
- * POST /api/cron/check-subscriptions
+ * GET /api/cron/check-subscriptions
  *
  * Safety-net job that suspends accounts whose billing period has expired
  * but no cancellation webhook was received (e.g. GHL workflow missed firing).
@@ -26,7 +26,7 @@ const supabase = createClient(
 
 const GRACE_PERIOD_DAYS = 3;
 
-export async function POST(req) {
+export async function GET(req) {
   // Verify cron secret — Vercel sends Authorization: Bearer {CRON_SECRET}
   const authHeader = req.headers.get('authorization') || '';
   const secret = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;

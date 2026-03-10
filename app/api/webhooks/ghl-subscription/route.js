@@ -83,7 +83,7 @@ export async function POST(req) {
   for (let attempt = 1; attempt <= 4; attempt++) {
     const { data, error } = await supabase
       .from('user_profiles')
-      .select('id, subscription_status, subscription_current_period_end, billing_cycle, ghl_saas_provisioned')
+      .select('id, subscription_status, subscription_current_period_end, subscription_renewed_at, billing_cycle, ghl_saas_provisioned')
       .ilike('email', email)
       .maybeSingle();
 
@@ -129,13 +129,27 @@ export async function POST(req) {
       // Determine billing cycle: payload > existing profile > default monthly
       const cycle = billing_cycle || profile.billing_cycle || 'monthly';
 
-      // Extend from current period end if in the future, otherwise extend from now
-      // (handles late payments gracefully without losing paid days)
-      const currentPeriodEnd = profile.subscription_current_period_end
-        ? new Date(profile.subscription_current_period_end)
-        : new Date();
-      const extendFrom = currentPeriodEnd > new Date() ? currentPeriodEnd : new Date();
-      const newPeriodEnd = calculatePeriodEnd(extendFrom, cycle);
+      // First-payment guard: when a new customer subscribes, GHL fires BOTH
+      // Order Submitted AND Payment Received simultaneously. The provisioning
+      // webhook (Order Submitted) already sets the correct period_end.
+      // subscription_renewed_at is null until the first true renewal — use that
+      // to detect the first-payment race condition and skip the period extension.
+      const isFirstPayment = !profile.subscription_renewed_at;
+
+      let newPeriodEnd;
+      if (isFirstPayment) {
+        // Keep the period_end provisioning already set — just confirm active status
+        newPeriodEnd = profile.subscription_current_period_end;
+        console.log(`[Subscription] First payment detected for ${email} — skipping period extension`);
+      } else {
+        // True renewal: extend from current period end if in the future, else from now
+        // (handles late payments without losing paid days)
+        const currentPeriodEnd = profile.subscription_current_period_end
+          ? new Date(profile.subscription_current_period_end)
+          : new Date();
+        const extendFrom = currentPeriodEnd > new Date() ? currentPeriodEnd : new Date();
+        newPeriodEnd = calculatePeriodEnd(extendFrom, cycle);
+      }
 
       const updates = {
         subscription_status: 'active',
@@ -172,7 +186,7 @@ export async function POST(req) {
         .update(updates)
         .eq('id', userId);
 
-      console.log(`[Subscription] ✓ Renewed for ${email} — new period end: ${newPeriodEnd}`);
+      console.log(`[Subscription] ✓ Payment received for ${email} — period end: ${newPeriodEnd} (first: ${isFirstPayment})`);
 
       return NextResponse.json({
         success: true,
