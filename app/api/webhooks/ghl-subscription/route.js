@@ -64,7 +64,7 @@ export async function POST(req) {
   }
 
   // ── 2. Extract payload ───────────────────────────────────────────────────
-  const { email, event_type, billing_cycle, plan_id, plan_name } = body;
+  const { email, event_type, billing_cycle, plan_id } = body;
 
   if (!email) {
     return NextResponse.json({ error: 'email is required' }, { status: 400 });
@@ -126,15 +126,22 @@ export async function POST(req) {
 
     } else if (event_type === 'payment_received') {
       // ── Renewal payment ───────────────────────────────────────────────────
-      // Determine billing cycle: payload > existing profile > default monthly
-      const cycle = billing_cycle || profile.billing_cycle || 'monthly';
+      // Pre-SaaS upgrade: user paying via a payment link where Order Submitted
+      // never fires. Detected by: plan_id in payload + ghl_saas_provisioned = false.
+      const preSaasUpgrade = !!(plan_id && !profile.ghl_saas_provisioned);
+      const resolvedPlan = preSaasUpgrade ? resolvePlan(plan_id) : null;
+
+      // Determine billing cycle: payload > resolved plan > existing profile > default monthly
+      const cycle = billing_cycle || resolvedPlan?.billing_cycle || profile.billing_cycle || 'monthly';
 
       // First-payment guard: when a new customer subscribes, GHL fires BOTH
       // Order Submitted AND Payment Received simultaneously. The provisioning
       // webhook (Order Submitted) already sets the correct period_end.
       // subscription_renewed_at is null until the first true renewal — use that
       // to detect the first-payment race condition and skip the period extension.
-      const isFirstPayment = !profile.subscription_renewed_at;
+      // Exception: pre-SaaS users paying via payment link — Order Submitted never
+      // fires for them, so we must extend the period here instead.
+      const isFirstPayment = !profile.subscription_renewed_at && !preSaasUpgrade;
 
       let newPeriodEnd;
       if (isFirstPayment) {
@@ -186,7 +193,7 @@ export async function POST(req) {
         .update(updates)
         .eq('id', userId);
 
-      console.log(`[Subscription] ✓ Payment received for ${email} — period end: ${newPeriodEnd} (first: ${isFirstPayment})`);
+      console.log(`[Subscription] ✓ Payment received for ${email} — period end: ${newPeriodEnd} (first: ${isFirstPayment}, preSaas: ${preSaasUpgrade}, cycle: ${cycle})`);
 
       return NextResponse.json({
         success: true,

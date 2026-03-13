@@ -164,7 +164,7 @@ export async function POST(req) {
           await clerkClient.invitations.createInvitation({
             emailAddress: email,
             redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
-            publicMetadata: { plan: plan.tier },
+            publicMetadata: { plan: plan.tier, email },
             ignoreExisting: true,
           });
           console.log(`[Provisioning] Invitation sent to ${email}`);
