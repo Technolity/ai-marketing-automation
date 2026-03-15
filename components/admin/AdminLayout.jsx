@@ -19,7 +19,8 @@ import {
     Loader2,
     Database,
     FolderKanban,
-    BadgeCheck
+    BadgeCheck,
+    Megaphone
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -33,6 +34,7 @@ const MENU_ITEMS = [
     { href: "/admin/transcripts", label: "Transcripts", icon: FileText },
     { href: "/admin/knowledge-base", label: "Knowledge Base", icon: BookOpen },
     { href: "/admin/billing", label: "Billing / Tiers", icon: CreditCard },
+    { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
     { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

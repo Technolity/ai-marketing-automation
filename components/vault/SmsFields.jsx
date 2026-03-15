@@ -35,6 +35,9 @@ export default function SmsFields({ funnelId, onApprove, onRenderApproveButton, 
         'Welcome & Nurture',
         'Proof & Booking',
         'The Close',
+        'Day 8: Closing Day 1',
+        'Days 9-14: Advanced Nurture',
+        'Day 15: Final Closing Day',
         'No-Show Recovery'
     ];
 

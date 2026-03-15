@@ -187,19 +187,33 @@ const EMAIL_KEY_MAP = {
 
 // === SMS KEY MAPPINGS ===
 const SMS_KEY_MAP = {
+    // Days 1-7
     'sms1': 'optin_sms_1',
     'sms2': 'optin_sms_2',
     'sms3': 'optin_sms_3',
     'sms4': 'optin_sms_4',
     'sms5': 'optin_sms_5',
     'sms6': 'optin_sms_6',
-    'sms7': 'optin_sms_7',
+    'sms7a': 'optin_sms_7',
+    'sms7b': 'optin_sms_8_evening',
+
+    // Day 8 (Closing Day 1)
+    'sms8a': 'optin_sms_8_morning',
+    'sms8b': 'optin_sms_8_afternoon',
+    'sms8c': 'optin_sms_8_evening',
+
+    // Days 9-14
     'sms9': 'optin_sms_9',
     'sms10': 'optin_sms_10',
     'sms11': 'optin_sms_11',
     'sms12': 'optin_sms_12',
     'sms13': 'optin_sms_13',
     'sms14': 'optin_sms_14',
+
+    // Day 15 (Final Closing Day)
+    'sms15a': 'optin_sms_15_morning',
+    'sms15b': 'optin_sms_15_afternoon',
+    'sms15c': 'optin_sms_15_evening'
 };
 
 // === APPOINTMENT REMINDER EMAIL KEY MAPPINGS ===

@@ -82,23 +82,27 @@ async function pushWithRetry(url, options, maxRetries = 3) {
     }
 }
 
-// GHL key mappings for appointment reminders
+// GHL key mappings for appointment reminder EMAILS
+// Keys match vault schema field names from appointmentRemindersSchema
 const APPOINTMENT_EMAIL_MAP = {
-    0: { subject: 'email_subject_when_call_booked', preheader: 'email_preheader_when_call_booked', body: 'email_body_when_call_booked' },
-    1: { subject: 'email_subject_48_hour_before_call_time', preheader: 'email_preheader_48_hour_before_call_time', body: 'email_body_48_hour_before_call_time' },
-    2: { subject: 'email_subject_24_hour_before_call_time', preheader: 'email_preheader_24_hour_before_call_time', body: 'email_body_24_hour_before_call_time' },
-    3: { subject: 'email_subject_1_hour_before_call_time', preheader: 'email_preheader_1_hour_before_call_time', body: 'email_body_1_hour_before_call_time' },
-    4: { subject: 'email_subject_10_min_before_call_time', preheader: 'email_preheader_10_min_before_call_time', body: 'email_body_10_min_before_call_time' },
-    5: { subject: 'email_subject_at_call_time', preheader: 'email_preheader_at_call_time', body: 'email_body_at_call_time' },
+    confirmationEmail:  { subject: 'email_subject_when_call_booked',           preheader: 'email_preheader_when_call_booked',           body: 'email_body_when_call_booked' },
+    reminder48Hours:    { subject: 'email_subject_48_hour_before_call_time',   preheader: 'email_preheader_48_hour_before_call_time',   body: 'email_body_48_hour_before_call_time' },
+    reminder24Hours:    { subject: 'email_subject_24_hour_before_call_time',   preheader: 'email_preheader_24_hour_before_call_time',   body: 'email_body_24_hour_before_call_time' },
+    reminder1Hour:      { subject: 'email_subject_1_hour_before_call_time',    preheader: 'email_preheader_1_hour_before_call_time',    body: 'email_body_1_hour_before_call_time' },
+    reminder10Minutes:  { subject: 'email_subject_10_min_before_call_time',    preheader: 'email_preheader_10_min_before_call_time',    body: 'email_body_10_min_before_call_time' },
+    startingNow:        { subject: 'email_subject_at_call_time',               preheader: 'email_preheader_at_call_time',               body: 'email_body_at_call_time' },
+    noShowFollowUp:     { subject: 'email_subject_no_show',                    preheader: 'email_preheader_no_show',                    body: 'email_body_no_show' },
 };
 
+// GHL key mappings for appointment reminder SMS
+// Keys match vault schema field names from appointmentRemindersSchema.smsReminders
 const APPOINTMENT_SMS_MAP = {
-    'reminder1Day': 'sms_24_hour_before_call_time',
-    'reminder1Hour': 'sms_1_hour_before_call_time',
-    'reminderNow': 'sms_at_call_time',
-    'reminderBooked': 'sms_when_call_booked',
-    'reminder48Hour': 'sms_48_hour_before_call_time',
-    'reminder10Min': 'sms_10_min_before_call_time',
+    'confirmationSms':    'sms_when_call_booked',
+    'reminder48HoursSms': 'sms_48_hour_before_call_time',
+    'reminder24HoursSms': 'sms_24_hour_before_call_time',
+    'reminder1HourSms':   'sms_1_hour_before_call_time',
+    'reminder10MinSms':   'sms_10_min_before_call_time',
+    'startingNowSms':     'sms_at_call_time',
 };
 
 export async function POST(req) {
@@ -176,16 +180,22 @@ export async function POST(req) {
         appointmentReminders[field.field_id] = parsedValue;
     }
 
-    const emails = appointmentReminders.emails || [];
-    const smsReminders = appointmentReminders.smsReminders || {};
+    // The vault stores appointment reminder fields as named objects:
+    //   confirmationEmail: { subject, previewText, body }
+    //   reminder48Hours: { subject, previewText, body }
+    //   etc.
+    // Access them directly from the reconstructed appointmentReminders object.
 
     // Build items to push WITHOUT processing first (for batch processing)
     const itemsToPush = [];
 
-    // Collect email items
-    for (const [index, mapping] of Object.entries(APPOINTMENT_EMAIL_MAP)) {
-        const email = emails[parseInt(index)];
-        if (!email) continue;
+    // Collect email items using named keys
+    for (const [vaultKey, mapping] of Object.entries(APPOINTMENT_EMAIL_MAP)) {
+        const email = appointmentReminders[vaultKey];
+        if (!email) {
+            console.log(`[PushAppointmentReminders] No email data for ${vaultKey}`);
+            continue;
+        }
 
         // Subject
         if (email.subject && validateEmailContent(email.subject, 'subject')) {
@@ -193,7 +203,7 @@ export async function POST(req) {
             itemsToPush.push({
                 type: 'email',
                 contentType: 'subject',
-                emailIndex: index,
+                vaultKey: vaultKey,
                 raw: email.subject,
                 ghlKey: mapping.subject,
                 match: match,
@@ -207,7 +217,7 @@ export async function POST(req) {
             itemsToPush.push({
                 type: 'email',
                 contentType: 'preheader',
-                emailIndex: index,
+                vaultKey: vaultKey,
                 raw: preheaderValue,
                 ghlKey: mapping.preheader,
                 match: match,
@@ -220,7 +230,7 @@ export async function POST(req) {
             itemsToPush.push({
                 type: 'email',
                 contentType: 'body',
-                emailIndex: index,
+                vaultKey: vaultKey,
                 raw: email.body,
                 ghlKey: mapping.body,
                 match: match,
@@ -228,7 +238,8 @@ export async function POST(req) {
         }
     }
 
-    // Collect SMS items
+    // Collect SMS items from smsReminders sub-object
+    const smsReminders = appointmentReminders.smsReminders || {};
     for (const [vaultKey, ghlKey] of Object.entries(APPOINTMENT_SMS_MAP)) {
         let smsValue = smsReminders[vaultKey];
         if (!smsValue) continue;
@@ -273,7 +284,7 @@ export async function POST(req) {
                         return {
                             status: 'skipped',
                             key: item.ghlKey,
-                            identifier: item.emailIndex || item.vaultKey,
+                            identifier: item.vaultKey,
                             reason: 'Not found in GHL'
                         };
                     }
@@ -287,7 +298,7 @@ export async function POST(req) {
                         return {
                             status: 'unchanged',
                             key: item.ghlKey,
-                            identifier: item.emailIndex || item.vaultKey
+                            identifier: item.vaultKey
                         };
                     }
 
@@ -313,14 +324,14 @@ export async function POST(req) {
                     return {
                         status: 'success',
                         key: item.ghlKey,
-                        identifier: item.emailIndex || item.vaultKey
+                        identifier: item.vaultKey
                     };
 
                 } catch (error) {
                     return {
                         status: 'failed',
                         key: item.ghlKey,
-                        identifier: item.emailIndex || item.vaultKey,
+                        identifier: item.vaultKey,
                         error: error.message
                     };
                 }

@@ -354,13 +354,15 @@ async function handleParallelRefinement({
             merger: mergeSetterChunks
         },
         sms: {
-            numChunks: 2,
-            chunkNames: ['SMS 1-5', 'SMS 6-7b + No-Shows'],
+            numChunks: 3,
+            chunkNames: ['SMS 1-7b', 'SMS 8a-12', 'SMS 13-15c + No-Shows'],
             splitContent: (content) => {
-                const seq = content?.smsSequence || content;
+                const seq = content?.smsSequence || content || {};
+                const get = (k) => seq[k] || { timing: '', message: '' };
                 return [
-                    { sms1: seq.sms1, sms2: seq.sms2, sms3: seq.sms3, sms4: seq.sms4, sms5: seq.sms5 },
-                    { sms6: seq.sms6, sms7a: seq.sms7a, sms7b: seq.sms7b, smsNoShow1: seq.smsNoShow1, smsNoShow2: seq.smsNoShow2 }
+                    { sms1: get('sms1'), sms2: get('sms2'), sms3: get('sms3'), sms4: get('sms4'), sms5: get('sms5'), sms6: get('sms6'), sms7a: get('sms7a'), sms7b: get('sms7b') },
+                    { sms8a: get('sms8a'), sms8b: get('sms8b'), sms8c: get('sms8c'), sms9: get('sms9'), sms10: get('sms10'), sms11: get('sms11'), sms12: get('sms12') },
+                    { sms13: get('sms13'), sms14: get('sms14'), sms15a: get('sms15a'), sms15b: get('sms15b'), sms15c: get('sms15c'), smsNoShow1: get('smsNoShow1'), smsNoShow2: get('smsNoShow2') }
                 ];
             },
             merger: mergeSmsChunks

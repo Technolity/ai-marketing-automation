@@ -34,6 +34,36 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-03-15)
+| File | Change |
+| :--- | :--- |
+| Supabase Migration: `create_announcements_tables` | **New Feature (Global Announcements)**: Created `announcements` table (id, title, message, type, is_active, created_by) and `user_announcement_dismissals` table (user_id, announcement_id, dismissed_at) with RLS policies and unique constraint. |
+| `app/api/admin/announcements/route.js` | **New (Admin API)**: GET all announcements, POST to create new announcement. Admin-only access. |
+| `app/api/admin/announcements/[id]/route.js` | **New (Admin API)**: PUT to update (toggle active, edit text/type), DELETE to remove. Admin-only access. |
+| `app/api/announcements/route.js` | **New (User API)**: GET the most recent active announcement that the authenticated user has NOT dismissed. |
+| `app/api/announcements/dismiss/route.js` | **New (User API)**: POST to record a user's dismissal of an announcement (upsert). |
+| `app/admin/announcements/page.jsx` | **New (Admin UI)**: Full announcements management page with create form, type selector (info/success/warning/discount), active/inactive toggle, and delete functionality. |
+| `components/admin/AdminLayout.jsx` | **Update**: Added "Announcements" menu item with Megaphone icon to the admin sidebar navigation. |
+| `components/AnnouncementBanner.jsx` | **New (User UI)**: Dismissible gradient banner component that fetches and displays the latest active, undismissed announcement. Styled by type (info=blue, success=green, warning=amber, discount=purple). |
+| `app/layout.jsx` | **Update**: Imported and mounted `<AnnouncementBanner />` below `<AppNavbar />` so it renders globally for all authenticated users. |
+
+### Recent Modifications (2026-03-13)
+| File | Change |
+| :--- | :--- |
+| `lib/schemas/vaultSchemas.js`, `lib/prompts/sms.js`, `lib/prompts/fullContextPrompts.js` | **Enhancement (SMS Expansion)**: Expanded the Optin SMS Nurture sequence from 10 to 23 total messages (Day 1 through Day 15, including morning/afternoon/evening texts for closing days). |
+| `lib/vault/fieldStructures.js`, `lib/vault/fieldGroups.js`, `lib/vault/fieldMapper.js`, `lib/vault/feedbackUtils.js`, `components/vault/SmsFields.jsx` | **Enhancement (SMS UI Integration)**: Added `sms8a` through `sms15c` natively into the Vault frontend, grouped by "Closing Day 1", "Advanced Nurture", and "Final Closing Day", validating their dynamic extraction and ensuring the `SmsFields.jsx` UI array properly renders all groups. |
+| `app/api/ghl/push-sms/route.js`, `app/api/ghl/deploy-workflow/route.js` | **Enhancement (SMS GHL Sync)**: Updated `VAULT_TO_GHL_MAP` and `SMS_KEY_MAP` to accurately map the new 23 SMS payload to the GoHighLevel custom values (`optin_sms_8_morning`, etc.). |
+| `app/api/ghl/push-appointmentReminders/route.js` | **Bug Fix**: Changed `APPOINTMENT_EMAIL_MAP` from array-indexed (`0`, `1`, ...) to named vault keys (`confirmationEmail`, `reminder48Hours`, `reminder24Hours`, `reminder1Hour`, `reminder10Minutes`, `startingNow`, `noShowFollowUp`). Updated email loop to access fields directly. Changed `APPOINTMENT_SMS_MAP` keys to match new schema (`confirmationSms`, `reminder48HoursSms`, etc.). |
+| `lib/schemas/vaultSchemas.js` | **Enhancement**: Added `reminderSmsSchema` and `smsReminders` sub-object with 6 SMS fields to `appointmentRemindersSchema`. |
+| `lib/prompts/appointmentReminders.js` | **Rewrite**: Updated AI prompt to output named email keys (not array) and 6 SMS reminders matching the new schema. Also added missing 48hr and 10min reminder emails. |
+| `lib/prompts/fullContextPrompts.js` | **Update**: Updated `appointmentReminders` section to match new named-key schema structure and full SMS reminders. Changed `keyBenefits` to `keyFeatures`. |
+| `lib/ghl/directAppointmentRemindersMapper.js` | **Bug Fix**: Changed email vault field keys from `emailWhenBooked`/`email48HourBefore` to `confirmationEmail`/`reminder48Hours` matching the schema. Changed SMS to read from `smsReminders` sub-object with correct keys. Added `noShowFollowUp` email. |
+| `lib/vault/fieldStructures.js` | **Update**: Renamed appointment reminder field_ids (`confirmation`→`confirmationEmail`, `reminder24Hour`→`reminder24Hours`, `noShowFollowup`→`noShowFollowUp`). Added `reminder48Hours` and `reminder10Minutes` email fields. Updated SMS subfields to 6 schema-aligned keys. |
+| `lib/vault/feedbackUtils.js` | **Update**: Updated `extractAppointmentRemindersFields` to use new field_ids and flipped legacy-to-new mappings. |
+| `lib/vault/fieldMapper.js` | **Update**: Rewrote `appointmentReminders.extractFields` to use named email keys instead of searching through array. Added `previewText` field extraction. Updated SMS to 6 new schema keys. |
+| `lib/vault/fieldGroups.js` | **Update**: Updated appointmentReminders field_ids (`confirmation`→`confirmationEmail`, etc.). Added `reminder48Hours`, `reminder10Minutes` fields. Restored 4 groups: Prep & Confirmation (4), Day of Call (3), No-Show Protocol (1), SMS Reminders (1). |
+| `components/vault/FieldEditor.jsx` | **Bug Fix**: Added nested object rendering for SMS subfields. When a subfield value is an object (e.g., `{timing, message}`), it now renders each property as a separate labeled input instead of showing `[object Object]`. |
+
 ### Recent Modifications (2026-03-02)
 | File | Change |
 | :--- | :--- |

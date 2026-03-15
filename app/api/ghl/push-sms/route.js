@@ -149,31 +149,33 @@ export async function POST(req) {
         // Based on extracted_values.txt GHL naming convention
         // Vault generates 10 SMS; we map them to GHL's first 7 days
         const VAULT_TO_GHL_MAP = {
-            // Days 1-7 (single messages)
+            // Days 1-7
             sms1: 'optin_sms_1',
             sms2: 'optin_sms_2',
             sms3: 'optin_sms_3',
             sms4: 'optin_sms_4',
             sms5: 'optin_sms_5',
             sms6: 'optin_sms_6',
-            // Day 7 (vault uses sms7a, sms7b for morning/evening)
-            sms7a: 'optin_sms_7',  // Map to sms_7 or could be _8_morning
-            sms7b: 'optin_sms_8_evening',  // Map to day 8 evening as closing push
-            // Alternative: Map day 8 variants if needed
+            sms7a: 'optin_sms_7',
+            sms7b: 'optin_sms_8_evening',  // Historic mapping kept for compatibility
+
+            // Day 8 (Closing Day 1)
             sms8a: 'optin_sms_8_morning',
             sms8b: 'optin_sms_8_afternoon',
             sms8c: 'optin_sms_8_evening',
-            // Days 9-14 (if generated)
+
+            // Days 9-14
             sms9: 'optin_sms_9',
             sms10: 'optin_sms_10',
             sms11: 'optin_sms_11',
             sms12: 'optin_sms_12',
             sms13: 'optin_sms_13',
             sms14: 'optin_sms_14',
-            // Day 15 (if generated)
+
+            // Day 15 (Final Closing Day)
             sms15a: 'optin_sms_15_morning',
             sms15b: 'optin_sms_15_afternoon',
-            sms15c: 'optin_sms_15_evening',
+            sms15c: 'optin_sms_15_evening'
         };
 
         // Build items to push WITHOUT polishing first (for batch processing)

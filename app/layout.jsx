@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import LicenseWrapper from "@/components/LicenseWrapper";
 import MaintenanceGuard from "@/components/MaintenanceGuard";
 import SubscriptionGuard from "@/components/SubscriptionGuard";
+import AnnouncementBanner from "@/components/AnnouncementBanner";
 
 export const metadata = {
   title: "TedOS | Your Business Built For You",
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
               <MaintenanceGuard>
                 <SubscriptionGuard>
                   <AppNavbar />
+                  <AnnouncementBanner />
                   <MainLayout>
                     {children}
                   </MainLayout>

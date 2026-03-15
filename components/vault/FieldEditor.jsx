@@ -758,13 +758,63 @@ function FieldEditor({
                         const isTextarea = subfield.field_type === 'textarea';
                         const isHtmlField = subfield.field_type === 'html' || (isTextarea && containsHtml(subfieldValue));
 
+                        // Handle nested object subfields (e.g., SMS with {timing, message})
+                        const isNestedObject = subfield.field_type === 'object' && subfieldValue && typeof subfieldValue === 'object' && !Array.isArray(subfieldValue);
+
                         return (
                             <div key={idx} className="space-y-1">
                                 <label className="text-xs font-medium text-gray-400">
                                     {subfield.field_label}
                                 </label>
                                 <div className="relative group">
-                                    {isHtmlField ? (
+                                    {isNestedObject ? (
+                                        /* Render nested object properties as individual fields */
+                                        <div className="bg-[#18181b] border border-[#2a2a2d] rounded-lg p-3 space-y-2">
+                                            {Object.entries(subfieldValue).map(([propKey, propVal]) => {
+                                                // Skip internal/meta keys
+                                                if (propKey.startsWith('_')) return null;
+                                                const displayLabel = propKey.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+                                                const isLongText = typeof propVal === 'string' && propVal.length > 80;
+
+                                                return (
+                                                    <div key={propKey} className="space-y-0.5">
+                                                        <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">
+                                                            {displayLabel}
+                                                        </label>
+                                                        {isLongText ? (
+                                                            <textarea
+                                                                ref={(el) => el && autoResizeTextarea(el)}
+                                                                value={String(propVal || '')}
+                                                                onChange={(e) => {
+                                                                    const updated = { ...subfieldValue, [propKey]: e.target.value };
+                                                                    const newObj = { ...objectValue, [subfield.field_id]: updated };
+                                                                    setValue(newObj);
+                                                                    autoResizeTextarea(e.target);
+                                                                }}
+                                                                onBlur={handleBlur}
+                                                                disabled={readOnly}
+                                                                style={{ minHeight: '2.5rem' }}
+                                                                className="w-full px-3 py-1.5 bg-[#0e0e0f] border border-[#2a2a2d] rounded-md text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                                                            />
+                                                        ) : (
+                                                            <input
+                                                                type="text"
+                                                                value={String(propVal || '')}
+                                                                onChange={(e) => {
+                                                                    const updated = { ...subfieldValue, [propKey]: e.target.value };
+                                                                    const newObj = { ...objectValue, [subfield.field_id]: updated };
+                                                                    setValue(newObj);
+                                                                }}
+                                                                onBlur={handleBlur}
+                                                                disabled={readOnly}
+                                                                className="w-full px-3 py-1.5 bg-[#0e0e0f] border border-[#2a2a2d] rounded-md text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                                                            />
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : isHtmlField ? (
                                         <HtmlEditor
                                             value={subfieldValue}
                                             onChange={(newVal) => {
@@ -795,7 +845,7 @@ function FieldEditor({
                                     ) : (
                                         <input
                                             type="text"
-                                            value={subfieldValue}
+                                            value={typeof subfieldValue === 'object' ? JSON.stringify(subfieldValue) : subfieldValue}
                                             onChange={(e) => {
                                                 const newObj = { ...objectValue, [subfield.field_id]: e.target.value };
                                                 setValue(newObj);

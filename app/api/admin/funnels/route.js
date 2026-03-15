@@ -202,11 +202,16 @@ export async function PUT(req) {
         });
 
         // Get funnel details for logging
-        const { data: funnel } = await supabase
+        const { data: funnel, error: fetchError } = await supabase
             .from('user_funnels')
-            .select('user_id, business_name, vault_generation_status')
+            .select('user_id, funnel_name, vault_generation_status')
             .eq('id', funnelId)
             .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+            adminLogger.error(LOG_CATEGORIES.DATABASE, 'Error fetching funnel for PUT', { error: fetchError.message, funnelId });
+            return NextResponse.json({ error: 'Database error' }, { status: 500 });
+        }
 
         if (!funnel) {
             adminLogger.warn(LOG_CATEGORIES.FUNNEL_MANAGEMENT, 'Funnel not found', { funnelId });
@@ -272,7 +277,7 @@ export async function PUT(req) {
             }
 
             adminLogger.logFunnelOperation('delete', funnelId, funnel.user_id, {
-                businessName: funnel.business_name,
+                funnelName: funnel.funnel_name,
                 status: funnel.vault_generation_status
             });
 
