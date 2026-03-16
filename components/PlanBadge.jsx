@@ -58,6 +58,10 @@ const PLAN_META = {
 
 const TIER_ORDER = ['starter', 'growth', 'scale'];
 
+// GHL SaaS Configurator client portal — handles upgrades/downgrades natively.
+// Set NEXT_PUBLIC_GHL_UPGRADE_URL in your .env to your SaaS Configurator portal link.
+const UPGRADE_URL = process.env.NEXT_PUBLIC_GHL_UPGRADE_URL || null;
+
 export default function PlanBadge({ tier: tierProp }) {
     const [tier, setTier] = useState(
         tierProp ? normalizeTier(tierProp) : (tierCache || null)
@@ -158,7 +162,9 @@ export default function PlanBadge({ tier: tierProp }) {
                                         {/* Monthly option */}
                                         <button
                                             type="button"
-                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2 w-full text-left"
+                                            onClick={() => UPGRADE_URL && window.open(UPGRADE_URL, '_blank')}
+                                            disabled={!UPGRADE_URL}
+                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2 w-full text-left disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
                                             <RefreshCw className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />
                                             <div className="flex-1 min-w-0">
@@ -170,7 +176,9 @@ export default function PlanBadge({ tier: tierProp }) {
                                         {/* Annual option */}
                                         <button
                                             type="button"
-                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2 w-full text-left"
+                                            onClick={() => UPGRADE_URL && window.open(UPGRADE_URL, '_blank')}
+                                            disabled={!UPGRADE_URL}
+                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2 w-full text-left disabled:opacity-40 disabled:cursor-not-allowed"
                                         >
                                             <CalendarDays className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />
                                             <div className="flex-1 min-w-0">

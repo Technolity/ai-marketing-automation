@@ -227,6 +227,7 @@ export async function PUT(req) {
                 billing_cycle:                  (v) => ['monthly', 'annual'].includes(v),
                 subscription_current_period_end:(v) => !isNaN(Date.parse(v)),
                 ghl_saas_provisioned:           (v) => typeof v === 'boolean',
+                subscription_tier:              (v) => ['starter', 'growth', 'scale'].includes(v),
             };
 
             if (!ALLOWED[field]) {
@@ -246,6 +247,19 @@ export async function PUT(req) {
             if (field === 'subscription_status') {
                 if (processedValue === 'cancelled') updateData.subscription_cancelled_at = now;
                 if (processedValue === 'active')    updateData.subscription_cancelled_at = null;
+            }
+
+            if (field === 'subscription_tier') {
+                const TIER_LIMITS = {
+                    starter: { max_funnels: 1,  max_seats: 1  },
+                    growth:  { max_funnels: 3,  max_seats: 3  },
+                    scale:   { max_funnels: 10, max_seats: 10 },
+                };
+                const limits = TIER_LIMITS[processedValue];
+                if (limits) {
+                    updateData.max_funnels = limits.max_funnels;
+                    updateData.max_seats   = limits.max_seats;
+                }
             }
 
             adminLogger.logDatabaseOperation('UPDATE', 'user_profiles', { targetUserId, field, newValue: processedValue });
