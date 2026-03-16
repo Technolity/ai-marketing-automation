@@ -1,4 +1,4 @@
-﻿import { auth } from '@clerk/nextjs';
+import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getFieldDefinition, validateFieldValue } from '@/lib/vault/fieldStructures';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
@@ -6,6 +6,36 @@ import { performFieldAtomicUpdate } from '@/lib/vault/atomicUpdater';
 import { isAtomicField } from '@/lib/vault/dependencyGraph';
 import { reconcileFromFields } from '@/lib/vault/reconcileVault';
 
+
+/**
+ * Extract a URL from HTML embed code (iframe, embed, video, img, script tags).
+ * If the input is already a plain URL or doesn't contain recognisable embed markup,
+ * the original value is returned unchanged.
+ */
+function extractUrlFromEmbed(value) {
+    if (typeof value !== 'string') return value;
+
+    const trimmed = value.trim();
+
+    // Quick check: if it doesn't look like HTML, return as-is
+    if (!trimmed.includes('<')) return trimmed;
+
+    // Match src="..." or src='...' inside common embed tags
+    const srcMatch = trimmed.match(/<(?:iframe|embed|video|img|source|script)[^>]*\ssrc=["']([^"']+)["']/i);
+    if (srcMatch && srcMatch[1]) {
+        console.log('[VaultField] Extracted URL from embed code:', srcMatch[1]);
+        return srcMatch[1];
+    }
+
+    // Fallback: try to find any URL-like string inside the markup
+    const urlMatch = trimmed.match(/https?:\/\/[^\s"'<>]+/i);
+    if (urlMatch && urlMatch[0]) {
+        console.log('[VaultField] Extracted URL via fallback regex:', urlMatch[0]);
+        return urlMatch[0];
+    }
+
+    return trimmed;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -228,8 +258,11 @@ export async function PATCH(req) {
         funnel_id,
         section_id,
         field_id,
-        field_value
+        field_value: rawFieldValue
     } = body;
+
+    // Auto-extract URL from embed code if user pasted full HTML (e.g. <iframe src="...">)
+    const field_value = (typeof rawFieldValue === 'string') ? extractUrlFromEmbed(rawFieldValue) : rawFieldValue;
 
     // Validation
     if (!funnel_id || !section_id || !field_id || field_value === undefined) {

@@ -168,20 +168,22 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
             if (!response.ok) throw new Error('Failed to save');
             const result = await response.json();
 
-            console.log('[MediaFields] Field saved:', { field_id, value, version: result.version });
+            // Use the cleaned value from backend (embed code → URL extraction)
+            const cleanedValue = result.field?.field_value || value;
+            console.log('[MediaFields] Field saved:', { field_id, value: cleanedValue, version: result.version });
 
-            // Update local state
+            // Update local state with backend-cleaned value
             setFields(prev => prev.map(f =>
                 f.field_id === field_id
-                    ? { ...f, field_value: value, version: result.version, is_approved: false }
+                    ? { ...f, field_value: cleanedValue, version: result.version, is_approved: false }
                     : f
             ));
 
             // Mark section as unapproved
             setSectionApproved(false);
 
-            // Sync to custom values
-            await syncToCustomValue(field_id, value);
+            // Sync to custom values (use cleaned value so GHL gets the URL, not embed code)
+            await syncToCustomValue(field_id, cleanedValue);
 
         } catch (error) {
             console.error('[MediaFields] Save error:', error);
@@ -347,19 +349,19 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                             </div>
                         ) : (
                             <div className="relative bg-black/20 rounded-lg p-4">
-                                <div className="flex items-center gap-3">
-                                    <LinkIcon className="w-5 h-5 text-cyan" />
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <LinkIcon className="w-5 h-5 text-cyan flex-shrink-0" />
                                     <a
                                         href={currentValue}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-cyan hover:underline flex-1 truncate"
+                                        className="text-cyan hover:underline flex-1 break-all"
                                     >
                                         {currentValue}
                                     </a>
                                     <button
                                         onClick={() => handleFieldSave(fieldDef.field_id, '')}
-                                        className="bg-red-500/90 hover:bg-red-500 text-white p-2 rounded-lg"
+                                        className="bg-red-500/90 hover:bg-red-500 text-white p-2 rounded-lg flex-shrink-0"
                                     >
                                         <X className="w-4 h-4" />
                                     </button>
@@ -413,7 +415,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                                 <span className="text-gray-400 text-sm">{isImage ? 'Or paste image URL' : 'Paste video URL'}</span>
                             </div>
                             <input
-                                type="url"
+                                type="text"
                                 placeholder={isVideo ? 'https://youtube.com/watch?v=... or https://vimeo.com/...' : 'https://example.com/image.jpg'}
                                 className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan focus:outline-none"
                                 onBlur={(e) => {
