@@ -27,6 +27,7 @@ import { funnelCopyPrompt } from '@/lib/prompts/funnelCopy';
 import { bioPrompt } from '@/lib/prompts/bio';
 import { contentIdeasPrompt } from '@/lib/prompts/contentIdeas';
 import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
+import { shortVslPrompt } from '@/lib/prompts/shortVsl';
 
 // Import Chunk Prompts & Mergers
 import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
@@ -64,7 +65,8 @@ const SECTION_PROMPTS = {
     appointmentReminders: { fn: appointmentRemindersPrompt, name: 'Appointment Reminders', key: 16 },
     setterScript: { fn: setterChunk1Prompt, name: 'Setter Script', key: 17 }, // Key 17
     sms: { fn: smsChunk1Prompt, name: 'SMS Sequences', key: 19 }, // Key 19
-    colors: { fn: (data) => `Generate brand colors for ${data.businessName}`, name: 'Brand Colors', key: 20 }
+    colors: { fn: (data) => `Generate brand colors for ${data.businessName}`, name: 'Brand Colors', key: 20 },
+    vslShort: { fn: shortVslPrompt, name: 'Short Form VSL Script', key: 21 }
 };
 
 const SECTION_KEY_TO_ID = Object.entries(SECTION_PROMPTS).reduce((acc, [sectionId, config]) => {
@@ -390,6 +392,36 @@ export async function POST(req) {
         } else {
             // STANDARD GENERATION
             const promptFn = promptConfig.fn;
+
+            // SHORT FORM VSL FALLBACK: If intake data is thin, inject long-form VSL as context
+            if (key === 21) {
+                const hasIntake = !!(enrichedData.idealClient || enrichedData.coreProblem || enrichedData.outcomes || enrichedData.uniqueAdvantage);
+                if (!hasIntake) {
+                    console.log('[Regenerate] Short Form VSL: intake data missing, fetching long-form VSL as fallback context...');
+                    try {
+                        const { data: longFormRow } = await supabaseAdmin
+                            .from('vault_content')
+                            .select('content')
+                            .eq('funnel_id', resolvedSessionId)
+                            .eq('section_id', 'vsl')
+                            .eq('is_current_version', true)
+                            .maybeSingle();
+
+                        if (longFormRow?.content) {
+                            const longFormContent = typeof longFormRow.content === 'string'
+                                ? longFormRow.content
+                                : JSON.stringify(longFormRow.content, null, 2);
+                            enrichedData.longFormVslContext = longFormContent;
+                            console.log('[Regenerate] Short Form VSL: injected long-form VSL context as fallback');
+                        } else {
+                            console.warn('[Regenerate] Short Form VSL: no long-form VSL found either — generating with minimal context');
+                        }
+                    } catch (fallbackErr) {
+                        console.error('[Regenerate] Short Form VSL fallback fetch error:', fallbackErr);
+                    }
+                }
+            }
+
             let prompt = promptFn(enrichedData);
 
             // Inject core context if needed (Key > 3)
@@ -407,6 +439,7 @@ export async function POST(req) {
             let maxTokens = 4000;
             if (key === 7) maxTokens = 7000; // VSL
             if (key === 4) maxTokens = 5000; // Offer
+            if (key === 21) maxTokens = 5000; // Short Form VSL
 
             const sectionTimeout = SECTION_TIMEOUTS[key] || 90000;
 

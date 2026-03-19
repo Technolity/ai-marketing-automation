@@ -163,7 +163,7 @@ export async function POST(req) {
         try {
           await clerkClient.invitations.createInvitation({
             emailAddress: email,
-            redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`,
+            redirectUrl: `${process.env.NEXT_PUBLIC_APP_URL}/welcome`,
             publicMetadata: { plan: plan.tier, email },
             ignoreExisting: true,
           });

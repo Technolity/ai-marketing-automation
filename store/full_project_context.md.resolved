@@ -1,6 +1,6 @@
 # 🧠 TedOS / AI Marketing Automation - Full Project Context
 
-> **Last Updated**: 2026-02-18
+> **Last Updated**: 2026-03-18
 > **Purpose**: Definitive technical guide for developers. Covers architecture, data flow, API inventory, and integration logic.
 
 ---
@@ -33,6 +33,51 @@
 *   **Targeted Section Refresh**: `refreshTriggers` is now a **per-section map** (`{ [sectionId]: timestamp }`). Only *changed* sections trigger their granular field components to refetch, preventing loaders and scroll jumps in unchanged sections.
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
+
+### Recent Modifications (2026-03-18)
+| File | Change |
+| :--- | :--- |
+| `lib/guideVideos.js` | **New (Video Registry)**: Central registry of all 20 tutorial video IDs, titles, and descriptions. Maps keys (e.g. `idealClient`, `phaseOne`) to YouTube video IDs. All embed URLs use `youtube-nocookie.com` for cross-browser compatibility. |
+| `components/WatchTutorialButton.jsx` | **New (Reusable Component)**: Self-contained "Watch Tutorial" button with built-in TedOS-styled modal overlay. Embeds YouTube video in a 16:9 iframe with autoplay. Uses Framer Motion for slide-in animation, backdrop blur overlay, and "Close & Continue" footer. No navigation away — preserves all page state. Accepts `videoKey` (from guideVideos registry) and `size` props. |
+| `app/introduction/page.jsx` | **Feature**: Embedded Video #1 (Welcome to TedOS) directly on the introduction page above the steps list. Added "Before you begin" bar with Watch Tutorial buttons for Video #2 (Create a New Marketing Engine) and Video #3 (How to Build). |
+| `app/vault/page.jsx` | **Feature**: Added `videoKey` property to all 11 relevant entries in `PHASE_1_SECTIONS` and `PHASE_2_SECTIONS` arrays. Added `WatchTutorialButton` import. In `renderSection()`, renders a Watch Tutorial button next to each section's action buttons when `section.videoKey` is present. Added phase-level Watch Tutorial buttons in the content header — Video #8 (Welcome to Phase One) on the Phase 1 tab, Video #13 (Welcome to Phase Two) on the Phase 2 tab. |
+| `components/OSWizard.jsx` | **Feature**: Added `WatchTutorialButton` import. Renders step-specific guide buttons beneath the question title/description for intake form steps: Step 6 (Unique Advantage → Video #4), Step 7 (Story → Video #5), Step 8 (Testimonials → Video #6), Step 9 (Business Assets → Video #7). |
+| `next.config.js` | **Bug Fix (CSP)**: Added `https://www.youtube.com`, `https://youtube.com`, and `https://www.youtube-nocookie.com` to the `frame-src` Content Security Policy directive. Previously blocked YouTube iframes in Microsoft Edge and other strict browsers. |
+
+### Video Registry Map (20 Videos)
+| Video # | Key | YouTube ID | Placement |
+| :--- | :--- | :--- | :--- |
+| 1 | `welcomeToTedos` | `BeoQjnwRA3g` | Embedded on `/introduction` page |
+| 2 | `createMarketingEngine` | `sK6Zegk4itQ` | Watch Tutorial button on `/introduction` page |
+| 3 | `howToBuild` | `nNp_gUwnM00` | Watch Tutorial button on `/introduction` page |
+| 4 | `uniqueAdvantage` | `wSGftVUjVtQ` | Intake form Step 6 (Unique Advantage) |
+| 5 | `storyFramework` | `39JOsZn48rE` | Intake form Step 7 (Story) |
+| 6 | `testimonialsGuide` | `2f-NmiDK3Ug` | Intake form Step 8 (Testimonials) |
+| 7 | `programService` | `_SXy0DQq_4E` | Intake form Step 9 (Business Assets) |
+| 8 | `phaseOne` | `mVxuBWVTNYc` | Vault Phase 1 tab content header |
+| 9 | `idealClient` | `TBHbTXB9j_Q` | Vault — Ideal Client section |
+| 10 | `message` | `UQUnkvSXDek` | Vault — Message section |
+| 11 | `story` | `8UstYYc-s4s` | Vault — Story section |
+| 12 | `offerPricing` | `oCp8hB9UP3M` | Vault — Offer & Pricing section |
+| 13 | `phaseTwo` | `mHivMfb_JSY` | Vault Phase 2 tab content header |
+| 14 | `freeGift` | `sJNuVN0TuEo` | Vault — Free Gift section |
+| 15 | `vsl` | `qDdgbf0Kqqg` | Vault — Appointment Booking Video section |
+| 16 | `bio` | `COvJhOKJ0BU` | Vault — Professional Bio section |
+| 17 | `ads` | `kuT2NnuuVZ8` | Vault — Ad Copy section |
+| 18 | `emailCampaigns` | `h9ZTGGwJiGE` | Vault — Email Campaigns section |
+| 19 | `smsFollowUp` | `BkBSFQcxSzM` | Vault — Text Messages section |
+| 20 | `appointmentReminders` | `RflIKf52DOY` | Vault — Appointment Reminders section |
+
+### Recent Modifications (2026-03-17)
+| File | Change |
+| :--- | :--- |
+| `lib/prompts/shortVsl.js` | **New Feature (Short Form VSL)**: Created 5-7 minute long VSL generation prompt based on the Ted McGrath 16-section model. Implemented fallback to long-form VSL if intake context is insufficient. |
+| `lib/vault/fieldStructures.js`, `lib/schemas/vaultSchemas.js` | **Schema**: Added `vslShort` section and `vslShortSchema` with 16 flat fields. |
+| `components/vault/VslFields.jsx` | **UI Integration**: Rewritten to include Long Form / Short Form tabs with respective fields and states (AI feedback, teleprompter support). |
+| `app/api/os/regenerate-section/route.js` | **Enhancement**: Added `vslShort` (key 21) into generation. Added context fallback to generate from Vault Data when original `intake_data` is empty during VSL short form regeneration. |
+| `app/api/os/generate-stream/route.js`, `app/api/os/refine-section-stream/route.js`, `app/api/os/regenerate/route.js` | **Enhancement**: Configured token limits, names, mapping, and added `vslShort` to background generation Batches (Batch 2). Included flat schema mapping for field refinements. |
+| `lib/prompts/fullContextPrompts.js`, `lib/prompts/index.js` | **Enhancement**: Included context and exported shortVsl prompt. |
+| `app/vault/page.jsx`, `components/vault/VslFields.jsx` | **Bug Fix (VSL AI Feedback)**: Wired the active tab state (`vslShort` vs `vsl`) to the FeedbackChatModal trigger via `vslTabChange` event, ensuring Short Form fields display accurately. |
 
 ### Recent Modifications (2026-03-15)
 | File | Change |

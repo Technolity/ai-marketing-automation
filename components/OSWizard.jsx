@@ -29,6 +29,7 @@ import { SAMPLE_DATA, SAMPLE_DATA_OPTIONS } from "@/lib/sampleData";
 
 // Import modular components and utilities
 import { QuestionProgressBar } from "./OSWizard/components";
+import WatchTutorialButton from "@/components/WatchTutorialButton";
 import BuildingAnimation from "./BuildingAnimation";
 // BuilderSetupStep import removed as step 0 is deprecated
 import { formatFieldName, formatValue, formatContentForDisplay } from "./OSWizard/utils/formatters";
@@ -2250,6 +2251,11 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                         {currentStepConfig?.title || 'Loading...'}
                                     </h1>
                                     <p className="text-gray-400 text-lg font-light leading-relaxed">{currentStepConfig?.description || ''}</p>
+                                    {/* Step-specific tutorial guide buttons */}
+                                    {currentStep === 6 && <div className="mt-3"><WatchTutorialButton videoKey="uniqueAdvantage" /></div>}
+                                    {currentStep === 7 && <div className="mt-3"><WatchTutorialButton videoKey="storyFramework" /></div>}
+                                    {currentStep === 8 && <div className="mt-3"><WatchTutorialButton videoKey="testimonialsGuide" /></div>}
+                                    {currentStep === 9 && <div className="mt-3"><WatchTutorialButton videoKey="programService" /></div>}
                                 </div>
                                 {(() => {
                                     // Special handling for Step 0 (Builder Setup) REMOVED

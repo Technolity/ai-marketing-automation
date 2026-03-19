@@ -85,7 +85,7 @@ const nextConfig = {
                             "media-src 'self' https://res.cloudinary.com blob:",
                             // Connect sources - include all tedos.ai subdomains
                             "connect-src 'self' http://localhost:* https://tedos.ai https://*.tedos.ai https://*.supabase.co https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://rest.gohighlevel.com https://services.leadconnectorhq.com https://api.cloudinary.com https://*.clerk.accounts.dev wss://*.clerk.accounts.dev https://*.clerk.tedos.ai wss://*.clerk.tedos.ai",
-                            "frame-src 'self' https://*.tedos.ai https://*.clerk.tedos.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com",
+                            "frame-src 'self' https://*.tedos.ai https://*.clerk.tedos.ai https://*.clerk.accounts.dev https://challenges.cloudflare.com https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com",
                             "object-src 'self'",
                             "base-uri 'self'",
                             "form-action 'self'",

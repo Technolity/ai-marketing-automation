@@ -32,7 +32,8 @@ const CONTENT_NAMES = {
     16: 'appointmentReminders',
     17: 'setterScript',
     19: 'sms',
-    20: 'colors'
+    20: 'colors',
+    21: 'vslShort'
 };
 
 const DISPLAY_NAMES = {
@@ -50,7 +51,8 @@ const DISPLAY_NAMES = {
     16: 'Appointment Reminders',
     17: 'Setter Script',
     19: 'SMS Sequences',
-    20: 'Brand Colors'
+    20: 'Brand Colors',
+    21: 'Appointment Booking Video Script'
 };
 
 // Phase 1: Fast redirect sections (only wait for these ~30s)
@@ -63,8 +65,8 @@ const BACKGROUND_BATCHES = [
     // Batch 1: Phase 1 remaining + Offer (parallel)
     { keys: [3, 4], parallel: true },     // Story + Offer
 
-    // Batch 2: Lead Magnet + VSL + Bio + Colors (parallel) - VSL is chunked
-    { keys: [6, 7, 15, 20], parallel: true }, // Lead Magnet + VSL + Bio + Brand Colors
+    // Batch 2: Lead Magnet + VSL + Bio + Colors + Short VSL (parallel) - VSL is chunked
+    { keys: [6, 7, 15, 20, 21], parallel: true }, // Lead Magnet + VSL + Bio + Brand Colors + Short VSL
 
     // Batch 3: Ads (single)
     { keys: [9], parallel: false },       // Facebook Ads
@@ -78,7 +80,7 @@ const BACKGROUND_BATCHES = [
 
 // Legacy keys for backward compatibility
 const PHASE_1_KEYS = [1, 2, 3]; // Still includes Story for status tracking
-const PHASE_2_KEYS = [4, 6, 7, 9, 8, 16, 15, 5, 17]; // Reordered to match UI + scripts (10=Funnel Copy removed - now generated separately)
+const PHASE_2_KEYS = [4, 6, 7, 9, 8, 16, 15, 5, 17, 21]; // Reordered to match UI + scripts (10=Funnel Copy removed - now generated separately)
 
 
 import { createLogger } from '@/lib/logger';
@@ -428,6 +430,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
             if (key === 5) maxTokens = 6000;      // Closer Script
             if (key === 4) maxTokens = 5000;      // Offer
             if (key === 10) maxTokens = 5000;     // Funnel Copy
+            if (key === 21) maxTokens = 5000;     // Short Form VSL
 
             const rawContent = await retryWithBackoff(async () => {
                 return await generateWithProvider(

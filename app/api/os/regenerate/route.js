@@ -22,6 +22,7 @@ import { funnelCopyPrompt } from '@/lib/prompts/funnelCopy';
 import { bioPrompt } from '@/lib/prompts/bio';
 import { contentIdeasPrompt } from '@/lib/prompts/contentIdeas';
 import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
+import { shortVslPrompt } from '@/lib/prompts/shortVsl';
 
 
 export const dynamic = 'force-dynamic';
@@ -122,7 +123,8 @@ const SECTION_PROMPTS = {
     youtubeShow: { fn: (data) => `Please generate a YouTube show strategy based on: ${JSON.stringify(data)}`, name: 'YouTube Show', key: 13 },
     personalBrandBio: { fn: bioPrompt, name: 'Personal Brand Bio', key: 14 },
     bio: { fn: bioPrompt, name: 'Professional Bio', key: 15 },
-    appointmentReminders: { fn: appointmentRemindersPrompt, name: 'Appointment Reminders', key: 16 }
+    appointmentReminders: { fn: appointmentRemindersPrompt, name: 'Appointment Reminders', key: 16 },
+    vslShort: { fn: shortVslPrompt, name: 'Short Form VSL Script', key: 21 }
 };
 
 /**
