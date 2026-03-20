@@ -135,6 +135,25 @@ const SECTION_OPTIONS = {
         { id: 'longAdCTA', label: 'Long Ad: CTA' },
         { id: 'all', label: 'Update the entire section' }
     ],
+    vslShort: [
+        { id: 'patternInterruptHook', label: 'Pattern Interrupt Hook' },
+        { id: 'identifyAudience', label: 'Identify Audience' },
+        { id: 'amplifyCorePain', label: 'Amplify Core Pain' },
+        { id: 'introduceEnemy', label: 'Introduce Enemy' },
+        { id: 'revealHiddenTruth', label: 'Reveal Hidden Truth' },
+        { id: 'earlyCTA', label: 'Early CTA' },
+        { id: 'authorityStory', label: 'Authority Story' },
+        { id: 'namedFramework', label: 'Named Framework' },
+        { id: 'insightOne', label: 'Insight One' },
+        { id: 'insightTwo', label: 'Insight Two' },
+        { id: 'insightThree', label: 'Insight Three' },
+        { id: 'microCommitment', label: 'Micro Commitment' },
+        { id: 'futurePace', label: 'Future Pace' },
+        { id: 'objectionHandling', label: 'Objection Handling' },
+        { id: 'riskReversal', label: 'Risk Reversal' },
+        { id: 'finalCTA', label: 'Final CTA' },
+        { id: 'all', label: 'Update the entire section' }
+    ],
     emails: [
         { id: 'email1', label: 'Day 1: Gift Delivery + Welcome' },
         { id: 'email2', label: 'Day 2: Tip #1' },

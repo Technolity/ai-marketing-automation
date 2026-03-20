@@ -1347,6 +1347,25 @@ const SUBSECTION_PATHS = {
         // Support direct field access if needed in future
         headline_text: ['optinPage', 'headline_text'],
         hero_headline_text: ['salesPage', 'hero_headline_text']
+    },
+    // vslShort uses FLAT structure from shortVsl.js generation (16 fields at root)
+    vslShort: {
+        patternInterruptHook: ['patternInterruptHook'],
+        identifyAudience: ['identifyAudience'],
+        amplifyCorePain: ['amplifyCorePain'],
+        introduceEnemy: ['introduceEnemy'],
+        revealHiddenTruth: ['revealHiddenTruth'],
+        earlyCTA: ['earlyCTA'],
+        authorityStory: ['authorityStory'],
+        namedFramework: ['namedFramework'],
+        insightOne: ['insightOne'],
+        insightTwo: ['insightTwo'],
+        insightThree: ['insightThree'],
+        microCommitment: ['microCommitment'],
+        futurePace: ['futurePace'],
+        objectionHandling: ['objectionHandling'],
+        riskReversal: ['riskReversal'],
+        finalCTA: ['finalCTA']
     }
 };
 

@@ -29,6 +29,7 @@ import { SAMPLE_DATA, SAMPLE_DATA_OPTIONS } from "@/lib/sampleData";
 
 // Import modular components and utilities
 import { QuestionProgressBar } from "./OSWizard/components";
+import WatchTutorialButton from "@/components/WatchTutorialButton";
 import BuildingAnimation from "./BuildingAnimation";
 // BuilderSetupStep import removed as step 0 is deprecated
 import { formatFieldName, formatValue, formatContentForDisplay } from "./OSWizard/utils/formatters";
@@ -2099,7 +2100,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                         initial={{ x: -300 }}
                         animate={{ x: 0 }}
                         exit={{ x: -300 }}
-                        className="w-80 bg-[#131314] border-r border-[#1b1b1d] flex flex-col"
+                        className="w-full sm:w-80 bg-[#131314] border-r border-[#1b1b1d] flex flex-col"
                     >
                         <div className="p-6 border-b border-[#1b1b1d]">
                             <button
@@ -2246,10 +2247,15 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
 
                                 {/* Question Title and Description */}
                                 <div className="mb-6">
-                                    <h1 className="text-4xl md:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
+                                    <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black mb-3 flex items-center gap-3 tracking-tighter">
                                         {currentStepConfig?.title || 'Loading...'}
                                     </h1>
                                     <p className="text-gray-400 text-lg font-light leading-relaxed">{currentStepConfig?.description || ''}</p>
+                                    {/* Step-specific tutorial guide buttons */}
+                                    {currentStep === 6 && <div className="mt-3"><WatchTutorialButton videoKey="uniqueAdvantage" /></div>}
+                                    {currentStep === 7 && <div className="mt-3"><WatchTutorialButton videoKey="storyFramework" /></div>}
+                                    {currentStep === 8 && <div className="mt-3"><WatchTutorialButton videoKey="testimonialsGuide" /></div>}
+                                    {currentStep === 9 && <div className="mt-3"><WatchTutorialButton videoKey="programService" /></div>}
                                 </div>
                                 {(() => {
                                     // Special handling for Step 0 (Builder Setup) REMOVED
@@ -2399,7 +2405,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                                 ) : input.type === 'multiselect' ? (
                                                     <div className={`bg-[#0e0e0f] border rounded-lg p-4 ${fieldErrors[input.name] ? 'border-red-500' : 'border-[#2a2a2d]'}`}>
                                                         <p className="text-gray-400 text-sm mb-3">{input.placeholder}</p>
-                                                        <div className="grid grid-cols-2 gap-3">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                             {(input.options === 'ASSET_OPTIONS' ? ASSET_OPTIONS :
                                                                 input.options === 'PLATFORM_OPTIONS' ? PLATFORM_OPTIONS :
                                                                     []).map(option => {

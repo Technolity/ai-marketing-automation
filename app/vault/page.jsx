@@ -15,6 +15,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from 'react-dom';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
+import WatchTutorialButton from '@/components/WatchTutorialButton';
 import { supabase } from '@/lib/supabase';
 
 import {
@@ -96,21 +97,21 @@ const GRANULAR_FIELD_COMPONENTS = {
 
 // Phase 1: Business Assets - Core business foundations (4 sections only)
 const PHASE_1_SECTIONS = [
-    { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'Who you serve', icon: Users, hint: "Use this to dial in your ad targeting, write focused copy, and speak directly to your premium buyer's pains and desires." },
-    { id: 'message', numericKey: 2, title: 'Message', subtitle: 'What you help them with', icon: MessageSquare, hint: "Use your One-Liner for bios and social profiles. Use the Spoken Version for intros, podcasts, and networking events." },
-    { id: 'story', numericKey: 3, title: 'Story', subtitle: 'Why you do this work', icon: BookOpen, hint: "Share your 60s story in networking. Use the 3-5min story for podcasts, stages, and webinars to build deep trust." },
-    { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift, hint: "This is your core product architecture. Use the 7-Step Blueprint names in your marketing to build 'method authority'." }
+    { id: 'idealClient', numericKey: 1, title: 'Ideal Client', subtitle: 'Who you serve', icon: Users, hint: "Use this to dial in your ad targeting, write focused copy, and speak directly to your premium buyer's pains and desires.", videoKey: 'idealClient' },
+    { id: 'message', numericKey: 2, title: 'Message', subtitle: 'What you help them with', icon: MessageSquare, hint: "Use your One-Liner for bios and social profiles. Use the Spoken Version for intros, podcasts, and networking events.", videoKey: 'message' },
+    { id: 'story', numericKey: 3, title: 'Story', subtitle: 'Why you do this work', icon: BookOpen, hint: "Share your 60s story in networking. Use the 3-5min story for podcasts, stages, and webinars to build deep trust.", videoKey: 'story' },
+    { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift, hint: "This is your core product architecture. Use the 7-Step Blueprint names in your marketing to build 'method authority'.", videoKey: 'offerPricing' }
 ];
 
 // Phase 2: Marketing Assets - Funnel & marketing materials (locked until funnel choice made)
 const PHASE_2_SECTIONS = [
-    { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet, hint: "Give this away in exchange for an email address. Use the title and hook in your ads and landing pages." },
-    { id: 'vsl', numericKey: 7, title: 'Appointment Booking Video', subtitle: 'Funnel video script', icon: Video, hint: "Record this script for your landing page or sales page video. Keep it authentic and focused on the viewer." },
-    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users, hint: "Use the short bio for guesting (podcasts/events) and the full bio for your 'About' page." },
-    { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone, hint: "Test these ad variations on Facebook/Instagram. Use the hooks as the first line of your captions." },
-    { id: 'emails', numericKey: 8, title: 'Email Campaigns', subtitle: '15-day nurture series', icon: Mail, hint: "Load these into your email autoresponder to nurture new leads over 15 days." },
-    { id: 'sms', numericKey: 19, title: 'Text Messages', subtitle: 'Text message nurture', icon: MessageSquare, hint: "Send these automated texts to increase engagement and show-up rates." },
-    { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell, hint: "Add these to your calendar booking system (Calendly, GHL) to increase show-up rates." },
+    { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet, hint: "Give this away in exchange for an email address. Use the title and hook in your ads and landing pages.", videoKey: 'freeGift' },
+    { id: 'vsl', numericKey: 7, title: 'Appointment Booking Video', subtitle: 'Funnel video script', icon: Video, hint: "Record this script for your landing page or sales page video. Keep it authentic and focused on the viewer.", videoKey: 'vsl' },
+    { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users, hint: "Use the short bio for guesting (podcasts/events) and the full bio for your 'About' page.", videoKey: 'bio' },
+    { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone, hint: "Test these ad variations on Facebook/Instagram. Use the hooks as the first line of your captions.", videoKey: 'ads' },
+    { id: 'emails', numericKey: 8, title: 'Email Campaigns', subtitle: '15-day nurture series', icon: Mail, hint: "Load these into your email autoresponder to nurture new leads over 15 days.", videoKey: 'emailCampaigns' },
+    { id: 'sms', numericKey: 19, title: 'Text Messages', subtitle: 'Text message nurture', icon: MessageSquare, hint: "Send these automated texts to increase engagement and show-up rates.", videoKey: 'smsFollowUp' },
+    { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell, hint: "Add these to your calendar booking system (Calendly, GHL) to increase show-up rates.", videoKey: 'appointmentReminders' },
     { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout, hint: "Copy and paste this into your landing page builder (ClickFunnels, GHL, etc.) for high conversion." },
     { id: 'media', numericKey: 18, title: 'Upload images & videos for your funnel', subtitle: 'Logo, images, and videos', icon: ImageIcon, hint: "Upload your professional assets here to be used across your funnel pages." },
     { id: 'colors', numericKey: 20, title: 'Brand Colors', subtitle: 'Your brand color palette', icon: Palette, hint: "These colors from your intake form will be applied to your funnel pages for consistent branding." }
@@ -575,6 +576,13 @@ export default function VaultPage() {
     const [approvedPhase3, setApprovedPhase3] = useState([]);
     const [expandedSections, setExpandedSections] = useState(() => new Set());
     const [editingSection, setEditingSection] = useState(null);
+    const [activeVslTab, setActiveVslTab] = useState('longForm');
+    
+    useEffect(() => {
+        const handleVslTabChange = (e) => setActiveVslTab(e.detail.tab);
+        window.addEventListener('vslTabChange', handleVslTabChange);
+        return () => window.removeEventListener('vslTabChange', handleVslTabChange);
+    }, []);
     const [editedContent, setEditedContent] = useState({});
     const [isRegenerating, setIsRegenerating] = useState(false);
     const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -2893,7 +2901,7 @@ export default function VaultPage() {
                         <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
                             <PartyPopper className="w-10 h-10 text-white" />
                         </div>
-                        <h1 className="text-4xl font-black mb-4">Your Complete Vault</h1>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black mb-4">Your Complete Vault</h1>
                         <p className="text-gray-400 mb-6">All your content is ready. Deploy to Builder or continue editing.</p>
 
                         {/* Deploy to GHL Button */}
@@ -3156,7 +3164,10 @@ export default function VaultPage() {
 
                     {/* Action Buttons */}
                     {(status === 'current' || status === 'approved' || status === 'failed') && (
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            {section.videoKey && (
+                                <WatchTutorialButton videoKey={section.videoKey} size="sm" className="hidden sm:inline-flex" />
+                            )}
                             {!isExpanded && (
                                 <button
                                     onClick={() => {
@@ -3176,7 +3187,14 @@ export default function VaultPage() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => {
-                                            setFeedbackSection(section);
+                                            if (section.id === 'vsl') {
+                                                setFeedbackSection({
+                                                    id: activeVslTab === 'longForm' ? 'vsl' : 'vslShort',
+                                                    title: activeVslTab === 'longForm' ? section.title : 'Short Form VSL (Appointment Booking)'
+                                                });
+                                            } else {
+                                                setFeedbackSection(section);
+                                            }
                                             setFeedbackChatOpen(true); // Using Chat Modal
                                         }}
                                         className="px-2 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-purple-300 hover:from-purple-600/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
@@ -3291,7 +3309,7 @@ export default function VaultPage() {
                                                 isApproved={status === 'approved'}
                                                 onApprove={(sectionId) => handleApprove(sectionId, phase)}
                                                 onUnapprove={handleUnapprove}
-                                                refreshTrigger={refreshTriggers[section.id]}
+                                                refreshTrigger={section.id === 'vsl' ? (refreshTriggers['vsl'] || refreshTriggers['vslShort']) : refreshTriggers[section.id]}
                                                 onSave={(updatedContent) => {
                                                     // When field components save their own data, update parent state
                                                     if (updatedContent) {
@@ -3451,7 +3469,7 @@ export default function VaultPage() {
                     <h1 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
                         {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Phase 1' : activeTab === 'assets' ? 'Phase 2' : 'Phase 3')}
                     </h1>
-                    <p className="text-gray-400 max-w-xl mx-auto">
+                    <p className="text-gray-400 max-w-xl mx-auto mb-4">
                         {showMediaLibrary
                             ? 'Update your funnel images and videos.'
                             : (activeTab === 'dna'
@@ -3460,6 +3478,13 @@ export default function VaultPage() {
                                     ? 'Deployable assets for your marketing funnels, emails, and ads.'
                                     : 'Sales scripts to close deals and set appointments.')}
                     </p>
+                    {!showMediaLibrary && (activeTab === 'dna' || activeTab === 'assets') && (
+                        <div className="flex justify-center">
+                            <WatchTutorialButton
+                                videoKey={activeTab === 'dna' ? 'phaseOne' : 'phaseTwo'}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Media Library Toggle removed - using 'Upload Images and Videos' section instead */}
@@ -3723,7 +3748,7 @@ export default function VaultPage() {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <button
                                         onClick={() => setShowSaveModal(false)}
                                         className="px-4 py-4 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-xl font-bold transition-all"

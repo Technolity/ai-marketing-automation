@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChevronDown, ChevronUp, Video, Download, Table, MonitorPlay } from 'lucide-react';
@@ -11,7 +11,11 @@ import { exportSectionToPDF, exportSectionToCSV } from '@/lib/exportUtils';
 import { toast } from 'sonner';
 
 export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTrigger }) {
+    // Long-form VSL state
     const [fields, setFields] = useState([]);
+    // Short-form VSL state
+    const [shortFields, setShortFields] = useState([]);
+
     const [isLoading, setIsLoading] = useState(true);
     const [sectionApproved, setSectionApproved] = useState(false);
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
@@ -21,19 +25,51 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
     const [teleprompterOpen, setTeleprompterOpen] = useState(false);
     const previousApprovalRef = useRef(false);
 
-    const sectionId = 'vsl';
-    const predefinedFields = getFieldsForSection(sectionId);
+    // Tab state: 'longForm' or 'shortForm'
+    const [activeTab, setActiveTab] = useState('longForm');
+
+    // Inform parent (VaultPage) of tab changes so top-level "AI Feedback" button knows which VSL to update
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent('vslTabChange', { detail: { tab: activeTab } }));
+    }, [activeTab]);
+
+    const longFormSectionId = 'vsl';
+    const shortFormSectionId = 'vslShort';
+
+    const longFormPredefinedFields = getFieldsForSection(longFormSectionId);
+    const shortFormPredefinedFields = getFieldsForSection(shortFormSectionId);
+
+    // Derived: which section is currently active
+    const currentSectionId = activeTab === 'longForm' ? longFormSectionId : shortFormSectionId;
+    const currentFields = activeTab === 'longForm' ? fields : shortFields;
+    const currentPredefinedFields = activeTab === 'longForm' ? longFormPredefinedFields : shortFormPredefinedFields;
 
     const fetchFields = useCallback(async (silent = false) => {
         if (!silent) setIsLoading(true);
         try {
-            const response = await fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${sectionId}`);
-            if (!response.ok) throw new Error('Failed to fetch');
-            const data = await response.json();
-            setFields(data.fields || []);
-            const allApproved = isApproved !== undefined ? isApproved : (data.fields.length > 0 && data.fields.every(f => f.is_approved));
+            // Fetch both sections in parallel
+            const [longRes, shortRes] = await Promise.all([
+                fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${longFormSectionId}`),
+                fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=${shortFormSectionId}`)
+            ]);
+
+            if (!longRes.ok) throw new Error('Failed to fetch long form');
+            const longData = await longRes.json();
+            setFields(longData.fields || []);
+
+            if (shortRes.ok) {
+                const shortData = await shortRes.json();
+                setShortFields(shortData.fields || []);
+            } else {
+                // Short form may not exist yet — that's fine
+                setShortFields([]);
+            }
+
+            const allLongApproved = longData.fields.length > 0 && longData.fields.every(f => f.is_approved);
+            const allApproved = isApproved !== undefined ? isApproved : allLongApproved;
             setSectionApproved(allApproved);
-            console.log(`[VslFields] Fetched ${data.fields.length} fields, all approved:`, allApproved);
+
+            console.log(`[VslFields] Fetched ${longData.fields.length} long-form fields`);
         } catch (error) {
             console.error('[VslFields] Fetch error:', error);
             if (!silent) toast.error('Failed to load fields');
@@ -59,27 +95,30 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
     useEffect(() => {
         if (previousApprovalRef.current === true && sectionApproved === false && onUnapprove) {
             console.log('[VslFields] Section unapproved, notifying parent');
-            onUnapprove(sectionId);
+            onUnapprove(longFormSectionId);
         }
         previousApprovalRef.current = sectionApproved;
-    }, [sectionApproved, sectionId, onUnapprove]);
+    }, [sectionApproved, onUnapprove]);
 
     // Initial expansion
     useEffect(() => {
-        if (fields.length > 0 && !expandedGroup) {
-            // Find the first group name
-            const firstGroup = predefinedFields[0]?.group || 'Other';
+        if (currentFields.length > 0 && !expandedGroup) {
+            const firstGroup = currentPredefinedFields[0]?.group || 'Other';
             setExpandedGroup(firstGroup);
         }
-    }, [fields, expandedGroup, predefinedFields]);
+    }, [currentFields, expandedGroup, currentPredefinedFields]);
 
-
+    // Reset expanded group on tab change
+    useEffect(() => {
+        const firstGroup = currentPredefinedFields[0]?.group || 'Other';
+        setExpandedGroup(firstGroup);
+    }, [activeTab]);
 
     const handleFieldSave = async (field_id, value, result) => {
-        console.log('[VslFields] Field saved:', field_id, 'version:', result.version);
-        setFields(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version, is_approved: false } : f));
+        console.log(`[VslFields] Field saved (${currentSectionId}):`, field_id, 'version:', result.version);
+        const setFn = activeTab === 'longForm' ? setFields : setShortFields;
+        setFn(prev => prev.map(f => f.field_id === field_id ? { ...f, field_value: value, version: result.version, is_approved: false } : f));
         setSectionApproved(false);
-        // FieldEditor will re-render automatically when initialValue prop changes
     };
 
     const handleAIFeedback = (field_id, field_label, currentValue) => {
@@ -91,21 +130,21 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
     const handleFeedbackSave = async (saveData) => {
         if (!selectedField) return;
 
-        // FeedbackChatModal passes { refinedContent, subSection }
         const refinedContent = saveData?.refinedContent || saveData;
 
         try {
             const response = await fetch('/api/os/vault-field', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnel_id: funnelId, section_id: sectionId, field_id: selectedField.field_id, field_value: refinedContent })
+                body: JSON.stringify({ funnel_id: funnelId, section_id: currentSectionId, field_id: selectedField.field_id, field_value: refinedContent })
             });
             if (!response.ok) throw new Error('Failed to save');
             const result = await response.json();
-            console.log('[VslFields] AI feedback saved for field:', selectedField.field_id);
-            setFields(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version, is_approved: false } : f));
+            console.log(`[VslFields] AI feedback saved for field (${currentSectionId}):`, selectedField.field_id);
+
+            const setFn = activeTab === 'longForm' ? setFields : setShortFields;
+            setFn(prev => prev.map(f => f.field_id === selectedField.field_id ? { ...f, field_value: refinedContent, version: result.version, is_approved: false } : f));
             setSectionApproved(false);
-            // FieldEditor will re-render automatically when initialValue prop changes
             setFeedbackModalOpen(false);
             setSelectedField(null);
             setSelectedFieldValue(null);
@@ -118,21 +157,17 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
 
     // Helper to group fields
     const renderGroupedFields = () => {
-        // Group fields by their group property
         const groups = {};
         const orderedGroups = [];
 
-        // First, handle predefined fields order and grouping
-        predefinedFields.forEach(fieldDef => {
+        currentPredefinedFields.forEach(fieldDef => {
             const groupName = fieldDef.group || 'Other';
             if (!groups[groupName]) {
                 groups[groupName] = [];
                 orderedGroups.push(groupName);
             }
 
-            // Find the actual field state
-            const fieldState = fields.find(f => f.field_id === fieldDef.field_id);
-            // Use state value if available, otherwise null
+            const fieldState = currentFields.find(f => f.field_id === fieldDef.field_id);
             const value = fieldState ? fieldState.field_value : null;
 
             groups[groupName].push({
@@ -141,8 +176,8 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
             });
         });
 
-        // Handle custom fields (put them in 'Custom Fields' group)
-        const customFields = fields.filter(f => f.is_custom);
+        // Handle custom fields
+        const customFields = currentFields.filter(f => f.is_custom);
         if (customFields.length > 0) {
             if (!groups['Custom Fields']) {
                 groups['Custom Fields'] = [];
@@ -194,7 +229,7 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
                                             fieldDef={field}
                                             initialValue={field.value}
                                             readOnly={sectionApproved}
-                                            sectionId={sectionId}
+                                            sectionId={currentSectionId}
                                             funnelId={funnelId}
                                             onSave={handleFieldSave}
                                             onAIFeedback={handleAIFeedback}
@@ -209,9 +244,41 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
         );
     };
 
+    const tabs = [
+        { id: 'longForm', label: 'Long Form' },
+        { id: 'shortForm', label: 'Short Form' }
+    ];
+
+    // Teleprompter sections for the current tab
+    const teleprompterSections = currentPredefinedFields.map(def => ({
+        label: def.field_label,
+        text: currentFields.find(f => f.field_id === def.field_id)?.field_value || ''
+    })).filter(s => s.text);
+
+    const teleprompterTitle = activeTab === 'longForm' ? 'Funnel Video Script' : 'Appointment Booking Video Script';
+    const exportTitle = activeTab === 'longForm' ? 'VSL Script' : 'Short Form VSL Script';
+
     return (
         <>
             <div className="space-y-6">
+                {/* Tab Navigation */}
+                <div className="flex gap-2 border-b border-white/10 overflow-x-auto">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`px-4 py-3 font-medium transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === tab.id
+                                ? 'text-cyan border-b-2 border-cyan'
+                                : 'text-white/60 hover:text-white/80'
+                                }`}
+                        >
+                            <Video className="w-4 h-4" />
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Tab Content */}
                 {isLoading ? (
                     <div className="flex items-center justify-center py-12">
                         <div className="w-8 h-8 border-4 border-cyan/30 border-t-cyan rounded-full animate-spin" />
@@ -221,7 +288,7 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
                 )}
             </div>
 
-            {!isLoading && fields.length > 0 && (
+            {!isLoading && currentFields.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-[#2a2a2d] flex items-center justify-between">
                     <button
                         onClick={() => setTeleprompterOpen(true)}
@@ -233,14 +300,14 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
                     </button>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => exportSectionToPDF(fields, 'VSL Script')}
+                            onClick={() => exportSectionToPDF(currentFields, exportTitle)}
                             className="p-2 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
                             title="Download PDF"
                         >
                             <Download className="w-4 h-4" />
                         </button>
                         <button
-                            onClick={() => exportSectionToCSV(fields, 'VSL Script')}
+                            onClick={() => exportSectionToCSV(currentFields, exportTitle)}
                             className="p-2 rounded-lg border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-colors"
                             title="Download CSV"
                         >
@@ -259,8 +326,8 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
                         setSelectedField(null);
                         setSelectedFieldValue(null);
                     }}
-                    sectionId={sectionId}
-                    sectionTitle="Funnel Video Script"
+                    sectionId={currentSectionId}
+                    sectionTitle={activeTab === 'longForm' ? 'Funnel Video Script' : 'Appointment Booking Video Script'}
                     subSection={selectedField.field_id}
                     subSectionTitle={selectedField.field_label}
                     currentContent={selectedFieldValue}
@@ -273,11 +340,8 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
             <TeleprompterModal
                 isOpen={teleprompterOpen}
                 onClose={() => setTeleprompterOpen(false)}
-                title="Funnel Video Script"
-                scriptSections={predefinedFields.map(def => ({
-                    label: def.field_label,
-                    text: fields.find(f => f.field_id === def.field_id)?.field_value || ''
-                })).filter(s => s.text)}
+                title={teleprompterTitle}
+                scriptSections={teleprompterSections}
             />
         </>
     );

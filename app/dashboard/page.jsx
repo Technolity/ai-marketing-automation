@@ -344,10 +344,10 @@ export default function Dashboard() {
                         {canManageTeam && (
                             <button
                                 onClick={() => router.push('/team')}
-                                className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-gray-200 hover:text-white hover:border-cyan/30 hover:bg-cyan/10 transition-all"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-gray-200 hover:text-white hover:border-cyan/30 hover:bg-cyan/10 transition-all"
                             >
                                 <Users className="w-3.5 h-3.5 text-cyan" />
-                                Manage Team
+                                <span className="hidden sm:inline">Manage Team</span>
                             </button>
                         )}
                         <PlanBadge tier={userTier} />
@@ -419,7 +419,7 @@ export default function Dashboard() {
                             transition={{ duration: 0.25 }}
                         >
                             {/* Marketing Engines Header */}
-                            <div className="flex items-end justify-between mb-6">
+                            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
                                 <div>
                                     <h2 className="text-2xl font-black text-white mb-1">Your Marketing Engines</h2>
                                     <p className="text-gray-400 text-sm">
@@ -452,7 +452,7 @@ export default function Dashboard() {
                                             transition={{ delay: index * 0.1, duration: 0.4, ease: "easeOut" }}
                                             className="group relative bg-[#161617]/60 backdrop-blur-md border border-white/5 rounded-2xl p-6 hover:bg-[#1c1c1e] hover:border-white/10 transition-all duration-300 shadow-lg shadow-black/20"
                                         >
-                                            <div className="flex items-center gap-6">
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
                                                 {/* Icon Box */}
                                                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-all shadow-inner ${status === 'deployed' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
                                                     status === 'complete' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
@@ -534,7 +534,7 @@ export default function Dashboard() {
                                                 </div>
 
                                                 {/* Actions - Always Visible for Better UX */}
-                                                <div className="flex items-center gap-4">
+                                                <div className="flex flex-wrap items-center gap-3 sm:gap-4 w-full sm:w-auto mt-2 sm:mt-0">
                                                     <button
                                                         onClick={() => handleDeleteBusiness(business.id, business.funnel_name)}
                                                         className="p-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
