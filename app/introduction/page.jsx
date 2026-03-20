@@ -98,7 +98,7 @@ export default function IntroductionPage() {
         <>
         <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center px-6">
             {/* Background effects */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-cyan/5 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[min(800px,100vw)] h-[min(800px,100vw)] bg-cyan/5 rounded-full blur-[120px] pointer-events-none overflow-hidden" />
 
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -174,7 +174,7 @@ export default function IntroductionPage() {
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
                         Before you begin — watch these 2 guides
                     </p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {previewVideos.map((video) => (
                             <button
                                 key={video.id}

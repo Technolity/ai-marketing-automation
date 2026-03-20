@@ -2901,7 +2901,7 @@ export default function VaultPage() {
                         <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
                             <PartyPopper className="w-10 h-10 text-white" />
                         </div>
-                        <h1 className="text-4xl font-black mb-4">Your Complete Vault</h1>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black mb-4">Your Complete Vault</h1>
                         <p className="text-gray-400 mb-6">All your content is ready. Deploy to Builder or continue editing.</p>
 
                         {/* Deploy to GHL Button */}
@@ -3748,7 +3748,7 @@ export default function VaultPage() {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <button
                                         onClick={() => setShowSaveModal(false)}
                                         className="px-4 py-4 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-xl font-bold transition-all"

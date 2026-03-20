@@ -34,6 +34,13 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-03-20)
+| File | Change |
+| :--- | :--- |
+| `app/dashboard/page.jsx` | **UI Enhancement**: Fixed overflow and overlapping issues on mobile viewports by updating Flexbox layouts to wrap and stack correctly. |
+| `scripts/check-responsiveness-dom.js` | **New Utility**: Automation script to evaluate DOM horizontal overflows using Playwright. |
+| `scripts/responsive-screenshots.js` | **New Utility**: Script to capture localized screenshots at different views. |
+
 ### Recent Modifications (2026-03-18)
 | File | Change |
 | :--- | :--- |

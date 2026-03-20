@@ -169,7 +169,7 @@ export default function Onboarding() {
             <div className="bg-[#1b1b1d] p-8 rounded-2xl border border-[#2a2a2d] shadow-2xl backdrop-blur-xl">
               <form onSubmit={handleSaveProfile} className="space-y-5">
                 {/* Name Fields */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">First Name *</label>
                     <div className="relative">
@@ -220,7 +220,7 @@ export default function Onboarding() {
                     <select
                       value={formData.countryCode}
                       onChange={(e) => updateField('countryCode', e.target.value)}
-                      className="w-28 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl px-3 py-3 text-white focus:border-cyan focus:outline-none transition-all"
+                      className="w-20 sm:w-28 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl px-3 py-3 text-white focus:border-cyan focus:outline-none transition-all"
                     >
                       {COUNTRY_CODES.map(cc => (
                         <option key={cc.code} value={cc.code}>
@@ -258,7 +258,7 @@ export default function Onboarding() {
                 </div>
 
                 {/* City, State, Postal */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   <input
                     type="text"
                     value={formData.city}
