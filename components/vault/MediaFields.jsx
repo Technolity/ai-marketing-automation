@@ -417,7 +417,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                             <input
                                 type="text"
                                 placeholder={isVideo ? 'https://youtube.com/watch?v=... or https://vimeo.com/...' : 'https://example.com/image.jpg'}
-                                className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:border-cyan focus:outline-none"
+                                className="w-full bg-surface border border-subtle rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan/50 focus:border-cyan transition-colors"
                                 onBlur={(e) => {
                                     const url = e.target.value.trim();
                                     if (url && url !== currentValue) {

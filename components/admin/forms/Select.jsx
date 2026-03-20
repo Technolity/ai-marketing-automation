@@ -30,12 +30,11 @@ export function Select({
         disabled={disabled}
         className={`
           w-full px-4 py-3
-          bg-[#0e0e0f]
-          border ${error ? 'border-red-500' : 'border-[#2a2a2d]'}
+          bg-surface
+          border ${error ? 'border-red-500' : 'border-subtle'}
           rounded-lg
           text-white
-          focus:outline-none
-          focus:border-cyan
+          focus:outline-none focus:ring-2 focus:ring-cyan/50 focus:border-cyan
           transition-colors
           disabled:opacity-50
           disabled:cursor-not-allowed

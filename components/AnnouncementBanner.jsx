@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { X, Info, CheckCircle, AlertTriangle, Tag } from "lucide-react";
 
 const TYPE_STYLES = {
@@ -32,6 +32,7 @@ const TYPE_STYLES = {
 export default function AnnouncementBanner() {
     const { user } = useAuth();
     const pathname = usePathname();
+    const prefersReducedMotion = useReducedMotion();
     const [announcement, setAnnouncement] = useState(null);
     const [dismissed, setDismissed] = useState(false);
     const [loaded, setLoaded] = useState(false);
@@ -87,10 +88,10 @@ export default function AnnouncementBanner() {
     return (
         <AnimatePresence>
             <motion.div
-                initial={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -20 }}
+                transition={prefersReducedMotion ? { duration: 0.15 } : { type: "spring", stiffness: 300, damping: 30 }}
                 className={`fixed top-20 left-0 right-0 z-40 bg-gradient-to-r ${style.bg} backdrop-blur-xl shadow-lg ${style.glow}`}
             >
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
@@ -112,7 +113,7 @@ export default function AnnouncementBanner() {
                     </div>
                     <button
                         onClick={handleDismiss}
-                        className="flex-shrink-0 w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+                        className="flex-shrink-0 w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all focus:outline-none focus:ring-2 focus:ring-white/50"
                         aria-label="Dismiss notification"
                     >
                         <X className="w-4 h-4 text-white" />

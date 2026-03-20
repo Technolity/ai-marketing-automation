@@ -378,7 +378,7 @@ function FieldEditor({
                             placeholder={field_metadata.placeholder || field_label}
                             maxLength={field_metadata.maxLength}
                             disabled={readOnly}
-                            className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full px-4 py-2 bg-elevated border border-subtleAlt rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                         />
                         {field_metadata.maxLength && !hideCharLimit && (
                             <div className="mt-1 flex items-center justify-between">
@@ -458,7 +458,7 @@ function FieldEditor({
                         maxLength={field_metadata.maxLength}
                         disabled={readOnly}
                         style={{ minHeight: '4.5rem', maxHeight: '18rem', height: 'auto' }}
-                        className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="w-full px-4 py-3 bg-elevated border border-subtleAlt rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
                     />
                     {field_metadata.maxLength && !hideCharLimit && (
                         <div className="mt-1 flex items-center justify-between">
@@ -528,7 +528,7 @@ function FieldEditor({
                                             maxLength={field_metadata.itemMaxLength}
                                             disabled={readOnly}
                                             style={{ minHeight: '3.5rem', maxHeight: '12rem', height: 'auto' }}
-                                            className="w-full px-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                                            className="w-full px-4 py-2 bg-elevated border border-subtleAlt rounded-xl text-white placeholder-gray-500 transition-colors resize-none focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     </div>
                                     {arrayValue.length > minItems && !readOnly && (
@@ -565,7 +565,7 @@ function FieldEditor({
                                 : (typeof item === 'object' ? item : {});
 
                             return (
-                                <div key={itemId} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl p-4 space-y-3 relative group">
+                                <div key={itemId} className="bg-elevated border border-subtleAlt rounded-xl p-4 space-y-3 relative group">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-sm font-medium text-gray-400">Item {idx + 1}</span>
                                         {arrayValue.length > minItems && !readOnly && (
@@ -625,7 +625,7 @@ function FieldEditor({
                                                         maxLength={subfield.maxLength}
                                                         disabled={readOnly}
                                                         style={{ minHeight: '3rem', maxHeight: '10rem', height: 'auto' }}
-                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                                                        className="w-full px-3 py-2 bg-surface border border-subtle rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
                                                     />
                                                 ) : (
                                                     <input
@@ -641,7 +641,7 @@ function FieldEditor({
                                                         placeholder={subfield.placeholder}
                                                         maxLength={subfield.maxLength}
                                                         disabled={readOnly}
-                                                        className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                                                        className="w-full px-3 py-2 bg-surface border border-subtle rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                                     />
                                                 )}
                                             </div>
@@ -745,7 +745,7 @@ function FieldEditor({
                             placeholder={field_label}
                             disabled={readOnly}
                             style={{ minHeight: '6rem' }}
-                            className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full px-4 py-3 bg-elevated border border-subtleAlt rounded-xl text-white placeholder-gray-500 resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                         />
                     </div>
                 );
@@ -769,7 +769,7 @@ function FieldEditor({
                                 <div className="relative group">
                                     {isNestedObject ? (
                                         /* Render nested object properties as individual fields */
-                                        <div className="bg-[#18181b] border border-[#2a2a2d] rounded-lg p-3 space-y-2">
+                                        <div className="bg-elevated border border-subtle rounded-lg p-3 space-y-2">
                                             {Object.entries(subfieldValue).map(([propKey, propVal]) => {
                                                 // Skip internal/meta keys
                                                 if (propKey.startsWith('_')) return null;
@@ -794,7 +794,7 @@ function FieldEditor({
                                                                 onBlur={handleBlur}
                                                                 disabled={readOnly}
                                                                 style={{ minHeight: '2.5rem' }}
-                                                                className="w-full px-3 py-1.5 bg-[#0e0e0f] border border-[#2a2a2d] rounded-md text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                className="w-full px-3 py-1.5 bg-surface border border-subtle rounded-md text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                                             />
                                                         ) : (
                                                             <input
@@ -807,7 +807,7 @@ function FieldEditor({
                                                                 }}
                                                                 onBlur={handleBlur}
                                                                 disabled={readOnly}
-                                                                className="w-full px-3 py-1.5 bg-[#0e0e0f] border border-[#2a2a2d] rounded-md text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                className="w-full px-3 py-1.5 bg-surface border border-subtle rounded-md text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                                             />
                                                         )}
                                                     </div>
@@ -840,7 +840,7 @@ function FieldEditor({
                                             maxLength={subfield.maxLength}
                                             disabled={readOnly}
                                             style={{ minHeight: '3rem' }}
-                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                                            className="w-full px-3 py-2 bg-surface border border-subtle rounded-lg text-white placeholder-gray-600 text-sm resize-none transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     ) : (
                                         <input
@@ -854,7 +854,7 @@ function FieldEditor({
                                             placeholder={subfield.placeholder}
                                             maxLength={subfield.maxLength}
                                             disabled={readOnly}
-                                            className="w-full px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                                            className="w-full px-3 py-2 bg-surface border border-subtle rounded-lg text-white placeholder-gray-600 text-sm transition-colors focus:border-cyan/50 focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                         />
                                     )}
                                 </div>
@@ -935,7 +935,7 @@ function FieldEditor({
                                     className="hidden"
                                     disabled={isUploading || readOnly}
                                 />
-                                <div className="w-full px-4 py-8 border-2 border-dashed border-[#2a2a2d] rounded-xl text-center transition-all hover:border-cyan hover:bg-[#1f1f22]">
+                                <div className="w-full px-4 py-8 border-2 border-dashed border-subtle rounded-xl text-center transition-all hover:border-cyan hover:bg-[#1f1f22]">
                                     {isUploading ? (
                                         <div className="flex flex-col items-center gap-2 text-cyan">
                                             <Loader2 className="w-6 h-6 animate-spin" />
@@ -963,19 +963,19 @@ function FieldEditor({
                                     onBlur={handleBlur}
                                     placeholder={field_metadata.placeholder || "Or paste URL..."}
                                     disabled={readOnly}
-                                    className="w-full pl-10 pr-4 py-2 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
+                                    className="w-full pl-10 pr-4 py-2 bg-elevated border border-subtleAlt rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan disabled:opacity-60 disabled:cursor-not-allowed"
                                 />
                             </div>
                         </div>
                     ) : (
-                        <div className="relative group bg-[#18181b] border border-[#3a3a3d] rounded-xl p-3 overflow-hidden">
+                        <div className="relative group bg-elevated border border-subtleAlt rounded-xl p-3 overflow-hidden">
                             <div className="flex items-center gap-3">
                                 {isVideo ? (
-                                    <div className="w-12 h-12 bg-[#2a2a2d] rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <div className="w-12 h-12 bg-subtle rounded-lg flex items-center justify-center flex-shrink-0">
                                         <Video className="w-6 h-6 text-gray-400" />
                                     </div>
                                 ) : (
-                                    <div className="w-12 h-12 bg-[#2a2a2d] rounded-lg overflow-hidden flex-shrink-0 relative">
+                                    <div className="w-12 h-12 bg-subtle rounded-lg overflow-hidden flex-shrink-0 relative">
                                         <Image src={value} alt="Preview" fill className="object-cover" unoptimized />
                                     </div>
                                 )}
@@ -1032,7 +1032,7 @@ function FieldEditor({
                     {field_metadata?.hint && (
                         <div className="relative group/info">
                             <Info className="w-3.5 h-3.5 text-gray-500 cursor-help hover:text-cyan transition-colors" />
-                            <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-[#1a1a1d] border border-[#3a3a3d] rounded-lg shadow-xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50">
+                            <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-elevated border border-subtleAlt rounded-lg shadow-xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50">
                                 <p className="text-xs text-gray-400 leading-relaxed">{field_metadata.hint.replace('📍 ', '')}</p>
                             </div>
                         </div>
@@ -1043,7 +1043,7 @@ function FieldEditor({
                                 <RefreshCw className="w-3 h-3 text-cyan" />
                                 <span className="text-[10px] font-medium text-cyan uppercase tracking-wide">Auto-Sync</span>
                             </div>
-                            <div className="absolute left-0 bottom-full mb-2 w-56 p-2 bg-[#1a1a1d] border border-cyan/30 rounded-lg shadow-xl opacity-0 invisible group-hover/sync:opacity-100 group-hover/sync:visible transition-all duration-200 z-50">
+                            <div className="absolute left-0 bottom-full mb-2 w-56 p-2 bg-elevated border border-cyan/30 rounded-lg shadow-xl opacity-0 invisible group-hover/sync:opacity-100 group-hover/sync:visible transition-all duration-200 z-50">
                                 <p className="text-xs text-cyan font-medium mb-1">Auto-Sync Enabled</p>
                                 <p className="text-xs text-gray-400 leading-relaxed">{syncMessage}</p>
                             </div>

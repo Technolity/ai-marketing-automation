@@ -13,7 +13,7 @@ import Image from 'next/image';
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
     Loader2, Plus, FolderOpen, ChevronRight, Sparkles,
     Clock, CheckCircle2, Lock, Building2, Trash2,
@@ -74,6 +74,7 @@ export default function Dashboard() {
     const [isSavingName, setIsSavingName] = useState(false);
     const editInputRef = useRef(null);
     const tabRefs = useRef({});
+    const prefersReducedMotion = useReducedMotion();
 
 
 
@@ -282,7 +283,7 @@ export default function Dashboard() {
 
     if (authLoading || isLoading) {
         return (
-            <div className="flex min-h-[calc(100vh-5rem)] items-center justify-center bg-[#0e0e0f]">
+            <div className="flex min-h-[calc(100vh-5rem)] items-center justify-center bg-surface">
                 <Loader2 className="w-10 h-10 text-cyan animate-spin" />
             </div>
         );
@@ -291,7 +292,7 @@ export default function Dashboard() {
     const canCreateMore = businesses.length < maxFunnels;
 
     return (
-        <div className="min-h-screen bg-[#0e0e0f] relative selection:bg-cyan/20 selection:text-cyan">
+        <div className="min-h-screen bg-surface relative selection:bg-cyan/20 selection:text-cyan">
             {/* Softened Mesh Gradient Overlays */}
             <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-cyan/5 blur-[150px] rounded-full pointer-events-none" />
             <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-600/5 blur-[150px] rounded-full pointer-events-none" />
@@ -312,7 +313,7 @@ export default function Dashboard() {
                     </Link>
 
                     {/* Center: Tabs */}
-                    <div className="hidden md:flex bg-[#161617]/80 backdrop-blur-md border border-white/5 rounded-full p-1">
+                    <div className="hidden md:flex bg-grayDark/80 backdrop-blur-md border border-white/5 rounded-full p-1">
                         {TABS.map((tab) => {
                             const Icon = tab.icon;
                             const isActive = activeTab === tab.id;
@@ -320,7 +321,7 @@ export default function Dashboard() {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`relative px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 flex items-center gap-2.5 ${isActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
+                                    className={`relative px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 flex items-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-cyan/40 ${isActive ? 'text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'
                                         }`}
                                 >
                                     {isActive && (
@@ -344,7 +345,7 @@ export default function Dashboard() {
                         {canManageTeam && (
                             <button
                                 onClick={() => router.push('/team')}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-gray-200 hover:text-white hover:border-cyan/30 hover:bg-cyan/10 transition-all"
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-xs font-semibold text-gray-200 hover:text-white hover:border-cyan/30 hover:bg-cyan/10 transition-all focus:outline-none focus:ring-2 focus:ring-cyan/40"
                             >
                                 <Users className="w-3.5 h-3.5 text-cyan" />
                                 <span className="hidden sm:inline">Manage Team</span>
@@ -353,7 +354,7 @@ export default function Dashboard() {
                         <PlanBadge tier={userTier} />
 
                         <div className="p-0.5 rounded-full bg-gradient-to-b from-white/10 to-transparent">
-                            <div className="p-0.5 rounded-full bg-[#0e0e0f]">
+                            <div className="p-0.5 rounded-full bg-surface">
                                 <UserButton
                                     afterSignOutUrl="/auth/login"
                                     appearance={{
@@ -387,7 +388,7 @@ export default function Dashboard() {
 
                 {/* Mobile Tab Fallback (if needed, mainly for very small screens) */}
                 <div className="md:hidden mb-8">
-                    <div className="flex gap-1 bg-[#161617] border border-white/5 rounded-xl p-1">
+                    <div className="flex gap-1 bg-grayDark border border-white/5 rounded-xl p-1">
                         {TABS.map((tab) => {
                             const Icon = tab.icon;
                             const isActive = activeTab === tab.id;
@@ -395,7 +396,7 @@ export default function Dashboard() {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-white/10 text-white' : 'text-gray-500'
+                                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-cyan/40 ${isActive ? 'bg-white/10 text-white' : 'text-gray-500'
                                         }`}
                                 >
                                     <div className="flex items-center justify-center gap-2">
@@ -430,7 +431,7 @@ export default function Dashboard() {
                                 {canCreateMore && (
                                     <button
                                         onClick={() => setShowCreateModal(true)}
-                                        className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-500 text-black text-sm font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-2"
+                                        className="px-4 py-2 bg-gradient-to-r from-cyan to-blue-500 text-black text-sm font-bold rounded-xl hover:brightness-110 transition-all flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-cyan/50"
                                     >
                                         <Plus className="w-4 h-4" />
                                         New Marketing Engine
@@ -447,10 +448,10 @@ export default function Dashboard() {
                                     return (
                                         <motion.div
                                             key={business.id}
-                                            initial={{ opacity: 0, x: -10 }}
+                                            initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -10 }}
                                             animate={{ opacity: 1, x: 0 }}
-                                            transition={{ delay: index * 0.1, duration: 0.4, ease: "easeOut" }}
-                                            className="group relative bg-[#161617]/60 backdrop-blur-md border border-white/5 rounded-2xl p-6 hover:bg-[#1c1c1e] hover:border-white/10 transition-all duration-300 shadow-lg shadow-black/20"
+                                            transition={{ delay: prefersReducedMotion ? 0 : index * 0.1, duration: prefersReducedMotion ? 0.15 : 0.4, ease: "easeOut" }}
+                                            className="group relative bg-grayDark/60 backdrop-blur-md border border-white/5 rounded-2xl p-6 hover:bg-elevated hover:border-white/10 transition-colors duration-300 shadow-lg shadow-black/20"
                                         >
                                             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
                                                 {/* Icon Box */}
@@ -480,12 +481,12 @@ export default function Dashboard() {
                                                                         if (e.key === 'Escape') cancelEditing();
                                                                     }}
                                                                     disabled={isSavingName}
-                                                                    className="text-xl font-semibold text-white tracking-tight bg-white/5 border border-cyan/30 rounded-lg px-3 py-1 focus:outline-none focus:border-cyan/60 focus:ring-1 focus:ring-cyan/40 transition-all w-64"
+                                                                    className="text-xl font-semibold text-white tracking-tight bg-white/5 border border-cyan/30 rounded-lg px-3 py-1 focus:outline-none focus:border-cyan/60 focus:ring-2 focus:ring-cyan/50 transition-all w-64"
                                                                 />
                                                                 <button
                                                                     onClick={() => handleRenameBusiness(business.id)}
                                                                     disabled={isSavingName}
-                                                                    className="p-1.5 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors"
+                                                                    className="p-1.5 text-green-400 hover:bg-green-500/10 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-400/40"
                                                                     title="Save"
                                                                 >
                                                                     {isSavingName ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
@@ -493,7 +494,7 @@ export default function Dashboard() {
                                                                 <button
                                                                     onClick={cancelEditing}
                                                                     disabled={isSavingName}
-                                                                    className="p-1.5 text-gray-400 hover:bg-white/10 rounded-lg transition-colors"
+                                                                    className="p-1.5 text-gray-400 hover:bg-white/10 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-white/20"
                                                                     title="Cancel"
                                                                 >
                                                                     <X className="w-4 h-4" />
@@ -504,7 +505,7 @@ export default function Dashboard() {
                                                                 <h3 className="text-xl font-semibold text-white truncate tracking-tight">{business.funnel_name}</h3>
                                                                 <button
                                                                     onClick={() => startEditing(business)}
-                                                                    className="p-1 text-gray-500 hover:text-cyan opacity-0 group-hover/name:opacity-100 transition-all rounded-md hover:bg-white/5"
+                                                                    className="p-1 text-gray-500 hover:text-cyan opacity-0 group-hover/name:opacity-100 transition-all rounded-md hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-cyan/40 focus:opacity-100"
                                                                     title="Edit name"
                                                                 >
                                                                     <Pencil className="w-3.5 h-3.5" />
@@ -537,7 +538,7 @@ export default function Dashboard() {
                                                 <div className="flex flex-wrap items-center gap-3 sm:gap-4 w-full sm:w-auto mt-2 sm:mt-0">
                                                     <button
                                                         onClick={() => handleDeleteBusiness(business.id, business.funnel_name)}
-                                                        className="p-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
+                                                        className="p-2.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-red-400/30"
                                                         title="Delete Marketing Engine"
                                                     >
                                                         <Trash2 className="w-5 h-5" />
@@ -558,7 +559,7 @@ export default function Dashboard() {
                                                     ) : (
                                                         <button
                                                             onClick={() => router.push(`/vault?funnel_id=${business.id}`)}
-                                                            className="px-5 py-2.5 bg-white/5 hover:bg-cyan/10 text-gray-200 hover:text-cyan border border-white/10 hover:border-cyan/30 rounded-xl text-sm font-semibold transition-all flex items-center gap-2.5 shadow-sm"
+                                                            className="px-5 py-2.5 bg-white/5 hover:bg-cyan/10 text-gray-200 hover:text-cyan border border-white/10 hover:border-cyan/30 rounded-xl text-sm font-semibold transition-colors flex items-center gap-2.5 shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan/40"
                                                         >
                                                             <FolderOpen className="w-4.5 h-4.5" />
                                                             Open Vault
@@ -568,7 +569,7 @@ export default function Dashboard() {
                                                     {status !== 'complete' && status !== 'deployed' && (
                                                         <button
                                                             onClick={() => router.push(`/intake_form?funnel_id=${business.id}`)}
-                                                            className="px-5 py-2.5 bg-gradient-to-r from-cyan to-blue-500 text-white rounded-xl text-sm font-bold hover:brightness-110 hover:shadow-[0_0_15px_rgba(0,229,255,0.4)] transition-all flex items-center gap-2 shadow-md"
+                                                            className="px-5 py-2.5 bg-gradient-to-r from-cyan to-blue-500 text-white rounded-xl text-sm font-bold hover:brightness-110 hover:shadow-[0_0_15px_rgba(0,229,255,0.4)] transition-all flex items-center gap-2 shadow-md focus:outline-none focus:ring-2 focus:ring-cyan/50"
                                                         >
                                                             Continue
                                                             <ChevronRight className="w-4.5 h-4.5" />
@@ -579,7 +580,7 @@ export default function Dashboard() {
                                                     {status === 'deployed' && (
                                                         <button
                                                             onClick={() => router.push(`/vault?funnel_id=${business.id}`)}
-                                                            className="px-3 py-2.5 text-gray-400 hover:text-white rounded-xl transition-colors"
+                                                            className="px-3 py-2.5 text-gray-400 hover:text-white rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-white/20"
                                                             title="View Vault Assets"
                                                         >
                                                             <FolderOpen className="w-5 h-5" />
@@ -620,7 +621,7 @@ export default function Dashboard() {
                             initial={{ opacity: 0, scale: 0.98, y: 10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.98, y: 10 }}
-                            className="bg-[#161617] rounded-3xl border border-white/10 p-8 w-full max-w-md shadow-2xl shadow-black/50"
+                            className="bg-grayDark rounded-3xl border border-white/10 p-8 w-full max-w-md shadow-2xl shadow-black/50"
                             onClick={e => e.stopPropagation()}
                         >
                             <div className="w-16 h-16 bg-cyan/5 rounded-2xl flex items-center justify-center mb-6 border border-cyan/10">
@@ -637,7 +638,7 @@ export default function Dashboard() {
                                 value={newBusinessName}
                                 onChange={(e) => setNewBusinessName(e.target.value)}
                                 placeholder="e.g. Acme Coaching, Sarah's Wellness"
-                                className="w-full px-5 py-4 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/50 transition-all mb-8 text-lg"
+                                className="w-full px-5 py-4 bg-black/20 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan/50 focus:ring-2 focus:ring-cyan/50 transition-all mb-8 text-lg"
                                 autoFocus
                                 onKeyPress={(e) => e.key === 'Enter' && handleCreateBusiness()}
                             />
@@ -645,14 +646,14 @@ export default function Dashboard() {
                             <div className="flex gap-4">
                                 <button
                                     onClick={() => setShowCreateModal(false)}
-                                    className="flex-1 px-5 py-3.5 bg-white/5 text-gray-300 rounded-xl font-semibold hover:bg-white/10 hover:text-white transition-colors"
+                                    className="flex-1 px-5 py-3.5 bg-white/5 text-gray-300 rounded-xl font-semibold hover:bg-white/10 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-white/20"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleCreateBusiness}
                                     disabled={isCreating || !newBusinessName.trim()}
-                                    className="flex-1 px-5 py-3.5 bg-gradient-to-r from-cyan to-blue-500 text-white rounded-xl font-bold hover:brightness-110 hover:shadow-lg hover:shadow-cyan/20 transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
+                                    className="flex-1 px-5 py-3.5 bg-gradient-to-r from-cyan to-blue-500 text-white rounded-xl font-bold hover:brightness-110 hover:shadow-lg hover:shadow-cyan/20 transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-cyan/50"
                                 >
                                     {isCreating ? (
                                         <Loader2 className="w-5 h-5 animate-spin" />

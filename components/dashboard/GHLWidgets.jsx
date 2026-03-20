@@ -484,7 +484,6 @@ function ContactSourcesWidget({ data }) {
                 <button
                     onClick={() => setShowInfo(!showInfo)}
                     className="p-2 hover:bg-white/5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan/20"
-                    style={{ outline: 'none' }}
                 >
                     <Info className="w-4 h-4 text-gray-400 hover:text-cyan transition-colors" />
                 </button>
@@ -695,7 +694,6 @@ function OpportunityStatusPieChart({ data }) {
                 <button
                     onClick={() => setShowInfo(!showInfo)}
                     className="p-2 hover:bg-white/5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-cyan/20"
-                    style={{ outline: 'none' }}
                 >
                     <Info className="w-4 h-4 text-gray-400 hover:text-cyan transition-colors" />
                 </button>

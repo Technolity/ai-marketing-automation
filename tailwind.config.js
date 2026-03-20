@@ -8,10 +8,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        dark: '#0a0a0b', // Deep rich black
-        grayDark: '#161618', // Slightly lighter for cards
-        richBlack: '#050505',
-        charcoal: '#121214',
+        dark: '#0a0a0b',       // Deep rich black — page background
+        grayDark: '#161618',   // Card/panel background
+        richBlack: '#050505',  // Deepest background
+        charcoal: '#121214',   // Elevated background
+        surface: '#0e0e0f',    // Primary surface — form inputs, panels
+        elevated: '#1b1b1d',   // Slightly raised surface — tooltips, dropdowns
+        subtle: '#2a2a2d',     // Border / divider color (dense contexts)
+        subtleAlt: '#3a3a3d',  // Border / divider color (editor/expanded contexts)
+        overlay: '#151517',    // Floating element background
         // Premium Electric Cyan - ONLY color accent
         cyan: '#00E5FF', // Electric cyan - premium futuristic
       },

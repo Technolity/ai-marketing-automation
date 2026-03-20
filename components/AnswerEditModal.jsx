@@ -159,7 +159,7 @@ export default function AnswerEditModal({
                         onChange={(e) => handleInputChange(input.name, e.target.value)}
                         placeholder={input.placeholder}
                         rows={input.rows || 3}
-                        className="w-full bg-[#1a1a1c] border border-[#2a2a2d] rounded-xl p-4 text-white 
+                        className="w-full bg-elevated border border-subtle rounded-xl p-4 text-white 
                                    placeholder-gray-500 focus:ring-2 focus:ring-cyan/50 focus:border-cyan 
                                    outline-none transition-all resize-none text-sm"
                     />
@@ -170,7 +170,7 @@ export default function AnswerEditModal({
                     <select
                         value={value}
                         onChange={(e) => handleInputChange(input.name, e.target.value)}
-                        className="w-full bg-[#1a1a1c] border border-[#2a2a2d] rounded-xl p-4 text-white 
+                        className="w-full bg-elevated border border-subtle rounded-xl p-4 text-white 
                                    focus:ring-2 focus:ring-cyan/50 focus:border-cyan outline-none 
                                    transition-all text-sm appearance-none cursor-pointer"
                     >
@@ -194,7 +194,7 @@ export default function AnswerEditModal({
                                     className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
                                         ${selectedValues.includes(opt.value)
                                             ? 'bg-cyan/20 text-cyan border border-cyan/40'
-                                            : 'bg-[#1a1a1c] text-gray-400 border border-[#2a2a2d] hover:border-gray-600'
+                                            : 'bg-[#1a1a1c] text-gray-400 border border-subtle hover:border-gray-600'
                                         }`}
                                 >
                                     {opt.label}
@@ -211,7 +211,7 @@ export default function AnswerEditModal({
                         value={value}
                         onChange={(e) => handleInputChange(input.name, e.target.value)}
                         placeholder={input.placeholder}
-                        className="w-full bg-[#1a1a1c] border border-[#2a2a2d] rounded-xl p-4 text-white 
+                        className="w-full bg-elevated border border-subtle rounded-xl p-4 text-white 
                                    placeholder-gray-500 focus:ring-2 focus:ring-cyan/50 focus:border-cyan 
                                    outline-none transition-all text-sm"
                     />
@@ -236,11 +236,11 @@ export default function AnswerEditModal({
                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-[#0e0e0f] rounded-2xl border border-[#2a2a2d] w-full max-w-3xl max-h-[85vh] 
+                    className="bg-surface rounded-2xl border border-subtle w-full max-w-3xl max-h-[85vh] 
                                overflow-hidden flex flex-col shadow-2xl"
                 >
                     {/* Header */}
-                    <div className="p-6 border-b border-[#2a2a2d] flex items-center justify-between">
+                    <div className="p-6 border-b border-subtle flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 rounded-xl bg-gradient-to-br from-cyan/20 to-blue-500/20 border border-cyan/20">
                                 <Edit3 className="w-5 h-5 text-cyan" />
@@ -253,7 +253,7 @@ export default function AnswerEditModal({
                         <button
                             onClick={onClose}
                             disabled={isRegenerating}
-                            className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors disabled:opacity-50"
+                            className="p-2 hover:bg-subtle rounded-lg transition-colors disabled:opacity-50"
                         >
                             <X className="w-5 h-5 text-gray-400" />
                         </button>
@@ -296,16 +296,16 @@ export default function AnswerEditModal({
                                         className={`border rounded-xl overflow-hidden transition-all
                                             ${isChanged
                                                 ? 'border-yellow-500/50 bg-yellow-500/5'
-                                                : 'border-[#2a2a2d] bg-[#1b1b1d]/50'
+                                                : 'border-subtle bg-elevated/50'
                                             }`}
                                     >
                                         <button
                                             type="button"
                                             onClick={() => toggleStep(step.id)}
-                                            className="w-full p-4 flex items-center justify-between hover:bg-[#2a2a2d]/30 transition-colors"
+                                            className="w-full p-4 flex items-center justify-between hover:bg-subtle/30 transition-colors"
                                         >
                                             <div className="flex items-center gap-3">
-                                                <span className="w-7 h-7 rounded-lg bg-[#2a2a2d] flex items-center justify-center text-xs font-bold text-gray-400">
+                                                <span className="w-7 h-7 rounded-lg bg-subtle flex items-center justify-center text-xs font-bold text-gray-400">
                                                     {step.id}
                                                 </span>
                                                 <div className="text-left">
@@ -338,7 +338,7 @@ export default function AnswerEditModal({
                                                     exit={{ height: 0, opacity: 0 }}
                                                     className="overflow-hidden"
                                                 >
-                                                    <div className="p-4 pt-0 space-y-4 border-t border-[#2a2a2d]/50">
+                                                    <div className="p-4 pt-0 space-y-4 border-t border-subtle/50">
                                                         {stepInputs.map((input) => (
                                                             <div key={input.name}>
                                                                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -364,7 +364,7 @@ export default function AnswerEditModal({
 
                     {/* Footer */}
                     {!isRegenerating && (
-                        <div className="p-6 border-t border-[#2a2a2d] flex items-center justify-between">
+                        <div className="p-6 border-t border-subtle flex items-center justify-between">
                             <div className="text-sm text-gray-500">
                                 {hasChanges ? (
                                     <span className="text-yellow-400 flex items-center gap-1">
@@ -378,7 +378,7 @@ export default function AnswerEditModal({
                             <div className="flex gap-3">
                                 <button
                                     onClick={onClose}
-                                    className="px-5 py-2.5 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-xl 
+                                    className="px-5 py-2.5 bg-subtle hover:bg-subtleAlt text-white rounded-xl 
                                                font-medium transition-all text-sm"
                                 >
                                     Cancel

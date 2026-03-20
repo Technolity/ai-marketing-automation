@@ -243,7 +243,7 @@ export default function GHLCredentialsForm({
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
             placeholder="abc123-def456-ghi789..."
-            className="w-full px-4 py-3 bg-[#0a0a0b] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors font-mono text-sm"
+            className="w-full px-4 py-3 bg-dark border border-subtle rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan/50 focus:border-cyan transition-colors font-mono text-sm"
           />
           <p className="text-xs text-gray-500 mt-1">
             Your Platform Location ID (found in Settings)
@@ -265,12 +265,12 @@ export default function GHLCredentialsForm({
               value={accessToken}
               onChange={(e) => setAccessToken(e.target.value)}
               placeholder="Your GHL Private Integration token"
-              className="w-full px-4 py-3 pr-12 bg-[#0a0a0b] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors font-mono text-sm"
+              className="w-full px-4 py-3 pr-12 bg-dark border border-subtle rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan/50 focus:border-cyan transition-colors font-mono text-sm"
             />
             <button
               type="button"
               onClick={() => setShowToken(!showToken)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan/50 rounded"
             >
               {showToken ? (
                 <EyeOff className="w-5 h-5" />

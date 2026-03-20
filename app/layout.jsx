@@ -9,6 +9,10 @@ import LicenseWrapper from "@/components/LicenseWrapper";
 import MaintenanceGuard from "@/components/MaintenanceGuard";
 import SubscriptionGuard from "@/components/SubscriptionGuard";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata = {
   title: "TedOS | Your Business Built For You",
@@ -25,7 +29,7 @@ export default function RootLayout({ children }) {
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/dashboard"
     >
-      <html lang="en" className="bg-dark">
+      <html lang="en" className={cn("bg-dark", "font-sans", geist.variable)}>
         <body className="bg-dark text-white">
           <AuthProvider>
             <LicenseWrapper>

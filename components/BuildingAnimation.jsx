@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Sparkles, Loader2 } from 'lucide-react';
 
 /**
@@ -16,6 +16,7 @@ const BuildingAnimation = ({
     completedSections = [],
     processingMessage
 }) => {
+    const prefersReducedMotion = useReducedMotion();
 
     // Determine progress percentage
     const totalExpected = 13;
@@ -80,15 +81,15 @@ const BuildingAnimation = ({
 
                     {/* Spinning Gradient Ring */}
                     <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                        animate={prefersReducedMotion ? {} : { rotate: 360 }}
+                        transition={prefersReducedMotion ? {} : { duration: 3, repeat: Infinity, ease: "linear" }}
                         className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-cyan border-r-cyan/30"
                     />
 
                     {/* Inner Rotating Dashes (Counter-spin) */}
                     <motion.div
-                        animate={{ rotate: -360 }}
-                        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                        animate={prefersReducedMotion ? {} : { rotate: -360 }}
+                        transition={prefersReducedMotion ? {} : { duration: 8, repeat: Infinity, ease: "linear" }}
                         className="absolute inset-4 rounded-full border border-dashed border-white/10"
                     />
 
@@ -105,7 +106,7 @@ const BuildingAnimation = ({
                     {/* Dynamic Processing Message */}
                     <div className="flex items-center justify-center">
                         <motion.div
-                            initial={{ opacity: 0, y: 10 }}
+                            initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             className="text-cyan text-lg md:text-xl font-medium flex items-center justify-center gap-3"
                         >

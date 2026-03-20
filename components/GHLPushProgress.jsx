@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   CheckCircle,
   XCircle,
@@ -119,12 +119,14 @@ export default function GHLPushProgress({
     }));
   };
 
+  const prefersReducedMotion = useReducedMotion();
+
   if (!operation) {
     return (
-      <div className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-2xl p-12 text-center overflow-hidden relative">
+      <div className="bg-elevated border border-subtle rounded-2xl p-12 text-center overflow-hidden relative">
         <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          animate={prefersReducedMotion ? {} : { rotate: 360 }}
+          transition={prefersReducedMotion ? {} : { duration: 2, repeat: Infinity, ease: "linear" }}
           className="w-16 h-16 border-2 border-cyan/20 border-t-cyan rounded-full mx-auto mb-6"
         />
         <p className="text-gray-400 font-medium">Initializing Secure Channel...</p>
@@ -148,7 +150,7 @@ export default function GHLPushProgress({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Main Status Card */}
-        <div className="lg:col-span-2 bg-[#0c0c0d] border border-white/5 rounded-3xl p-8 relative overflow-hidden group">
+        <div className="lg:col-span-2 bg-dark border border-white/5 rounded-3xl p-8 relative overflow-hidden group">
           {/* Animated Glow Backdrop */}
           <div className={`absolute -inset-24 opacity-20 blur-3xl transition-colors duration-1000 ${isCompleted ? 'bg-green-500' : isInProgress ? 'bg-cyan' : 'bg-red-500'
             }`} />
@@ -208,7 +210,7 @@ export default function GHLPushProgress({
         </div>
 
         {/* Live Stream Card */}
-        <div className="bg-[#0c0c0d] border border-white/5 rounded-3xl p-6 flex flex-col h-full">
+        <div className="bg-dark border border-white/5 rounded-3xl p-6 flex flex-col h-full">
           <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-4 flex items-center gap-2">
             <Cpu className="w-4 h-4 text-cyan" />
             Live Data Stream
@@ -296,10 +298,10 @@ function DetailSection({ title, count, items, expanded, onToggle, icon, color, i
   if (count === 0) return null;
 
   return (
-    <div className="bg-[#0c0c0d] border border-white/5 rounded-3xl overflow-hidden transition-all duration-500">
+    <div className="bg-dark border border-white/5 rounded-3xl overflow-hidden transition-all duration-500">
       <button
         onClick={onToggle}
-        className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-colors"
+        className="w-full p-6 flex items-center justify-between hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan/30 focus:ring-inset"
       >
         <div className="flex items-center gap-4">
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isError ? 'bg-red-500/20 text-red-500' : `bg-${color}-500/20 text-${color}`
@@ -332,7 +334,7 @@ function DetailSection({ title, count, items, expanded, onToggle, icon, color, i
                   {onCopy && (
                     <button
                       onClick={() => onCopy(typeof item === 'string' ? item : item.value)}
-                      className="opacity-0 group-hover:opacity-100 p-2 hover:bg-white/10 rounded-lg transition-all"
+                      className="opacity-0 group-hover:opacity-100 p-2 hover:bg-white/10 rounded-lg transition-all focus:outline-none focus:opacity-100 focus:ring-2 focus:ring-cyan/30"
                     >
                       <Copy className="w-4 h-4 text-gray-400" />
                     </button>
