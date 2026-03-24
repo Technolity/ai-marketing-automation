@@ -2,15 +2,17 @@
 /node_modules
 /.pnp
 .pnp.js
-
-
+.codex
+.claude
 # testing
 /coverage
-
+.kiro
 # next.js
 /.next/
 /out/
-
+.agents
+.agent
+.vscode
 # production
 /build
 

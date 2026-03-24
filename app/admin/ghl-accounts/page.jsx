@@ -32,7 +32,8 @@ import {
     FileX,
     Download,
     Edit,
-    Filter
+    Filter,
+    Link2
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
@@ -85,6 +86,12 @@ export default function AdminGHLAccounts() {
 
     // Token refresh state
     const [isRefreshingToken, setIsRefreshingToken] = useState(null); // userId for token refresh
+
+    // Link Location Modal state
+    const [linkModalOpen, setLinkModalOpen] = useState(false);
+    const [linkingUser, setLinkingUser] = useState(null);
+    const [linkLocationId, setLinkLocationId] = useState('');
+    const [isLinkingLocation, setIsLinkingLocation] = useState(false);
 
     const fetchAccounts = useCallback(async () => {
         if (!session) return;
@@ -319,6 +326,50 @@ export default function AdminGHLAccounts() {
             setIsRefreshingToken(null);
         }
     }, [isRefreshingToken, fetchAccounts]);
+
+    // Link Location Modal handlers
+    const openLinkModal = useCallback((user) => {
+        setLinkingUser(user);
+        setLinkLocationId(user.ghl_location_id || '');
+        setLinkModalOpen(true);
+    }, []);
+
+    const closeLinkModal = () => {
+        setLinkModalOpen(false);
+        setLinkingUser(null);
+        setLinkLocationId('');
+    };
+
+    const handleLinkLocation = async () => {
+        if (!linkingUser || !linkLocationId.trim()) return;
+        setIsLinkingLocation(true);
+
+        try {
+            const response = await fetchWithAuth('/api/admin/ghl-subaccounts/link', {
+                method: 'POST',
+                body: JSON.stringify({
+                    userId: linkingUser.id,
+                    locationId: linkLocationId.trim()
+                })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to link location');
+            }
+
+            const result = await response.json();
+            toast.success(`✅ Linked to "${result.locationName}"`);
+
+            closeLinkModal();
+            fetchAccounts();
+        } catch (err) {
+            console.error('Link location error:', err);
+            toast.error(err.message || 'Failed to link location');
+        } finally {
+            setIsLinkingLocation(false);
+        }
+    };
 
     const handleBulkCreateUsers = async () => {
         if (isBulkCreating || selectedUsers.length === 0) return;
@@ -868,6 +919,15 @@ export default function AdminGHLAccounts() {
                                 </button>
                             )}
 
+                            {/* Link External Location button - always show */}
+                            <button
+                                onClick={() => openLinkModal(row.original)}
+                                className="p-2 hover:bg-amber-500/10 text-amber-400 rounded-lg transition-colors"
+                                title="Link External Location ID"
+                            >
+                                <Link2 className="w-4 h-4" />
+                            </button>
+
                             {/* Edit Profile button - always show */}
                             <button
                                 onClick={() => openEditModal(row.original)}
@@ -888,7 +948,7 @@ export default function AdminGHLAccounts() {
                 },
             },
         ],
-        [isRetrying, isImportingSnapshot, isMarkingSnapshot, isCreatingUser, isRetryingUser, isRefreshingToken, selectedUsers, accounts, openEditModal, handleRetry, handleImportSnapshot, handleMarkSnapshotImported, handleCreateBuilderLogin, handleRetryUserCreation, handleRefreshToken, toggleSelectAll]
+        [isRetrying, isImportingSnapshot, isMarkingSnapshot, isCreatingUser, isRetryingUser, isRefreshingToken, selectedUsers, accounts, openEditModal, openLinkModal, handleRetry, handleImportSnapshot, handleMarkSnapshotImported, handleCreateBuilderLogin, handleRetryUserCreation, handleRefreshToken, toggleSelectAll]
     );
 
     const table = useReactTable({
@@ -1389,6 +1449,90 @@ export default function AdminGHLAccounts() {
                                     )}
                                 </button>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Link External Location Modal */}
+            {linkModalOpen && linkingUser && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] max-w-lg w-full p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                <Link2 className="w-5 h-5 text-amber-400" />
+                                Link External Location
+                            </h3>
+                            <button
+                                onClick={closeLinkModal}
+                                className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-gray-400" />
+                            </button>
+                        </div>
+
+                        {/* User Info */}
+                        <div className="p-3 bg-[#0e0e0f] rounded-lg mb-4">
+                            <p className="text-sm text-gray-400">User</p>
+                            <p className="text-white font-medium">{linkingUser.full_name || 'No Name'}</p>
+                            <p className="text-sm text-gray-500">{linkingUser.email}</p>
+                            {linkingUser.ghl_location_id && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Current Location: <span className="font-mono text-gray-400">{linkingUser.ghl_location_id}</span>
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Warning */}
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg mb-4 flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+                            <div className="text-sm text-amber-200/80">
+                                <p className="font-medium text-amber-300 mb-1">Important</p>
+                                <p>This will replace the user's current GHL sub-account connection. Their next data deployment will target the new location. Ensure the new location has the correct SaaS plan in your GHL Agency Dashboard.</p>
+                            </div>
+                        </div>
+
+                        {/* Location ID Input */}
+                        <div className="mb-6">
+                            <label className="block text-sm text-gray-400 mb-2">GHL Location ID</label>
+                            <input
+                                type="text"
+                                value={linkLocationId}
+                                onChange={(e) => setLinkLocationId(e.target.value)}
+                                placeholder="Paste the GHL Location ID here..."
+                                className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white font-mono text-sm focus:outline-none focus:border-amber-400 transition-colors placeholder-gray-600"
+                                autoFocus
+                            />
+                            <p className="text-xs text-gray-500 mt-1.5">
+                                Find this in GHL → Settings → Business Info or from the URL: app.gohighlevel.com/location/<strong>LOCATION_ID</strong>/dashboard
+                            </p>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-3">
+                            <button
+                                onClick={closeLinkModal}
+                                className="flex-1 px-4 py-3 bg-[#2a2a2d] text-white font-medium rounded-lg hover:bg-[#3a3a3d] transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleLinkLocation}
+                                disabled={isLinkingLocation || !linkLocationId.trim()}
+                                className="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-bold rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {isLinkingLocation ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Linking...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Link2 className="w-4 h-4" />
+                                        Link Location
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>
