@@ -1,104 +1,78 @@
 "use client";
-import { useRef } from "react";
 import Link from "next/link";
-import dynamic from "next/dynamic";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion } from "framer-motion";
 import { Users, TrendingUp, Zap } from "lucide-react";
 import HeroSlideshow from "./HeroSlideshow";
 
-// Dynamically imported so ogl/WebGL is excluded from the initial JS bundle
-const Balatro = dynamic(() => import("@/components/ui/Balatro"), { ssr: false });
-
 const STATS = [
-  { Icon: Users,      value: "1,200+", label: "Businesses Built"  },
-  { Icon: Zap,        value: "60 min", label: "Avg Deploy Time"   },
-  { Icon: TrendingUp, value: "94%",    label: "Client Retention"  },
+  { Icon: Users, value: "100+", label: "Businesses Built" },
+  { Icon: Zap, value: "60 min", label: "Avg Deploy Time" },
+  { Icon: TrendingUp, value: "94%", label: "Client Retention" },
 ];
 
 
 const fadeUp = {
-  hidden : { opacity: 0, y: 28 },
+  hidden: { opacity: 0, y: 28 },
   visible: (d = 0) => ({ opacity: 1, y: 0, transition: { duration: 0.75, delay: d, ease: [0.25, 0.46, 0.45, 0.94] } }),
 };
 
 export default function HeroSection() {
-  const sectionRef = useRef(null);
-
-  /* Scroll-driven fade: Balatro fades out as user scrolls 0% → 50% through the hero */
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start start", "end start"],
-  });
-  const balatraOpacity = useTransform(scrollYProgress, [0, 0.55], [1, 0]);
-
   return (
     <section
-      ref={sectionRef}
       id="hero"
       className="relative min-h-screen w-full overflow-hidden grid-bg flex items-start md:items-center"
       style={{ background: "#00031C" }}
     >
-      {/* ── Balatro WebGL background (scroll-fades out) ── */}
-      <motion.div
-        className="absolute inset-0 z-0 pointer-events-none"
-        style={{ opacity: balatraOpacity, willChange: "opacity" }}
-      >
-        <Balatro
-          spinRotation={-2}
-          spinSpeed={7}
-          color1="#1ec2eb"
-          color2="#030507"
-          color3="#162325"
-          contrast={3.5}
-          lighting={0.4}
-          spinAmount={0.25}
-          pixelFilter={700}
-          mouseInteraction={false}
-          style={{ width: "100%", height: "100%" }}
-        />
+      {/* ── Aurora ambient background ── */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
 
-        {/* Vignette: darkens all four edges so Balatro blends into #00031C */}
+        {/* Orb 1 — large primary, top-left quadrant */}
         <div
-          className="absolute inset-0"
+          className="hero-orb absolute rounded-full"
           style={{
-            background:
-              "radial-gradient(ellipse at 50% 45%, transparent 28%, rgba(0,3,28,0.55) 58%, rgba(0,3,28,0.92) 80%, #00031C 100%)",
+            width: 860,
+            height: 860,
+            top: "-18%",
+            left: "-10%",
+            background: "radial-gradient(circle at center, rgba(0,229,255,0.07) 0%, rgba(0,229,255,0.025) 45%, transparent 70%)",
+            animation: "orb-float-1 32s ease-in-out infinite",
           }}
         />
 
-        {/* Bottom fade: smooth dissolve into the next section */}
+        {/* Orb 2 — medium, bottom-right */}
         <div
-          className="absolute bottom-0 inset-x-0 h-[45%]"
+          className="hero-orb absolute rounded-full"
           style={{
-            background:
-              "linear-gradient(to bottom, transparent 0%, rgba(0,3,28,0.6) 40%, rgba(0,3,28,0.92) 75%, #00031C 100%)",
+            width: 620,
+            height: 620,
+            bottom: "-12%",
+            right: "-6%",
+            background: "radial-gradient(circle at center, rgba(8,145,178,0.08) 0%, rgba(8,145,178,0.03) 45%, transparent 70%)",
+            animation: "orb-float-2 40s ease-in-out infinite",
           }}
         />
 
-        {/* Top fade: keeps navbar area clean */}
+        {/* Orb 3 — small accent, upper-right */}
         <div
-          className="absolute top-0 inset-x-0 h-32"
+          className="hero-orb absolute rounded-full"
           style={{
-            background: "linear-gradient(to bottom, #00031C 0%, transparent 100%)",
+            width: 420,
+            height: 420,
+            top: "10%",
+            right: "12%",
+            background: "radial-gradient(circle at center, rgba(0,229,255,0.045) 0%, transparent 65%)",
+            animation: "orb-float-3 26s ease-in-out infinite",
           }}
         />
 
-        {/* Left / right edge fades */}
+        {/* Bottom dissolve into the next section */}
         <div
-          className="absolute inset-y-0 left-0 w-24"
-          style={{
-            background: "linear-gradient(to right, #00031C 0%, transparent 100%)",
-          }}
+          className="absolute bottom-0 inset-x-0 h-[38%]"
+          style={{ background: "linear-gradient(to bottom, transparent 0%, rgba(0,3,28,0.75) 65%, #00031C 100%)" }}
         />
-        <div
-          className="absolute inset-y-0 right-0 w-24"
-          style={{
-            background: "linear-gradient(to left, #00031C 0%, transparent 100%)",
-          }}
-        />
-      </motion.div>
+      </div>
 
-      {/* Hero glow overlay */}
+      {/* Hero glow overlay (right-side radial) */}
       <div className="hero-glow absolute inset-0 pointer-events-none z-[1]" />
 
       {/* Top border rule */}

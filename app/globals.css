@@ -303,6 +303,25 @@
   }
 }
 
+/* ── Hero ambient orb drifts (transform-only = GPU, no repaints) ── */
+@keyframes orb-float-1 {
+  0%,  100% { transform: translate(0px,   0px);  }
+  33%       { transform: translate(28px, -22px); }
+  66%       { transform: translate(-18px, 15px); }
+}
+@keyframes orb-float-2 {
+  0%,  100% { transform: translate(0px,   0px);  }
+  42%       { transform: translate(-24px, 19px); }
+  78%       { transform: translate(17px, -13px); }
+}
+@keyframes orb-float-3 {
+  0%,  100% { transform: translate(0px,   0px);  }
+  55%       { transform: translate(-16px, 22px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb { animation: none !important; }
+}
+
 /* =============================================
    REDUCED-MOTION GLOBAL SAFETY NET
    Components using framer-motion should also
