@@ -2,17 +2,26 @@
 import "./globals.css";
 import { Toaster } from "sonner";
 import { ClerkProvider } from "@clerk/nextjs";
-import AppNavbar from "@/components/AppNavbar";
-import MainLayout from "@/components/MainLayout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import LicenseWrapper from "@/components/LicenseWrapper";
 import MaintenanceGuard from "@/components/MaintenanceGuard";
 import SubscriptionGuard from "@/components/SubscriptionGuard";
-import AnnouncementBanner from "@/components/AnnouncementBanner";
-import { Geist } from "next/font/google";
+import { Space_Grotesk, Poppins } from "next/font/google";
 import { cn } from "@/lib/utils";
+import ConditionalAppShell from "@/components/ConditionalAppShell";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-sans",
+});
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-poppins",
+  display: "swap",
+});
 
 export const metadata = {
   title: "TedOS | Your Business Built For You",
@@ -29,17 +38,15 @@ export default function RootLayout({ children }) {
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/dashboard"
     >
-      <html lang="en" className={cn("bg-dark", "font-sans", geist.variable)}>
-        <body className="bg-dark text-white">
+      <html lang="en" className={cn("dark", "bg-dark", "font-poppins", spaceGrotesk.variable, poppins.variable)}>
+        <body className="bg-dark text-white font-poppins">
           <AuthProvider>
             <LicenseWrapper>
               <MaintenanceGuard>
                 <SubscriptionGuard>
-                  <AppNavbar />
-                  <AnnouncementBanner />
-                  <MainLayout>
+                  <ConditionalAppShell>
                     {children}
-                  </MainLayout>
+                  </ConditionalAppShell>
                 </SubscriptionGuard>
               </MaintenanceGuard>
             </LicenseWrapper>
