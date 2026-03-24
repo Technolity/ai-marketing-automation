@@ -12,7 +12,9 @@
 # next.js
 /.next/
 /out/
-
+.agents
+.agent
+.vscode
 # production
 /build
 
