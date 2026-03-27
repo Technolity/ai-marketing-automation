@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
-import { getOpenAIClient } from '@/lib/ai/providerConfig';
+import { getOpenAIClient, getGeminiClient } from '@/lib/ai/providerConfig';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 import sharp from 'sharp';
 
@@ -208,6 +208,96 @@ Return JSON only, no markdown:
       background_prompt: `Dark cinematic abstract background for ${niche}, premium marketing aesthetic`,
     };
   }
+}
+
+// ─── Pipeline Step 1 (Gemini variant) ────────────────────────────────────────
+
+async function generateCopyGemini(ctx, postType, userDescription) {
+  const gemini = getGeminiClient();
+  const gift = ctx?.freeGiftName || 'Free Guide';
+  const niche = ctx?.niche || 'business coaching';
+  const transformation = ctx?.transformation || 'achieve their goals';
+  const isGift = postType === 'free_gift';
+
+  const userPrompt = isGift
+    ? `Generate social media ad image overlay text for a FREE digital product.
+Product name: "${gift}"
+Audience niche: ${niche}
+Core transformation: ${transformation}
+${userDescription ? `Creative direction from user: ${userDescription}` : ''}
+
+Return JSON only, no markdown:
+{
+  "headline": "ALL CAPS headline, 4-7 words, bold and benefit-driven",
+  "subheadline": "One clear benefit sentence, 10-15 words, title case",
+  "cta": "Action CTA phrase, 2-4 words, ALL CAPS",
+  "badge": "1-2 words ALL CAPS label (e.g. FREE, NEW, LIVE)",
+  "background_prompt": "Detailed description for an AI image generator to create a PURE VISUAL background. Must describe only abstract shapes, environments, lighting, textures. Absolutely ZERO text, ZERO words, ZERO letters, ZERO numbers anywhere in the image. The background should match the ${niche} niche aesthetic with cinematic lighting and premium feel."
+}`
+    : `Generate social media post image overlay text.
+Niche: ${niche}
+Core message: ${transformation}
+${userDescription ? `Direction: ${userDescription}` : ''}
+
+Return JSON only, no markdown:
+{
+  "headline": "ALL CAPS headline, 4-7 words, aspirational and punchy",
+  "subheadline": "Inspirational sentence, 10-15 words, title case",
+  "cta": "Engagement phrase, 2-4 words, ALL CAPS",
+  "badge": "1-2 word label ALL CAPS (TIPS, GUIDE, FREE, etc)",
+  "background_prompt": "Description for an AI image generator. Pure visual scene matching ${niche} — cinematic, premium, atmospheric. ZERO text, ZERO words, ZERO letters anywhere in the image."
+}`;
+
+  try {
+    const model = gemini.getGenerativeModel({
+      model: 'gemini-2.5-flash-image',
+      systemInstruction:
+        'You are a marketing creative director specializing in high-converting social media ads. ' +
+        'Return only valid JSON, no markdown formatting, no explanation.',
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.72, maxOutputTokens: 400 },
+    });
+    const result = await model.generateContent(userPrompt);
+    const parsed = JSON.parse(result.response.text());
+    return {
+      headline: parsed.headline || (isGift ? 'GET THIS FREE TODAY' : 'LEVEL UP YOUR RESULTS'),
+      subheadline: parsed.subheadline || `The proven system for ${transformation}`,
+      cta: parsed.cta || (isGift ? 'CLAIM FREE' : 'READ MORE'),
+      badge: parsed.badge || (isGift ? 'FREE' : 'TIPS'),
+      background_prompt: parsed.background_prompt || `Abstract dark premium background for ${niche}, cinematic lighting, no text`,
+    };
+  } catch {
+    return {
+      headline: isGift ? 'GET THIS FREE TODAY' : 'LEVEL UP YOUR RESULTS',
+      subheadline: isGift ? `Claim your free copy of ${gift}` : `The proven path to ${transformation}`,
+      cta: isGift ? 'CLAIM FREE' : 'READ MORE',
+      badge: isGift ? 'FREE' : 'TIPS',
+      background_prompt: `Dark cinematic abstract background for ${niche}, premium marketing aesthetic`,
+    };
+  }
+}
+
+async function generateCaptionGemini(ctx, keyword) {
+  const gemini = getGeminiClient();
+  const niche = ctx?.niche || 'your industry';
+  const gift = ctx?.freeGiftName || 'my free guide';
+  const transformation = ctx?.transformation || 'transform your results';
+
+  const model = gemini.getGenerativeModel({
+    model: 'gemini-2.5-flash-image',
+    systemInstruction:
+      'You are a high-converting social media copywriter specializing in lead generation. ' +
+      'Write engaging captions that stop the scroll and drive comment-based lead generation. ' +
+      'Keep captions under 220 words. Use line breaks for readability. End with the exact CTA provided.',
+    generationConfig: { temperature: 0.8, maxOutputTokens: 400 },
+  });
+
+  const result = await model.generateContent(
+    `Write a compelling social media caption for a ${niche} expert giving away "${gift}". ` +
+    `Theme: help people ${transformation}. ` +
+    `The caption must end with this exact CTA line: "Comment ${keyword} and I'll send it straight to your DMs." ` +
+    'Do NOT include hashtags. Do NOT use emojis. Return only the caption text.'
+  );
+  return result.response.text().trim();
 }
 
 // ─── Pipeline Step 2: Build background image prompt ──────────────────────────
@@ -593,7 +683,7 @@ export async function POST(req) {
       );
     }
 
-    const openai = getOpenAIClient();
+    const openai = isNanoBanana ? null : getOpenAIClient();
 
     let imageUrl = null;
     let caption  = null;
@@ -601,7 +691,9 @@ export async function POST(req) {
 
     try {
       // ── STEP 1: Generate structured copy (headline, subheadline, cta, badge, bg prompt) ──
-      const copy = await generateCopy(openai, vaultCtx, postType, userDescription);
+      const copy = isNanoBanana
+        ? await generateCopyGemini(vaultCtx, postType, userDescription)
+        : await generateCopy(openai, vaultCtx, postType, userDescription);
 
       // ── STEP 2: Generate background image (AI — pure visuals, zero text) ──
       const hasProductImage = !!vaultCtx.productImageUrl;
@@ -674,13 +766,17 @@ export async function POST(req) {
 
     // ── Caption generation (social post text — separate from image overlay text) ──
     try {
-      const captionResp = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: buildCaptionPrompt(vaultCtx, keyword),
-        max_tokens: 400,
-        temperature: 0.8,
-      });
-      caption = captionResp.choices[0]?.message?.content?.trim() || '';
+      if (isNanoBanana) {
+        caption = await generateCaptionGemini(vaultCtx, keyword);
+      } else {
+        const captionResp = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: buildCaptionPrompt(vaultCtx, keyword),
+          max_tokens: 400,
+          temperature: 0.8,
+        });
+        caption = captionResp.choices[0]?.message?.content?.trim() || '';
+      }
     } catch (captionErr) {
       console.error('[DailyLeads] Caption generation failed:', captionErr.message);
       if (imageGenerated) {
