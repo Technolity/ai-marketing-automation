@@ -1,6 +1,6 @@
 # 🧠 TedOS / AI Marketing Automation - Full Project Context
 
-> **Last Updated**: 2026-03-18
+> **Last Updated**: 2026-03-26
 > **Purpose**: Definitive technical guide for developers. Covers architecture, data flow, API inventory, and integration logic.
 
 ---
@@ -33,6 +33,11 @@
 *   **Targeted Section Refresh**: `refreshTriggers` is now a **per-section map** (`{ [sectionId]: timestamp }`). Only *changed* sections trigger their granular field components to refetch, preventing loaders and scroll jumps in unchanged sections.
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
+
+### Recent Modifications (2026-03-26)
+| File | Change |
+| :--- | :--- |
+| `components/vault/FieldEditor.jsx`, `lib/vault/fieldStructures.js` | **UI Enhancement**: Added dynamic `itemLabel` support for array items and changed "Item" to "Step" for the 7-Step Blueprint in the Signature Offer section. |
 
 ### Recent Modifications (2026-03-20)
 | File | Change |

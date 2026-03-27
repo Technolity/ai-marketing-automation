@@ -6,21 +6,33 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import LicenseWrapper from "@/components/LicenseWrapper";
 import MaintenanceGuard from "@/components/MaintenanceGuard";
 import SubscriptionGuard from "@/components/SubscriptionGuard";
-import { Space_Grotesk, Poppins } from "next/font/google";
+import localFont from "next/font/local";
 import { cn } from "@/lib/utils";
 import ConditionalAppShell from "@/components/ConditionalAppShell";
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+const spaceGrotesk = localFont({
+  src: [
+    { path: "./fonts/space-grotesk/space-grotesk-latin-300-normal.woff2", weight: "300", style: "normal" },
+    { path: "./fonts/space-grotesk/space-grotesk-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/space-grotesk/space-grotesk-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/space-grotesk/space-grotesk-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/space-grotesk/space-grotesk-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-sans",
+  display: "swap",
+  fallback: ["Segoe UI", "Helvetica Neue", "Arial", "system-ui", "sans-serif"],
 });
 
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const poppins = localFont({
+  src: [
+    { path: "./fonts/poppins/poppins-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/poppins/poppins-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/poppins/poppins-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/poppins/poppins-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-poppins",
   display: "swap",
+  fallback: ["Segoe UI", "Helvetica Neue", "Arial", "system-ui", "sans-serif"],
 });
 
 export const metadata = {
@@ -38,7 +50,10 @@ export default function RootLayout({ children }) {
       signInFallbackRedirectUrl="/dashboard"
       signUpFallbackRedirectUrl="/dashboard"
     >
-      <html lang="en" className={cn("dark", "bg-dark", "font-poppins", spaceGrotesk.variable, poppins.variable)}>
+      <html
+        lang="en"
+        className={cn("dark", "bg-dark", "font-poppins", spaceGrotesk.variable, poppins.variable)}
+      >
         <body className="bg-dark text-white font-poppins">
           <AuthProvider>
             <LicenseWrapper>
