@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, TrendingUp, Users, Zap } from "lucide-react";
+import { Mail, TrendingUp, Users, Zap } from "@/lib/icons";
 
 /* ─────────────────────────────────────────────────────
    Pin card shell — tilts from pinned → upright

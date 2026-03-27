@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import { ClipboardList, Cpu, Rocket } from "lucide-react";
+import { ClipboardList, Cpu, Rocket } from "@/lib/icons";
 import { SectionLabel } from "./SectionLabel";
 
 const STEPS = [
@@ -23,7 +23,7 @@ export default function HowToUseSection() {
   return (
     <section
       id="how-it-works"
-      className="py-16 sm:py-20 md:py-[120px] relative section-glow-center grid-bg"
+      className="py-16 sm:py-20 md:py-[120px] relative overflow-hidden section-glow-center grid-bg"
       style={{ background: "#00031C" }}
     >
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(0,229,255,0.1)] to-transparent" />
@@ -51,10 +51,10 @@ export default function HowToUseSection() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.05 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-5 relative"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 relative"
         >
           {/* Dashed connector line (desktop) */}
-          <div className="hidden md:block absolute top-14 left-[33%] right-[33%] h-px border-t border-dashed border-[rgba(0,229,255,0.2)] z-0" />
+          <div className="hidden lg:block absolute top-14 left-[33%] right-[33%] h-px border-t border-dashed border-[rgba(0,229,255,0.2)] z-0" />
 
           {STEPS.map((step) => {
             const { Icon } = step;

@@ -1,5 +1,5 @@
 "use client";
-import { Lightbulb, Cpu, Rocket } from "lucide-react";
+import { Lightbulb, Cpu, Rocket } from "@/lib/icons";
 import { SectionLabel } from "./SectionLabel";
 import { motion } from "framer-motion";
 
@@ -58,7 +58,8 @@ export default function TransformationFlow() {
         >
           <SectionLabel text="How It Works" />
           <h2 className="font-poppins font-medium text-[#F4F7FF] tracking-tight mb-4" style={{ fontSize: "clamp(32px,4vw,48px)" }}>
-            Idea to System in 60 Minutes
+            
+            
           </h2>
           <p className="text-[#94A3B8] font-poppins text-base max-w-lg mx-auto">
             Three steps. No complexity. No agency required.

@@ -71,13 +71,13 @@ export default function LandingNav() {
           </Link>
 
           {/* Nav links (desktop only) */}
-          <div className="hidden md:flex items-center gap-7">
+          <div className="hidden md:flex items-center gap-4 lg:gap-7">
             {NAV_LINKS.map((l) => (
               <a
                 key={l.label}
                 href={l.href}
                 onClick={scrollTo(l.href)}
-                className="text-[#94A3B8] hover:text-white text-[15px] font-poppins font-normal transition-colors duration-200 cursor-pointer"
+                className="text-[#94A3B8] hover:text-white text-[15px] font-poppins font-normal transition-colors duration-200 cursor-pointer whitespace-nowrap"
               >
                 {l.label}
               </a>

@@ -1,7 +1,6 @@
 import LandingNav          from "@/components/LandingNav";
 import HeroSection          from "@/components/landing/HeroSection";
 import FeaturesGrid         from "@/components/landing/FeaturesGrid";
-import TransformationFlow   from "@/components/landing/TransformationFlow";
 import HowToUseSection      from "@/components/landing/HowToUseSection";
 import PricingSection       from "@/components/landing/PricingSection";
 import TestimonialsSection  from "@/components/landing/TestimonialsSection";
@@ -18,10 +17,7 @@ export default function Home() {
         {/* 1. Hero — static founder photo + light rays */}
         <HeroSection />
 
-        {/* 2. Transformation Flow — idea → system */}
-        <TransformationFlow />
-
-        {/* 3. Features — 2×2 live system cards */}
+        {/* 2. Features — 2×2 live system cards */}
         <FeaturesGrid />
 
         {/* 4. How It Works — 3-step cards */}

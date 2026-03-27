@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp } from "@/lib/icons";
 import { motion } from "framer-motion";
 import { SectionLabel } from "./SectionLabel";
 
@@ -344,7 +344,7 @@ export default function FeaturesGrid() {
     <section
       id="features"
       ref={sectionRef}
-      className="py-16 sm:py-20 md:py-[120px] relative"
+      className="py-16 sm:py-20 md:py-[120px] relative overflow-hidden"
       style={{ background: "#00031C" }}
     >
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(0,229,255,0.1)] to-transparent" />

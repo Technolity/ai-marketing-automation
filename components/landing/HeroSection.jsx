@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Users, TrendingUp, Zap } from "lucide-react";
+import { Users, TrendingUp, Zap } from "@/lib/icons";
 import HeroSlideshow from "./HeroSlideshow";
 
 const STATS = [
@@ -81,7 +81,7 @@ export default function HeroSection() {
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-8 pt-24 sm:pt-[72px] pb-14 sm:pb-20 grid grid-cols-1 lg:grid-cols-2 items-center gap-8 lg:gap-16">
 
         {/* ── LEFT: Text ── */}
-        <div className="flex flex-col gap-0">
+        <div className="flex flex-col gap-0 items-center lg:items-start">
 
           {/* Section label */}
           <motion.div
@@ -98,7 +98,7 @@ export default function HeroSection() {
           {/* H1 — slightly smaller */}
           <motion.h1
             variants={fadeUp} initial="hidden" animate="visible" custom={0.2}
-            className="font-poppins font-medium text-[#F4F7FF] mb-6"
+            className="font-poppins font-medium text-[#F4F7FF] mb-6 text-center lg:text-left"
             style={{ fontSize: "clamp(36px,4vw,52px)", lineHeight: 1.15 }}
           >
             Transform Your Business<br />
@@ -111,7 +111,7 @@ export default function HeroSection() {
           {/* Body */}
           <motion.p
             variants={fadeUp} initial="hidden" animate="visible" custom={0.32}
-            className="font-poppins font-normal text-[#94A3B8] text-sm sm:text-base leading-relaxed mb-6 sm:mb-8 max-w-md"
+            className="font-poppins font-normal text-[#94A3B8] text-sm sm:text-base leading-relaxed mb-6 sm:mb-8 max-w-md text-center lg:text-left mx-auto lg:mx-0"
           >
             Answer 20 questions about your business. Walk away with a complete,
             deployed marketing system — funnels, scripts, emails, CRM — in 60 minutes.
@@ -120,7 +120,7 @@ export default function HeroSection() {
           {/* CTA buttons */}
           <motion.div
             variants={fadeUp} initial="hidden" animate="visible" custom={0.44}
-            className="flex flex-col sm:flex-row items-start gap-3 mb-8 sm:mb-10"
+            className="flex flex-col sm:flex-row items-center lg:items-start gap-3 mb-8 sm:mb-10"
           >
             <Link href="/auth/login">
               <button
@@ -142,10 +142,10 @@ export default function HeroSection() {
           {/* Stats row */}
           <motion.div
             variants={fadeUp} initial="hidden" animate="visible" custom={0.56}
-            className="flex items-start gap-4 sm:gap-8 pt-6 sm:pt-8 border-t border-[rgba(0,229,255,0.08)]"
+            className="flex items-center lg:items-start justify-center lg:justify-start gap-4 sm:gap-8 pt-6 sm:pt-8 border-t border-[rgba(0,229,255,0.08)]"
           >
             {STATS.map(({ Icon, value, label }, i) => (
-              <div key={i} className="flex flex-col gap-1">
+              <div key={i} className="flex flex-col gap-1 items-center lg:items-start">
                 <div className="flex items-center gap-1.5 font-poppins font-semibold text-[#F4F7FF] text-lg tabular-nums">
                   <Icon className="w-4 h-4 text-[#00E5FF] opacity-70" />
                   {value}
