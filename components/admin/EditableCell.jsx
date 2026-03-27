@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { Pencil, Check, X, AlertCircle, Loader2 } from "lucide-react";
+import { Pencil, Check, X, AlertCircle, Loader2 } from "@/lib/icons";
 import { motion, AnimatePresence } from "framer-motion";
 
 /**

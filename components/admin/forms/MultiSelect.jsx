@@ -4,7 +4,7 @@
  */
 
 import { useState } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus } from "@/lib/icons";
 
 export function MultiSelect({
   label,

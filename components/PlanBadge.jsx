@@ -1,23 +1,17 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Zap, Star, Crown, ArrowUpRight, TrendingUp, CalendarDays, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 /**
- * PlanBadge
+ * PlanBadge - Classic Edition
  *
  * Shows the user's current plan name + an upgrade dropdown.
- * Used in the dashboard header and AppNavbar.
- *
- * - If `tier` prop is provided (already loaded), uses it directly.
- * - Otherwise fetches /api/user/profile once and caches the result.
- * - Each upgrade tier shows both Monthly and Annual (Activation) options.
- * - Old tier naming (tier1/tier2/tier3) is normalized to starter/growth/scale.
+ * Refined with a structural, rectangular aesthetic.
  */
 
-// Module-level cache — survives re-renders and component remounts within a session
 let tierCache = null;
 
-// Normalize old tier naming to new naming
 const normalizeTier = (t) => {
     const map = { tier1: 'starter', tier2: 'growth', tier3: 'scale' };
     return map[t] || t;
@@ -29,7 +23,7 @@ const PLAN_META = {
         shortLabel: 'Starter',
         icon: Zap,
         color: 'text-cyan',
-        border: 'border-cyan/20',
+        border: 'border-cyan/30',
         bg: 'bg-cyan/5',
         priceMonthly: '$297/mo',
         priceAnnual: '$3,057/yr',
@@ -39,7 +33,7 @@ const PLAN_META = {
         shortLabel: 'Growth',
         icon: Star,
         color: 'text-purple-400',
-        border: 'border-purple-500/20',
+        border: 'border-purple-500/30',
         bg: 'bg-purple-500/10',
         priceMonthly: '$497/mo',
         priceAnnual: '$5,367/yr',
@@ -49,7 +43,7 @@ const PLAN_META = {
         shortLabel: 'Scale',
         icon: Crown,
         color: 'text-amber-400',
-        border: 'border-amber-500/20',
+        border: 'border-amber-500/30',
         bg: 'bg-amber-500/10',
         priceMonthly: '$997/mo',
         priceAnnual: '$10,767/yr',
@@ -57,9 +51,6 @@ const PLAN_META = {
 };
 
 const TIER_ORDER = ['starter', 'growth', 'scale'];
-
-// GHL SaaS Configurator client portal — handles upgrades/downgrades natively.
-// Set NEXT_PUBLIC_GHL_UPGRADE_URL in your .env to your SaaS Configurator portal link.
 const UPGRADE_URL = process.env.NEXT_PUBLIC_GHL_UPGRADE_URL || null;
 
 export default function PlanBadge({ tier: tierProp }) {
@@ -69,7 +60,6 @@ export default function PlanBadge({ tier: tierProp }) {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
-    // Sync tier prop → state + cache
     useEffect(() => {
         if (tierProp) {
             const normalized = normalizeTier(tierProp);
@@ -81,7 +71,6 @@ export default function PlanBadge({ tier: tierProp }) {
             setTier(tierCache);
             return;
         }
-        // Fetch once if no prop and no cache
         fetch('/api/user/profile', { cache: 'no-store' })
             .then((r) => (r.ok ? r.json() : null))
             .then((data) => {
@@ -94,7 +83,6 @@ export default function PlanBadge({ tier: tierProp }) {
             .catch(() => {});
     }, [tierProp]);
 
-    // Click-outside to close dropdown
     useEffect(() => {
         if (!open) return;
         const handler = (e) => {
@@ -104,7 +92,6 @@ export default function PlanBadge({ tier: tierProp }) {
         return () => document.removeEventListener('mousedown', handler);
     }, [open]);
 
-    // Don't render until we know the tier
     if (!tier || !PLAN_META[tier]) return null;
 
     const meta = PLAN_META[tier];
@@ -119,82 +106,81 @@ export default function PlanBadge({ tier: tierProp }) {
         <div ref={ref} className="relative hidden sm:block">
             <button
                 onClick={() => setOpen((o) => !o)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${meta.border} ${meta.bg} hover:opacity-80 transition-opacity`}
+                className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 border transition-all",
+                    meta.border,
+                    meta.bg,
+                    "hover:bg-white/10"
+                )}
             >
-                <Icon className={`w-3.5 h-3.5 ${meta.color}`} />
-                <span className={`text-xs font-bold uppercase tracking-widest ${meta.color}`}>
+                <Icon className={cn("w-3.5 h-3.5", meta.color)} />
+                <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", meta.color)}>
                     {meta.shortLabel}
                 </span>
                 {upgradeOptions.length > 0 && (
-                    <TrendingUp className="w-3 h-3 text-gray-500" />
+                    <TrendingUp className="w-3 h-3 text-gray-600" />
                 )}
             </button>
 
             {open && (
-                <div className="absolute right-0 top-full mt-2 w-72 rounded-2xl bg-[#111113] border border-[#2a2a2d] shadow-2xl z-50 overflow-hidden">
+                <div className="absolute right-0 top-full mt-1 w-72 bg-[#111113] border border-white/10 shadow-2xl z-50 overflow-hidden">
                     {/* Current plan */}
-                    <div className="px-4 py-3 border-b border-[#1f1f22]">
-                        <p className="text-[10px] uppercase tracking-widest text-gray-600 mb-1">Current Plan</p>
+                    <div className="px-5 py-4 border-b border-white/5 bg-white/[0.02]">
+                        <p className="text-[9px] uppercase font-black tracking-[0.2em] text-gray-600 mb-2">Current Status</p>
                         <div className="flex items-center gap-2">
-                            <Icon className={`w-4 h-4 ${meta.color}`} />
-                            <span className="text-sm font-semibold text-white">{meta.label}</span>
-                            <span className={`text-xs ${meta.color} ml-auto`}>{meta.priceMonthly}</span>
+                            <Icon className={cn("w-4 h-4", meta.color)} />
+                            <span className="text-xs font-black uppercase tracking-widest text-white">{meta.label}</span>
                         </div>
                     </div>
 
-                    {/* Upgrade options or top-plan message */}
+                    {/* Upgrade options */}
                     {upgradeOptions.length > 0 ? (
-                        <div className="p-2">
-                            <p className="text-[10px] uppercase tracking-widest text-gray-600 px-2 py-1.5">
-                                Upgrade Plan
+                        <div className="p-1">
+                            <p className="text-[9px] uppercase font-black tracking-[0.2em] text-gray-600 px-4 py-3">
+                                Available Upgrades
                             </p>
                             {upgradeOptions.map((opt) => {
                                 const OptIcon = opt.icon;
                                 return (
-                                    <div key={opt.tier} className="mb-1 last:mb-0">
-                                        {/* Tier header */}
-                                        <div className="flex items-center gap-2 px-3 pt-2 pb-1">
-                                            <div className={`w-6 h-6 rounded-lg ${opt.bg} border ${opt.border} flex items-center justify-center flex-shrink-0`}>
-                                                <OptIcon className={`w-3 h-3 ${opt.color}`} />
-                                            </div>
-                                            <span className={`text-xs font-bold ${opt.color}`}>{opt.label}</span>
+                                    <div key={opt.tier} className="mb-2 last:mb-0 border border-white/5 bg-white/[0.01]">
+                                        <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5">
+                                            <OptIcon className={cn("w-3 h-3", opt.color)} />
+                                            <span className={cn("text-[10px] font-black uppercase tracking-widest", opt.color)}>{opt.label}</span>
                                         </div>
-                                        {/* Monthly option */}
-                                        <button
-                                            type="button"
-                                            onClick={() => UPGRADE_URL && window.open(UPGRADE_URL, '_blank')}
-                                            disabled={!UPGRADE_URL}
-                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2 w-full text-left disabled:opacity-40 disabled:cursor-not-allowed"
-                                        >
-                                            <RefreshCw className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-xs text-gray-300 font-medium">Monthly</span>
-                                                <span className="text-xs text-gray-500 ml-2">{opt.priceMonthly}</span>
-                                            </div>
-                                            <ArrowUpRight className="w-3 h-3 text-gray-600 flex-shrink-0" />
-                                        </button>
-                                        {/* Annual option */}
-                                        <button
-                                            type="button"
-                                            onClick={() => UPGRADE_URL && window.open(UPGRADE_URL, '_blank')}
-                                            disabled={!UPGRADE_URL}
-                                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 transition-colors group ml-2 w-full text-left disabled:opacity-40 disabled:cursor-not-allowed"
-                                        >
-                                            <CalendarDays className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-xs text-gray-300 font-medium">Annual</span>
-                                                <span className="text-xs text-gray-500 ml-2">{opt.priceAnnual}</span>
-                                            </div>
-                                            <ArrowUpRight className="w-3 h-3 text-gray-600 flex-shrink-0" />
-                                        </button>
+                                        <div className="p-1 space-y-1">
+                                            <button
+                                                type="button"
+                                                onClick={() => UPGRADE_URL && window.open(UPGRADE_URL, '_blank')}
+                                                disabled={!UPGRADE_URL}
+                                                className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-white/5 transition-colors disabled:opacity-30"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <RefreshCw className="w-3 h-3 text-gray-600" />
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Monthly</span>
+                                                </div>
+                                                <span className="text-[10px] font-black text-white">{opt.priceMonthly}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => UPGRADE_URL && window.open(UPGRADE_URL, '_blank')}
+                                                disabled={!UPGRADE_URL}
+                                                className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-white/5 transition-colors disabled:opacity-30"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <CalendarDays className="w-3 h-3 text-gray-600" />
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Annual</span>
+                                                </div>
+                                                <span className="text-[10px] font-black text-white">{opt.priceAnnual}</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 );
                             })}
                         </div>
                     ) : (
-                        <div className="px-4 py-3 flex items-center gap-2">
+                        <div className="px-5 py-4 flex items-center gap-2">
                             <Crown className="w-4 h-4 text-amber-400" />
-                            <span className="text-sm text-gray-400">You&apos;re on the highest plan</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Maximum Tier Reached</span>
                         </div>
                     )}
                 </div>

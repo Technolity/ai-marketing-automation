@@ -20,8 +20,9 @@ import {
     Database,
     FolderKanban,
     BadgeCheck,
-    Megaphone
-} from "lucide-react";
+    Megaphone,
+    MessageSquare,
+} from "@/lib/icons";
 import { useAuth } from "@/contexts/AuthContext";
 
 const MENU_ITEMS = [
@@ -35,6 +36,7 @@ const MENU_ITEMS = [
     { href: "/admin/knowledge-base", label: "Knowledge Base", icon: BookOpen },
     { href: "/admin/billing", label: "Billing / Tiers", icon: CreditCard },
     { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
+    { href: "/admin/feedback",     label: "Feedback",      icon: MessageSquare },
     { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

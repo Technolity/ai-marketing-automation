@@ -501,6 +501,7 @@ function FieldEditor({
             const minItems = field_metadata.minItems || 0;
             const maxItems = field_metadata.maxItems || 10;
             const itemType = field_metadata.itemType || 'text';
+            const itemLabel = field_metadata.itemLabel || 'Item';
 
             // Simple text/string array
             if (itemType === 'text') {
@@ -524,7 +525,7 @@ function FieldEditor({
                                                 autoResizeTextarea(e.target, 192);
                                             }}
                                             onBlur={handleBlur}
-                                            placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `Item ${idx + 1}`}
+                                            placeholder={field_metadata.placeholder?.replace('{{index}}', idx + 1) || `${itemLabel} ${idx + 1}`}
                                             maxLength={field_metadata.itemMaxLength}
                                             disabled={readOnly}
                                             style={{ minHeight: '3.5rem', maxHeight: '12rem', height: 'auto' }}
@@ -567,7 +568,7 @@ function FieldEditor({
                             return (
                                 <div key={itemId} className="bg-elevated border border-subtleAlt rounded-xl p-4 space-y-3 relative group">
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="text-sm font-medium text-gray-400">Item {idx + 1}</span>
+                                        <span className="text-sm font-medium text-gray-400">{itemLabel} {idx + 1}</span>
                                         {arrayValue.length > minItems && !readOnly && (
                                             <button
                                                 onClick={() => {
