@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CheckCircle, Clock, TrendingUp, Trash2, Loader2,
-  Download, Clipboard, X, Upload,
+  Download, Clipboard, X, Upload, Sparkles,
 } from "@/lib/icons";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { toast } from "sonner";
@@ -87,6 +87,8 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
   const [copied, setCopied]       = useState(false);
   const [caption, setCaption]     = useState(initialPost.caption);
   const [mounted, setMounted]     = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
+  const [nobgUrl, setNobgUrl]     = useState(null);
   const clicks = getClicks(post.smart_links);
 
   useEffect(() => { setMounted(true); }, []);
@@ -147,6 +149,34 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleRemoveBg = useCallback(async () => {
+    setRemovingBg(true);
+    try {
+      const res = await fetch("/api/daily-leads/remove-bg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: post.image_url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Background removal failed.");
+      setNobgUrl(data.url);
+      toast.success("Background removed!");
+    } catch (err) { toast.error(err.message); }
+    finally { setRemovingBg(false); }
+  }, [post.image_url]);
+
+  const handleDownloadNobg = useCallback(async () => {
+    if (!nobgUrl) return;
+    try {
+      const res = await fetch(nobgUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `post-${post.id.slice(0, 8)}-nobg.png`; a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error("Download failed."); }
+  }, [nobgUrl, post.id]);
+
   // Social posting coming soon — OAuth flows not yet built
 
   const modal = (
@@ -204,23 +234,51 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
 
           {/* Left — Image */}
           <div className="flex flex-col border-b md:border-b-0 md:border-r border-subtle bg-surface">
-            <div className="flex-1 flex items-center justify-center p-4 min-h-[200px] md:min-h-0">
+            <div className="flex-1 flex items-center justify-center p-4 min-h-[200px] md:min-h-0 relative">
+              {nobgUrl && (
+                <span className="absolute top-6 left-6 z-10 text-[9px] font-semibold uppercase tracking-widest bg-cyan/10 border border-cyan/30 text-cyan rounded px-1.5 py-0.5">
+                  No BG
+                </span>
+              )}
               <img
-                src={post.image_url}
+                src={nobgUrl || post.image_url}
                 alt="Post image"
                 className="w-full h-full object-contain rounded-xl"
-                style={{ maxHeight: 420 }}
+                style={{
+                  maxHeight: 420,
+                  backgroundImage: nobgUrl
+                    ? "repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 0 0 / 16px 16px"
+                    : undefined,
+                }}
               />
             </div>
             <div className="px-4 pb-4 flex gap-2 border-t border-subtle pt-3 shrink-0">
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-400 hover:text-gray-200 hover:border-subtleAlt transition-colors cursor-pointer disabled:opacity-40"
+                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-400 hover:text-gray-200 hover:border-subtleAlt transition-colors cursor-pointer disabled:opacity-40"
               >
                 {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                 Download
               </button>
+              {!nobgUrl ? (
+                <button
+                  onClick={handleRemoveBg}
+                  disabled={removingBg}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-400 hover:text-gray-200 hover:border-subtleAlt transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  {removingBg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  {removingBg ? "Removing…" : "Remove BG"}
+                </button>
+              ) : (
+                <button
+                  onClick={handleDownloadNobg}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-cyan/20 bg-cyan/[0.05] text-xs font-medium text-cyan hover:bg-cyan/10 transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  No BG PNG
+                </button>
+              )}
             </div>
           </div>
 

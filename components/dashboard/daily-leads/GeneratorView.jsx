@@ -259,11 +259,15 @@ function EmptyCanvas({ hasContext, noFunnel }) {
 }
 
 function ImageCanvas({ post, onDownload, downloading }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied]       = useState(false);
+  const [removingBg, setRemovingBg] = useState(false);
+  const [nobgUrl, setNobgUrl]     = useState(null);
+
+  const displayUrl = nobgUrl || post.image_url;
 
   const handleCopyImg = async () => {
     try {
-      const res = await fetch(post.image_url);
+      const res = await fetch(displayUrl);
       const blob = await res.blob();
       await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
       setCopied(true);
@@ -274,18 +278,79 @@ function ImageCanvas({ post, onDownload, downloading }) {
     }
   };
 
+  const handleRemoveBg = async () => {
+    setRemovingBg(true);
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/remove-bg", {
+        method: "POST",
+        body: JSON.stringify({ image_url: post.image_url }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setNobgUrl(data.url);
+      toast.success("Background removed!");
+    } catch (err) {
+      toast.error(err.message || "Background removal failed");
+    } finally {
+      setRemovingBg(false);
+    }
+  };
+
+  const handleDownloadNobg = async () => {
+    try {
+      const res = await fetch(nobgUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `post-${post.id.slice(0, 8)}-nobg.png`; a.click();
+      URL.revokeObjectURL(url);
+    } catch { toast.error("Download failed"); }
+  };
+
   return (
     <div className="relative w-full h-full group">
-      <img src={post.image_url} alt="Generated post" className="w-full h-full object-cover" />
-      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-4 gap-2">
+      <img
+        src={displayUrl}
+        alt="Generated post"
+        className="w-full h-full object-cover"
+        style={nobgUrl ? { backgroundImage: "repeating-conic-gradient(#2a2a2a 0% 25%, #1a1a1a 0% 50%)", backgroundSize: "16px 16px" } : {}}
+      />
+
+      {nobgUrl && (
+        <div className="absolute top-3 left-3 flex items-center gap-1 px-2 py-1 rounded-full bg-black/70 border border-cyan/30 text-[9px] font-semibold uppercase tracking-widest text-cyan backdrop-blur-sm">
+          <Sparkles className="w-2.5 h-2.5" /> No BG
+        </div>
+      )}
+
+      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end justify-center pb-4 gap-2 flex-wrap px-4">
         <button
           onClick={onDownload}
           disabled={downloading}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/80 border border-white/15 text-xs font-medium text-white hover:bg-black transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/80 border border-white/15 text-xs font-medium text-white hover:bg-black transition-colors cursor-pointer disabled:opacity-40"
         >
           {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
           Download
         </button>
+
+        {nobgUrl ? (
+          <button
+            onClick={handleDownloadNobg}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan/20 border border-cyan/30 text-xs font-medium text-cyan hover:bg-cyan/30 transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            No BG PNG
+          </button>
+        ) : (
+          <button
+            onClick={handleRemoveBg}
+            disabled={removingBg}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/80 border border-white/15 text-xs font-medium text-white hover:bg-black transition-colors cursor-pointer disabled:opacity-40"
+          >
+            {removingBg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            {removingBg ? "Removing…" : "Remove BG"}
+          </button>
+        )}
+
         <button
           onClick={handleCopyImg}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/80 border border-white/15 text-xs font-medium text-white hover:bg-black transition-colors cursor-pointer"
@@ -294,6 +359,7 @@ function ImageCanvas({ post, onDownload, downloading }) {
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
+
       {post.status === "posted" && (
         <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 border border-white/15 text-[10px] font-medium text-white backdrop-blur-sm">
           <CheckCircle className="w-3 h-3 text-cyan" />
@@ -456,7 +522,7 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
   const [loadingCtx, setLoadingCtx]           = useState(false);
   const [downloading, setDownloading]         = useState(false);
   const [userDescription, setUserDescription] = useState("");
-  const [selectedModel, setSelectedModel]     = useState("dall-e-3");
+  const [selectedModel, setSelectedModel]     = useState("nano-banana");
   const [selectedStyles, setSelectedStyles]   = useState([]);
   const [postType, setPostType]               = useState("free_gift");
   const [aspectRatio, setAspectRatio]         = useState("1024x1024");
