@@ -57,17 +57,19 @@ async function getVaultContext(userId, funnelId = null) {
       .maybeSingle();
   };
 
-  const [leadMagnetResult, idealClientResult, messageResult, mediaResult] = await Promise.all([
+  const [leadMagnetResult, idealClientResult, messageResult, mediaResult, colorsResult] = await Promise.all([
     sectionQuery('leadMagnet'),
     sectionQuery('idealClient'),
     sectionQuery('message'),
     sectionQuery('media'),
+    sectionQuery('colors'),
   ]);
 
   const leadMagnet = leadMagnetResult.data?.content;
   const idealClient = idealClientResult.data?.content;
   const message = messageResult.data?.content;
   const media = mediaResult.data?.content;
+  const colors = colorsResult.data?.content;
 
   const freeGiftName =
     leadMagnet?.leadMagnet?.concept?.title ||
@@ -111,6 +113,26 @@ async function getVaultContext(userId, funnelId = null) {
     media?.logo_url ||
     media?.logo?.logo_url ||
     null;
+  const authorPhotoUrl =
+    media?.author_photo_url ||
+    media?.bio_author?.author_photo_url ||
+    null;
+
+  // Brand colors from vault
+  const colorPalette = colors?.colorPalette || null;
+  const brandAccent = colorPalette?.primary || null;
+  const brandSecondary = colorPalette?.secondary || null;
+
+  // Funnel name
+  let funnelName = null;
+  if (resolvedFunnelId) {
+    const { data: funnelData } = await supabaseAdmin
+      .from('user_funnels')
+      .select('funnel_name')
+      .eq('id', resolvedFunnelId)
+      .maybeSingle();
+    funnelName = funnelData?.funnel_name || null;
+  }
 
   return {
     funnelId: resolvedFunnelId,
@@ -120,6 +142,10 @@ async function getVaultContext(userId, funnelId = null) {
     transformation,
     productImageUrl,
     logoUrl,
+    authorPhotoUrl,
+    brandAccent,
+    brandSecondary,
+    funnelName,
   };
 }
 
@@ -298,6 +324,124 @@ async function generateCaptionGemini(ctx, keyword) {
     'Do NOT include hashtags. Do NOT use emojis. Return only the caption text.'
   );
   return result.response.text().trim();
+}
+
+// ─── Fetch remote image as base64 (for vault reference images) ───────────────
+
+async function fetchImageAsBase64(url) {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const contentType = (res.headers.get('content-type') || 'image/png').split(';')[0];
+    return { mimeType: contentType, base64: buffer.toString('base64') };
+  } catch {
+    return null;
+  }
+}
+
+// ─── Nano Banana prompt (full book cover — AI renders text + visuals) ─────────
+
+function buildNanoBananaPrompt(copy, ctx, styleTags, postType = 'free_gift', refinementFeedback = null, refImageLabels = []) {
+  const accentColor    = ctx.brandAccent   || '#CC0000';
+  const secondaryColor = ctx.brandSecondary || null;
+  const brandName      = ctx.funnelName || ctx.niche || 'Expert';
+  const freeGiftName   = ctx.freeGiftName || 'Free Guide';
+  const niche          = ctx.niche || 'business coaching';
+  const topBadgeText   = postType === 'free_gift' ? 'FREE GUIDE' : 'TIPS & STRATEGY';
+
+  // Background: very dark near-black with subtle brand undertone
+  const bgDescription = secondaryColor
+    ? `Very dark near-black base (#0a0a0a) with a very subtle ${secondaryColor} undertone`
+    : `Very dark near-black base (#0D0D0D) with a faint ${accentColor} warmth at the edges`;
+
+  // Spine (right side): secondary brand color or darker shade of accent
+  const spineDescription = secondaryColor
+    ? `Right spine color: deep ${secondaryColor}, slightly lighter than the front cover`
+    : `Right spine color: dark ${accentColor} at 30% opacity, just distinguishable from the cover`;
+
+  // Hero graphic: use AI-generated scene description from Step 1 if available,
+  // otherwise derive from vault context
+  const heroDescription = copy.background_prompt
+    ? `${copy.background_prompt}
+- Light rays and glow in ${accentColor} emanate from behind/beneath the hero object
+- Hero sits in the bottom 35% of the cover with clear dark space above it for text`
+    : `A cinematic, photorealistic hero object or scene that directly represents "${freeGiftName}" for the ${niche} market
+- High-end studio photography aesthetic with ${accentColor} accent lighting
+- Object sits in the bottom 35% of the cover, leaving the upper portion clean for headline text`;
+
+  // Style tags woven into the visual specification, not appended as an afterthought
+  const styleSpec = styleTags.length > 0
+    ? `Visual style modifiers to apply throughout: ${styleTags.join(', ')}.`
+    : 'Visual style: dark premium editorial aesthetic.';
+
+  return `A realistic 3D hardcover book mockup, ultra-realistic rendering, high detail, sharp focus, professional product mockup style. Aspect ratio 2:3 portrait.
+
+ORIENTATION & CAMERA:
+- Book standing upright, slightly angled to the right at 10–20 degrees
+- Full front cover visible with the spine thickness clearly showing on the RIGHT side
+- Perspective view — NOT flat. Camera positioned at eye level with a slight top-down tilt
+- Centered framing: full book visible with small equal margins on all sides
+- DO NOT crop the book, DO NOT show it floating in mid-air at a dramatic angle
+
+SURFACE & BACKGROUND:
+- Book sits on a dark surface with a soft drop shadow beneath it, creating a subtle grounded effect
+- Background: smooth dark gradient from near-black to deep ${accentColor || '#8B0000'}, with soft ${accentColor || '#CC0000'} glow accents and faint diagonal light streaks
+- No distracting elements — background is atmospheric only
+
+LIGHTING:
+- Cinematic directional lighting from upper-left
+- Soft highlights along the top edge and right spine edge of the book
+- Subtle reflections on the cover surface to emphasize depth and realism
+- ${accentColor || '#CC0000'} colored rim light on the spine edge
+- ${styleSpec}
+
+CONTENT TO DISPLAY:
+
+Top Badge: ${topBadgeText}
+Headline: ${copy.headline}
+Subheadline: ${copy.subheadline}
+Brand Name: ${brandName}
+
+DESIGN RULES FOR THE TOP BADGE:
+- Small thin-bordered rectangular label at the very top of the cover
+- Text in white, all caps, small tracking — same style as the reference image badge
+
+DESIGN RULES FOR THE HEADLINE:
+- Break the headline across 2-3 lines naturally
+- The single most powerful or emotional word/phrase goes on its own line in ${accentColor}
+- All other headline text is white
+- Font: extra-bold condensed, takes up the top 40–50% of the cover below the badge
+
+DESIGN RULES FOR THE SUBHEADLINE:
+- Displayed in the center zone in off-white/light gray
+- Elegant smaller font beneath a thin glowing ${accentColor} horizontal divider line
+
+COLORS:
+- Cover background: ${bgDescription}
+- Primary accent: ${accentColor} — used for headline word, divider line, and edge glow
+- ${spineDescription}
+- Atmospheric glow: ${accentColor} radiating upward from the bottom center of the cover
+
+FOREGROUND COMPOSITION ON THE COVER:
+- ${heroDescription}
+- All foreground elements are cleanly arranged, balanced, and centered on the lower half of the cover
+- Depth layering: foreground objects overlap slightly to create a 3D layered effect
+- Objects are realistically lit matching the cover lighting — no flat or cartoon rendering
+
+BRAND NAME:
+- Displayed at the very bottom center of the cover in large white bold text
+- Subtle ${accentColor} underline or glow beneath the brand name
+
+STYLE: Dark, cinematic, premium, high-contrast. Photorealistic 3D render. No flat design.${
+  refImageLabels.length > 0
+    ? `\n\nREFERENCE IMAGES ATTACHED — ${refImageLabels.length} image${refImageLabels.length > 1 ? 's are' : ' is'} provided alongside this prompt. You MUST use them as specified:\n${refImageLabels.map((label, i) => `- Image ${i + 1}: ${label}`).join('\n')}`
+    : ''
+}${
+  refinementFeedback
+    ? `\n\nREFINEMENT INSTRUCTIONS: The first reference image is the PREVIOUS VERSION of this design. Preserve everything that looks good. Apply ONLY these specific changes: "${refinementFeedback}"`
+    : ''
+}`;
 }
 
 // ─── Pipeline Step 2: Build background image prompt ──────────────────────────
@@ -521,9 +665,16 @@ async function compositeImage(bgBuffer, copy, size, postType, productImageUrl) {
 
 // ─── Gemini image generation ──────────────────────────────────────────────────
 
-async function generateWithGemini(prompt) {
+async function generateWithGemini(prompt, referenceImages = []) {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error('Gemini API key not configured');
+  }
+
+  const parts = [{ text: prompt }];
+  for (const img of referenceImages) {
+    if (img?.base64 && img?.mimeType) {
+      parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+    }
   }
 
   const response = await fetch(
@@ -535,7 +686,7 @@ async function generateWithGemini(prompt) {
         'x-goog-api-key': process.env.GEMINI_API_KEY,
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ parts }],
       }),
     }
   );
@@ -560,8 +711,8 @@ async function generateWithGemini(prompt) {
     });
   }
 
-  const parts = payload?.candidates?.[0]?.content?.parts ?? [];
-  for (const part of parts) {
+  const responseParts = payload?.candidates?.[0]?.content?.parts ?? [];
+  for (const part of responseParts) {
     const base64 =
       part?.inlineData?.data || part?.inline_data?.data;
     const mimeType =
@@ -572,7 +723,7 @@ async function generateWithGemini(prompt) {
     if (base64) return { buffer: Buffer.from(base64, 'base64'), mimeType: mimeType || 'image/png' };
   }
 
-  const textOnly = parts
+  const textOnly = responseParts
     .map(p => p?.text)
     .filter(Boolean)
     .join(' ')
@@ -685,6 +836,48 @@ export async function POST(req) {
 
     const openai = isNanoBanana ? null : getOpenAIClient();
 
+    // ── Reference images (nano-banana only) ──────────────────────────────────
+    // Merge user-uploaded reference images with vault media images fetched server-side
+    const isRefinement     = body.is_refinement === true;
+    const previousImageUrl = typeof body.previous_image_url === 'string' ? body.previous_image_url : null;
+    const userRefImages    = Array.isArray(body.reference_images) ? body.reference_images : [];
+    let allRefImages  = [];
+    let refImageLabels = []; // parallel array — same index as allRefImages, tells the model what each image is
+
+    if (isNanoBanana) {
+      // Previous image (refinement) — comes first so model sees it as the baseline to improve
+      const prevImg = (isRefinement && previousImageUrl) ? await fetchImageAsBase64(previousImageUrl) : null;
+      if (prevImg) {
+        allRefImages.push(prevImg);
+        refImageLabels.push('PREVIOUS VERSION of this design — study it carefully, keep what worked, apply only the requested changes');
+      }
+
+      // Vault images — fetched in a known order so labels match
+      const vaultSlots = [
+        { url: vaultCtx.logoUrl,        label: 'Brand logo — render this exact logo on the book cover instead of plain text for the brand name (place it at the bottom of the cover, centered)' },
+        { url: vaultCtx.authorPhotoUrl, label: 'Author/expert headshot — do NOT place on the front cover; use for brand style reference only' },
+        { url: vaultCtx.productImageUrl,label: 'Product or guide cover image — use as the hero visual in the bottom third of the book cover' },
+      ];
+      for (const slot of vaultSlots) {
+        if (!slot.url) continue;
+        const img = await fetchImageAsBase64(slot.url);
+        if (img) { allRefImages.push(img); refImageLabels.push(slot.label); }
+      }
+
+      // User-uploaded images — user describes their purpose in the text prompt
+      for (const img of userRefImages) {
+        if (img?.base64 && img?.mimeType) {
+          allRefImages.push(img);
+          refImageLabels.push(`User-provided reference image ("${img.name || 'image'}") — incorporate exactly as described by the user in the prompt above`);
+        }
+      }
+    }
+
+    // For refinements: annotate the user description so copy generation knows the context
+    const effectiveDescription = isRefinement && userDescription
+      ? `REFINEMENT — keep what worked in the previous version, apply these specific changes: ${userDescription}`
+      : userDescription;
+
     let imageUrl = null;
     let caption  = null;
     let imageGenerated = false;
@@ -692,18 +885,20 @@ export async function POST(req) {
     try {
       // ── STEP 1: Generate structured copy (headline, subheadline, cta, badge, bg prompt) ──
       const copy = isNanoBanana
-        ? await generateCopyGemini(vaultCtx, postType, userDescription)
-        : await generateCopy(openai, vaultCtx, postType, userDescription);
+        ? await generateCopyGemini(vaultCtx, postType, effectiveDescription)
+        : await generateCopy(openai, vaultCtx, postType, effectiveDescription);
 
-      // ── STEP 2: Generate background image (AI — pure visuals, zero text) ──
-      const hasProductImage = !!vaultCtx.productImageUrl;
-      const bgPrompt = buildBackgroundPrompt(copy, vaultCtx, styleTags, hasProductImage);
+      // ── STEP 2: Generate image ────────────────────────────────────────────
       let bgBuffer;
 
       if (isNanoBanana) {
-        const { buffer } = await generateWithGemini(bgPrompt);
+        // Full book cover rendered by AI — no compositing needed
+        const imgPrompt = buildNanoBananaPrompt(copy, vaultCtx, styleTags, postType, isRefinement && previousImageUrl ? userDescription : null, refImageLabels);
+        const { buffer } = await generateWithGemini(imgPrompt, allRefImages);
         bgBuffer = buffer;
       } else {
+        const hasProductImage = !!vaultCtx.productImageUrl;
+        const bgPrompt = buildBackgroundPrompt(copy, vaultCtx, styleTags, hasProductImage);
         const imageGenParams = {
           model,
           prompt: bgPrompt,
@@ -721,8 +916,10 @@ export async function POST(req) {
         bgBuffer = Buffer.from(await fetch(tempUrl).then(r => r.arrayBuffer()));
       }
 
-      // ── STEP 3: Composite — sharp overlays SVG text onto the background PNG ──
-      const finalBuffer = await compositeImage(bgBuffer, copy, size, postType, vaultCtx.productImageUrl);
+      // ── STEP 3: Composite SVG text overlay (DALL-E only — Nano Banana renders full image) ──
+      const finalBuffer = isNanoBanana
+        ? bgBuffer
+        : await compositeImage(bgBuffer, copy, size, postType, vaultCtx.productImageUrl);
 
       // ── Upload final composited image to Supabase storage ──
       const filename = `${workspaceId}/${Date.now()}-${model}.png`;

@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Sparkles, Zap, Download, Clipboard, CheckCircle, AlertCircle,
+  Sparkles, Download, Clipboard, CheckCircle, AlertCircle,
   Loader2, RefreshCw, ChevronDown, Rocket, ImageAdd, X, ArrowUp,
 } from "@/lib/icons";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -307,41 +307,23 @@ function ImageCanvas({ post, onDownload, downloading }) {
 // ─── CaptionPanel ─────────────────────────────────────────────────────────────
 
 function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset }) {
-  const [caption, setCaption] = useState(post.caption);
-  const [copied, setCopied] = useState(false);
-  const [smartLink, setSmartLink] = useState(null);
-  const [showLinkInput, setShowLinkInput] = useState(false);
-  const [destUrl, setDestUrl] = useState("");
-  const [creatingLink, setCreatingLink] = useState(false);
+  const [caption, setCaption]       = useState(post.caption);
+  const [copied, setCopied]         = useState(false);
+  const [feedbackMode, setFeedbackMode] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
 
   const handleCopy = async () => {
-    const text = smartLink ? `${caption}\n\n${smartLink}` : caption;
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(caption);
     setCopied(true);
-    toast.success(smartLink ? "Caption + link copied!" : "Caption copied!");
+    toast.success("Caption copied!");
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handleSmartLink = async () => {
-    if (!destUrl.trim()) { setShowLinkInput(true); return; }
-    setCreatingLink(true);
-    try {
-      const res = await fetchWithAuth("/api/smart-links/create", {
-        method: "POST",
-        body: JSON.stringify({ destination_url: destUrl.trim(), post_id: post.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setSmartLink(data.short_url);
-      await navigator.clipboard.writeText(`${caption}\n\n${data.short_url}`);
-      setCopied(true);
-      toast.success("Caption + smart link copied!");
-      setTimeout(() => setCopied(false), 3000);
-    } catch (err) {
-      toast.error(err.message || "Failed to create smart link");
-    } finally {
-      setCreatingLink(false);
-    }
+  const handleSubmitFeedback = () => {
+    if (!feedbackText.trim()) { toast.error("Describe what you'd like to change."); return; }
+    setFeedbackMode(false);
+    onRefine(feedbackText.trim());
+    setFeedbackText("");
   };
 
   return (
@@ -355,35 +337,8 @@ function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset }) {
         value={caption}
         onChange={e => setCaption(e.target.value)}
         rows={4}
-        className="w-full px-3 py-2.5 rounded-lg bg-surface border border-subtle text-xs text-gray-200 leading-relaxed resize-none focus:outline-none focus:border-subtleAlt transition-colors mb-3 placeholder-gray-700"
+        className="w-full px-3 py-2.5 rounded-lg bg-surface border border-subtle text-xs text-gray-200 leading-relaxed resize-none focus:outline-none focus:border-subtleAlt transition-colors mb-3"
       />
-
-      <AnimatePresence>
-        {showLinkInput && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mb-3 overflow-hidden"
-          >
-            <input
-              type="url"
-              value={destUrl}
-              onChange={e => setDestUrl(e.target.value)}
-              placeholder="https://your-funnel-link.com"
-              className="w-full px-3 py-2 rounded-lg bg-surface border border-subtle text-xs text-white placeholder-gray-700 focus:outline-none focus:border-subtleAlt transition-colors"
-            />
-            <p className="text-[9px] text-gray-700 mt-1">Becomes a trackable smart link.</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {smartLink && (
-        <div className="flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-lg bg-charcoal border border-subtle">
-          <div className="w-1.5 h-1.5 rounded-full bg-cyan shrink-0" />
-          <span className="text-[10px] text-gray-400 font-mono truncate">{smartLink}</span>
-        </div>
-      )}
 
       {quota && (
         <div className="flex items-center gap-2 mb-3">
@@ -397,44 +352,93 @@ function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset }) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-1.5">
-        {[
-          {
-            onClick: handleCopy,
-            icon: copied ? <CheckCircle className="w-3.5 h-3.5 text-cyan" /> : <Clipboard className="w-3.5 h-3.5" />,
-            label: copied ? "Copied" : "Copy Caption",
-          },
-          {
-            onClick: smartLink ? handleCopy : handleSmartLink,
-            disabled: creatingLink,
-            icon: creatingLink ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />,
-            label: smartLink ? "Copy + Link" : "Smart Link",
-          },
-          {
-            onClick: onRefine,
-            icon: <RefreshCw className="w-3.5 h-3.5" />,
-            label: "Regenerate",
-            accent: true,
-          },
-          post.status !== "posted"
-            ? { onClick: () => onMarkPosted(post.id), icon: <CheckCircle className="w-3.5 h-3.5" />, label: "Mark Posted" }
-            : { onClick: onReset, icon: <Sparkles className="w-3.5 h-3.5" />, label: "New Post" },
-        ].map((btn, i) => (
-          <button
-            key={i}
-            onClick={btn.onClick}
-            disabled={btn.disabled}
-            className={`flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium transition-colors duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              btn.accent
-                ? "border-cyan/20 bg-cyan/[0.05] text-cyan hover:bg-cyan/10"
-                : "border-subtle bg-charcoal text-gray-400 hover:text-gray-200 hover:border-subtleAlt hover:bg-elevated"
-            }`}
+      <AnimatePresence mode="wait">
+        {feedbackMode ? (
+          <motion.div
+            key="feedback"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.15 }}
+            className="space-y-2"
           >
-            {btn.icon}
-            {btn.label}
-          </button>
-        ))}
-      </div>
+            <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-500">
+              What would you like to change?
+            </p>
+            <textarea
+              value={feedbackText}
+              onChange={e => setFeedbackText(e.target.value)}
+              autoFocus
+              rows={3}
+              onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmitFeedback(); }}
+              placeholder="e.g. Make the headline more urgent, use a darker background, show a laptop instead of the current object, fix the orientation..."
+              className="w-full px-3 py-2.5 rounded-lg bg-surface border border-subtle text-xs text-gray-200 leading-relaxed resize-none focus:outline-none focus:border-subtleAlt transition-colors placeholder-gray-700"
+            />
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => { setFeedbackMode(false); setFeedbackText(""); }}
+                className="flex-1 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-500 hover:text-gray-300 hover:border-subtleAlt transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitFeedback}
+                disabled={!feedbackText.trim()}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-cyan/20 bg-cyan/[0.05] text-xs font-medium text-cyan hover:bg-cyan/10 transition-colors cursor-pointer disabled:opacity-40"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Regenerate
+              </button>
+            </div>
+            <p className="text-[9px] text-gray-700 text-center">
+              Ctrl+Enter to submit · Previous image used as reference
+            </p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="actions"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="grid grid-cols-2 gap-1.5"
+          >
+            <button
+              onClick={handleCopy}
+              className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-400 hover:text-gray-200 hover:border-subtleAlt hover:bg-elevated transition-colors cursor-pointer"
+            >
+              {copied ? <CheckCircle className="w-3.5 h-3.5 text-cyan" /> : <Clipboard className="w-3.5 h-3.5" />}
+              {copied ? "Copied" : "Copy Caption"}
+            </button>
+
+            <button
+              onClick={() => setFeedbackMode(true)}
+              className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-cyan/20 bg-cyan/[0.05] text-xs font-medium text-cyan hover:bg-cyan/10 transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Regenerate
+            </button>
+
+            {post.status !== "posted" ? (
+              <button
+                onClick={() => onMarkPosted(post.id)}
+                className="col-span-2 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-400 hover:text-gray-200 hover:border-subtleAlt hover:bg-elevated transition-colors cursor-pointer"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Mark Posted
+              </button>
+            ) : (
+              <button
+                onClick={onReset}
+                className="col-span-2 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-400 hover:text-gray-200 hover:border-subtleAlt hover:bg-elevated transition-colors cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                New Post
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -456,8 +460,15 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
   const [selectedStyles, setSelectedStyles]   = useState([]);
   const [postType, setPostType]               = useState("free_gift");
   const [aspectRatio, setAspectRatio]         = useState("1024x1024");
+  const [referenceImages, setReferenceImages] = useState([]);
 
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Cleanup preview object URLs on unmount
+  useEffect(() => {
+    return () => { referenceImages.forEach(img => URL.revokeObjectURL(img.preview)); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (funnels.length > 0 && !selectedFunnelId) setSelectedFunnelId(funnels[0].id);
@@ -487,6 +498,33 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
       prev.includes(tag) ? prev.filter(t => t !== tag) : prev.length < 4 ? [...prev, tag] : prev
     );
 
+  const handleRefImageUpload = useCallback(async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const slots = 4 - referenceImages.length;
+    const toProcess = files.slice(0, slots);
+    const processed = await Promise.all(
+      toProcess.map(file => new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const [header, base64] = ev.target.result.split(',');
+          const mimeType = header.match(/:(.*?);/)[1];
+          resolve({ name: file.name, mimeType, base64, preview: URL.createObjectURL(file) });
+        };
+        reader.readAsDataURL(file);
+      }))
+    );
+    setReferenceImages(prev => [...prev, ...processed]);
+    e.target.value = '';
+  }, [referenceImages.length]);
+
+  const removeRefImage = useCallback((index) => {
+    setReferenceImages(prev => {
+      URL.revokeObjectURL(prev[index]?.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
+
   const stepForward = useCallback(() => {
     let i = 0;
     const timer = setInterval(() => { i++; setStepIndex(i); if (i >= 4) clearInterval(timer); }, 1800);
@@ -508,6 +546,7 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
           style_tags: selectedStyles,
           user_description: userDescription.trim() || undefined,
           keyword: postType === "free_gift" ? "GUIDE" : "TIPS",
+          reference_images: referenceImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
         }),
       });
       const data = await res.json();
@@ -554,6 +593,43 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
     } catch { toast.error("Download failed"); }
     finally { setDownloading(false); }
   };
+
+  const refine = useCallback(async (feedbackText) => {
+    setGenerating(true);
+    setStepIndex(0);
+    const timer = stepForward();
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          funnel_id: selectedFunnelId,
+          post_type: postType,
+          model: selectedModel,
+          aspect_ratio: aspectRatio,
+          style_tags: selectedStyles,
+          user_description: feedbackText,
+          keyword: postType === "free_gift" ? "GUIDE" : "TIPS",
+          reference_images: referenceImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
+          is_refinement: true,
+          previous_image_url: post?.image_url || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Regeneration failed");
+        return;
+      }
+      setPost(data.post);
+      setQuota(data.quota);
+      onPostCreated?.(data.post);
+      toast.success("Post updated!");
+    } catch {
+      toast.error("Something went wrong. Try again.");
+    } finally {
+      clearInterval(timer);
+      setGenerating(false);
+    }
+  }, [selectedFunnelId, postType, selectedModel, aspectRatio, selectedStyles, referenceImages, stepForward, onPostCreated, post]);
 
   const canGenerate = !generating && !!selectedFunnelId && !missingVault && !loadingCtx;
   const selectedFunnel = funnels.find(f => f.id === selectedFunnelId);
@@ -665,7 +741,33 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
 
         {/* Chat Input */}
         <div className="border-t border-subtle p-3 rounded-b-2xl">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleRefImageUpload}
+          />
+
           <div className="rounded-xl border border-subtle bg-surface overflow-hidden focus-within:border-subtleAlt transition-colors duration-150">
+            {/* Reference image thumbnails */}
+            {referenceImages.length > 0 && (
+              <div className="flex items-center gap-2 px-3 pt-2.5 flex-wrap">
+                {referenceImages.map((img, i) => (
+                  <div key={i} className="relative w-9 h-9 rounded-md overflow-hidden border border-subtle shrink-0 group/thumb">
+                    <img src={img.preview} alt={img.name} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => removeRefImage(i)}
+                      className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover/thumb:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <X className="w-3 h-3 text-white" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <textarea
               ref={textareaRef}
               value={userDescription}
@@ -683,6 +785,20 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
             <div className="flex items-center justify-between px-3 pb-2.5 pt-1 gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <ModelDropdown selected={selectedModel} onSelect={setSelectedModel} />
+
+                {/* Reference image upload — shown for Nano Banana */}
+                {selectedModel === "nano-banana" && referenceImages.length < 4 && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Add reference images (logo, author photo, etc.)"
+                    className="flex items-center gap-1 px-1.5 py-1 rounded-md border border-subtle bg-charcoal text-gray-500 hover:text-gray-300 hover:border-subtleAlt transition-colors cursor-pointer"
+                  >
+                    <ImageAdd className="w-3 h-3" />
+                    <span className="text-[9px] font-medium">
+                      {referenceImages.length > 0 ? `${referenceImages.length}/4` : "Refs"}
+                    </span>
+                  </button>
+                )}
                 {selectedStyles.length > 0 && (
                   <div className="flex items-center gap-1 overflow-hidden">
                     {selectedStyles.slice(0, 2).map(s => (
@@ -710,7 +826,9 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
             </div>
           </div>
           <p className="text-[9px] text-gray-700 mt-1.5 text-center">
-            Ctrl+Enter · Vault context applied automatically
+            {selectedModel === "nano-banana"
+              ? "Ctrl+Enter · Brand colors & vault media auto-included"
+              : "Ctrl+Enter · Vault context applied automatically"}
           </p>
         </div>
       </div>
@@ -790,7 +908,7 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
             post={post}
             quota={quota}
             onMarkPosted={handleMarkPosted}
-            onRefine={generate}
+            onRefine={refine}
             onReset={() => setPost(null)}
           />
         )}
