@@ -158,7 +158,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
         const res = await fetchWithAuth(endpoint, {
           method: "POST",
           body: JSON.stringify({
-            image_url: post.image_url,
+            imageUrl: post.image_url,
             caption: caption + (hashtags[platform] ? `\n\n${hashtags[platform]}` : ""),
             daily_post_id: post.id,
           }),
