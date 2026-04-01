@@ -41,7 +41,7 @@ const PLATFORMS = [
     ),
   },
   {
-    id: "twitter",
+    id: "x",
     label: "X (Twitter)",
     limit: 280,
     color: "text-gray-300",
@@ -90,15 +90,15 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
 
   // ── Load connected accounts ───────────────────────────────────────────────
   useEffect(() => {
-    fetchWithAuth("/api/social/accounts")
+    fetchWithAuth("/api/social/connected-accounts")
       .then(r => r.json())
       .then(data => {
-        if (data.profiles) {
-          setAccounts(data.profiles);
-          setBufferConnected(data.connected);
+        if (data.connected) {
+          setAccounts(data.connected);
+          setBufferConnected(data.connected.length > 0);
           // Auto-select all connected platforms if none pre-selected
           if (!initialPlatforms.length) {
-            setSelectedPlatforms(data.profiles.map(p => p.service));
+            setSelectedPlatforms(data.connected);
           }
         }
       })
@@ -126,8 +126,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
 
   // ── Toggle platform ───────────────────────────────────────────────────────
   const togglePlatform = useCallback((id) => {
-    const connected = accounts.map(a => a.service);
-    if (!connected.includes(id)) return; // can't select unconnected platform
+    if (!accounts.includes(id)) return; // can't select unconnected platform
     setSelectedPlatforms(prev =>
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
     );
@@ -140,50 +139,71 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
       return;
     }
     setSubmitting(true);
-    try {
-      const res = await fetchWithAuth("/api/social/post", {
-        method: "POST",
-        body: JSON.stringify({
-          image_url:    post.image_url,
-          caption,
-          platforms:    selectedPlatforms,
-          daily_post_id: post.id,
-          hashtags,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
+    const results = [];
+    const errors = [];
 
-      if (!res.ok) {
-        if (data.code === "buffer_not_connected" || data.code === "buffer_expired") {
-          toast.error(data.error, {
-            action: {
-              label: "Reconnect",
-              onClick: () => { window.location.href = "/api/auth/buffer/login"; },
-            },
-          });
-        } else {
-          toast.error(data.error || "Failed to post. Please try again.");
+    for (const platform of selectedPlatforms) {
+      try {
+        const endpoint = {
+          x: "/api/social/post-x",
+          instagram: "/api/social/post-instagram",
+          facebook: "/api/social/post-facebook",
+        }[platform];
+
+        if (!endpoint) {
+          errors.push(`Unknown platform: ${platform}`);
+          continue;
         }
-        return;
-      }
 
+        const res = await fetchWithAuth(endpoint, {
+          method: "POST",
+          body: JSON.stringify({
+            image_url: post.image_url,
+            caption: caption + (hashtags[platform] ? `\n\n${hashtags[platform]}` : ""),
+            daily_post_id: post.id,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          if (data.code === "x_not_connected" || data.code === "instagram_not_connected" || data.code === "facebook_not_connected") {
+            errors.push(`${platform.charAt(0).toUpperCase() + platform.slice(1)} account not connected`);
+          } else {
+            errors.push(data.error || `Failed to post to ${platform}`);
+          }
+        } else {
+          results.push(platform);
+        }
+      } catch (err) {
+        errors.push(`${platform}: ${err.message}`);
+      }
+    }
+
+    setSubmitting(false);
+
+    if (results.length > 0) {
       toast.success(
-        `Posted to ${selectedPlatforms.length} platform${selectedPlatforms.length > 1 ? "s" : ""}!`
+        `Posted to ${results.length} platform${results.length > 1 ? "s" : ""}!`
       );
-      onPosted?.(data.post);
+      onPosted?.({ ...post, status: "posted" });
       onClose();
-    } catch {
+    }
+
+    if (errors.length > 0) {
+      errors.forEach(error => toast.error(error));
+    }
+
+    if (results.length === 0 && errors.length === 0) {
       toast.error("Something went wrong. Please try again.");
-    } finally {
-      setSubmitting(false);
     }
   };
 
   // ── Character count helpers ────────────────────────────────────────────────
   const twitterLimit = 280;
-  const overTwitterLimit = selectedPlatforms.includes("twitter") && caption.length > twitterLimit;
+  const overTwitterLimit = selectedPlatforms.includes("x") && caption.length > twitterLimit;
 
-  const connectedServices = new Set(accounts.map(a => a.service));
+  const connectedServices = new Set(accounts);
 
   // ─── Modal JSX ─────────────────────────────────────────────────────────────
   const modal = (
@@ -212,7 +232,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
         <div className="flex items-center justify-between px-5 py-4 border-b border-subtle shrink-0">
           <div>
             <h3 className="text-sm font-bold text-white">Post to Social</h3>
-            <p className="text-[10px] text-gray-600 mt-0.5">Publish to your connected accounts via Buffer</p>
+            <p className="text-[10px] text-gray-600 mt-0.5">Publish to X, Instagram, and Facebook</p>
           </div>
           <button
             onClick={onClose}
@@ -224,21 +244,15 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
-          {/* Buffer not connected state */}
+          {/* No accounts connected state */}
           {!loadingAccounts && !bufferConnected && (
             <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 flex items-start gap-3">
               <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-semibold text-amber-400">Buffer not connected</p>
+                <p className="text-xs font-semibold text-amber-400">No social accounts connected</p>
                 <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                  Connect your Buffer account to post directly to Twitter, Instagram, and Facebook.
+                  Connect your X, Instagram, and Facebook accounts from the dashboard to post.
                 </p>
-                <button
-                  onClick={() => { window.location.href = "/api/auth/buffer/login"; }}
-                  className="mt-2 text-[11px] font-semibold text-cyan hover:text-white transition-colors cursor-pointer"
-                >
-                  Connect Buffer →
-                </button>
               </div>
             </div>
           )}
@@ -296,11 +310,6 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
                   );
                 })}
               </div>
-            )}
-            {!loadingAccounts && accounts.length === 0 && bufferConnected && (
-              <p className="text-[11px] text-gray-600 mt-2">
-                No profiles found. Try disconnecting and reconnecting your Buffer account.
-              </p>
             )}
           </div>
 
@@ -364,7 +373,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
         <div className="border-t border-subtle px-5 py-4 shrink-0 space-y-2">
           {!bufferConnected && !loadingAccounts && (
             <p className="text-[10px] text-gray-600 text-center">
-              Connect Buffer first to enable posting.
+              Connect social accounts first to enable posting.
             </p>
           )}
           <button

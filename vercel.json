@@ -15,10 +15,6 @@
         {
             "path": "/api/cron/check-subscriptions",
             "schedule": "0 2 * * *"
-        },
-        {
-            "path": "/api/cron/sync-buffer",
-            "schedule": "0 */4 * * *"
         }
     ],
     "functions": {

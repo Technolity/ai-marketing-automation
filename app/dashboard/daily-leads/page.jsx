@@ -6,7 +6,6 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { toast } from "sonner";
 import GeneratorView from "@/components/dashboard/daily-leads/GeneratorView";
 import HistoryList from "@/components/dashboard/daily-leads/HistoryList";
-import BufferConnection from "@/components/social/BufferConnection";
 import SocialConnections from "@/components/social/SocialConnections";
 
 export default function DailyLeadsPage() {
@@ -16,7 +15,6 @@ export default function DailyLeadsPage() {
   const [quota, setQuota] = useState(null);
   const [funnels, setFunnels] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
-  const [bufferConnected, setBufferConnected] = useState(false);
   const [socialConnected, setSocialConnected] = useState([]);
 
   // Handle OAuth redirect result toasts
@@ -27,10 +25,7 @@ export default function DailyLeadsPage() {
     const username  = searchParams.get("username");
     const account   = searchParams.get("account");
 
-    if (connected === "true") {
-      toast.success("Buffer account connected! You can now post to social media.");
-      window.history.replaceState({}, "", window.location.pathname);
-    } else if (connected === "x") {
+    if (connected === "x") {
       const displayName = username ? `@${username}` : "X account";
       toast.success(`${displayName} connected successfully!`);
       window.history.replaceState({}, "", window.location.pathname);
@@ -42,7 +37,6 @@ export default function DailyLeadsPage() {
       const errorMessages = {
         invalid_state:        "Connection failed: security check failed. Please try again.",
         token_exchange_failed: "Failed to connect account. Please try again.",
-        buffer_not_configured: "Buffer API is not configured. Contact support.",
         connection_failed:    "Failed to connect account. Please try again.",
         x_auth_denied:        "You cancelled the X authorization. Please try again.",
         x_auth_failed:        `X connection failed: ${message || "Unknown error"}`,

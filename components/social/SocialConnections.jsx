@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle, Loader, X as XIcon } from 'lucide-react';
+import { X as XIcon, Instagram, Facebook, Loader } from 'lucide-react';
 
 export default function SocialConnections({ onStatusChange }) {
   const [loading, setLoading] = useState(true);
@@ -13,7 +13,6 @@ export default function SocialConnections({ onStatusChange }) {
   });
   const [connected, setConnected] = useState([]);
 
-  // Fetch connected accounts on mount
   useEffect(() => {
     fetchConnectedAccounts();
   }, []);
@@ -62,109 +61,85 @@ export default function SocialConnections({ onStatusChange }) {
 
   if (loading) {
     return (
-      <div className="space-y-4 p-4">
-        <Loader className="h-5 w-5 animate-spin" />
+      <div className="flex items-center gap-2">
+        <Loader className="h-4 w-4 animate-spin text-gray-500" />
       </div>
     );
   }
 
+  const platforms = [
+    {
+      key: 'x',
+      icon: XIcon,
+      color: 'hover:text-black dark:hover:text-white',
+      bgColor: 'hover:bg-black/10 dark:hover:bg-white/10'
+    },
+    {
+      key: 'instagram',
+      icon: Instagram,
+      color: 'hover:text-pink-600',
+      bgColor: 'hover:bg-pink-600/10'
+    },
+    {
+      key: 'facebook',
+      icon: Facebook,
+      color: 'hover:text-blue-600',
+      bgColor: 'hover:bg-blue-600/10'
+    }
+  ];
+
   return (
-    <div className="space-y-4">
-      {/* X (Twitter) */}
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4">
-        <div className="flex items-center gap-3">
-          {accounts.x ? (
-            <>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="font-semibold text-black">X (Twitter)</p>
-                <p className="text-sm text-gray-600">@{accounts.x.username}</p>
-              </div>
-            </>
-          ) : (
-            <div>
-              <p className="font-semibold text-black">X (Twitter)</p>
-              <p className="text-sm text-gray-500">Not connected</p>
+    <div className="flex items-center gap-2">
+      {platforms.map(({ key, icon: Icon, color, bgColor }) => {
+        const isConnected = accounts[key];
+        const platformName = key.charAt(0).toUpperCase() + key.slice(1);
+        return (
+          <div key={key} className="group relative">
+            {/* Tooltip */}
+            <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900/95 backdrop-blur-sm px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none z-50">
+              {isConnected ? `${platformName} connected` : `Connect ${platformName}`}
             </div>
-          )}
-        </div>
-        <button
-          onClick={() => accounts.x ? handleDisconnect('x') : handleConnect('x')}
-          className={`px-4 py-2 rounded font-medium ${
-            accounts.x
-              ? 'bg-red-50 text-red-600 hover:bg-red-100'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          {accounts.x ? 'Disconnect' : 'Connect'}
-        </button>
-      </div>
 
-      {/* Instagram */}
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4">
-        <div className="flex items-center gap-3">
-          {accounts.instagram ? (
-            <>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="font-semibold text-black">Instagram</p>
-                <p className="text-sm text-gray-600">{accounts.instagram.username}</p>
-              </div>
-            </>
-          ) : (
-            <div>
-              <p className="font-semibold text-black">Instagram</p>
-              <p className="text-sm text-gray-500">Not connected</p>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={() => accounts.instagram ? handleDisconnect('instagram') : handleConnect('meta')}
-          className={`px-4 py-2 rounded font-medium ${
-            accounts.instagram
-              ? 'bg-red-50 text-red-600 hover:bg-red-100'
-              : 'bg-pink-600 text-white hover:bg-pink-700'
-          }`}
-        >
-          {accounts.instagram ? 'Disconnect' : 'Connect'}
-        </button>
-      </div>
+            {/* Button */}
+            <button
+              onClick={() => isConnected ? handleDisconnect(key) : handleConnect(key)}
+              className={`
+                relative p-2.5 rounded-lg transition-all duration-200
+                bg-white/5 backdrop-blur-sm
+                border border-white/10
+                ${bgColor}
+                cursor-pointer
+                ${isConnected ? 'ring-1 ring-white/20 bg-white/10' : ''}
+                hover:border-white/20
+                active:scale-95
+              `}
+              title={isConnected ? `Disconnect ${platformName}` : `Connect ${platformName}`}
+            >
+              {/* Icon */}
+              <Icon
+                className={`
+                  w-5 h-5 transition-all duration-200
+                  ${isConnected ? color : 'text-gray-500'}
+                `}
+              />
 
-      {/* Facebook */}
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4">
-        <div className="flex items-center gap-3">
-          {accounts.facebook ? (
-            <>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="font-semibold text-black">Facebook</p>
-                <p className="text-sm text-gray-600">{accounts.facebook.username}</p>
-              </div>
-            </>
-          ) : (
-            <div>
-              <p className="font-semibold text-black">Facebook</p>
-              <p className="text-sm text-gray-500">Not connected</p>
-            </div>
-          )}
-        </div>
-        <button
-          onClick={() => accounts.facebook ? handleDisconnect('facebook') : handleConnect('meta')}
-          className={`px-4 py-2 rounded font-medium ${
-            accounts.facebook
-              ? 'bg-red-50 text-red-600 hover:bg-red-100'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          {accounts.facebook ? 'Disconnect' : 'Connect'}
-        </button>
-      </div>
+              {/* Connected indicator dot */}
+              {isConnected && (
+                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-1 ring-gray-900 shadow-lg" />
+              )}
+            </button>
+          </div>
+        );
+      })}
 
-      {/* Note about Meta */}
-      {!accounts.instagram && !accounts.facebook && (
-        <p className="text-sm text-gray-600">
-          Connecting Meta will authorize both Instagram and Facebook. Instagram requires a Business account.
-        </p>
+      {/* Connection count badge */}
+      {connected.length > 0 && (
+        <div className="ml-1 px-2 py-1 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          <span className="text-[11px] font-medium text-gray-400">
+            {connected.length}/{3}
+          </span>
+        </div>
       )}
     </div>
   );
