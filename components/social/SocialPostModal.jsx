@@ -60,7 +60,7 @@ const PLATFORMS = [
 // ─── SocialPostModal ──────────────────────────────────────────────────────────
 
 /**
- * Modal for posting a daily post to social platforms via Buffer.
+ * Modal for posting a daily post to social platforms (X, Instagram, Facebook).
  *
  * Props:
  *   post         object   - The daily_post to share (must have id, image_url, caption)
@@ -72,13 +72,17 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
   const [mounted, setMounted]                 = useState(false);
   const [accounts, setAccounts]               = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
-  const [bufferConnected, setBufferConnected] = useState(false);
+  const [socialConnected, setBufferConnected] = useState(false);
 
   const [selectedPlatforms, setSelectedPlatforms] = useState(initialPlatforms);
   const [caption, setCaption]                 = useState(post.caption);
   const [hashtags, setHashtags]               = useState({});
   const [loadingHashtags, setLoadingHashtags] = useState(false);
   const [submitting, setSubmitting]           = useState(false);
+
+  // Ensure image_url is available
+  const imageUrl = post.image_url || post.imageUrl;
+  console.log('[SocialPostModal] Post data:', { hasPost: !!post, hasCaption: !!post.caption, imageUrl });
 
   // ── Mount + ESC handler ───────────────────────────────────────────────────
   useEffect(() => {
@@ -138,6 +142,10 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
       toast.error("Select at least one platform.");
       return;
     }
+    if (!imageUrl) {
+      toast.error("Image URL missing. Please try reopening this modal.");
+      return;
+    }
     setSubmitting(true);
     const results = [];
     const errors = [];
@@ -158,7 +166,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
         const res = await fetchWithAuth(endpoint, {
           method: "POST",
           body: JSON.stringify({
-            imageUrl: post.image_url,
+            imageUrl,
             caption: caption + (hashtags[platform] ? `\n\n${hashtags[platform]}` : ""),
             daily_post_id: post.id,
           }),
@@ -245,7 +253,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
           {/* No accounts connected state */}
-          {!loadingAccounts && !bufferConnected && (
+          {!loadingAccounts && !socialConnected && (
             <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-4 flex items-start gap-3">
               <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div>
@@ -260,7 +268,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
           {/* Image preview */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <div className="rounded-xl overflow-hidden border border-subtle bg-surface aspect-square max-h-48 flex items-center justify-center">
-            <img src={post.image_url} alt="Post image" className="w-full h-full object-contain" />
+            <img src={imageUrl} alt="Post image" className="w-full h-full object-contain" />
           </div>
 
           {/* Platform selection */}
@@ -371,14 +379,14 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
 
         {/* Footer */}
         <div className="border-t border-subtle px-5 py-4 shrink-0 space-y-2">
-          {!bufferConnected && !loadingAccounts && (
+          {!socialConnected && !loadingAccounts && (
             <p className="text-[10px] text-gray-600 text-center">
               Connect social accounts first to enable posting.
             </p>
           )}
           <button
             onClick={handlePost}
-            disabled={submitting || !selectedPlatforms.length || !bufferConnected || loadingAccounts}
+            disabled={submitting || !selectedPlatforms.length || !socialConnected || loadingAccounts || !imageUrl || !caption}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-cyan/20 bg-cyan/[0.08] text-sm font-semibold text-cyan hover:bg-cyan/15 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           >
             {submitting ? (
