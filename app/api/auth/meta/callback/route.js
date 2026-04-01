@@ -32,10 +32,12 @@ export async function GET(req) {
       return new Response('Missing code or state', { status: 400 });
     }
 
+    // Get cookie header
+    const cookieHeader = req.headers.get('cookie');
+
     // Extract userId, workspaceId, and platform from state
     let userId, workspaceId;
     try {
-      const cookieHeader = req.headers.get('cookie');
       const storedState = extractOAuthStateFromCookie(cookieHeader);
 
       if (!storedState || storedState !== stateParam) {
@@ -116,11 +118,12 @@ export async function GET(req) {
     }
 
     // Clear cookies and redirect with success
+    const secure = process.env.NODE_ENV === 'production' ? 'Secure; ' : '';
     const response = new Response(null, {
       status: 302,
       headers: {
         'Location': `/dashboard/daily-leads?connected=meta&account=${igAccount.pageName}`,
-        'Set-Cookie': 'oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0'
+        'Set-Cookie': `oauth_state=; Path=/; HttpOnly; ${secure}SameSite=Lax; Max-Age=0`
       }
     });
 
