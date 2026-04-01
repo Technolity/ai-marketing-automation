@@ -177,13 +177,16 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
           continue;
         }
 
+        const payload = {
+          imageUrl,
+          caption: caption + (hashtags[platform] ? `\n\n${hashtags[platform]}` : ""),
+          daily_post_id: post.id,
+        };
+        console.error('[SocialPostModal] Sending to', endpoint, ':', { ...payload, caption: payload.caption.slice(0, 20) });
+
         const res = await fetchWithAuth(endpoint, {
           method: "POST",
-          body: JSON.stringify({
-            imageUrl,
-            caption: caption + (hashtags[platform] ? `\n\n${hashtags[platform]}` : ""),
-            daily_post_id: post.id,
-          }),
+          body: JSON.stringify(payload),
         });
 
         const data = await res.json().catch(() => ({}));

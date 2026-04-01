@@ -81,6 +81,16 @@ const PLATFORMS = [
 // ─── Post Detail Modal ────────────────────────────────────────────────────────
 
 function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete }) {
+  // Debug initial post
+  if (typeof window !== 'undefined') {
+    console.error('[PostDetailModal] Opened with post:', {
+      id: initialPost?.id,
+      hasImageUrl: !!initialPost?.image_url,
+      image_url: initialPost?.image_url,
+      caption: initialPost?.caption?.slice?.(0, 20)
+    });
+  }
+
   const [post, setPost]           = useState(initialPost);
   const [marking, setMarking]     = useState(false);
   const [deleting, setDeleting]   = useState(false);
@@ -164,6 +174,7 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to save.");
       const updated = data.post || { ...post, caption: caption.trim() };
+      console.error('[PostDetailModal] After caption save, updated post:', { hasImageUrl: !!updated.image_url, id: updated.id });
       setPost(updated);
       setCaption(updated.caption);
       onMarkPosted(updated);
