@@ -398,18 +398,21 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
     <>
       {createPortal(modal, document.body)}
       {showSocialModal && (
-        <SocialPostModal
-          post={post}
-          onClose={() => setShowSocialModal(false)}
-          onPosted={(updatedPost) => {
-            if (updatedPost) {
-              const merged = { ...post, ...updatedPost, status: "posted" };
-              setPost(merged);
-              onMarkPosted(merged);
-            }
-            setShowSocialModal(false);
-          }}
-        />
+        <>
+          {console.log('[HistoryList] Passing post to SocialPostModal:', { id: post.id, hasImageUrl: !!post.image_url, imageUrl: post.image_url })}
+          <SocialPostModal
+            post={post}
+            onClose={() => setShowSocialModal(false)}
+            onPosted={(updatedPost) => {
+              if (updatedPost) {
+                const merged = { ...post, ...updatedPost, status: "posted" };
+                setPost(merged);
+                onMarkPosted(merged);
+              }
+              setShowSocialModal(false);
+            }}
+          />
+        </>
       )}
     </>
   );
