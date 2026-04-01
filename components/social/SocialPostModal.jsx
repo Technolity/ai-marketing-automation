@@ -72,7 +72,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
   const [mounted, setMounted]                 = useState(false);
   const [accounts, setAccounts]               = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
-  const [socialConnected, setBufferConnected] = useState(false);
+  const [socialConnected, setSocialConnected] = useState(false);
 
   const [selectedPlatforms, setSelectedPlatforms] = useState(initialPlatforms);
   const [caption, setCaption]                 = useState(post.caption);
@@ -80,9 +80,23 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
   const [loadingHashtags, setLoadingHashtags] = useState(false);
   const [submitting, setSubmitting]           = useState(false);
 
+  // Debug: log all keys in post object on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const postDebug = {
+        keys: Object.keys(post || {}),
+        image_url: post?.image_url,
+        imageUrl: post?.imageUrl,
+        caption: post?.caption?.slice?.(0, 30),
+        id: post?.id
+      };
+      console.error('[SocialPostModal] Post received:', postDebug);
+      window._socialModalPost = postDebug;
+    }
+  }, [post]);
+
   // Ensure image_url is available
-  const imageUrl = post.image_url || post.imageUrl;
-  console.log('[SocialPostModal] Post data:', { hasPost: !!post, hasCaption: !!post.caption, imageUrl });
+  const imageUrl = post?.image_url || post?.imageUrl;
 
   // ── Mount + ESC handler ───────────────────────────────────────────────────
   useEffect(() => {
