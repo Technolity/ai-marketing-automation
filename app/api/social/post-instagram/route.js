@@ -15,11 +15,15 @@ export async function POST(req) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { caption, imageUrl, daily_post_id } = await req.json();
+    const body = await req.json();
+    const { caption, imageUrl, daily_post_id } = body;
+
+    console.log('[Instagram POST] Received body:', { caption: !!caption, imageUrl: !!imageUrl, daily_post_id });
 
     if (!caption || !imageUrl) {
+      console.error('[Instagram POST] Missing fields:', { caption: caption?.slice(0, 20), imageUrl });
       return Response.json(
-        { error: 'Missing caption or imageUrl' },
+        { error: 'Missing caption or imageUrl', received: { caption: !!caption, imageUrl: !!imageUrl } },
         { status: 400 }
       );
     }
