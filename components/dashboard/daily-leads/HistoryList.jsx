@@ -10,6 +10,7 @@ import {
 } from "@/lib/icons";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { toast } from "sonner";
+import SocialPostModal from "@/components/social/SocialPostModal";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -83,13 +84,16 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
   const [post, setPost]           = useState(initialPost);
   const [marking, setMarking]     = useState(false);
   const [deleting, setDeleting]   = useState(false);
+  const [saving, setSaving]       = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [copied, setCopied]       = useState(false);
   const [caption, setCaption]     = useState(initialPost.caption);
   const [mounted, setMounted]     = useState(false);
   const [removingBg, setRemovingBg] = useState(false);
   const [nobgUrl, setNobgUrl]     = useState(null);
+  const [showSocialModal, setShowSocialModal] = useState(false);
   const clicks = getClicks(post.smart_links);
+  const captionDirty = caption !== post.caption;
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -147,6 +151,25 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
     setCopied(true);
     toast.success("Caption copied!");
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleSaveCaption = async () => {
+    if (!captionDirty || !caption.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/posts", {
+        method: "PATCH",
+        body: JSON.stringify({ id: post.id, caption: caption.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save.");
+      const updated = data.post || { ...post, caption: caption.trim() };
+      setPost(updated);
+      setCaption(updated.caption);
+      onMarkPosted(updated);
+      toast.success("Caption saved.");
+    } catch (err) { toast.error(err.message); }
+    finally { setSaving(false); }
   };
 
   const handleRemoveBg = useCallback(async () => {
@@ -289,23 +312,38 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
             <div className="p-5 flex-1">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-600">Caption</p>
-                <span className="text-[9px] text-gray-700 tabular-nums">{caption.length} chars</span>
+                <div className="flex items-center gap-2">
+                  {captionDirty && (
+                    <span className="text-[9px] font-semibold uppercase tracking-widest text-amber-400/80">Unsaved</span>
+                  )}
+                  <span className="text-[9px] text-gray-700 tabular-nums">{caption.length} chars</span>
+                </div>
               </div>
               <textarea
                 value={caption}
                 onChange={e => setCaption(e.target.value)}
                 rows={7}
-                className="w-full px-3 py-2.5 rounded-lg bg-surface border border-subtle text-xs text-gray-200 leading-relaxed resize-none focus:outline-none focus:border-subtleAlt transition-colors"
+                className={`w-full px-3 py-2.5 rounded-lg bg-surface border text-xs text-gray-200 leading-relaxed resize-none focus:outline-none transition-colors ${captionDirty ? "border-amber-400/30 focus:border-amber-400/60" : "border-subtle focus:border-subtleAlt"}`}
               />
               <div className="flex gap-1.5 mt-2">
                 <button
                   onClick={handleCopy}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-400 hover:text-gray-200 hover:border-subtleAlt transition-colors cursor-pointer"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-subtle bg-charcoal text-xs font-medium text-gray-400 hover:text-gray-200 hover:border-subtleAlt transition-colors cursor-pointer"
                 >
                   {copied ? <CheckCircle className="w-3.5 h-3.5 text-cyan" /> : <Clipboard className="w-3.5 h-3.5" />}
-                  {copied ? "Copied" : "Copy Caption"}
+                  {copied ? "Copied" : "Copy"}
                 </button>
-                {post.status !== "posted" && (
+                {captionDirty && (
+                  <button
+                    onClick={handleSaveCaption}
+                    disabled={saving}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.05] text-xs font-medium text-amber-400 hover:bg-amber-400/10 transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                    {saving ? "Saving…" : "Save Caption"}
+                  </button>
+                )}
+                {post.status !== "posted" && !captionDirty && (
                   <button
                     onClick={handleMarkPosted}
                     disabled={marking}
@@ -326,22 +364,15 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
                   Share to Social Media
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {PLATFORMS.map(platform => (
-                  <div
-                    key={platform.id}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium opacity-35 cursor-not-allowed select-none ${platform.color} ${platform.border} ${platform.bg}`}
-                  >
-                    {platform.icon}
-                    <span>{platform.label}</span>
-                    <span className="ml-auto text-[9px] border border-current/20 rounded px-1 py-0.5">
-                      Soon
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <button
+                onClick={() => setShowSocialModal(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-cyan/20 bg-cyan/[0.05] text-xs font-semibold text-cyan hover:bg-cyan/10 transition-colors cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Post to Social Media
+              </button>
               <p className="text-[9px] text-gray-700 mt-2 leading-relaxed">
-                One-click social posting is coming soon. Connect and authorize your accounts to publish directly from your workspace.
+                Connect your Buffer account to post directly to Twitter, Instagram, and Facebook.
               </p>
             </div>
 
@@ -363,7 +394,25 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
   );
 
   if (!mounted) return null;
-  return createPortal(modal, document.body);
+  return (
+    <>
+      {createPortal(modal, document.body)}
+      {showSocialModal && (
+        <SocialPostModal
+          post={post}
+          onClose={() => setShowSocialModal(false)}
+          onPosted={(updatedPost) => {
+            if (updatedPost) {
+              const merged = { ...post, ...updatedPost, status: "posted" };
+              setPost(merged);
+              onMarkPosted(merged);
+            }
+            setShowSocialModal(false);
+          }}
+        />
+      )}
+    </>
+  );
 }
 
 // ─── History Row ──────────────────────────────────────────────────────────────

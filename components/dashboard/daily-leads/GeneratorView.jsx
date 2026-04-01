@@ -372,17 +372,36 @@ function ImageCanvas({ post, onDownload, downloading }) {
 
 // ─── CaptionPanel ─────────────────────────────────────────────────────────────
 
-function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset }) {
+function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset, onCaptionSaved }) {
   const [caption, setCaption]       = useState(post.caption);
   const [copied, setCopied]         = useState(false);
   const [feedbackMode, setFeedbackMode] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
+  const [saving, setSaving]         = useState(false);
+
+  const captionDirty = caption !== post.caption;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(caption);
     setCopied(true);
     toast.success("Caption copied!");
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleSaveCaption = async () => {
+    if (!captionDirty || !caption.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/posts", {
+        method: "PATCH",
+        body: JSON.stringify({ id: post.id, caption: caption.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save.");
+      toast.success("Caption saved.");
+      onCaptionSaved?.(caption.trim());
+    } catch (err) { toast.error(err.message); }
+    finally { setSaving(false); }
   };
 
   const handleSubmitFeedback = () => {
@@ -396,14 +415,26 @@ function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset }) {
     <div className="mt-3 rounded-xl border border-subtle bg-grayDark p-4">
       <div className="flex items-center justify-between mb-2">
         <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-600">Caption</p>
-        <span className="text-[10px] text-gray-700 tabular-nums">{caption.length} chars</span>
+        <div className="flex items-center gap-2">
+          {captionDirty && (
+            <button
+              onClick={handleSaveCaption}
+              disabled={saving}
+              className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-widest text-amber-400/80 hover:text-amber-400 transition-colors cursor-pointer disabled:opacity-40"
+            >
+              {saving ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : null}
+              {saving ? "Saving…" : "Save"}
+            </button>
+          )}
+          <span className="text-[10px] text-gray-700 tabular-nums">{caption.length} chars</span>
+        </div>
       </div>
 
       <textarea
         value={caption}
         onChange={e => setCaption(e.target.value)}
         rows={4}
-        className="w-full px-3 py-2.5 rounded-lg bg-surface border border-subtle text-xs text-gray-200 leading-relaxed resize-none focus:outline-none focus:border-subtleAlt transition-colors mb-3"
+        className={`w-full px-3 py-2.5 rounded-lg bg-surface border text-xs text-gray-200 leading-relaxed resize-none focus:outline-none transition-colors mb-3 ${captionDirty ? "border-amber-400/30 focus:border-amber-400/60" : "border-subtle focus:border-subtleAlt"}`}
       />
 
       {quota && (
@@ -511,7 +542,7 @@ function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset }) {
 
 // ─── Main GeneratorView ───────────────────────────────────────────────────────
 
-export default function GeneratorView({ funnels = [], onPostCreated }) {
+export default function GeneratorView({ funnels = [], onPostCreated, onPostChanged }) {
   const [generating, setGenerating]           = useState(false);
   const [stepIndex, setStepIndex]             = useState(0);
   const [post, setPost]                       = useState(null);
@@ -976,6 +1007,11 @@ export default function GeneratorView({ funnels = [], onPostCreated }) {
             onMarkPosted={handleMarkPosted}
             onRefine={refine}
             onReset={() => setPost(null)}
+            onCaptionSaved={(newCaption) => {
+              const updated = { ...post, caption: newCaption };
+              setPost(updated);
+              onPostChanged?.(updated);
+            }}
           />
         )}
       </div>

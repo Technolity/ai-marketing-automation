@@ -1,16 +1,59 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { toast } from "sonner";
 import GeneratorView from "@/components/dashboard/daily-leads/GeneratorView";
 import HistoryList from "@/components/dashboard/daily-leads/HistoryList";
+import BufferConnection from "@/components/social/BufferConnection";
+import SocialConnections from "@/components/social/SocialConnections";
 
 export default function DailyLeadsPage() {
+  const searchParams = useSearchParams();
   const [metrics, setMetrics] = useState(null);
   const [posts, setPosts] = useState([]);
   const [quota, setQuota] = useState(null);
   const [funnels, setFunnels] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [bufferConnected, setBufferConnected] = useState(false);
+  const [socialConnected, setSocialConnected] = useState([]);
+
+  // Handle OAuth redirect result toasts
+  useEffect(() => {
+    const connected = searchParams.get("connected");
+    const error     = searchParams.get("error");
+    const message   = searchParams.get("message");
+    const username  = searchParams.get("username");
+    const account   = searchParams.get("account");
+
+    if (connected === "true") {
+      toast.success("Buffer account connected! You can now post to social media.");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (connected === "x") {
+      const displayName = username ? `@${username}` : "X account";
+      toast.success(`${displayName} connected successfully!`);
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (connected === "meta") {
+      const displayName = account || "Instagram & Facebook";
+      toast.success(`${displayName} connected successfully!`);
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (error) {
+      const errorMessages = {
+        invalid_state:        "Connection failed: security check failed. Please try again.",
+        token_exchange_failed: "Failed to connect account. Please try again.",
+        buffer_not_configured: "Buffer API is not configured. Contact support.",
+        connection_failed:    "Failed to connect account. Please try again.",
+        x_auth_denied:        "You cancelled the X authorization. Please try again.",
+        x_auth_failed:        `X connection failed: ${message || "Unknown error"}`,
+        meta_auth_denied:     "You cancelled the Meta authorization. Please try again.",
+        meta_auth_failed:     `Meta connection failed: ${message || "Unknown error"}`,
+        meta_no_instagram:    message || "No Instagram Business account found.",
+      };
+      toast.error(errorMessages[error] || "Failed to connect account.");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [searchParams]);
 
   const loadData = useCallback(async () => {
     try {
@@ -90,6 +133,16 @@ export default function DailyLeadsPage() {
                 Select a funnel, describe your image, and generate a post with caption and smart
                 link.
               </p>
+
+              {/* Social connections status */}
+              <div className="space-y-3 pt-3">
+                <div>
+                  <p className="mb-2 text-[9px] font-semibold uppercase tracking-widest text-gray-600">
+                    Connect Social Accounts
+                  </p>
+                  <SocialConnections onStatusChange={setSocialConnected} />
+                </div>
+              </div>
             </div>
 
             {/* Quota inline */}
