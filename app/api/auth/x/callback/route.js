@@ -81,7 +81,7 @@ export async function GET(req) {
     const { error } = await supabaseAdmin
       .from('social_auth_tokens')
       .upsert({
-        user_id: userId,
+        user_id: workspaceId,
         platform: 'x',
         access_token: encryptedToken,
         refresh_token: encryptedRefreshToken,

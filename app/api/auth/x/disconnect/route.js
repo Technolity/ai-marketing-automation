@@ -5,6 +5,7 @@
 
 import { auth } from '@clerk/nextjs/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 export async function POST(req) {
   try {
@@ -13,11 +14,16 @@ export async function POST(req) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { workspaceId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+      return Response.json({ error: workspaceError }, { status: 403 });
+    }
+
     // Delete X OAuth token
     const { error } = await supabaseAdmin
       .from('social_auth_tokens')
       .delete()
-      .eq('user_id', userId)
+      .eq('user_id', workspaceId)
       .eq('platform', 'x');
 
     if (error) {

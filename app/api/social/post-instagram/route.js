@@ -5,6 +5,7 @@
 
 import { auth } from '@clerk/nextjs/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { decryptToken } from '@/lib/social/encryption';
 import { createInstagramMediaContainer, publishInstagramMedia } from '@/lib/social/metaClient';
 
@@ -13,6 +14,11 @@ export async function POST(req) {
     const { userId } = await auth();
     if (!userId) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { workspaceId, error: workspaceError } = await resolveWorkspace(userId);
+    if (workspaceError) {
+      return Response.json({ error: workspaceError }, { status: 403 });
     }
 
     const body = await req.json();
@@ -32,7 +38,7 @@ export async function POST(req) {
     const { data: tokenData, error: tokenError } = await supabaseAdmin
       .from('social_auth_tokens')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', workspaceId)
       .eq('platform', 'instagram')
       .single();
 

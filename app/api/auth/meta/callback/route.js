@@ -83,7 +83,7 @@ export async function GET(req) {
     const { error: igError } = await supabaseAdmin
       .from('social_auth_tokens')
       .upsert({
-        user_id: userId,
+        user_id: workspaceId,
         platform: 'instagram',
         access_token: encryptedToken,
         account_id: igAccount.accountId,
@@ -102,7 +102,7 @@ export async function GET(req) {
     const { error: fbError } = await supabaseAdmin
       .from('social_auth_tokens')
       .upsert({
-        user_id: userId,
+        user_id: workspaceId,
         platform: 'facebook',
         access_token: encryptedToken,
         account_id: igAccount.pageId,
