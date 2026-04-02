@@ -113,7 +113,7 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
       .then(data => {
         if (data.connected) {
           setAccounts(data.connected);
-          setBufferConnected(data.connected.length > 0);
+          setSocialConnected(data.connected.length > 0);
           // Auto-select all connected platforms if none pre-selected
           if (!initialPlatforms.length) {
             setSelectedPlatforms(data.connected);
