@@ -29,7 +29,12 @@ export async function GET(req) {
     }
 
     if (!code || !stateParam) {
-      return new Response('Missing code or state', { status: 400 });
+      const allParams = Object.fromEntries(searchParams.entries());
+      console.error('[Meta Callback] Missing code or state. All params received:', allParams);
+      return new Response(
+        `Missing code or state. Received params: ${JSON.stringify(allParams)}`,
+        { status: 400 }
+      );
     }
 
     // Get cookie header
