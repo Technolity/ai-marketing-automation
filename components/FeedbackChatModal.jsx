@@ -683,6 +683,9 @@ export default function FeedbackChatModal({
     const [selectedChildField, setSelectedChildField] = useState(null);
     const [isHierarchicalSection, setIsHierarchicalSection] = useState(false);
 
+    // 7-Step Blueprint step picker state
+    const [selectedBlueprintStep, setSelectedBlueprintStep] = useState(null); // null or 0-6
+
     const abortControllerRef = useRef(null);
     const streamCompletedRef = useRef(false); // Track stream completion (ref avoids stale closures)
 
@@ -723,6 +726,7 @@ export default function FeedbackChatModal({
             ]);
             setChatStep(1);
             setSelectedSubSection(subSection || null);
+            setSelectedBlueprintStep(null);
             setSuggestedChanges(null);
             setPreviousAlternatives([]); // Reset previous alternatives for fresh session
             setStreamingMessage(null);
@@ -731,6 +735,25 @@ export default function FeedbackChatModal({
 
     // Handle sub-section selection
     const handleSubSectionSelect = (option) => {
+        // Special flow: 7-Step Blueprint needs a step picker
+        if (option.id === 'sevenStepBlueprint') {
+            setSelectedSubSection('sevenStepBlueprint');
+            setIsHierarchicalSection(false);
+            setLatestContent(currentContent);
+
+            setMessages(prev => [
+                ...prev,
+                { role: 'user', content: option.label },
+                {
+                    role: 'assistant',
+                    content: 'Which step of the 7-Step Blueprint would you like to refine?',
+                    showBlueprintStepPicker: true
+                }
+            ]);
+            setChatStep(1.7); // Intermediate step for blueprint step selection
+            return;
+        }
+
         // Check if this is a nested field (hierarchical structure)
         if (option.id !== 'all' && isNestedField(sectionId, option.id)) {
             // Hierarchical flow - show child field selection
@@ -772,6 +795,36 @@ Be as specific as possible - for example:
             ]);
             setChatStep(2);
         }
+    };
+
+    // Handle 7-Step Blueprint step selection
+    const handleBlueprintStepSelect = (stepIndex) => {
+        const blueprint = Array.isArray(currentContent?.sevenStepBlueprint)
+            ? currentContent.sevenStepBlueprint
+            : [];
+        const step = blueprint[stepIndex];
+        const stepLabel = step?.stepName
+            ? `Step ${stepIndex + 1}: ${step.stepName}`
+            : `Step ${stepIndex + 1}`;
+
+        setSelectedBlueprintStep(stepIndex);
+        // Store original content: the specific step being edited
+        setOriginalContent(step || null);
+
+        setMessages(prev => [
+            ...prev,
+            { role: 'user', content: stepLabel },
+            {
+                role: 'assistant',
+                content: `Perfect! What specifically would you like to change about **${stepLabel}**?
+
+Be as specific as possible - for example:
+• "Make the step name more compelling"
+• "Rewrite the outcome to focus on speed of results"
+• "Make the problem solved more specific to pain points"`
+            }
+        ]);
+        setChatStep(2);
     };
 
     // Handle child field selection (hierarchical flow)
@@ -858,6 +911,13 @@ Be as specific as possible - for example:
                     sectionId,
                     subSection: selectedSubSection,
                     ...(parentSection && { parentSection }), // Add parent context for hierarchical fields
+                    // Blueprint step refinement: pass index + full blueprint array for context
+                    ...(selectedBlueprintStep !== null && selectedSubSection === 'sevenStepBlueprint' && {
+                        stepIndex: selectedBlueprintStep,
+                        blueprintContext: Array.isArray(currentContent?.sevenStepBlueprint)
+                            ? currentContent.sevenStepBlueprint
+                            : []
+                    }),
                     messageHistory: [...messages, userMessage],
                     currentContent: originalContent || latestContent, // Use original for before/after comparison
                     sessionId
@@ -1224,11 +1284,21 @@ Be as specific as possible - for example:
     const handleSaveChanges = () => {
         if (!suggestedChanges) return;
 
+        // Build save payload — include stepIndex for blueprint step refinements
+        const savePayload = {
+            refinedContent: suggestedChanges,
+            subSection: selectedSubSection,
+            ...(selectedBlueprintStep !== null && selectedSubSection === 'sevenStepBlueprint' && {
+                stepIndex: selectedBlueprintStep
+            })
+        };
+
         // COMPREHENSIVE LOGGING: Save triggered
         console.log('[FeedbackChat] ========== SAVE TRIGGERED ==========');
         console.log('[FeedbackChat] Saving changes:', {
             sectionId,
             subSection: selectedSubSection || 'all',
+            stepIndex: selectedBlueprintStep,
             hasContent: !!suggestedChanges,
             contentKeys: Object.keys(suggestedChanges),
             contentSize: JSON.stringify(suggestedChanges).length,
@@ -1257,10 +1327,7 @@ Be as specific as possible - for example:
             ]);
         } else {
             // No dependencies — save immediately and close
-            onSave({
-                refinedContent: suggestedChanges,
-                subSection: selectedSubSection
-            });
+            onSave(savePayload);
             toast.success("Changes saved!");
             onClose();
         }
@@ -1271,7 +1338,10 @@ Be as specific as possible - for example:
         console.log('[FeedbackChat] Committing save (deferred)');
         onSave({
             refinedContent: suggestedChanges,
-            subSection: selectedSubSection
+            subSection: selectedSubSection,
+            ...(selectedBlueprintStep !== null && selectedSubSection === 'sevenStepBlueprint' && {
+                stepIndex: selectedBlueprintStep
+            })
         });
         toast.success("Changes saved!");
     };
@@ -1577,6 +1647,36 @@ Be as specific as possible - for example:
                                             ))}
                                         </div>
                                     )}
+
+                                    {/* 7-Step Blueprint step picker */}
+                                    {msg.showBlueprintStepPicker && (() => {
+                                        const blueprint = Array.isArray(currentContent?.sevenStepBlueprint)
+                                            ? currentContent.sevenStepBlueprint
+                                            : [];
+                                        // Build 7 slots — fill from data, fallback to generic label
+                                        const steps = Array.from({ length: 7 }, (_, i) => ({
+                                            index: i,
+                                            stepName: blueprint[i]?.stepName || `Step ${i + 1}`
+                                        }));
+                                        return (
+                                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {steps.map(({ index, stepName }) => (
+                                                    <button
+                                                        key={index}
+                                                        onClick={() => handleBlueprintStepSelect(index)}
+                                                        className="flex items-center gap-3 px-3 py-2.5 bg-[#1b1b1d] hover:bg-[#111113] border border-[#2a2a2d] hover:border-cyan/40 rounded-xl text-left transition-all group"
+                                                    >
+                                                        <span className="w-7 h-7 rounded-full bg-cyan/10 border border-cyan/30 flex items-center justify-center text-xs font-bold text-cyan flex-shrink-0 group-hover:bg-cyan/20 transition-colors">
+                                                            {index + 1}
+                                                        </span>
+                                                        <span className="text-sm text-gray-300 group-hover:text-white transition-colors leading-tight">
+                                                            {stepName}
+                                                        </span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Preview content */}
                                     {(() => {
