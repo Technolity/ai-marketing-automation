@@ -39,11 +39,17 @@ const unwrapArrayIds = (arr) => {
 
 
 
-// Helper to auto-resize a textarea element (no max height - grows with content)
+// Helper to auto-resize a textarea element (no max height - grows with content).
+// We add the element's computed border widths to scrollHeight because scrollHeight
+// excludes borders — without this, the content is 2px short of fitting, which
+// triggers an unnecessary scrollbar even on small (3-4 line) content.
 const autoResizeTextarea = (el) => {
     if (!el) return;
+    const computed = window.getComputedStyle(el);
+    const borderTop = parseFloat(computed.borderTopWidth) || 0;
+    const borderBottom = parseFloat(computed.borderBottomWidth) || 0;
     el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
+    el.style.height = (el.scrollHeight + borderTop + borderBottom) + 'px';
 };
 
 // Helper to sanitize displayed content
