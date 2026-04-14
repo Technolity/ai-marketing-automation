@@ -714,7 +714,9 @@ export async function POST(req) {
         parentSection, // NEW: Parent field ID for hierarchical selections (e.g., "optinPage" when subSection is "optinPage.headline_text")
         messageHistory = [], // NEW: Full conversation context
         currentContent,
-        sessionId
+        sessionId,
+        stepIndex,          // NEW: Index (0-6) of the specific 7-Step Blueprint step being refined
+        blueprintContext    // NEW: Full 7-step array for AI awareness
     } = body;
 
     let validatedFunnel = null;
@@ -1031,7 +1033,9 @@ export async function POST(req) {
                 intakeData: refinementContext,
                 leadMagnetTitle, // Pass the Lead Magnet title for dependencies
                 companyName, // Pass company name from user_profiles
-                brandColors // Intentionally null (colors not used for funnel copy refinement)
+                brandColors, // Intentionally null (colors not used for funnel copy refinement)
+                stepIndex,          // Pass blueprint step index
+                blueprintContext    // Pass full blueprint array for AI awareness
             });
 
             // COMPREHENSIVE LOGGING: Prompt generation
@@ -1676,7 +1680,7 @@ async function parseAndValidate(fullText, sectionId, subSection) {
  * Build conversational prompt from message history with FULL PROJECT CONTEXT
  * Uses the full context prompts system to give AI complete knowledge of original generation
  */
-async function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle, companyName, brandColors }) {
+async function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle, companyName, brandColors, stepIndex, blueprintContext }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
@@ -1922,12 +1926,58 @@ Child Field: ${childFieldId}
 Full Path: ${subSection}`;
     }
 
+    // ── Blueprint step-specific context injection ──────────────────────────────
+    // When the user is refining a single step (stepIndex 0-6), inject a targeted
+    // prompt that prevents the AI from rewriting all 7 steps.
+    let blueprintStepContext = '';
+    const isBlueprintStepRefinement = subSection === 'sevenStepBlueprint' && typeof stepIndex === 'number';
+
+    if (isBlueprintStepRefinement) {
+        const stepNumber = stepIndex + 1;
+        const existingStep = Array.isArray(blueprintContext) ? blueprintContext[stepIndex] : null;
+        const stepName = existingStep?.stepName || `Step ${stepNumber}`;
+
+        blueprintStepContext = `
+
+🎯 TARGETED BLUEPRINT STEP REFINEMENT — STEP ${stepNumber} of 7:
+
+You are refining ONLY "Step ${stepNumber}: ${stepName}" of the 7-Step Blueprint.
+DO NOT rewrite the other 6 steps — keep them exactly as they are.
+
+CURRENT CONTENT OF STEP ${stepNumber} (what you must improve):
+${JSON.stringify(existingStep || {}, null, 2)}
+
+FULL BLUEPRINT CONTEXT (steps you must NOT change — for awareness only):
+${JSON.stringify(blueprintContext || [], null, 2)}
+
+REQUIRED OUTPUT FORMAT:
+Return ONLY this exact structure — a single object containing sevenStepBlueprint as an array with ONE item:
+{
+  "sevenStepBlueprint": [
+    {
+      "stepName": "<improved step name>",
+      "whatItIs": "<improved what it is>",
+      "problemSolved": "<improved problem solved>",
+      "outcomeCreated": "<improved outcome created>"
+    }
+  ]
+}
+
+⚠️ CRITICAL:
+- The array MUST contain exactly 1 item (the updated step ${stepNumber})
+- DO NOT include all 7 steps — just the 1 refined step
+- Keep all 4 subfields: stepName, whatItIs, problemSolved, outcomeCreated
+- Make meaningful improvements based on the user's feedback
+- NO placeholders or [insert] text`;
+    }
+
     // Build enhanced user prompt
     const userPrompt = `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
 ${currentContentStr}
 ${businessContext}
 ${conversationContext}
 ${hierarchicalContext}
+${blueprintStepContext}
 
 LATEST USER REQUEST:
 ${latestUserMessage}
@@ -1940,11 +1990,13 @@ INSTRUCTIONS:
 4. Explain what you changed and why (you can add this as a comment after the JSON)
 5. Return ONLY valid JSON matching the schema structure shown above
 6. DO NOT wrap in markdown code blocks
-7. ${isSubSection
-            ? isHierarchical
-                ? `Update ONLY the "${childFieldId}" field within "${parentSection}". Return the child field value directly as: {"${childFieldId}": <updated_content>}`
-                : `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
-            : `Update the entire section. Return the complete section matching the exact schema structure.`}
+7. ${isBlueprintStepRefinement
+            ? `You are refining ONLY Step ${stepIndex + 1} of the 7-Step Blueprint. Return: {"sevenStepBlueprint": [<updated_step_object>]} with exactly 1 item in the array.`
+            : isSubSection
+                ? isHierarchical
+                    ? `Update ONLY the "${childFieldId}" field within "${parentSection}". Return the child field value directly as: {"${childFieldId}": <updated_content>}`
+                    : `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
+                : `Update the entire section. Return the complete section matching the exact schema structure.`}
 
 CRITICAL SCHEMA RULES:
 - Match exact array lengths (if schema says 3 items, output exactly 3)

@@ -108,6 +108,10 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
         displayName
     });
 
+    if (key === 21) {
+        console.log(`[GenerateStream-DEBUG] key=21 (Short VSL) generation started. TargetUserId=${targetUserId}, FunnelId=${funnelId}`);
+    }
+
     // Heavy sections that need more time (in ms)
     const SECTION_TIMEOUTS = {
         4: 120000,  // Offer - complex 7-step blueprint (reduced from 150s)

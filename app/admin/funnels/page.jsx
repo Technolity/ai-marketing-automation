@@ -38,6 +38,10 @@ import {
     Clock,
     Undo2,
     ShieldCheck,
+    Download,
+    ArrowRightLeft,
+    UserCheck,
+    CloudOff,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
@@ -128,6 +132,17 @@ export default function AdminFunnels() {
     const [restoringVersion, setRestoringVersion] = useState(false);
     // ── Bulk Approve state ────────────────────────────────────
     const [approvingSection, setApprovingSection] = useState(null); // section_id currently being approved
+    // ── Export state ──────────────────────────────────────────
+    const [exporting, setExporting] = useState(false);
+    // ── Transfer state ─────────────────────────────────────────
+    const [showTransferModal, setShowTransferModal] = useState(false);
+    const [transferFunnel, setTransferFunnel] = useState(null); // the funnel being transferred
+    const [transferSearch, setTransferSearch] = useState('');
+    const [transferSearchResults, setTransferSearchResults] = useState([]);
+    const [transferSearching, setTransferSearching] = useState(false);
+    const [transferTargetUser, setTransferTargetUser] = useState(null);
+    const [transferring, setTransferring] = useState(false);
+    const transferSearchRef = useRef(null);
 
     const fetchFunnels = useCallback(async () => {
         if (!session) return;
@@ -195,7 +210,8 @@ export default function AdminFunnels() {
                 reset_status: 'Funnel status reset',
                 delete: 'Funnel deleted',
                 retry_generation: 'Generation retry initiated',
-                force_complete: 'Funnel marked as complete'
+                force_complete: 'Funnel marked as complete',
+                undeploy: 'Funnel undeployed — user can now re-deploy'
             };
 
             setToast({ message: actionLabels[action] || 'Action completed successfully!', type: 'success' });
@@ -397,6 +413,128 @@ export default function AdminFunnels() {
             setApprovingSection(null);
         }
     }, [selectedFunnel, fetchFunnels]);
+
+    // ── Export Handler ─────────────────────────────────────────
+    const handleExport = useCallback(async (format = 'json', singleFunnelId = null) => {
+        setExporting(true);
+        try {
+            const params = new URLSearchParams({ format });
+
+            if (singleFunnelId) {
+                params.append('funnelId', singleFunnelId);
+            } else {
+                // Apply the same filters the admin currently has active
+                if (filterUserId) params.append('userId', filterUserId);
+                if (statusFilter) params.append('status', statusFilter);
+                if (debouncedSearch) params.append('search', debouncedSearch);
+            }
+
+            const response = await fetchWithAuth(`/api/admin/funnels/export?${params}`);
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || 'Export failed');
+            }
+
+            // Trigger browser file download
+            const blob = await response.blob();
+            const contentDisposition = response.headers.get('Content-Disposition') || '';
+            const fileNameMatch = contentDisposition.match(/filename="(.+?)"/);
+            const fileName = fileNameMatch ? fileNameMatch[1] : `funnels_export.${format}`;
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+
+            setToast({ message: `Export downloaded successfully (${format.toUpperCase()})`, type: 'success' });
+        } catch (error) {
+            console.error('[AdminExport] Error:', error);
+            setToast({ message: `Export failed: ${error.message}`, type: 'error' });
+        } finally {
+            setExporting(false);
+        }
+    }, [filterUserId, statusFilter, debouncedSearch]);
+
+    // ── Transfer Handlers ──────────────────────────────────────
+    const openTransferModal = useCallback((funnel) => {
+        setTransferFunnel(funnel);
+        setTransferSearch('');
+        setTransferSearchResults([]);
+        setTransferTargetUser(null);
+        setShowTransferModal(true);
+    }, []);
+
+    const searchUsersForTransfer = useCallback(async (query) => {
+        if (!query || query.length < 2) {
+            setTransferSearchResults([]);
+            return;
+        }
+        setTransferSearching(true);
+        try {
+            const res = await fetchWithAuth(`/api/admin/users?search=${encodeURIComponent(query)}&limit=8`);
+            const data = await res.json();
+            // Filter out the current funnel owner
+            const filtered = (data.users || []).filter(u => u.id !== transferFunnel?.user_id);
+            setTransferSearchResults(filtered);
+        } catch (err) {
+            console.error('[TransferSearch] Error:', err);
+            setTransferSearchResults([]);
+        } finally {
+            setTransferSearching(false);
+        }
+    }, [transferFunnel]);
+
+    // Debounce the user search input
+    useEffect(() => {
+        if (!showTransferModal) return;
+        const timer = setTimeout(() => {
+            searchUsersForTransfer(transferSearch);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [transferSearch, showTransferModal, searchUsersForTransfer]);
+
+    const handleTransfer = useCallback(async () => {
+        if (!transferFunnel || !transferTargetUser) return;
+
+        const confirmed = confirm(
+            `Are you sure you want to transfer the funnel "${transferFunnel.funnel_name || 'Unnamed'}" from ${transferFunnel.user_profiles?.full_name || transferFunnel.user_profiles?.email || 'Unknown'} to ${transferTargetUser.full_name || transferTargetUser.email}?\n\nThis will reassign all vault content, questionnaire answers, and associated data.`
+        );
+        if (!confirmed) return;
+
+        setTransferring(true);
+        try {
+            const res = await fetchWithAuth('/api/admin/funnels/transfer', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    funnelId: transferFunnel.id,
+                    targetUserId: transferTargetUser.id,
+                }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || 'Transfer failed');
+            }
+
+            setToast({ message: data.message || 'Funnel transferred successfully', type: 'success' });
+            setShowTransferModal(false);
+            setTransferFunnel(null);
+            setTransferTargetUser(null);
+            fetchFunnels();
+        } catch (error) {
+            console.error('[Transfer] Error:', error);
+            setToast({ message: `Transfer failed: ${error.message}`, type: 'error' });
+        } finally {
+            setTransferring(false);
+        }
+    }, [transferFunnel, transferTargetUser, fetchFunnels]);
 
     const handleStartEdit = (item) => {
         setEditingItem(item.id);
@@ -629,6 +767,27 @@ export default function AdminFunnels() {
                         <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
+                            onClick={() => handleExport('json', row.original.id)}
+                            disabled={exporting}
+                            className="p-2.5 hover:bg-emerald-500/20 rounded-xl transition-all group border border-transparent hover:border-emerald-500/30 disabled:opacity-50"
+                            title="Export funnel data (JSON)"
+                        >
+                            <Download className="w-4 h-4 text-gray-400 group-hover:text-emerald-400 transition-colors" />
+                        </motion.button>
+
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => openTransferModal(row.original)}
+                            className="p-2.5 hover:bg-orange-500/20 rounded-xl transition-all group border border-transparent hover:border-orange-500/30"
+                            title="Transfer funnel to another user"
+                        >
+                            <ArrowRightLeft className="w-4 h-4 text-gray-400 group-hover:text-orange-400 transition-colors" />
+                        </motion.button>
+
+                        <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
                             onClick={() => {
                                 if (confirm(`Are you sure you want to reset the funnel "${row.original.business_name || 'Unnamed'}" to not started?`)) {
                                     handleFunnelAction(row.original.id, 'reset_status');
@@ -639,6 +798,25 @@ export default function AdminFunnels() {
                         >
                             <RotateCcw className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors" />
                         </motion.button>
+
+                        {/* Undeploy button — only visible on deployed funnels */}
+                        {row.original.is_deployed && (
+                            <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => {
+                                    if (confirm(
+                                        `Undeploy "${row.original.funnel_name || 'Unnamed'}"?\n\nThis clears the deployed_at timestamp so the user can trigger a full new deployment from the Vault — WITHOUT unapproving any of their sections.\n\nProceed?`
+                                    )) {
+                                        handleFunnelAction(row.original.id, 'undeploy');
+                                    }
+                                }}
+                                className="p-2.5 hover:bg-purple-500/20 rounded-xl transition-all group border border-transparent hover:border-purple-500/30"
+                                title="Undeploy funnel (allow fresh re-deployment)"
+                            >
+                                <CloudOff className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" />
+                            </motion.button>
+                        )}
 
                         {row.original.vault_generation_status === 'failed' && (
                             <motion.button
@@ -669,7 +847,7 @@ export default function AdminFunnels() {
                 ),
             },
         ],
-        [handleFunnelAction]
+        [handleFunnelAction, handleExport, exporting, openTransferModal]
     );
 
     const table = useReactTable({
@@ -729,18 +907,59 @@ export default function AdminFunnels() {
                             </p>
                         </div>
                     </div>
-                    <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={fetchFunnels}
-                        disabled={loading}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500/20 to-cyan/20 hover:from-purple-500/30 hover:to-cyan/30 rounded-xl transition-all border border-purple-500/30 shadow-lg shadow-purple-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <RefreshCw className={`w-4 h-4 text-purple-400 ${loading ? 'animate-spin' : ''}`} />
-                        <span className="font-medium text-white">Refresh</span>
-                    </motion.button>
+                    <div className="flex items-center gap-3">
+                        {/* Export Dropdown */}
+                        <div className="relative group">
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                disabled={exporting || loading}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500/20 to-cyan/20 hover:from-emerald-500/30 hover:to-cyan/30 rounded-xl transition-all border border-emerald-500/30 shadow-lg shadow-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {exporting ? (
+                                    <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+                                ) : (
+                                    <Download className="w-4 h-4 text-emerald-400" />
+                                )}
+                                <span className="font-medium text-white">{exporting ? 'Exporting...' : 'Export'}</span>
+                                <ChevronDown className="w-3.5 h-3.5 text-emerald-400/70" />
+                            </motion.button>
+                            {/* Dropdown menu */}
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-[#1b1b1d] border border-emerald-500/20 rounded-xl shadow-2xl shadow-black/40 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
+                                <button
+                                    onClick={() => handleExport('json')}
+                                    disabled={exporting}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors text-left"
+                                >
+                                    <FileText className="w-4 h-4" />
+                                    Export as JSON
+                                </button>
+                                <button
+                                    onClick={() => handleExport('csv')}
+                                    disabled={exporting}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors text-left border-t border-[#2a2a2d]"
+                                >
+                                    <FileText className="w-4 h-4" />
+                                    Export as CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <motion.button
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={fetchFunnels}
+                            disabled={loading}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500/20 to-cyan/20 hover:from-purple-500/30 hover:to-cyan/30 rounded-xl transition-all border border-purple-500/30 shadow-lg shadow-purple-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <RefreshCw className={`w-4 h-4 text-purple-400 ${loading ? 'animate-spin' : ''}`} />
+                            <span className="font-medium text-white">Refresh</span>
+                        </motion.button>
+                    </div>
                 </motion.div>
 
                 {/* Status Stats */}
@@ -1265,6 +1484,146 @@ export default function AdminFunnels() {
                                         <p className="text-gray-400">No vault content generated yet</p>
                                     </div>
                                 )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+
+                {/* ── Transfer Funnel Modal ──────────────────────── */}
+                {showTransferModal && transferFunnel && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="bg-[#111113] border border-[#2a2a2d] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-[#2a2a2d]">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-orange-500/10 rounded-xl border border-orange-500/20">
+                                        <ArrowRightLeft className="w-5 h-5 text-orange-400" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-white">Transfer Funnel</h3>
+                                        <p className="text-xs text-gray-500 mt-0.5">Reassign ownership to another user</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => { setShowTransferModal(false); setTransferFunnel(null); setTransferTargetUser(null); }}
+                                    className="p-2 hover:bg-[#2a2a2d] rounded-xl transition-colors"
+                                >
+                                    <X className="w-5 h-5 text-gray-400" />
+                                </button>
+                            </div>
+
+                            {/* Body */}
+                            <div className="px-6 py-5 space-y-5">
+                                {/* Funnel info */}
+                                <div className="p-4 bg-[#1b1b1d] rounded-xl border border-[#2a2a2d]">
+                                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Funnel Being Transferred</p>
+                                    <p className="text-sm font-medium text-white">{transferFunnel.funnel_name || 'Unnamed Funnel'}</p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Current owner: <span className="text-gray-400">{transferFunnel.user_profiles?.full_name || transferFunnel.user_profiles?.email || 'Unknown'}</span>
+                                    </p>
+                                </div>
+
+                                {/* Search target user */}
+                                <div>
+                                    <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">Search Target User</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                        <input
+                                            ref={transferSearchRef}
+                                            type="text"
+                                            value={transferSearch}
+                                            onChange={(e) => setTransferSearch(e.target.value)}
+                                            placeholder="Search by name or email..."
+                                            className="w-full pl-10 pr-4 py-2.5 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-orange-500/50 transition-colors"
+                                            autoFocus
+                                        />
+                                        {transferSearching && (
+                                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400 animate-spin" />
+                                        )}
+                                    </div>
+
+                                    {/* Results */}
+                                    {transferSearchResults.length > 0 && !transferTargetUser && (
+                                        <div className="mt-2 max-h-48 overflow-y-auto bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl divide-y divide-[#2a2a2d]">
+                                            {transferSearchResults.map((user) => (
+                                                <button
+                                                    key={user.id}
+                                                    onClick={() => { setTransferTargetUser(user); setTransferSearchResults([]); }}
+                                                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-orange-500/10 transition-colors"
+                                                >
+                                                    <div className="w-8 h-8 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-xs font-bold text-orange-400">
+                                                        {(user.full_name || user.email || '?')[0]?.toUpperCase()}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm text-white truncate">{user.full_name || 'No Name'}</p>
+                                                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                                                    </div>
+                                                    <span className="text-[10px] px-2 py-0.5 rounded-full border bg-purple-500/10 border-purple-500/20 text-purple-400">
+                                                        {user.subscription_tier || 'starter'}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {transferSearch.length >= 2 && transferSearchResults.length === 0 && !transferSearching && !transferTargetUser && (
+                                        <p className="text-xs text-gray-500 mt-2 text-center py-3">No users found</p>
+                                    )}
+                                </div>
+
+                                {/* Selected target user */}
+                                {transferTargetUser && (
+                                    <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-emerald-500/10 rounded-full">
+                                                    <UserCheck className="w-5 h-5 text-emerald-400" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-gray-500 uppercase tracking-wider">Transfer To</p>
+                                                    <p className="text-sm font-medium text-white">{transferTargetUser.full_name || 'No Name'}</p>
+                                                    <p className="text-xs text-gray-400">{transferTargetUser.email}</p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => { setTransferTargetUser(null); setTransferSearch(''); }}
+                                                className="p-1.5 hover:bg-[#2a2a2d] rounded-lg transition-colors"
+                                                title="Change user"
+                                            >
+                                                <X className="w-4 h-4 text-gray-500" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#2a2a2d]">
+                                <button
+                                    onClick={() => { setShowTransferModal(false); setTransferFunnel(null); setTransferTargetUser(null); }}
+                                    className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors rounded-xl hover:bg-[#2a2a2d]"
+                                >
+                                    Cancel
+                                </button>
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={handleTransfer}
+                                    disabled={!transferTargetUser || transferring}
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-sm font-medium rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-orange-500/20"
+                                >
+                                    {transferring ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <ArrowRightLeft className="w-4 h-4" />
+                                    )}
+                                    {transferring ? 'Transferring...' : 'Confirm Transfer'}
+                                </motion.button>
                             </div>
                         </motion.div>
                     </div>

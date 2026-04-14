@@ -1,76 +1,56 @@
 /**
- * Get Connected Social Media Accounts
- * Returns info about connected X, Instagram, and Facebook accounts
+ * GET /api/social/connected-accounts
+ * Returns connected social accounts via Post for Me API
  */
 
 import { auth } from '@clerk/nextjs/server';
-import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { getConnectedAccounts } from '@/lib/social/postForMeClient';
 
-export async function GET(req) {
+export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Resolve workspace (for multi-tenant support)
     const { workspaceId, error: workspaceError } = await resolveWorkspace(userId);
     if (workspaceError) {
       return Response.json({ error: workspaceError }, { status: 403 });
     }
 
-    // Get all connected auth tokens
-    const { data: tokens, error } = await supabaseAdmin
-      .from('social_auth_tokens')
-      .select('platform, account_username, account_id, connected_at')
-      .eq('user_id', workspaceId);
+    const accounts = await getConnectedAccounts(workspaceId);
 
-    if (error) {
-      console.error('Database error:', error);
-      throw error;
-    }
-
-    console.log('[Connected Accounts] Found tokens:', tokens?.map(t => t.platform) || []);
-
-    // Organize by platform
-    const accounts = {
-      x: null,
-      instagram: null,
-      facebook: null
-    };
-
+    // Build response compatible with existing SocialPostModal format
+    const accountMap = { x: null, instagram: null, facebook: null };
     const connected = [];
 
-    if (tokens && tokens.length > 0) {
-      for (const token of tokens) {
-        accounts[token.platform] = {
-          username: token.account_username,
-          account_id: token.account_id,
-          connected_at: token.connected_at
+    for (const account of accounts) {
+      const platform = account.platform;
+      if (platform in accountMap) {
+        accountMap[platform] = {
+          id: account.id,           // spc_... PostForMe ID
+          username: account.username,
+          profile_photo_url: account.profile_photo_url,
+          connected_at: account.created_at,
         };
-        connected.push(token.platform);
+        connected.push(platform);
       }
     }
-
-    console.log('[Connected Accounts] Returning:', { connected, platforms: Object.keys(accounts).filter(k => accounts[k]) });
 
     return Response.json({
       success: true,
-      accounts,
+      accounts: accountMap,
       connected,
       platforms: {
-        x: !!accounts.x,
-        instagram: !!accounts.instagram,
-        facebook: !!accounts.facebook
-      }
+        x: !!accountMap.x,
+        instagram: !!accountMap.instagram,
+        facebook: !!accountMap.facebook,
+      },
     });
   } catch (error) {
-    console.error('Error fetching connected accounts:', error);
-    return Response.json(
-      { error: error.message },
-      { status: 500 }
-    );
+    console.error('[Connected Accounts] Error:', error.message);
+    return Response.json({ error: error.message }, { status: error.status || 500 });
   }
 }
 

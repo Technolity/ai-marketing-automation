@@ -34,6 +34,21 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-04-14)
+| File | Change |
+| :--- | :--- |
+| `lib/vault/fieldMapper.js` | **Bug Fix (Short VSL)**: Added `vslShort` mapping to `FIELD_MAPPINGS` to correctly extract and parse the 16 fields from the flat JSON output. |
+| `lib/vault/dependencyResolver.js` | **Bug Fix (Short VSL)**: Registered key 21 (`vslShort`) in `CONTENT_NAMES` and added its upstream dependencies (`idealClient`, `message`, `story`, `vsl`) to `SECTION_DEPENDENCIES`. |
+| `app/api/os/generate-stream/route.js` | **Enhancement**: Added explicit debug logging for key 21 (Short VSL) generation start. |
+| `app/api/admin/ghl-subaccounts/link/route.js` | **Bug Fix (GHL Link)**: Fixed `23505 duplicate key` crash on `location_id` unique constraint. When re-linking a location already held by another user, the route now: (1) deactivates any conflicting row from other users, (2) deletes the old physical row for that location_id, and (3) re-inserts with the new owner. Previously would return 500 on conflict. Also hotfixed Debra Shelton's row directly via SQL (`is_active = false → true` for location `nGGnFrvFOelEOy2kjFlo`). |
+| `app/api/admin/funnels/route.js` | **Feature (Undeploy)**: Added `undeploy` action to the admin funnels PUT handler. Sets `deployed_at = NULL` — clears the funnel's deployed state without touching approvals, so the user can trigger a full new deployment from the Vault. |
+| `app/admin/funnels/page.jsx` | **Feature (Undeploy UI)**: Added `CloudOff` icon import and an "Undeploy" action button in the funnels table. Button is conditionally shown only on `is_deployed` funnels (where `deployed_at` is set). Shows a confirmation dialog with a clear explanation before proceeding. Success toast message updated to reflect the action. |
+
+### Recent Modifications (2026-04-06)
+| File | Change |
+| :--- | :--- |
+| `components/SubscriptionLockedPage.jsx` | **UI Update**: Changed subscription renewal flow to direct users to app.tedos.ai/settings/billings instead of specific plan URLs, reflecting that renewals are managed externally from the app settings. |
+
 ### Recent Modifications (2026-03-26)
 | File | Change |
 | :--- | :--- |

@@ -340,6 +340,34 @@ export async function PUT(req) {
             return NextResponse.json({ success: true, funnel: data });
         }
 
+        // Action: Undeploy funnel — clears deployed_at so user can re-deploy fresh
+        if (action === 'undeploy') {
+            const { data, error } = await supabase
+                .from('user_funnels')
+                .update({
+                    deployed_at: null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', funnelId)
+                .select()
+                .single();
+
+            if (error) {
+                adminLogger.error(LOG_CATEGORIES.DATABASE, 'Failed to undeploy funnel', {
+                    error: error.message,
+                    funnelId
+                });
+                throw error;
+            }
+
+            adminLogger.logFunnelOperation('undeploy', funnelId, funnel.user_id, {
+                funnelName: funnel.funnel_name,
+                adminId: adminUserId
+            });
+
+            return NextResponse.json({ success: true, funnel: data, message: 'Funnel undeployed. User can now re-deploy fresh.' });
+        }
+
         // Action: Update vault content (admin edit)
         if (action === 'update_vault_content') {
             const { vaultItemId, content, status: vaultStatus } = body;

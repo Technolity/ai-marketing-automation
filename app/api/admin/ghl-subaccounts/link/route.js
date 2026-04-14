@@ -199,7 +199,7 @@ export async function POST(req) {
 
         if (existingSubaccounts && existingSubaccounts.length > 0) {
             const oldLocationIds = existingSubaccounts.map(sa => sa.location_id);
-            console.log(`[Link Location] Deactivating ${existingSubaccounts.length} existing sub-account(s):`, oldLocationIds);
+            console.log(`[Link Location] Deactivating ${existingSubaccounts.length} existing sub-account(s) for user:`, oldLocationIds);
 
             await supabase
                 .from('ghl_subaccounts')
@@ -208,7 +208,34 @@ export async function POST(req) {
                 .eq('is_active', true);
         }
 
-        // 6. Insert the new sub-account record
+        // 5b. Also deactivate any OTHER user's row that holds this same location_id.
+        //     This covers the 23505 duplicate key scenario where the location was previously
+        //     linked to a different user (or re-assigned). We must clear it before inserting.
+        const { data: conflictingRow } = await supabase
+            .from('ghl_subaccounts')
+            .select('id, user_id')
+            .eq('location_id', trimmedLocationId)
+            .neq('user_id', userId)
+            .limit(1)
+            .maybeSingle();
+
+        if (conflictingRow) {
+            console.log(`[Link Location] Location ${trimmedLocationId} already owned by user ${conflictingRow.user_id} — deactivating conflicting row before re-assigning`);
+            await supabase
+                .from('ghl_subaccounts')
+                .update({ is_active: false, updated_at: new Date().toISOString() })
+                .eq('location_id', trimmedLocationId)
+                .neq('user_id', userId);
+        }
+
+        // 6. Insert (or re-assign) the sub-account record.
+        // Using DELETE + INSERT is the safest strategy here because the upsert ON CONFLICT
+        // cannot change the primary key (user_id + location_id), so we delete the old row first.
+        await supabase
+            .from('ghl_subaccounts')
+            .delete()
+            .eq('location_id', trimmedLocationId);
+
         const { error: insertError } = await supabase
             .from('ghl_subaccounts')
             .insert({
@@ -217,7 +244,7 @@ export async function POST(req) {
                 location_name: locationName,
                 agency_id: tokenData?.company_id || null,
                 is_active: true,
-                snapshot_imported: false, // New location — snapshot not imported yet
+                snapshot_imported: false,
             });
 
         if (insertError) {

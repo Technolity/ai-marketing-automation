@@ -8,39 +8,28 @@ import { LockKeyhole, Calendar, ArrowRight, Mail } from "lucide-react";
  * Full-screen page shown when a user's subscription has expired,
  * been cancelled, or been suspended due to non-payment.
  */
-const PLAN_URLS = {
-    starter_monthly: process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_STARTER_MONTHLY,
-    growth_monthly:  process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_GROWTH_MONTHLY,
-    scale_monthly:   process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_SCALE_MONTHLY,
-    starter_annual:  process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_STARTER_ANNUAL,
-    growth_annual:   process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_GROWTH_ANNUAL,
-    scale_annual:    process.env.NEXT_PUBLIC_GHL_PAYMENT_URL_SCALE_ANNUAL,
-};
-
-export default function SubscriptionLockedPage({ status, periodEnd, cancelledAt, tier, billingCycle }) {
-    const paymentUrl = (tier && billingCycle && PLAN_URLS[`${tier}_${billingCycle}`])
-        || process.env.NEXT_PUBLIC_GHL_PAYMENT_URL
-        || 'https://go.highlevel.com';
+export default function SubscriptionLockedPage({ status, periodEnd, cancelledAt }) {
+    const paymentUrl = 'https://app.tedos.ai/settings/billings';
     const isCancelled = status === 'cancelled';
     const isSuspended = status === 'suspended';
 
     const title = isCancelled
         ? 'Subscription Cancelled'
         : isSuspended
-        ? 'Subscription Suspended'
-        : 'Subscription Expired';
+            ? 'Subscription Suspended'
+            : 'Subscription Expired';
 
     const description = isCancelled
-        ? 'Your TedOS subscription has been cancelled. Reactivate your plan to regain access.'
+        ? 'Your TedOS subscription has been cancelled. Manage your subscription to regain access.'
         : isSuspended
-        ? 'Your subscription payment is overdue. Please renew your plan to restore access.'
-        : 'Your billing period has ended. Renew your plan to continue using TedOS.';
+            ? 'Your subscription payment is overdue. Please manage your billing to restore access.'
+            : 'Your billing period has ended. Manage your billing to continue using TedOS.';
 
     const dateLabel = isCancelled && cancelledAt
         ? `Cancelled on ${new Date(cancelledAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
         : periodEnd
-        ? `Period ended ${new Date(periodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
-        : null;
+            ? `Period ended ${new Date(periodEnd).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+            : null;
 
     return (
         <div className="fixed inset-0 z-[9999] bg-[#0a0a0b] flex items-center justify-center overflow-hidden">
@@ -121,11 +110,11 @@ export default function SubscriptionLockedPage({ status, periodEnd, cancelledAt,
                         rel="noopener noreferrer"
                         className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan to-cyan/80 text-black font-semibold hover:opacity-90 transition-opacity"
                     >
-                        Renew Your Plan
+                        Manage Billing
                         <ArrowRight className="w-4 h-4" />
                     </a>
                     <a
-                        href="mailto:support@tedos.ai"
+                        href="mailto:waris@scalezmedia.com"
                         className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[#1b1b1d] border border-[#2a2a2d] text-gray-300 font-medium hover:border-gray-500 transition-colors"
                     >
                         <Mail className="w-4 h-4" />

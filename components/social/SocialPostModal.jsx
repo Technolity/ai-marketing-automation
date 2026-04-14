@@ -164,45 +164,39 @@ export default function SocialPostModal({ post, onClose, onPosted, initialPlatfo
     const results = [];
     const errors = [];
 
-    for (const platform of selectedPlatforms) {
-      try {
-        const endpoint = {
-          x: "/api/social/post-x",
-          instagram: "/api/social/post-instagram",
-          facebook: "/api/social/post-facebook",
-        }[platform];
+    try {
+      // Build per-platform captions (with hashtags appended)
+      const captionWithHashtags = (platform) =>
+        caption + (hashtags[platform] ? `\n\n${hashtags[platform]}` : "");
 
-        if (!endpoint) {
-          errors.push(`Unknown platform: ${platform}`);
-          continue;
-        }
+      // Use the caption for the first selected platform as default;
+      // pass platform_configurations for overrides in post endpoint
+      const primaryCaption = captionWithHashtags(selectedPlatforms[0]);
 
-        const payload = {
+      const res = await fetchWithAuth("/api/social/post", {
+        method: "POST",
+        body: JSON.stringify({
+          platforms: selectedPlatforms,
+          caption: primaryCaption,
           imageUrl,
-          caption: caption + (hashtags[platform] ? `\n\n${hashtags[platform]}` : ""),
           daily_post_id: post.id,
-        };
-        console.error('[SocialPostModal] Sending to', endpoint, ':', { ...payload, caption: payload.caption.slice(0, 20) });
+        }),
+      });
 
-        const res = await fetchWithAuth(endpoint, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+      const data = await res.json().catch(() => ({}));
 
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          if (data.code === "x_not_connected" || data.code === "instagram_not_connected" || data.code === "facebook_not_connected") {
-            errors.push(`${platform.charAt(0).toUpperCase() + platform.slice(1)} account not connected`);
-          } else {
-            errors.push(data.error || `Failed to post to ${platform}`);
-          }
-        } else {
-          results.push(platform);
+      if (res.ok) {
+        results.push(...(data.platforms_posted || selectedPlatforms));
+        if (data.platforms_skipped?.length) {
+          data.platforms_skipped.forEach(p =>
+            errors.push(`${p.charAt(0).toUpperCase() + p.slice(1)} not connected — skipped`)
+          );
         }
-      } catch (err) {
-        errors.push(`${platform}: ${err.message}`);
+      } else {
+        errors.push(data.error || "Failed to post");
       }
+    } catch (err) {
+      errors.push(err.message);
     }
 
     setSubmitting(false);
