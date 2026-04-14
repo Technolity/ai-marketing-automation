@@ -95,9 +95,10 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
     const handleFeedbackSave = async (feedbackData) => {
         console.log('[OfferFields] AI feedback save received:', feedbackData);
 
-        // Extract refined content and subSection from callback
+        // Extract refined content, subSection, and optional stepIndex from callback
         const refinedContent = feedbackData?.refinedContent || feedbackData;
         const subSection = feedbackData?.subSection;
+        const stepIndex = feedbackData?.stepIndex; // Present when refining a single blueprint step
 
         if (!refinedContent) {
             console.error('[OfferFields] No refined content to save');
@@ -106,16 +107,35 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
 
         try {
             // Import feedback utils dynamically
-            const { flattenAIResponseToFields, hasMultipleFields } = await import('@/lib/vault/feedbackUtils');
+            const { flattenAIResponseToFields } = await import('@/lib/vault/feedbackUtils');
 
-            // Flatten AI response to field IDs
-            const flatFields = flattenAIResponseToFields(refinedContent, sectionId);
+            // ── Special case: single 7-Step Blueprint step refinement ──────────
+            if (subSection === 'sevenStepBlueprint' && typeof stepIndex === 'number') {
+                console.log('[OfferFields] Merging refined blueprint step', stepIndex, 'into full array');
 
-            console.log('[OfferFields] Flattened fields:', Object.keys(flatFields));
+                // Get the updated step from AI response
+                // AI should return { sevenStepBlueprint: [updatedStepObject] }
+                const aiBlueprint = refinedContent?.sevenStepBlueprint;
+                const updatedStep = Array.isArray(aiBlueprint)
+                    ? aiBlueprint[0] ?? aiBlueprint[stepIndex] ?? refinedContent
+                    : refinedContent; // fallback: treat whole response as the step
 
-            // If subSection specified and exists in flatFields, only save that field
-            if (subSection && subSection !== 'all' && flatFields[subSection]) {
-                console.log('[OfferFields] Saving single field:', subSection);
+                // Merge into the current full array from local state
+                const currentBlueprint = (() => {
+                    const dbField = fields.find(f => f.field_id === 'sevenStepBlueprint');
+                    if (!dbField?.field_value) return [];
+                    try {
+                        return Array.isArray(dbField.field_value)
+                            ? dbField.field_value
+                            : JSON.parse(dbField.field_value);
+                    } catch {
+                        return [];
+                    }
+                })();
+
+                // Clone and splice the updated step into position
+                const mergedBlueprint = [...currentBlueprint];
+                mergedBlueprint[stepIndex] = { ...(mergedBlueprint[stepIndex] || {}), ...updatedStep };
 
                 const response = await fetchWithAuth('/api/os/vault-field', {
                     method: 'PATCH',
@@ -123,34 +143,58 @@ export default function OfferFields({ funnelId, onApprove, onRenderApproveButton
                     body: JSON.stringify({
                         funnel_id: funnelId,
                         section_id: sectionId,
-                        field_id: subSection,
-                        field_value: flatFields[subSection]
+                        field_id: 'sevenStepBlueprint',
+                        field_value: mergedBlueprint
                     })
                 });
 
-                if (!response.ok) throw new Error('Failed to save field');
+                if (!response.ok) throw new Error('Failed to save blueprint step');
+                console.log('[OfferFields] Blueprint step', stepIndex, 'saved successfully');
 
-            } else if (Object.keys(flatFields).length > 0) {
-                // Batch save all fields via new API
-                console.log('[OfferFields] Batch saving', Object.keys(flatFields).length, 'fields');
+            } else {
+                // ── Standard field or batch save ─────────────────────────────────
+                const flatFields = flattenAIResponseToFields(refinedContent, sectionId);
+                console.log('[OfferFields] Flattened fields:', Object.keys(flatFields));
 
-                const response = await fetchWithAuth('/api/os/vault-section-save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        funnel_id: funnelId,
-                        section_id: sectionId,
-                        fields: flatFields
-                    })
-                });
+                // If subSection specified and exists in flatFields, only save that field
+                if (subSection && subSection !== 'all' && flatFields[subSection]) {
+                    console.log('[OfferFields] Saving single field:', subSection);
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'Failed to save fields');
+                    const response = await fetchWithAuth('/api/os/vault-field', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            funnel_id: funnelId,
+                            section_id: sectionId,
+                            field_id: subSection,
+                            field_value: flatFields[subSection]
+                        })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to save field');
+
+                } else if (Object.keys(flatFields).length > 0) {
+                    // Batch save all fields via new API
+                    console.log('[OfferFields] Batch saving', Object.keys(flatFields).length, 'fields');
+
+                    const response = await fetchWithAuth('/api/os/vault-section-save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            funnel_id: funnelId,
+                            section_id: sectionId,
+                            fields: flatFields
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to save fields');
+                    }
+
+                    const result = await response.json();
+                    console.log('[OfferFields] Batch save result:', result);
                 }
-
-                const result = await response.json();
-                console.log('[OfferFields] Batch save result:', result);
             }
 
             // Refresh fields from database
