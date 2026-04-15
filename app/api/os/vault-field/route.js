@@ -373,7 +373,23 @@ export async function PATCH(req) {
         // Validate field value if field definition exists (use actualFieldValue for validation)
         const fieldDef = getFieldDefinition(section_id, actualFieldId);
         if (fieldDef) {
-            const validation = validateFieldValue(fieldDef, actualFieldValue);
+            // IMPORTANT: If the value is a JSON string (e.g. sent as serialized array/object
+            // from the frontend), parse it back before validation so array/object type checks
+            // work correctly. Without this, a stringified array fails Array.isArray() and
+            // triggers spurious "needs more items" validation errors.
+            let valueForValidation = actualFieldValue;
+            if (
+                typeof actualFieldValue === 'string' &&
+                (fieldDef.field_type === 'array' || fieldDef.field_type === 'object')
+            ) {
+                try {
+                    valueForValidation = JSON.parse(actualFieldValue);
+                } catch (e) {
+                    // Keep original string if JSON parsing fails — validator will flag type error
+                }
+            }
+
+            const validation = validateFieldValue(fieldDef, valueForValidation);
             if (!validation.valid) {
                 console.warn('[VaultField PATCH] Validation failed:', validation.errors);
                 return new Response(JSON.stringify({
@@ -392,6 +408,7 @@ export async function PATCH(req) {
             : (typeof actualFieldValue === 'object' && actualFieldValue !== null)
                 ? JSON.stringify(actualFieldValue)
                 : actualFieldValue;
+
 
         // Fetch old field value BEFORE the upsert (needed for atomic dependency propagation)
         let currentField = null;
