@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Download, BookOpen, Rocket, Settings, ChevronRight } from "lucide-react";
+import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight } from "lucide-react";
 
 // Guide configuration - easily extensible
 const GUIDES = [
@@ -25,6 +25,13 @@ const GUIDES = [
         description: "Configure your automation builder",
         pdfPath: "/guide-3.pdf",
         icon: Settings,
+    },
+    {
+        id: "tedos-domain",
+        title: "TedOS Domain",
+        description: "Domain setup and configuration guide",
+        pdfPath: "/TedOS-Domain.pdf",
+        icon: Globe,
     },
 ];
 
