@@ -99,6 +99,14 @@
   * {
     border-color: var(--border);
   }
+  /* Prevent Tailwind preflight from applying the white --background CSS variable
+     to form elements. Without this, bg-elevated and other bg-* utilities get
+     overridden, causing white textarea boxes with invisible white text. */
+  input,
+  textarea,
+  select {
+    background-color: transparent;
+  }
   html {
     @apply font-sans;
   }

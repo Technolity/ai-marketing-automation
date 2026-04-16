@@ -39,17 +39,21 @@ const unwrapArrayIds = (arr) => {
 
 
 
-// Helper to auto-resize a textarea element (no max height - grows with content).
+// Helper to auto-resize a textarea element (grows with content, respects minHeight).
 // We add the element's computed border widths to scrollHeight because scrollHeight
 // excludes borders — without this, the content is 2px short of fitting, which
 // triggers an unnecessary scrollbar even on small (3-4 line) content.
+// We also respect the element's CSS minHeight so empty fields don't collapse to
+// a tiny height (which was causing the "white field" visual bug on empty textareas).
 const autoResizeTextarea = (el) => {
     if (!el) return;
     const computed = window.getComputedStyle(el);
     const borderTop = parseFloat(computed.borderTopWidth) || 0;
     const borderBottom = parseFloat(computed.borderBottomWidth) || 0;
+    const minHeightPx = parseFloat(computed.minHeight) || 0;
     el.style.height = 'auto';
-    el.style.height = (el.scrollHeight + borderTop + borderBottom) + 'px';
+    const newHeight = Math.max(el.scrollHeight + borderTop + borderBottom, minHeightPx);
+    el.style.height = newHeight + 'px';
 };
 
 // Helper to sanitize displayed content

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Download, BookOpen, Rocket, Settings, ChevronRight } from "lucide-react";
+import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight } from "lucide-react";
 
 // Guide configuration - easily extensible
 const GUIDES = [
@@ -25,6 +25,13 @@ const GUIDES = [
         description: "Configure your automation builder",
         pdfPath: "/guide-3.pdf",
         icon: Settings,
+    },
+    {
+        id: "tedos-domain",
+        title: "TedOS Domain",
+        description: "Domain setup and configuration guide",
+        pdfPath: "/TedOS_Domains.pdf",
+        icon: Globe,
     },
 ];
 
@@ -135,12 +142,30 @@ export default function GuidePage() {
 
                         {/* PDF Content */}
                         <div className="flex-1 relative">
-                            <iframe
+                            <object
                                 key={activeGuide.id}
-                                src={activeGuide.pdfPath}
+                                data={`${activeGuide.pdfPath}#view=FitH&toolbar=1`}
+                                type="application/pdf"
                                 className="w-full h-full absolute inset-0 border-0"
-                                title={activeGuide.title}
-                            />
+                            >
+                                <embed
+                                    src={`${activeGuide.pdfPath}#view=FitH`}
+                                    type="application/pdf"
+                                    className="w-full h-full"
+                                />
+                                {/* Fallback if browser can't embed PDF */}
+                                <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400">
+                                    <p>Your browser cannot display this PDF inline.</p>
+                                    <a
+                                        href={activeGuide.pdfPath}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-4 py-2 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/20 rounded-lg transition-all"
+                                    >
+                                        Open PDF in new tab
+                                    </a>
+                                </div>
+                            </object>
                         </div>
                     </div>
 
