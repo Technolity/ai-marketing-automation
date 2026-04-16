@@ -113,11 +113,11 @@ function SectionHeading({ title, description }) {
         <div className="border-b border-white/[0.06] pb-3">
             <div className="flex items-center gap-2.5">
                 <div className="h-4 w-[3px] rounded-full bg-cyan" />
-                <h3 className={cn(displayFontClass, "text-[18px] font-semibold tracking-[-0.03em] text-white")}>
+                <h3 className={cn(displayFontClass, "text-xl font-semibold tracking-[-0.03em] text-white")}>
                     {title}
                 </h3>
             </div>
-            <p className="mt-2 max-w-xl text-[13px] leading-5 text-[#8b8b93]">
+            <p className="mt-2 max-w-xl text-sm leading-5 text-[#8b8b93]">
                 {description}
             </p>
         </div>
@@ -129,13 +129,13 @@ function MetricCard({ label, value, helper, icon: Icon, tone }) {
         <div className="rounded-[18px] border border-white/[0.07] bg-[#111214] px-3.5 py-3.5 sm:px-4">
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7c7c83]">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7c7c83]">
                         {label}
                     </p>
                     <p
                         className={cn(
                             displayFontClass,
-                            "mt-2.5 truncate text-[24px] font-semibold leading-none tracking-[-0.03em] sm:text-[28px]",
+                            "mt-2.5 truncate text-2xl font-semibold leading-none tracking-[-0.03em] sm:text-3xl",
                             tone
                         )}
                     >
@@ -146,20 +146,32 @@ function MetricCard({ label, value, helper, icon: Icon, tone }) {
                     <Icon className={cn("h-3.5 w-3.5", tone)} />
                 </div>
             </div>
-            <p className="mt-2 text-[13px] leading-5 text-[#8b8b93]">{helper}</p>
+            <p className="mt-2 text-sm leading-5 text-[#8b8b93]">{helper}</p>
         </div>
     );
 }
 
 function EmptyState({ label }) {
     return (
-        <div className="flex min-h-[136px] items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#13181b] px-4 text-center text-[13px] text-[#8b8b93]">
+        <div className="flex min-h-[136px] items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#13181b] px-4 text-center text-sm text-[#8b8b93]">
             {label}
         </div>
     );
 }
 
-export default function LivePerformancePanel() {
+function EngineOverviewCard({ label, value, helper, accent = "text-cyan" }) {
+    return (
+        <div className="rounded-[20px] border border-white/[0.07] bg-[#111214] p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7c7c83]">{label}</p>
+            <p className={cn("mt-3 text-4xl font-bold leading-none tracking-tight", accent)}>
+                {typeof value === "number" ? value.toLocaleString() : value}
+            </p>
+            <p className="mt-2.5 text-sm leading-5 text-[#8b8b93]">{helper}</p>
+        </div>
+    );
+}
+
+export default function LivePerformancePanel({ engineInsights = null }) {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [connected, setConnected] = useState(false);
@@ -273,6 +285,11 @@ export default function LivePerformancePanel() {
     if (loading) {
         return (
             <div className="space-y-3.5">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="h-[120px] animate-pulse rounded-[20px] border border-white/[0.08] bg-[#111214]" />
+                    ))}
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, index) => (
                         <div
@@ -301,13 +318,13 @@ export default function LivePerformancePanel() {
                             <Zap className="h-4 w-4 text-amber-300" />
                         </div>
                         <div>
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-200/70">
+                            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-200/70">
                                 Builder stats offline
                             </p>
                             <h3 className={cn(displayFontClass, "mt-2 text-[22px] font-semibold tracking-[-0.03em] text-white")}>
                                 Connect your Builder telemetry.
                             </h3>
-                            <p className="mt-2.5 max-w-2xl text-[13px] leading-5 text-[#8b8b93]">
+                            <p className="mt-2.5 max-w-2xl text-sm leading-5 text-[#8b8b93]">
                                 Live Performance needs a connected GHL location before it can show revenue, contacts, and appointment flow.
                             </p>
                         </div>
@@ -316,7 +333,7 @@ export default function LivePerformancePanel() {
                     <button
                         type="button"
                         onClick={() => router.push("/admin/ghl-authorize")}
-                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[12px] border border-amber-400/20 bg-amber-400 px-4 text-[13px] font-semibold text-[#16120a] transition hover:brightness-105"
+                        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[12px] border border-amber-400/20 bg-amber-400 px-4 text-sm font-semibold text-[#16120a] transition hover:brightness-105"
                     >
                         Connect Builder Stats
                         <ArrowUpRight className="h-3.5 w-3.5" />
@@ -328,6 +345,40 @@ export default function LivePerformancePanel() {
 
     return (
         <div className="space-y-3.5">
+            {engineInsights && (
+                <section>
+                    <div className="mb-4">
+                        <h2 className="text-xl font-semibold text-white">Engine Overview</h2>
+                        <p className="mt-1 text-sm text-[#8b8b93]">A quick look at how your marketing engines are doing right now.</p>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        <EngineOverviewCard
+                            label="Engines Active"
+                            value={engineInsights.live}
+                            helper="Total marketing engines in your workspace."
+                            accent="text-cyan"
+                        />
+                        <EngineOverviewCard
+                            label="Awaiting Review"
+                            value={engineInsights.awaitingReviewCount}
+                            helper="Engines that still need sections approved before launch."
+                            accent="text-amber-300"
+                        />
+                        <EngineOverviewCard
+                            label="Content Ready"
+                            value={engineInsights.pagesReady}
+                            helper="Engines with vault content generated and ready to review."
+                            accent="text-blue-200"
+                        />
+                        <EngineOverviewCard
+                            label="Launch Ready"
+                            value={engineInsights.builderSync}
+                            helper="Engines fully approved or already live."
+                            accent="text-emerald-300"
+                        />
+                    </div>
+                </section>
+            )}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {metricCards.map((card, index) => (
                     <MetricCard key={card.label} {...card} tone={cardTones[index % cardTones.length]} />
@@ -343,8 +394,8 @@ export default function LivePerformancePanel() {
 
                     <div className="mt-4 rounded-[16px] border border-white/[0.08] bg-[#13181b] p-3.5 sm:p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-[14px] font-medium text-white">5-day lead flow</p>
-                            <p className="text-[13px] font-medium text-cyan">{leadDeltaLabel}</p>
+                            <p className="text-base font-medium text-white">5-day lead flow</p>
+                            <p className="text-sm font-medium text-cyan">{leadDeltaLabel}</p>
                         </div>
 
                         {leadFlow.length === 0 ? (
@@ -362,8 +413,8 @@ export default function LivePerformancePanel() {
                                             />
                                         </div>
                                         <div className="text-center">
-                                            <p className="text-[11px] font-medium text-[#f0f0f2]">{bar.value}</p>
-                                            <p className="text-[10px] uppercase tracking-[0.1em] text-[#7c7c83]">
+                                            <p className="text-xs font-medium text-[#f0f0f2]">{bar.value}</p>
+                                            <p className="text-xs uppercase tracking-[0.1em] text-[#7c7c83]">
                                                 {bar.label}
                                             </p>
                                         </div>
@@ -378,7 +429,7 @@ export default function LivePerformancePanel() {
                             {["Source", "Leads", "Value", "Win"].map((label) => (
                                 <p
                                     key={label}
-                                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7c7c83]"
+                                    className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7c7c83]"
                                 >
                                     {label}
                                 </p>
@@ -387,7 +438,7 @@ export default function LivePerformancePanel() {
 
                         <div className="space-y-2 bg-[#13181b] p-3 sm:space-y-0 sm:p-0">
                             {leadSources.length === 0 ? (
-                                <div className="px-4 py-7 text-center text-[13px] text-[#8b8b93]">
+                                <div className="px-4 py-7 text-center text-sm text-[#8b8b93]">
                                     No lead source data is available yet.
                                 </div>
                             ) : (
@@ -397,11 +448,11 @@ export default function LivePerformancePanel() {
                                         className="rounded-[12px] border border-white/[0.08] bg-[#13181b] px-4 py-2.5 sm:grid sm:grid-cols-[minmax(0,1.5fr)_80px_88px_92px] sm:items-center sm:rounded-none sm:border-x-0 sm:border-t-0"
                                     >
                                         <div className="min-w-0">
-                                            <p className="truncate text-[13px] font-medium text-[#f0f0f2]" title={source.source}>
+                                            <p className="truncate text-sm font-medium text-[#f0f0f2]" title={source.source}>
                                                 {source.source}
                                             </p>
                                         </div>
-                                        <div className="mt-2.5 flex flex-wrap gap-2 text-xs sm:mt-0 sm:block sm:text-[13px]">
+                                        <div className="mt-2.5 flex flex-wrap gap-2 text-xs sm:mt-0 sm:block sm:text-sm">
                                             <span className="inline-flex rounded-[8px] border border-white/[0.08] bg-[#101114] px-2 py-1 text-[#f0f0f2] sm:hidden">
                                                 Leads {formatNumber(source.leads)}
                                             </span>
@@ -409,11 +460,11 @@ export default function LivePerformancePanel() {
                                                 {formatNumber(source.leads)}
                                             </span>
                                         </div>
-                                        <div className="hidden text-[13px] text-[#f0f0f2] sm:block">
+                                        <div className="hidden text-sm text-[#f0f0f2] sm:block">
                                             {formatCurrency(source.value, true)}
                                         </div>
                                         <div className="mt-2 sm:mt-0">
-                                            <span className="inline-flex rounded-[8px] border border-cyan/20 bg-cyan/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan">
+                                            <span className="inline-flex rounded-[8px] border border-cyan/20 bg-cyan/10 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-cyan">
                                                 {source.winRate}%
                                             </span>
                                         </div>
@@ -438,10 +489,10 @@ export default function LivePerformancePanel() {
                                 stageVolume.map((stage) => (
                                     <div key={stage.name} className="space-y-1.5">
                                         <div className="flex items-center justify-between gap-3">
-                                            <p className="truncate text-[13px] font-medium text-[#f0f0f2]" title={stage.name}>
+                                            <p className="truncate text-sm font-medium text-[#f0f0f2]" title={stage.name}>
                                                 {stage.name}
                                             </p>
-                                            <span className="text-[13px] text-[#8b8b93]">{formatNumber(stage.value)}</span>
+                                            <span className="text-sm text-[#8b8b93]">{formatNumber(stage.value)}</span>
                                         </div>
                                         <div className="h-2.5 overflow-hidden rounded-full border border-white/[0.08] bg-[#101114]">
                                             <div
@@ -477,7 +528,7 @@ export default function LivePerformancePanel() {
                                                     style={{ height: `${bar.height}px` }}
                                                 />
                                             </div>
-                                            <p className="text-[10px] uppercase tracking-[0.1em] text-[#7c7c83]">
+                                            <p className="text-xs uppercase tracking-[0.1em] text-[#7c7c83]">
                                                 {bar.label}
                                             </p>
                                         </div>
@@ -486,33 +537,33 @@ export default function LivePerformancePanel() {
 
                                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                                     <div className="rounded-[14px] border border-white/[0.08] bg-[#13181b] p-3.5">
-                                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#7c7c83]">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7c7c83]">
                                             Today
                                         </p>
-                                        <p className={cn(displayFontClass, "mt-1.5 text-[22px] font-semibold tracking-[-0.03em] text-white")}>
+                                        <p className={cn(displayFontClass, "mt-1.5 text-2xl font-semibold tracking-[-0.03em] text-white")}>
                                             {formatNumber(appointmentsData?.todayCount)}
                                         </p>
-                                        <p className="mt-1.5 text-[13px] text-[#8b8b93]">Appointments scheduled for today.</p>
+                                        <p className="mt-1.5 text-sm text-[#8b8b93]">Appointments scheduled for today.</p>
                                     </div>
                                     <div className="rounded-[14px] border border-white/[0.08] bg-[#13181b] p-3.5">
-                                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#7c7c83]">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7c7c83]">
                                             This month
                                         </p>
-                                        <p className={cn(displayFontClass, "mt-1.5 text-[22px] font-semibold tracking-[-0.03em] text-white")}>
+                                        <p className={cn(displayFontClass, "mt-1.5 text-2xl font-semibold tracking-[-0.03em] text-white")}>
                                             {formatNumber(appointmentsData?.thisMonth)}
                                         </p>
-                                        <p className="mt-1.5 text-[13px] text-[#8b8b93]">Total appointments booked this month.</p>
+                                        <p className="mt-1.5 text-sm text-[#8b8b93]">Total appointments booked this month.</p>
                                     </div>
                                 </div>
 
                                 <div className="mt-3.5 rounded-[14px] border border-white/[0.08] bg-[#13181b] p-3.5">
-                                    <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#7c7c83]">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#7c7c83]">
                                         Next appointment
                                     </p>
-                                    <p className="mt-1.5 text-[14px] font-medium text-[#f0f0f2]">
+                                    <p className="mt-1.5 text-base font-medium text-[#f0f0f2]">
                                         {formatAppointmentDate(nextAppointment?.startTime)}
                                     </p>
-                                    <p className="mt-1 text-[13px] leading-5 text-[#8b8b93]">
+                                    <p className="mt-1 text-sm leading-5 text-[#8b8b93]">
                                         {nextAppointment
                                             ? `${nextAppointment.contactName} - ${nextAppointment.title}`
                                             : "The next appointment will appear here once the Builder calendar is connected."}

@@ -50,50 +50,47 @@ const TIER_LIMITS = {
     tier3: 10,
 };
 
-const SIDEBAR_COLLAPSE_STORAGE_KEY = "tedos-dashboard-sidebar-collapsed";
 const displayFontClass = GeistSans.className;
+
+const SIDEBAR_COLLAPSE_STORAGE_KEY = "tedos-dashboard-sidebar-collapsed";
 
 const DASHBOARD_TABS = [
     {
         id: "engines",
-        label: "Marketing Engines",
-        helper: "Launch systems",
+        label: "My Engines",
         icon: Rocket,
         breadcrumb: "Home > Workspace",
-        title: "Marketing Engines",
+        title: "My Engines",
         description:
             "Monitor build status, launch readiness, and approval momentum for every engine in the workspace.",
         eyebrow: "Workspace Operating Layer",
     },
     {
         id: "performance",
-        label: "Live Performance",
-        helper: "Builder Stats",
+        label: "My Results",
         icon: BarChart3,
         breadcrumb: "Home > Live data",
-        title: "Live Performance",
+        title: "My Results",
         description:
             "Track Builder-connected revenue, contacts, appointments, and funnel velocity in one telemetry view.",
         eyebrow: "Realtime Telemetry Layer",
     },
     {
         id: "daily-leads",
-        label: "Daily Leads",
-        helper: "Social Studio",
+        label: "Daily Content",
         icon: ImagePlus,
         breadcrumb: "Home > Daily growth",
-        title: "Daily Leads",
+        title: "Daily Content",
         description:
             "Generate social creative from vault strategy while keeping the current production-ready Daily Leads workflow intact.",
         eyebrow: "Organic Growth Engine",
     },
     {
         id: "vault-review",
-        label: "Vault Review",
-        helper: "Approval Flow",
+        label: "Review & Approve",
         icon: ShieldCheck,
         breadcrumb: "Home > Approval flow",
-        title: "Vault Review",
+        title: "Review & Approve",
         description:
             "Review approvals, spot missing media, and move engines cleanly into Builder launch prep.",
         eyebrow: "Content Approval Desk",
@@ -106,17 +103,17 @@ function DashboardStatCard({ label, value, helper, icon: Icon, accent = "text-cy
     return (
         <div className="rounded-[18px] border border-white/[0.07] bg-[#111214] px-3.5 py-3.5 sm:px-4">
             <div className="flex items-center justify-between gap-3">
-                <p className={cn(GeistSans.className, "text-[9px] font-semibold uppercase tracking-[0.16em] text-[#76767d]")}>
+                <p className={cn(GeistSans.className, "text-xs font-semibold uppercase tracking-[0.16em] text-[#76767d]")}>
                     {label}
                 </p>
                 <div className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/[0.06] bg-[#0d0e0f]">
                     <Icon className={cn("h-3.5 w-3.5", accent)} />
                 </div>
             </div>
-            <p className={cn(displayFontClass, "mt-2.5 text-[24px] font-semibold leading-none tracking-[-0.03em] sm:text-[28px]", accent)}>
+            <p className={cn(displayFontClass, "mt-2.5 text-2xl font-semibold leading-none tracking-[-0.03em] sm:text-3xl", accent)}>
                 {displayValue}
             </p>
-            <p className={cn(GeistSans.className, "mt-2 text-[13px] leading-5 text-[#8b8b93]")}>{helper}</p>
+            <p className={cn(GeistSans.className, "mt-2 text-sm leading-5 text-[#8b8b93]")}>{helper}</p>
         </div>
     );
 }
@@ -190,53 +187,6 @@ function getProgressPercentage(business) {
     return Math.min(100, Math.round((completedSteps / TOTAL_SETUP_STEPS) * 100));
 }
 
-function TableBadge({ label, tone = "cyan" }) {
-    const tones = {
-        cyan: "border-cyan/30 bg-cyan/10 text-cyan",
-        green: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-        amber: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-        gray: "border-white/12 bg-white/[0.03] text-[#8b8b93]",
-    };
-
-    return (
-        <span
-            className={cn(
-                GeistSans.className,
-                "inline-flex items-center rounded-[8px] border px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] leading-none",
-                tones[tone] || tones.gray
-            )}
-        >
-            {label}
-        </span>
-    );
-}
-
-function getEngineRowState(business) {
-    const approvedCount = business.approved_count || 0;
-    const setupCount = business.completed_steps_count || 0;
-    const fullyApproved = approvedCount >= TOTAL_APPROVAL_SECTIONS;
-
-    const vault = business.vault_generated
-        ? { label: approvedCount > 0 ? "Approved" : "Generated", tone: approvedCount > 0 ? "cyan" : "gray" }
-        : { label: setupCount > 0 ? "Building" : "Queued", tone: setupCount > 0 ? "amber" : "gray" };
-
-    const pages = business.deployed_at
-        ? { label: "Live", tone: "green" }
-        : business.vault_generated
-          ? { label: fullyApproved ? "Ready" : "Review", tone: fullyApproved ? "green" : "amber" }
-          : { label: "Draft", tone: "gray" };
-
-    const launch = business.deployed_at
-        ? { label: "Running", tone: "green" }
-        : fullyApproved
-          ? { label: "Ready", tone: "cyan" }
-          : business.vault_generated
-            ? { label: "Waiting", tone: "amber" }
-            : { label: "Setup", tone: "gray" };
-
-    return { vault, pages, launch };
-}
-
 export default function Dashboard() {
     const router = useRouter();
     const {
@@ -263,8 +213,8 @@ export default function Dashboard() {
     const [editingFunnelId, setEditingFunnelId] = useState(null);
     const [editNameValue, setEditNameValue] = useState("");
     const [isSavingName, setIsSavingName] = useState(false);
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const editInputRef = useRef(null);
     const sidebarPreferenceLoadedRef = useRef(false);
 
@@ -335,6 +285,21 @@ export default function Dashboard() {
     }, [session, authLoading, router, isProfileComplete, isAdmin, loadUserData]);
 
     useEffect(() => {
+        setIsMobileNavOpen(false);
+    }, [activeTab]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth >= 1024) {
+                setIsMobileNavOpen(false);
+            }
+        };
+
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
+    useEffect(() => {
         try {
             const storedValue = window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY);
             if (storedValue !== null) {
@@ -349,7 +314,6 @@ export default function Dashboard() {
 
     useEffect(() => {
         if (!sidebarPreferenceLoadedRef.current) return;
-
         try {
             window.localStorage.setItem(
                 SIDEBAR_COLLAPSE_STORAGE_KEY,
@@ -359,21 +323,6 @@ export default function Dashboard() {
             console.error("[Dashboard] Sidebar preference write error:", error);
         }
     }, [isSidebarCollapsed]);
-
-    useEffect(() => {
-        setIsMobileNavOpen(false);
-    }, [activeTab]);
-
-    useEffect(() => {
-        const handleResize = () => {
-            if (window.innerWidth >= 1024) {
-                setIsMobileNavOpen(false);
-            }
-        };
-
-        window.addEventListener("resize", handleResize);
-        return () => window.removeEventListener("resize", handleResize);
-    }, []);
 
     const handleCreateBusiness = async () => {
         if (!newBusinessName.trim()) {
@@ -530,33 +479,22 @@ export default function Dashboard() {
 
     const renderSidebarContent = ({ collapsed = false, mobile = false } = {}) => (
         <div className="flex h-full flex-col bg-[#0e0e0f]">
-            <div
-                className={cn(
-                    "relative flex h-[72px] items-center border-b border-white/[0.06]",
-                    collapsed ? "justify-between px-3" : "justify-between px-5"
-                )}
-            >
+            <div className={cn("relative flex h-[72px] items-center border-b border-white/[0.06]", collapsed ? "justify-between px-3" : "justify-between px-5")}>
                 <Link
                     href="/"
-                    className={cn(
-                        "flex items-center",
-                        mobile || !collapsed ? "flex-1 justify-start" : "flex-1 justify-center"
-                    )}
+                    className="flex flex-1 items-center justify-start"
                 >
                     <Image
                         src="/tedos-logo.png"
                         alt="TedOS"
                         width={mobile || !collapsed ? 154 : 48}
                         height={40}
-                        className={cn(
-                            "w-auto object-contain transition-all duration-200",
-                            mobile || !collapsed ? "h-10" : "h-8"
-                        )}
+                        className={cn("w-auto object-contain transition-all duration-200", mobile || !collapsed ? "h-10" : "h-8")}
                         priority
                     />
                 </Link>
 
-                {mobile ? (
+                {mobile && (
                     <button
                         type="button"
                         onClick={() => setIsMobileNavOpen(false)}
@@ -565,7 +503,9 @@ export default function Dashboard() {
                     >
                         <X className="h-3.5 w-3.5" />
                     </button>
-                ) : (
+                )}
+
+                {!mobile && (
                     <button
                         type="button"
                         onClick={() => setIsSidebarCollapsed((current) => !current)}
@@ -577,17 +517,10 @@ export default function Dashboard() {
                 )}
             </div>
 
-            <div
-                className={cn(
-                    "flex h-full flex-col pt-3.5",
-                    collapsed ? "px-2.5 pb-4" : "px-3 pb-5"
-                )}
-            >
+            <div className={cn("flex h-full flex-col pt-3.5", collapsed ? "px-2.5 pb-4" : "px-3 pb-5")}>
                 {!collapsed && (
                     <div className="px-2">
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">
-                            Navigation
-                        </p>
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">Navigation</p>
                     </div>
                 )}
 
@@ -598,25 +531,12 @@ export default function Dashboard() {
                             active={activeTab === tab.id}
                             icon={tab.icon}
                             label={tab.label}
-                            helper={tab.helper}
                             collapsed={collapsed}
-                            onClick={() => {
-                                setActiveTab(tab.id);
-                                if (mobile) {
-                                    setIsMobileNavOpen(false);
-                                }
-                            }}
+                            onClick={() => { setActiveTab(tab.id); if (mobile) setIsMobileNavOpen(false); }}
                         />
                     ))}
 
-                    <SidebarNavButton
-                        active={false}
-                        icon={HelpCircle}
-                        label="Help & Support"
-                        helper="Guide & docs"
-                        href="/guide"
-                        collapsed={collapsed}
-                    />
+                    <SidebarNavButton active={false} icon={HelpCircle} label="Help & Support" href="/guide" collapsed={collapsed} />
                 </nav>
 
                 <div className={cn("mt-auto border-t border-white/[0.07] pt-5", collapsed ? "px-0" : "px-2")}>
@@ -624,79 +544,47 @@ export default function Dashboard() {
                         <div className="space-y-2.5">
                             <div className="flex justify-center">
                                 <div className="flex h-12 w-12 flex-col items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#111214]">
-                                    <span className={cn(displayFontClass, "text-sm font-semibold text-white")}>
-                                        {businesses.length}
-                                    </span>
-                                    <span className="text-[9px] uppercase tracking-[0.12em] text-[#7d7d84]">
-                                        / {maxFunnels}
-                                    </span>
+                                    <span className={cn(displayFontClass, "text-sm font-semibold text-white")}>{businesses.length}</span>
+                                    <span className="text-[9px] uppercase tracking-[0.12em] text-[#7d7d84]">/ {maxFunnels}</span>
                                 </div>
                             </div>
-
                             {(hasDeployedFunnel || builderLocationId) ? (
-                                <a
-                                    href={builderUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <a href={builderUrl} target="_blank" rel="noopener noreferrer"
                                     className="flex h-10 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111214] text-cyan transition-colors hover:text-white"
-                                    title="Open Builder"
-                                >
+                                    title="Open Builder">
                                     <ExternalLink className="h-3.5 w-3.5" />
                                 </a>
                             ) : (
-                                <Link
-                                    href="/guide"
+                                <Link href="/guide"
                                     className="flex h-10 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111214] text-cyan transition-colors hover:text-white"
-                                    title="Open Guide"
-                                >
+                                    title="Open Guide">
                                     <ArrowUpRight className="h-3.5 w-3.5" />
                                 </Link>
                             )}
                         </div>
                     ) : (
                         <>
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">
-                                Workspace
-                            </p>
-                            <h3 className={cn(displayFontClass, "mt-2.5 truncate text-[16px] font-semibold tracking-[-0.02em] text-white")}>
-                                {workspaceDisplayName}
-                            </h3>
-                            <p className="mt-1 truncate text-[12px] text-[#8b8b93]">
-                                {workspaceContextLabel}
-                            </p>
-                            <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[#64656c]">
-                                {workspaceAccessLabel}
-                            </p>
-
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">Workspace</p>
+                            <h3 className={cn(displayFontClass, "mt-2.5 truncate text-[16px] font-semibold tracking-[-0.02em] text-white")}>{workspaceDisplayName}</h3>
+                            <p className="mt-1 truncate text-[12px] text-[#8b8b93]">{workspaceContextLabel}</p>
+                            <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[#64656c]">{workspaceAccessLabel}</p>
                             <div className="mt-3.5 rounded-[16px] border border-white/[0.07] bg-[#111214] p-3.5">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>
-                                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#7d7d84]">
-                                            Active engines
-                                        </p>
+                                        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#7d7d84]">Active engines</p>
                                         <p className={cn(displayFontClass, "mt-1.5 text-[20px] font-semibold tracking-[-0.03em] text-white")}>
-                                            {businesses.length}
-                                            <span className="ml-1 text-xs text-[#7d7d84]">/ {maxFunnels}</span>
+                                            {businesses.length}<span className="ml-1 text-xs text-[#7d7d84]">/ {maxFunnels}</span>
                                         </p>
                                     </div>
-
                                     {(hasDeployedFunnel || builderLocationId) ? (
-                                        <a
-                                            href={builderUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#0d0e0f] px-3 text-[12px] font-medium text-cyan transition-colors hover:text-white"
-                                        >
-                                            Builder
-                                            <ExternalLink className="h-3.5 w-3.5" />
+                                        <a href={builderUrl} target="_blank" rel="noopener noreferrer"
+                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#0d0e0f] px-3 text-[12px] font-medium text-cyan transition-colors hover:text-white">
+                                            Builder<ExternalLink className="h-3.5 w-3.5" />
                                         </a>
                                     ) : (
-                                        <Link
-                                            href="/guide"
-                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#0d0e0f] px-3 text-[12px] font-medium text-cyan transition-colors hover:text-white"
-                                        >
-                                            Guide
-                                            <ArrowUpRight className="h-3.5 w-3.5" />
+                                        <Link href="/guide"
+                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#0d0e0f] px-3 text-[12px] font-medium text-cyan transition-colors hover:text-white">
+                                            Guide<ArrowUpRight className="h-3.5 w-3.5" />
                                         </Link>
                                     )}
                                 </div>
@@ -710,248 +598,159 @@ export default function Dashboard() {
 
     const renderMarketingEngines = () => {
         return (
-            <div className="space-y-4">
-                <div className="grid gap-3 xl:grid-cols-4">
-                    <DashboardStatCard
-                        label="Engines live"
-                        value={engineInsights.live}
-                        helper="Active marketing engines across this workspace."
-                        icon={Rocket}
-                        accent="text-cyan"
-                    />
-                    <DashboardStatCard
-                        label="Awaiting review"
-                        value={engineInsights.awaitingReviewCount}
-                        helper="Vault-generated engines still moving through approvals."
-                        icon={Clock3}
-                        accent="text-amber-300"
-                    />
-                    <DashboardStatCard
-                        label="Pages ready"
-                        value={engineInsights.pagesReady}
-                        helper="Funnels with Vault output generated and ready for asset work."
-                        icon={CheckCircle2}
-                        accent="text-blue-200"
-                    />
-                    <DashboardStatCard
-                        label="Builder sync"
-                        value={engineInsights.builderSync}
-                        helper="Funnels already live or fully approved for Builder prep."
-                        icon={ArrowUpRight}
-                        accent="text-emerald-300"
-                    />
+            <div>
+                <div className="mb-6">
+                    <h2 className="text-2xl font-semibold text-white">Your Marketing Engines</h2>
+                    <p className="mt-2 text-base text-[#8b8b93]">Click an engine to open it and see what's inside.</p>
                 </div>
 
-                <div className="grid gap-3.5 xl:grid-cols-[minmax(0,1fr)_300px]">
-                    <section className="rounded-[20px] border border-white/[0.07] bg-[#111214] p-4 sm:p-5">
-                        <div className="flex flex-col gap-3.5 border-b border-white/[0.06] pb-4 md:flex-row md:items-start md:justify-between">
-                            <div>
-                                <div className="flex items-center gap-3">
-                                    <div className="h-5 w-[3px] rounded-[2px] bg-cyan" />
-                                    <h3 className={cn(displayFontClass, "text-[20px] font-semibold tracking-[-0.03em] text-white")}>
-                                        Your marketing engines
+                {canCreateMore && (
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="mb-5 inline-flex h-12 items-center gap-2 rounded-[14px] bg-cyan/85 px-5 text-base font-semibold text-[#001418]"
+                    >
+                        <Plus className="h-5 w-5" />
+                        Create New Engine
+                    </button>
+                )}
+
+                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    {businesses.map((business) => {
+                        const progress = getProgressPercentage(business);
+
+                        // Determine status
+                        let statusLabel, statusClass;
+                        if (business.deployed_at) {
+                            statusLabel = "Live";
+                            statusClass = "text-emerald-400";
+                        } else if ((business.approved_count || 0) >= TOTAL_APPROVAL_SECTIONS) {
+                            statusLabel = "Ready to Launch";
+                            statusClass = "text-cyan";
+                        } else if (business.vault_generated) {
+                            statusLabel = "Being Reviewed";
+                            statusClass = "text-blue-200";
+                        } else {
+                            statusLabel = "Setting Up";
+                            statusClass = "text-amber-300";
+                        }
+
+                        return (
+                            <div
+                                key={business.id}
+                                className="rounded-[24px] border border-white/[0.07] bg-[#111214] p-6 cursor-pointer hover:border-cyan/30 transition-colors"
+                                onClick={() => router.push(`/vault?funnel_id=${business.id}`)}
+                            >
+                                {/* Engine name */}
+                                {editingFunnelId === business.id ? (
+                                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                                        <input
+                                            ref={editInputRef}
+                                            type="text"
+                                            value={editNameValue}
+                                            onChange={(event) => setEditNameValue(event.target.value)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === "Enter") handleRenameBusiness(business.id);
+                                                if (event.key === "Escape") cancelEditing();
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            disabled={isSavingName}
+                                            className={cn(GeistSans.className, "w-full rounded-[12px] border border-cyan/30 bg-black/20 px-3 py-2 text-base font-medium text-white outline-none transition focus:border-cyan/60 focus:ring-2 focus:ring-cyan/40")}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); handleRenameBusiness(business.id); }}
+                                            disabled={isSavingName}
+                                            className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                                        >
+                                            {isSavingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); cancelEditing(); }}
+                                            disabled={isSavingName}
+                                            className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-[#8b8b93]"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <h3 className="mb-3 text-2xl font-semibold text-white leading-tight">
+                                        {business.funnel_name}
                                     </h3>
-                                </div>
-                                <p className={cn(GeistSans.className, "mt-2.5 max-w-2xl text-[13px] leading-5 text-[#8b8b93]")}>
-                                    Each engine now sits in a simple table so owners can compare review
-                                    status, page readiness, and launch state without opening a technical
-                                    view.
+                                )}
+
+                                {/* Status label */}
+                                <p className={cn("mb-4 text-lg font-semibold", statusClass)}>
+                                    {statusLabel}
                                 </p>
-                            </div>
 
-                            <div className="flex flex-col items-start gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreateModal(true)}
-                                    disabled={!canCreateMore}
-                                    className={cn(
-                                        displayFontClass,
-                                        "inline-flex h-9 items-center justify-center gap-1.5 rounded-[12px] px-3.5 text-[13px] font-medium transition",
-                                        canCreateMore
-                                            ? "bg-cyan text-[#001418] hover:brightness-105"
-                                            : "cursor-not-allowed border border-white/[0.07] bg-[#111213] text-[#7d7d84]"
-                                    )}
-                                >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    Create engine
-                                </button>
-                                {!canCreateMore ? (
-                                    <p className="text-[10px] uppercase tracking-[0.12em] text-[#7d7d84]">
-                                        All available engine slots are active.
-                                    </p>
-                                ) : null}
-                            </div>
-                        </div>
-
-                        <div className="mt-4 overflow-hidden rounded-[16px] border border-white/[0.07] bg-[#121315]">
-                            <div className="hidden grid-cols-[minmax(0,1.4fr)_112px_112px_112px_196px] border-b border-white/[0.08] bg-[#1b1b1d] md:grid">
-                                {["Engine", "Vault", "Pages", "Launch", "Actions"].map((label) => (
-                                    <div key={label} className="px-3 py-3">
-                                        <p className={cn(GeistSans.className, "text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7d7d84]")}>
-                                            {label}
-                                        </p>
+                                {/* Progress bar */}
+                                <div className="mb-5">
+                                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.08]">
+                                        <div
+                                            className="h-full rounded-full bg-cyan transition-all"
+                                            style={{ width: `${progress}%` }}
+                                        />
                                     </div>
-                                ))}
-                            </div>
-                            {businesses.map((business, index) => {
-                                const rowState = getEngineRowState(business);
-                                const progress = getProgressPercentage(business);
-
-                                return (
-                                    <div key={business.id} className={cn("border-white/[0.07] bg-[#121214]", index < businesses.length - 1 && "border-b")}>
-                                        <div className="grid gap-3 px-3.5 py-3 md:grid-cols-[minmax(0,1.4fr)_112px_112px_112px_196px] md:items-center md:gap-0">
-                                            <div className="min-w-0 px-0 md:px-3">
-                                                {editingFunnelId === business.id ? (
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <input ref={editInputRef} type="text" value={editNameValue} onChange={(event) => setEditNameValue(event.target.value)} onKeyDown={(event) => {
-                                                            if (event.key === "Enter") handleRenameBusiness(business.id);
-                                                            if (event.key === "Escape") cancelEditing();
-                                                        }} disabled={isSavingName} className={cn(GeistSans.className, "w-full max-w-sm rounded-[12px] border border-cyan/30 bg-black/20 px-3 py-2 text-[15px] font-medium text-white outline-none transition focus:border-cyan/60 focus:ring-2 focus:ring-cyan/40")} />
-                                                        <button type="button" onClick={() => handleRenameBusiness(business.id)} disabled={isSavingName} className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
-                                                            {isSavingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                                        </button>
-                                                        <button type="button" onClick={cancelEditing} disabled={isSavingName} className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-[#8b8b93]">
-                                                            <X className="h-4 w-4" />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center gap-2">
-                                                        <p className={cn(GeistSans.className, "truncate text-[14px] font-medium text-[#f0f0f2]")}>{business.funnel_name}</p>
-                                                        <button type="button" onClick={() => startEditing(business)} className="text-[#8b8b93] transition-colors hover:text-cyan">
-                                                            <Pencil className="h-3 w-3" />
-                                                        </button>
-                                                    </div>
-                                                )}
-
-                                                <div className="mt-1.5 flex items-center gap-2.5">
-                                                    <div className="h-1.5 w-full max-w-[160px] overflow-hidden rounded-full bg-white/[0.08]">
-                                                        <div className="h-full rounded-full bg-cyan" style={{ width: `${progress}%` }} />
-                                                    </div>
-                                                    <span className={cn(GeistSans.className, "text-[10px] font-medium uppercase tracking-[0.1em] text-[#8b8b93]")}>{progress}%</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="px-0 md:px-3"><TableBadge {...rowState.vault} /></div>
-                                            <div className="px-0 md:px-3"><TableBadge {...rowState.pages} /></div>
-                                            <div className="px-0 md:px-3"><TableBadge {...rowState.launch} /></div>
-
-                                            <div className="flex flex-wrap items-center gap-1.5 px-0 md:justify-end md:px-3">
-                                                <button type="button" onClick={() => router.push(`/vault?funnel_id=${business.id}`)} className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/10 bg-black/20 text-[#f0f0f2] transition-colors hover:border-cyan/20 hover:text-cyan" title="Open Vault">
-                                                    <FolderOpen className="h-3.5 w-3.5" />
-                                                </button>
-                                                {business.deployed_at ? (
-                                                    <a href={builderUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 transition-colors hover:bg-emerald-500/16" title="Open Builder">
-                                                        <ExternalLink className="h-3.5 w-3.5" />
-                                                    </a>
-                                                ) : (
-                                                    <button type="button" onClick={() => router.push(`/intake_form?funnel_id=${business.id}`)} className="inline-flex h-8 items-center rounded-[10px] bg-cyan px-3 text-[12px] font-medium text-[#001418] transition-colors hover:brightness-105">
-                                                        Continue
-                                                    </button>
-                                                )}
-                                                <button type="button" onClick={() => handleDeleteBusiness(business.id, business.funnel_name)} disabled={isDeleting === business.id} className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-[#8b8b93] transition-colors hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50" title="Delete Engine">
-                                                    {isDeleting === business.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </section>
-
-                    <div className="space-y-3.5">
-                        <section className="rounded-[20px] border border-white/[0.07] bg-[#111214] p-4">
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-5 w-[3px] rounded-[2px] bg-cyan" />
-                                    <h3 className={cn(displayFontClass, "text-[18px] font-semibold tracking-[-0.03em] text-white")}>
-                                        Review queue
-                                    </h3>
+                                    <p className="mt-1.5 text-sm text-[#8b8b93]">{progress}% complete</p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setActiveTab("vault-review")}
-                                    className={cn(GeistSans.className, "rounded-[10px] border border-white/[0.07] bg-[#101112] px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-[#d9d9df] transition-colors hover:border-cyan/20 hover:text-cyan")}
-                                >
-                                    Open desk
-                                </button>
-                            </div>
-                            <p className={cn(GeistSans.className, "mt-2.5 text-[13px] leading-5 text-[#8b8b93]")}>
-                                The next approvals that are holding up launch right now.
-                            </p>
 
-                            <div className="mt-5 space-y-3">
-                                {engineInsights.awaitingReview.length === 0 ? (
-                                    <div className={cn(GeistSans.className, "rounded-[14px] border border-emerald-500/20 bg-[#17181a] p-4 text-sm text-emerald-200")}>
-                                        No approval blockers right now.
-                                    </div>
+                                {/* Primary action button */}
+                                {business.deployed_at ? (
+                                    <a
+                                        href={builderUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="mb-4 flex h-12 w-full items-center justify-center rounded-[14px] bg-emerald-600 text-base font-semibold text-white transition-colors hover:bg-emerald-500"
+                                    >
+                                        Open Builder ↗
+                                    </a>
+                                ) : business.vault_generated ? (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); router.push(`/vault?funnel_id=${business.id}`); }}
+                                        className="mb-4 flex h-12 w-full items-center justify-center rounded-[14px] bg-cyan/85 text-base font-semibold text-[#001418] transition-colors hover:brightness-105"
+                                    >
+                                        Review in Vault
+                                    </button>
                                 ) : (
-                                    engineInsights.awaitingReview.slice(0, 3).map((business) => (
-                                        <div key={business.id} className="rounded-[12px] border border-white/[0.07] border-l-[3px] border-l-cyan bg-[#17181a] p-3.5">
-                                            <p className={cn(GeistSans.className, "text-[14px] font-medium leading-[1.55] text-[#f0f0f2]")}>
-                                                {business.funnel_name}
-                                                <br />
-                                                <span className="text-[#8b8b93]">
-                                                    {TOTAL_APPROVAL_SECTIONS - (business.approved_count || 0)} sections still need review before launch can proceed.
-                                                </span>
-                                            </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => router.push(`/vault?funnel_id=${business.id}`)}
-                                                className={cn(GeistSans.className, "mt-2.5 text-[13px] font-medium text-cyan transition-colors hover:text-white")}
-                                            >
-                                                Review in Vault
-                                                <ArrowUpRight className="ml-1 inline h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    ))
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); router.push(`/intake_form?funnel_id=${business.id}`); }}
+                                        className="mb-4 flex h-12 w-full items-center justify-center rounded-[14px] bg-cyan/85 text-base font-semibold text-[#001418] transition-colors hover:brightness-105"
+                                    >
+                                        Continue Setup
+                                    </button>
                                 )}
-                            </div>
-                        </section>
 
-                        <section className="rounded-[20px] border border-white/[0.07] bg-[#111214] p-4">
-                            <div className="flex items-center gap-3">
-                                <div className="h-5 w-[3px] rounded-[2px] bg-cyan" />
-                                <h3 className={cn(displayFontClass, "text-[18px] font-semibold tracking-[-0.03em] text-white")}>
-                                    Builder readiness
-                                </h3>
+                                {/* Subtle secondary actions */}
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); startEditing(business); }}
+                                        className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-[#8b8b93] transition-colors hover:border-cyan/20 hover:text-cyan"
+                                        title="Rename engine"
+                                    >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteBusiness(business.id, business.funnel_name); }}
+                                        disabled={isDeleting === business.id}
+                                        className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-white/10 bg-white/[0.03] text-[#8b8b93] transition-colors hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                                        title="Delete engine"
+                                    >
+                                        {isDeleting === business.id ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        )}
+                                    </button>
+                                </div>
                             </div>
-                            <p className={cn(GeistSans.className, "mt-2.5 text-[13px] leading-5 text-[#8b8b93]")}>
-                                Engines that are already live or have enough approved output to move into Builder prep.
-                            </p>
-
-                            <div className="mt-5 space-y-3">
-                                {engineInsights.builderReady.length === 0 ? (
-                                    <div className={cn(GeistSans.className, "rounded-[14px] border border-white/[0.07] bg-[#17181a] p-4 text-sm text-[#8b8b93]")}>
-                                        Nothing is Builder-ready yet.
-                                    </div>
-                                ) : (
-                                    engineInsights.builderReady.slice(0, 4).map((business) => (
-                                        <div key={business.id} className="rounded-[12px] border border-cyan/20 bg-[#17181a] p-3.5">
-                                            <p className={cn(GeistSans.className, "text-[14px] font-medium text-cyan")}>
-                                                {business.funnel_name}
-                                            </p>
-                                            <p className={cn(GeistSans.className, "mt-1 text-[13px] leading-5 text-[#8b8b93]")}>
-                                                {business.deployed_at ? "Already live in Builder." : "Approved output is aligned for Builder handoff."}
-                                            </p>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-
-                            {(hasDeployedFunnel || builderLocationId) && (
-                                <a
-                                    href={builderUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={cn(displayFontClass, "mt-4 inline-flex h-9 items-center justify-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#101112] px-3.5 text-[13px] font-medium text-[#f0f0f2] transition-colors hover:border-cyan/20 hover:text-cyan")}
-                                >
-                                    Open Builder
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
-                            )}
-                        </section>
-                    </div>
+                        );
+                    })}
                 </div>
             </div>
         );
@@ -992,12 +791,7 @@ export default function Dashboard() {
 
             <div className="mx-auto w-full px-1.5 py-1.5 sm:px-2 lg:px-3">
                 <div className="flex min-h-[calc(100vh-0.75rem)] w-full overflow-hidden rounded-[18px] border border-white/[0.06] bg-[#0a0a0b]">
-                    <aside
-                        className={cn(
-                            "hidden shrink-0 border-r border-white/[0.07] transition-[width] duration-300 lg:flex",
-                            isSidebarCollapsed ? "w-[92px]" : "w-[228px]"
-                        )}
-                    >
+                    <aside className={cn("hidden shrink-0 border-r border-white/[0.07] transition-[width] duration-300 lg:flex", isSidebarCollapsed ? "w-[92px]" : "w-[228px]")}>
                         {renderSidebarContent({ collapsed: isSidebarCollapsed })}
                     </aside>
 
@@ -1008,29 +802,29 @@ export default function Dashboard() {
                                     <button
                                         type="button"
                                         onClick={() => setIsMobileNavOpen(true)}
-                                        className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111213] text-[#8b8b93] transition-colors hover:text-white lg:hidden"
+                                        className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111213] text-[#8b8b93] transition-colors hover:text-white lg:hidden"
                                         aria-label="Open navigation"
                                     >
                                         <Menu className="h-3.5 w-3.5" />
                                     </button>
 
                                     <div className="max-w-[640px]">
-                                        <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">
                                             {activeTabMeta.eyebrow}
                                         </p>
-                                        <div className="mt-1.5 flex items-center gap-1 text-[12px] font-medium text-[#8b8b93]">
+                                        <div className="mt-1.5 flex items-center gap-1 text-sm font-medium text-[#8b8b93]">
                                             <span>Home</span>
                                             <ChevronRight className="h-3 w-3" />
-                                            <span className="text-[#f0f0f2]">{activeTabMeta.helper}</span>
+                                            <span className="text-[#f0f0f2]">{activeTabMeta.label}</span>
                                         </div>
-                                        <h1 className={cn(displayFontClass, "mt-2.5 text-[24px] font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-[28px]")}>
+                                        <h1 className={cn(displayFontClass, "mt-2.5 text-2xl font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-3xl")}>
                                             {activeTabMeta.title}
                                         </h1>
-                                        <p className="mt-2.5 max-w-2xl text-[13px] leading-5 text-[#8b8b93] sm:text-[14px]">
+                                        <p className="mt-2.5 max-w-2xl text-sm leading-5 text-[#8b8b93] sm:text-base">
                                             {activeTabMeta.description}
                                         </p>
                                         {!canCreateMore && activeTab === "engines" ? (
-                                            <p className="mt-2.5 text-[10px] font-medium uppercase tracking-[0.12em] text-amber-200/80">
+                                            <p className="mt-2.5 text-xs font-medium uppercase tracking-[0.12em] text-amber-200/80">
                                                 All engine slots are currently active.
                                             </p>
                                         ) : null}
@@ -1042,7 +836,7 @@ export default function Dashboard() {
                                         <button
                                             type="button"
                                             onClick={() => router.push("/team")}
-                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#111213] px-3.5 text-[13px] font-medium text-[#d9d9df] transition-colors hover:border-cyan/20 hover:text-cyan"
+                                            className="inline-flex h-11 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#111213] px-3.5 text-base font-medium text-[#d9d9df] transition-colors hover:border-cyan/20 hover:text-cyan"
                                         >
                                             <Users className="h-3.5 w-3.5" />
                                             Manage Team
@@ -1054,7 +848,7 @@ export default function Dashboard() {
                                             href={builderUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className={cn(displayFontClass, "inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#111213] px-3.5 text-[13px] font-medium text-[#f0f0f2] transition-colors hover:border-cyan/20 hover:text-cyan")}
+                                            className={cn(displayFontClass, "inline-flex h-11 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#111213] px-3.5 text-base font-medium text-[#f0f0f2] transition-colors hover:border-cyan/20 hover:text-cyan")}
                                         >
                                             Open Builder
                                             <ExternalLink className="h-3.5 w-3.5" />
@@ -1067,9 +861,9 @@ export default function Dashboard() {
                                         disabled={!canCreateMore}
                                         className={cn(
                                             displayFontClass,
-                                            "inline-flex h-9 items-center gap-1.5 rounded-[12px] px-3.5 text-[13px] font-medium transition",
+                                            "inline-flex h-11 items-center gap-1.5 rounded-[12px] px-3.5 text-base font-medium transition",
                                             canCreateMore
-                                                ? "bg-cyan text-[#001418] hover:brightness-105"
+                                                ? "bg-cyan/85 text-[#001418] hover:brightness-105"
                                                 : "cursor-not-allowed border border-white/[0.07] bg-[#111213] text-[#7d7d84]"
                                         )}
                                     >
@@ -1080,7 +874,7 @@ export default function Dashboard() {
                                     <button
                                         type="button"
                                         onClick={() => setActiveTab("vault-review")}
-                                        className="relative flex h-9 w-9 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111213] text-[#8b8b93] transition-colors hover:border-cyan/20 hover:text-cyan"
+                                        className="relative flex h-11 w-11 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111213] text-[#8b8b93] transition-colors hover:border-cyan/20 hover:text-cyan"
                                         title="Alerts"
                                     >
                                         <Bell className="h-4 w-4" />
@@ -1123,7 +917,7 @@ export default function Dashboard() {
                                         exit={{ opacity: 0, y: -12 }}
                                         transition={{ duration: 0.24 }}
                                     >
-                                        <LivePerformancePanel />
+                                        <LivePerformancePanel engineInsights={engineInsights} />
                                     </motion.div>
                                 ) : activeTab === "daily-leads" ? (
                                     <motion.div
@@ -1210,7 +1004,7 @@ export default function Dashboard() {
                                     type="button"
                                     onClick={handleCreateBusiness}
                                     disabled={isCreating || !newBusinessName.trim()}
-                                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-cyan px-5 py-3.5 font-black text-black transition disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-cyan/85 px-5 py-3.5 font-black text-black transition disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {isCreating ? <Loader2 className="h-5 w-5 animate-spin" /> : "Create engine"}
                                 </button>
