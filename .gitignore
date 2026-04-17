@@ -54,6 +54,10 @@ database/
 # claude context
 .claude/
 
+# graphify knowledge graph outputs
+graphify-out/
+.graphify_python
+
 # system files
 nul
 supabase/.temp/

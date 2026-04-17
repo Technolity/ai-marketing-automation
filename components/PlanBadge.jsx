@@ -32,9 +32,9 @@ const PLAN_META = {
         label: 'TedOS Growth',
         shortLabel: 'Growth',
         icon: Star,
-        color: 'text-purple-400',
-        border: 'border-purple-500/30',
-        bg: 'bg-purple-500/10',
+        color: 'text-blue-400',
+        border: 'border-blue-500/30',
+        bg: 'bg-blue-500/10',
         priceMonthly: '$497/mo',
         priceAnnual: '$5,367/yr',
     },
@@ -42,9 +42,9 @@ const PLAN_META = {
         label: 'TedOS Scale',
         shortLabel: 'Scale',
         icon: Crown,
-        color: 'text-amber-400',
-        border: 'border-amber-500/30',
-        bg: 'bg-amber-500/10',
+        color: 'text-cyan',
+        border: 'border-cyan/20',
+        bg: 'bg-cyan/5',
         priceMonthly: '$997/mo',
         priceAnnual: '$10,767/yr',
     },
@@ -123,7 +123,7 @@ export default function PlanBadge({ tier: tierProp }) {
             </button>
 
             {open && (
-                <div className="absolute right-0 top-full mt-1 w-72 bg-[#111113] border border-white/10 shadow-2xl z-50 overflow-hidden">
+                <div className="absolute left-0 bottom-full mb-2 w-72 bg-[#111113] border border-white/10 shadow-2xl z-50 overflow-hidden">
                     {/* Current plan */}
                     <div className="px-5 py-4 border-b border-white/5 bg-white/[0.02]">
                         <p className="text-[9px] uppercase font-black tracking-[0.2em] text-gray-600 mb-2">Current Status</p>
@@ -179,7 +179,7 @@ export default function PlanBadge({ tier: tierProp }) {
                         </div>
                     ) : (
                         <div className="px-5 py-4 flex items-center gap-2">
-                            <Crown className="w-4 h-4 text-amber-400" />
+                            <Crown className="w-4 h-4 text-cyan" />
                             <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Maximum Tier Reached</span>
                         </div>
                     )}

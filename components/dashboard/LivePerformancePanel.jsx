@@ -325,7 +325,7 @@ export default function LivePerformancePanel({ engineInsights = null }) {
                                 Connect your Builder telemetry.
                             </h3>
                             <p className="mt-2.5 max-w-2xl text-sm leading-5 text-[#8b8b93]">
-                                Live Performance needs a connected GHL location before it can show revenue, contacts, and appointment flow.
+                                Live Performance needs a connected Builder location before it can show revenue, contacts, and appointment flow.
                             </p>
                         </div>
                     </div>

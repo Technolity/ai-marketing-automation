@@ -25,7 +25,6 @@ import {
     ImagePlus,
     HelpCircle,
     ArrowUpRight,
-    Bell,
     ShieldCheck,
     Menu,
     PanelLeftClose,
@@ -509,22 +508,22 @@ export default function Dashboard() {
                     <button
                         type="button"
                         onClick={() => setIsSidebarCollapsed((current) => !current)}
-                        className="hidden h-9 w-9 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111213] text-[#8b8b93] transition-colors hover:text-white lg:flex"
+                        className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 hidden h-7 w-7 items-center justify-center rounded-full border border-white/[0.12] bg-[#111213] text-[#8b8b93] shadow-[0_2px_8px_rgba(0,0,0,0.5)] transition-colors hover:text-white lg:flex"
                         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                     >
-                        {collapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+                        {collapsed ? <PanelLeftOpen className="h-3 w-3" /> : <PanelLeftClose className="h-3 w-3" />}
                     </button>
                 )}
             </div>
 
-            <div className={cn("flex h-full flex-col pt-3.5", collapsed ? "px-2.5 pb-4" : "px-3 pb-5")}>
+            <div className={cn("flex flex-1 flex-col min-h-0 pt-3.5", collapsed ? "px-2.5 pb-4" : "px-3 pb-5")}>
                 {!collapsed && (
                     <div className="px-2">
                         <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">Navigation</p>
                     </div>
                 )}
 
-                <nav className={cn("mt-3 space-y-2", collapsed && "flex flex-col items-center")}>
+                <nav className={cn("mt-3 space-y-2 overflow-y-auto", collapsed && "flex flex-col items-center")}>
                     {DASHBOARD_TABS.map((tab) => (
                         <SidebarNavButton
                             key={tab.id}
@@ -550,20 +549,36 @@ export default function Dashboard() {
                             </div>
                             {(hasDeployedFunnel || builderLocationId) ? (
                                 <a href={builderUrl} target="_blank" rel="noopener noreferrer"
-                                    className="flex h-10 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111214] text-cyan transition-colors hover:text-white"
+                                    className="flex h-10 items-center justify-center rounded-[12px] border border-emerald-500/25 bg-emerald-500/10 text-emerald-400 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300"
                                     title="Open Builder">
                                     <ExternalLink className="h-3.5 w-3.5" />
                                 </a>
                             ) : (
-                                <Link href="/guide"
-                                    className="flex h-10 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111214] text-cyan transition-colors hover:text-white"
-                                    title="Open Guide">
-                                    <ArrowUpRight className="h-3.5 w-3.5" />
-                                </Link>
+                                <span
+                                    className="flex h-10 items-center justify-center rounded-[12px] border border-white/[0.06] bg-[#0d0e0f] text-[#4a4a52] cursor-not-allowed"
+                                    title="Deploy a funnel to unlock Builder">
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                </span>
                             )}
+                            <div className="flex justify-center">
+                                <UserButton
+                                    afterSignOutUrl="/auth/login"
+                                    appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+                                />
+                            </div>
                         </div>
                     ) : (
                         <>
+                            <div className="flex items-center gap-2.5 mb-4">
+                                <UserButton
+                                    afterSignOutUrl="/auth/login"
+                                    appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+                                />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-semibold text-white truncate">{workspaceDisplayName}</p>
+                                    <p className="text-[10px] text-[#8b8b93] truncate">{workspaceAccessLabel}</p>
+                                </div>
+                            </div>
                             <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">Workspace</p>
                             <h3 className={cn(displayFontClass, "mt-2.5 truncate text-[16px] font-semibold tracking-[-0.02em] text-white")}>{workspaceDisplayName}</h3>
                             <p className="mt-1 truncate text-[12px] text-[#8b8b93]">{workspaceContextLabel}</p>
@@ -578,14 +593,15 @@ export default function Dashboard() {
                                     </div>
                                     {(hasDeployedFunnel || builderLocationId) ? (
                                         <a href={builderUrl} target="_blank" rel="noopener noreferrer"
-                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#0d0e0f] px-3 text-[12px] font-medium text-cyan transition-colors hover:text-white">
+                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-emerald-500/25 bg-emerald-500/10 px-3 text-[12px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300">
                                             Builder<ExternalLink className="h-3.5 w-3.5" />
                                         </a>
                                     ) : (
-                                        <Link href="/guide"
-                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.07] bg-[#0d0e0f] px-3 text-[12px] font-medium text-cyan transition-colors hover:text-white">
-                                            Guide<ArrowUpRight className="h-3.5 w-3.5" />
-                                        </Link>
+                                        <span
+                                            className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.06] bg-[#0d0e0f] px-3 text-[12px] font-medium text-[#4a4a52] cursor-not-allowed select-none"
+                                            title="Deploy a funnel to unlock Builder">
+                                            Builder<ExternalLink className="h-3.5 w-3.5" />
+                                        </span>
                                     )}
                                 </div>
                             </div>
@@ -871,28 +887,6 @@ export default function Dashboard() {
                                         Create engine
                                     </button>
 
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab("vault-review")}
-                                        className="relative flex h-11 w-11 items-center justify-center rounded-[12px] border border-white/[0.07] bg-[#111213] text-[#8b8b93] transition-colors hover:border-cyan/20 hover:text-cyan"
-                                        title="Alerts"
-                                    >
-                                        <Bell className="h-4 w-4" />
-                                        {engineInsights.awaitingReviewCount > 0 && (
-                                            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-cyan" />
-                                        )}
-                                    </button>
-
-                                    <div className="rounded-[12px] border border-white/[0.07] bg-[#111213] p-0.5">
-                                        <UserButton
-                                            afterSignOutUrl="/auth/login"
-                                            appearance={{
-                                                elements: {
-                                                    avatarBox: "h-8 w-8",
-                                                },
-                                            }}
-                                        />
-                                    </div>
                                 </div>
                             </div>
                         </header>

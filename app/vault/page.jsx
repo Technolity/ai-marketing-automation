@@ -2173,9 +2173,9 @@ export default function VaultPage() {
         <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-2xl overflow-hidden shadow-2xl"
+            className="bg-[#1b1b1d] border border-white/[0.07] rounded-2xl overflow-hidden shadow-2xl"
         >
-            <div className="p-6 border-b border-[#2a2a2d] flex items-center justify-between bg-gradient-to-r from-cyan/10 to-transparent">
+            <div className="p-6 border-b border-white/[0.07] flex items-center justify-between bg-gradient-to-r from-cyan/10 to-transparent">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-cyan/20 rounded-lg">
                         <ImageIcon className="w-5 h-5 text-cyan" />
@@ -2216,7 +2216,7 @@ export default function VaultPage() {
                                         value={uploadedImages[asset.id]}
                                         onChange={(e) => setUploadedImages(prev => ({ ...prev, [asset.id]: e.target.value }))}
                                         placeholder="Paste image URL..."
-                                        className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white text-sm focus:border-cyan focus:outline-none transition-all pr-24"
+                                        className="w-full px-4 py-3 bg-[#0e0e0f] border border-white/[0.07] rounded-xl text-white text-sm focus:border-cyan focus:outline-none transition-all pr-24"
                                     />
                                     <div className="absolute right-2 top-1.5 flex gap-1">
                                         <label className="p-1.5 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-cyan rounded-lg cursor-pointer transition-colors">
@@ -2245,7 +2245,7 @@ export default function VaultPage() {
                 </div>
 
                 {/* Videos Section */}
-                <div className="pt-8 border-t border-[#2a2a2d]">
+                <div className="pt-8 border-t border-white/[0.07]">
                     <h4 className="text-xs font-black text-cyan uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
                         <VideoIcon className="w-3 h-3" /> Video Content
                     </h4>
@@ -2265,7 +2265,7 @@ export default function VaultPage() {
                                         value={videoUrls[asset.id]}
                                         onChange={(e) => setVideoUrls(prev => ({ ...prev, [asset.id]: e.target.value }))}
                                         placeholder="Paste video URL (YouTube, Vimeo, etc.)..."
-                                        className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white text-sm focus:border-cyan focus:outline-none transition-all pr-24"
+                                        className="w-full px-4 py-3 bg-[#0e0e0f] border border-white/[0.07] rounded-xl text-white text-sm focus:border-cyan focus:outline-none transition-all pr-24"
                                     />
                                     <div className="absolute right-2 top-1.5 flex gap-1">
                                         <label className="p-1.5 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-cyan rounded-lg cursor-pointer transition-colors">
@@ -2294,7 +2294,7 @@ export default function VaultPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="pt-8 border-t border-[#2a2a2d] flex justify-end gap-4">
+                <div className="pt-8 border-t border-white/[0.07] flex justify-end gap-4">
                     <button
                         onClick={() => setShowMediaLibrary(false)}
                         className="px-6 py-3 bg-[#2a2a2d] text-white rounded-xl font-medium hover:bg-[#3a3a3d] transition-all"
@@ -2886,7 +2886,7 @@ export default function VaultPage() {
 
     if (authLoading || isLoading) {
         return (
-            <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center">
+            <div className="min-h-screen bg-dark flex items-center justify-center">
                 <Loader2 className="w-10 h-10 text-cyan animate-spin" />
             </div>
         );
@@ -2895,7 +2895,7 @@ export default function VaultPage() {
     // Vault Complete View
     if (isVaultComplete) {
         return (
-            <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8">
+            <div className="min-h-screen bg-dark text-white p-4 sm:p-6 lg:p-8">
                 <div className="max-w-4xl mx-auto">
                     <div className="text-center mb-10">
                         <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
@@ -2918,7 +2918,7 @@ export default function VaultPage() {
                                 }}
                                 disabled={isDeploying || deploymentComplete || !!dataSource?.deployed_at}
                                 className={`px-8 py-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center gap-2 ${(deploymentComplete || dataSource?.deployed_at)
-                                    ? 'bg-[#1b1b1d] text-gray-500 border border-[#2a2a2d] cursor-not-allowed opacity-70 hover:scale-100'
+                                    ? 'bg-[#1b1b1d] text-gray-500 border border-white/[0.07] cursor-not-allowed opacity-70 hover:scale-100'
                                     : 'bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 shadow-cyan/30 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
                                     }`}
                             >
@@ -2949,7 +2949,7 @@ export default function VaultPage() {
                                     console.log('[Vault] Edit Intake Answers clicked - redirecting with edit_mode=true for funnel:', funnelId);
                                     router.push(`/intake_form?funnel_id=${funnelId}&edit_mode=true`);
                                 }}
-                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-xl font-medium text-white transition-all border border-[#2a2a2d] flex items-center gap-2"
+                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-xl font-medium text-white transition-all border border-white/[0.07] flex items-center gap-2"
                             >
                                 <Edit3 className="w-5 h-5" />
                                 Edit Intake Answers
@@ -3014,7 +3014,7 @@ export default function VaultPage() {
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.9, opacity: 0 }}
                                 onClick={(e) => e.stopPropagation()}
-                                className="bg-[#131314] border border-[#2a2a2d] rounded-2xl p-8 max-w-md w-full"
+                                className="bg-[#111214] border border-white/[0.07] rounded-2xl p-8 max-w-md w-full"
                             >
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 className="text-2xl font-bold">Build Your Funnel</h2>
@@ -3111,7 +3111,7 @@ export default function VaultPage() {
                     status === 'current' ? 'bg-[#1b1b1d] border-cyan/30 shadow-lg shadow-cyan/10' :
                         status === 'generating' ? 'bg-[#1b1b1d] border-cyan/30' :
                             status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
-                                'bg-[#131314] border-[#2a2a2d] opacity-60'
+                                'bg-[#111214] border-white/[0.07] opacity-60'
                     }`}
             >
                 <div
@@ -3292,7 +3292,7 @@ export default function VaultPage() {
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            className="border-t border-[#2a2a2d]"
+                            className="border-t border-white/[0.07]"
                         >
                             <div className="p-4 sm:p-6">
                                 {/* Granular Fields for supported sections, or ContentRenderer for others */}
@@ -3407,7 +3407,7 @@ export default function VaultPage() {
     // Initial Loading State
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-[#0e0e0f] flex items-center justify-center">
+            <div className="min-h-screen bg-dark flex items-center justify-center">
                 <div className="text-center space-y-4">
                     <Loader2 className="w-12 h-12 text-cyan animate-spin mx-auto" />
                     <p className="text-gray-400 animate-pulse">Loading your vault...</p>
@@ -3418,7 +3418,7 @@ export default function VaultPage() {
 
     // Unified Tabbed View
     return (
-        <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8">
+        <div className="min-h-screen bg-dark text-white p-4 sm:p-6 lg:p-8">
             <div className="max-w-4xl mx-auto">
 
                 {/* Navigation & Header */}
@@ -3439,23 +3439,23 @@ export default function VaultPage() {
                         Edit Intake Answers
                     </button>
 
-                    <div className="flex items-center gap-2 bg-[#131314] p-1.5 rounded-xl border border-[#2a2a2d]">
+                    <div className="flex items-center gap-2 bg-[#111214] p-1.5 rounded-xl border border-white/[0.07]">
                         <button
                             onClick={() => { setActiveTab('dna'); setShowMediaLibrary(false); }}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'dna' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'dna' ? 'bg-cyan text-black shadow-lg shadow-cyan/30' : 'text-gray-500 hover:text-gray-300'}`}
                         >
                             Phase 1
                         </button>
                         <button
                             onClick={() => { setActiveTab('assets'); setShowMediaLibrary(false); }}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'assets' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : 'text-gray-500 hover:text-gray-300'}`}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'assets' ? 'bg-cyan text-black shadow-lg shadow-cyan/30' : 'text-gray-500 hover:text-gray-300'}`}
                         >
                             Phase 2
                         </button>
                         <button
                             onClick={() => { setActiveTab('scripts'); setShowMediaLibrary(false); }}
                             disabled={!isPhase3Accessible}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scripts' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : isPhase3Accessible ? 'text-gray-500 hover:text-gray-300' : 'text-gray-700 cursor-not-allowed'}`}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scripts' ? 'bg-cyan text-black shadow-lg shadow-cyan/30' : isPhase3Accessible ? 'text-gray-500 hover:text-gray-300' : 'text-gray-700 cursor-not-allowed'}`}
                         >
                             Phase 3
                         </button>
@@ -3491,7 +3491,7 @@ export default function VaultPage() {
 
                 {/* Progress Bar (Hide in Media Library) */}
                 {!showMediaLibrary && (
-                    <div className="mb-12 bg-[#131314] p-6 rounded-2xl border border-[#2a2a2d]">
+                    <div className="mb-12 bg-[#111214] p-6 rounded-2xl border border-white/[0.07]">
                         <div className="flex justify-between text-sm mb-3">
                             <span className="text-gray-400 font-medium">Completion Progress</span>
                             <span className="text-cyan font-bold">
@@ -3502,7 +3502,7 @@ export default function VaultPage() {
                                         : `${approvedPhase3.length} of ${PHASE_3_SECTIONS.length}`}
                             </span>
                         </div>
-                        <div className="h-2.5 bg-[#0e0e0f] rounded-full overflow-hidden border border-white/5">
+                        <div className="h-2.5 bg-black/30 rounded-full overflow-hidden border border-white/[0.06]">
                             <motion.div
                                 initial={{ width: 0 }}
                                 animate={{
@@ -3606,7 +3606,7 @@ export default function VaultPage() {
                                                             {/* Greyed-out non-clickable deployed indicator */}
                                                             <button
                                                                 disabled
-                                                                className="px-6 py-3 bg-[#1b1b1d] text-gray-500 rounded-xl font-bold flex items-center justify-center gap-2 border border-[#2a2a2d] cursor-not-allowed opacity-70"
+                                                                className="px-6 py-3 bg-[#1b1b1d] text-gray-500 rounded-xl font-bold flex items-center justify-center gap-2 border border-white/[0.07] cursor-not-allowed opacity-70"
                                                             >
                                                                 <CheckCircle className="w-4 h-4 text-green-500" />
                                                                 Funnel Deployed
@@ -3623,7 +3623,7 @@ export default function VaultPage() {
                                                                 href={ghlLocationId ? `https://app.tedos.ai/v2/location/${ghlLocationId}/funnels-websites/funnels` : 'https://app.tedos.ai'}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 border border-[#2a2a2d] transition-all"
+                                                                className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-2 border border-white/[0.07] transition-all"
                                                             >
                                                                 <ExternalLink className="w-4 h-4" />
                                                                 Go to Builder
@@ -3650,7 +3650,7 @@ export default function VaultPage() {
                                                             </button>
                                                             <button
                                                                 onClick={() => setActiveTab('scripts')}
-                                                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-3 border border-[#2a2a2d] transition-all group"
+                                                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-3 border border-white/[0.07] transition-all group"
                                                             >
                                                                 Proceed to Phase 3
                                                                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -3662,7 +3662,7 @@ export default function VaultPage() {
                                         )}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-16 bg-[#131314] rounded-3xl border border-dashed border-[#2a2a2d]">
+                                    <div className="text-center py-16 bg-[#111214] rounded-3xl border border-dashed border-white/[0.07]">
                                         <div className="w-16 h-16 mx-auto mb-6 relative bg-cyan/5 rounded-2xl flex items-center justify-center border border-cyan/20">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8">
                                                 <path d="M7 11V7a5 5 0 0 1 10 0v4" className="text-cyan" />
@@ -3727,7 +3727,7 @@ export default function VaultPage() {
                                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                                 animate={{ scale: 1, opacity: 1, y: 0 }}
                                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                                className="bg-[#1b1b1d] border border-[#2a2a2d] rounded-3xl p-8 w-full max-w-md shadow-2xl"
+                                className="bg-[#1b1b1d] border border-white/[0.07] rounded-3xl p-8 w-full max-w-md shadow-2xl"
                                 onClick={e => e.stopPropagation()}
                             >
                                 <div className="p-3 bg-cyan/10 rounded-2xl w-fit mb-6">
@@ -3743,7 +3743,7 @@ export default function VaultPage() {
                                         value={sessionName}
                                         onChange={(e) => setSessionName(e.target.value)}
                                         placeholder="e.g. Real Estate Growth Plan"
-                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl px-4 py-4 text-white focus:outline-none focus:border-cyan transition-all text-lg font-medium"
+                                        className="w-full bg-[#0e0e0f] border border-white/[0.07] rounded-xl px-4 py-4 text-white focus:outline-none focus:border-cyan transition-all text-lg font-medium"
                                         autoFocus
                                     />
                                 </div>
@@ -3860,7 +3860,7 @@ export default function VaultPage() {
                         We strongly recommend <strong className="text-cyan">approving all content in Phase 1, 2 & 3</strong> before
                         running your initial deployment via <strong className="text-white">"Build Your Funnel"</strong> at the end of Phase 2.
                     </p>
-                    <div className="bg-[#1b1b1d] rounded-xl p-4 border border-[#2a2a2d] space-y-2">
+                    <div className="bg-[#1b1b1d] rounded-xl p-4 border border-white/[0.07] space-y-2">
                         <p className="text-gray-400 text-xs">
                             <strong className="text-cyan">💡 After your initial deployment:</strong>
                         </p>
