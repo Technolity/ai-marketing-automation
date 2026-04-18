@@ -28,27 +28,28 @@ import {
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import EditableCell from "@/components/admin/EditableCell";
+import { T as _T, TIER_COLORS } from "@/components/admin/adminTheme";
 
-// Design tokens
+// Design tokens — sourced from shared theme
 const T = {
-    cardBg: "#0D1217",
-    surface: "#121920",
-    border: "#1E2A34",
-    cyan: "#16C7E7",
-    textPrimary: "#F4F8FB",
-    textSecondary: "#B2C0CD",
-    textMuted: "#5a6a78",
-    rowHover: "rgba(22,199,231,0.03)",
-    success: "#34d399",
-    warning: "#fbbf24",
-    danger: "#f87171",
-    purple: "#a78bfa",
+    cardBg: _T.card,
+    surface: _T.panel,
+    border: _T.border,
+    cyan: _T.cyan,
+    textPrimary: _T.textPrimary,
+    textSecondary: _T.textSecondary,
+    textMuted: _T.textMuted,
+    rowHover: _T.rowHover,
+    success: _T.green,
+    warning: _T.amber,
+    danger: _T.red,
+    purple: _T.purple,
 };
 
 const TIER_STYLES = {
-    starter: { bg: "rgba(52,211,153,0.12)", color: "#34d399", border: "rgba(52,211,153,0.25)" },
-    growth:  { bg: "rgba(22,199,231,0.12)",  color: "#16C7E7", border: "rgba(22,199,231,0.25)" },
-    scale:   { bg: "rgba(167,139,250,0.12)", color: "#a78bfa", border: "rgba(167,139,250,0.25)" },
+    starter: { bg: TIER_COLORS.starter.bg, color: TIER_COLORS.starter.color, border: TIER_COLORS.starter.border },
+    growth:  { bg: TIER_COLORS.growth.bg,  color: TIER_COLORS.growth.color,  border: TIER_COLORS.growth.border },
+    scale:   { bg: TIER_COLORS.scale.bg,   color: TIER_COLORS.scale.color,   border: TIER_COLORS.scale.border },
 };
 
 // Toast notification component

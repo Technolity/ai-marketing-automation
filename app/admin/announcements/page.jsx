@@ -15,12 +15,13 @@ import {
     Loader2,
     X
 } from "lucide-react";
+import { T as _T } from "@/components/admin/adminTheme";
 
 const TYPE_CONFIG = {
-    info:     { label: "Info",     icon: Info,          color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  border: "rgba(96,165,250,0.25)"  },
-    success:  { label: "Success",  icon: CheckCircle,   color: "#34d399", bg: "rgba(52,211,153,0.12)",  border: "rgba(52,211,153,0.25)"  },
-    warning:  { label: "Warning",  icon: AlertTriangle, color: "#fbbf24", bg: "rgba(251,191,36,0.12)",  border: "rgba(251,191,36,0.25)"  },
-    discount: { label: "Discount", icon: Tag,            color: "#a78bfa", bg: "rgba(167,139,250,0.12)", border: "rgba(167,139,250,0.25)" },
+    info:     { label: "Info",     icon: Info,          color: _T.blue || "#60a5fa", bg: "rgba(96,165,250,0.12)",  border: "rgba(96,165,250,0.25)"  },
+    success:  { label: "Success",  icon: CheckCircle,   color: _T.green, bg: "rgba(52,211,153,0.12)",  border: "rgba(52,211,153,0.25)"  },
+    warning:  { label: "Warning",  icon: AlertTriangle, color: _T.amber, bg: "rgba(251,191,36,0.12)",  border: "rgba(251,191,36,0.25)"  },
+    discount: { label: "Discount", icon: Tag,            color: _T.purple, bg: "rgba(167,139,250,0.12)", border: "rgba(167,139,250,0.25)" },
 };
 
 export default function AnnouncementsPage() {

@@ -34,6 +34,14 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-04-18)
+| File | Change |
+| :--- | :--- |
+| `components/admin/adminTheme.js` | **New (Design System)**: Created a single source of truth for admin panel UI tokens including colors (`_T.card`, `_T.panel`, `_T.cyan`, etc.), spacing, borders, radii, and text styles. |
+| `components/admin/AdminLayout.jsx` | **UI Enhancement**: Refactored the global admin layout container, sidebar, and header to implement the new dark-mode tokens and structured responsive wrapping. |
+| `app/admin/overview/page.jsx` | **Feature (Overview Redesign)**: Completely rebuilt the admin overview page to match the ADMINPAGE.pen specifications. Implemented new hero, metrics grid, responsive Recharts components, and detailed analytics rows. Connected all visualizations to the existing `api/admin/stats` endpoint. |
+| `app/admin/**/*.jsx` | **Refactoring (Theme Propagation)**: Migrated all 15 admin pages (`users`, `funnels`, `subscriptions`, `ghl-accounts`, `announcements`, `knowledge-base`, `settings`, `billing`, `feedback`, etc.) to import and utilize the shared `adminTheme.js` tokens instead of hard-coded hex colors or local `T` objects. Ensured all root containers enforce responsive wrapping. |
+
 ### Recent Modifications (2026-04-17)
 | File | Change |
 | :--- | :--- |

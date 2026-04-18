@@ -7,6 +7,7 @@ import {
   X, AlertCircle, CheckCircle2, Clock, RefreshCw, Loader2,
   ImageIcon,
 } from "@/lib/icons";
+import { T as _T } from "@/components/admin/adminTheme";
 
 /* ── constants ── */
 const STATUS_TABS = [
@@ -17,15 +18,15 @@ const STATUS_TABS = [
 ];
 
 const TYPE_META = {
-  bug:      { label: "Bug Report",      Icon: Bug,           color: "#f87171", bg: "rgba(248,113,113,0.12)"   },
-  feedback: { label: "Feedback",         Icon: MessageSquare, color: "#16C7E7", bg: "rgba(22,199,231,0.1)"    },
-  feature:  { label: "Feature Request", Icon: Lightbulb,     color: "#a78bfa", bg: "rgba(167,139,250,0.12)" },
+  bug:      { label: "Bug Report",      Icon: Bug,           color: _T.red, bg: "rgba(248,113,113,0.12)"   },
+  feedback: { label: "Feedback",         Icon: MessageSquare, color: _T.cyan, bg: "rgba(22,199,231,0.1)"    },
+  feature:  { label: "Feature Request", Icon: Lightbulb,     color: _T.purple, bg: "rgba(167,139,250,0.12)" },
 };
 
 const STATUS_META = {
-  new:         { label: "New",         Icon: AlertCircle,  color: "#fbbf24", bg: "rgba(251,191,36,0.12)"  },
-  in_progress: { label: "In Progress", Icon: Clock,        color: "#16C7E7", bg: "rgba(22,199,231,0.1)"   },
-  resolved:    { label: "Resolved",    Icon: CheckCircle2, color: "#34d399", bg: "rgba(52,211,153,0.12)"  },
+  new:         { label: "New",         Icon: AlertCircle,  color: _T.amber, bg: "rgba(251,191,36,0.12)"  },
+  in_progress: { label: "In Progress", Icon: Clock,        color: _T.cyan, bg: "rgba(22,199,231,0.1)"   },
+  resolved:    { label: "Resolved",    Icon: CheckCircle2, color: _T.green, bg: "rgba(52,211,153,0.12)"  },
 };
 
 /* ── components ── */

@@ -36,28 +36,29 @@ import {
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
+import { T as _T } from "@/components/admin/adminTheme";
 
 const T = {
-    cardBg: "#0D1217",
-    surface: "#121920",
-    border: "#1E2A34",
-    cyan: "#16C7E7",
-    primary: "#F4F8FB",
-    secondary: "#B2C0CD",
-    muted: "#5a6a78",
-    success: "#34d399",
-    warning: "#fbbf24",
-    danger: "#f87171",
-    purple: "#a78bfa",
-    orange: "#fb923c",
-    amber: "#f59e0b",
+    cardBg: _T.card,
+    surface: _T.panel,
+    border: _T.border,
+    cyan: _T.cyan,
+    primary: _T.textPrimary,
+    secondary: _T.textSecondary,
+    muted: _T.textMuted,
+    success: _T.green,
+    warning: _T.amber,
+    danger: _T.red,
+    purple: _T.purple,
+    orange: _T.orange || "#fb923c",
+    amber: _T.amber,
 };
 
 const STATUS_STYLE = {
-    synced: { background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" },
-    pending: { background: "rgba(251,191,36,0.12)", color: "#fbbf24", border: "1px solid rgba(251,191,36,0.25)" },
-    failed: { background: "rgba(251,146,60,0.12)", color: "#fb923c", border: "1px solid rgba(251,146,60,0.25)" },
-    permanently_failed: { background: "rgba(248,113,113,0.12)", color: "#f87171", border: "1px solid rgba(248,113,113,0.25)" },
+    synced: { background: "rgba(52,211,153,0.12)", color: _T.green, border: "1px solid rgba(52,211,153,0.25)" },
+    pending: { background: "rgba(251,191,36,0.12)", color: _T.amber, border: "1px solid rgba(251,191,36,0.25)" },
+    failed: { background: "rgba(251,146,60,0.12)", color: _T.orange || "#fb923c", border: "1px solid rgba(251,146,60,0.25)" },
+    permanently_failed: { background: "rgba(248,113,113,0.12)", color: _T.red, border: "1px solid rgba(248,113,113,0.25)" },
     not_synced: { background: "rgba(90,106,120,0.12)", color: "#5a6a78", border: "1px solid rgba(90,106,120,0.25)" }
 };
 

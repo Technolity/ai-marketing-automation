@@ -56,8 +56,8 @@ export default function AdminLayout({ children }) {
 
     if (loading || (!hasChecked && !isAdmin)) {
         return (
-            <div className="flex h-screen items-center justify-center bg-[#05080B]">
-                <Loader2 className="w-10 h-10 animate-spin" style={{ color: "#16C7E7" }} />
+            <div className="flex h-screen items-center justify-center bg-[#060B12]">
+                <Loader2 className="w-10 h-10 animate-spin" style={{ color: "#18D3F6" }} />
             </div>
         );
     }
@@ -65,7 +65,7 @@ export default function AdminLayout({ children }) {
     if (!isAdmin || !user) return null;
 
     return (
-        <div className="min-h-screen flex" style={{ backgroundColor: "#05080B", color: "#F4F8FB", overflowX: "hidden", width: "100%" }}>
+        <div className="min-h-screen flex" style={{ backgroundColor: "#060B12", color: "#F2FAFF", overflowX: "hidden", width: "100%" }}>
 
             {/* ── Desktop Sidebar (lg+) ──────────────────────────── */}
             <motion.aside
@@ -73,14 +73,14 @@ export default function AdminLayout({ children }) {
                 animate={{ width: sidebarCollapsed ? 80 : 280 }}
                 transition={{ duration: 0.25, ease: "easeInOut" }}
                 className="hidden lg:flex flex-col fixed h-screen z-40 overflow-hidden"
-                style={{ backgroundColor: "#121920", borderRight: "1px solid #1E2A34" }}
+                style={{ backgroundColor: "#0B131D", borderRight: "1px solid #183042" }}
             >
                 {/* Logo */}
                 <Link
                     href="/admin/overview"
                     className="p-5 flex items-center justify-between transition-colors"
-                    style={{ borderBottom: "1px solid #1E2A34" }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "#1A2129"}
+                    style={{ borderBottom: "1px solid #183042" }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "#0E1E2A"}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                 >
                     <AnimatePresence mode="wait">
@@ -102,7 +102,7 @@ export default function AdminLayout({ children }) {
                                 />
                                 <span
                                     className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                                    style={{ backgroundColor: "#16C7E7", color: "#05080B" }}
+                                    style={{ backgroundColor: "#18D3F6", color: "#060B12" }}
                                 >
                                     Admin
                                 </span>
@@ -112,7 +112,7 @@ export default function AdminLayout({ children }) {
                     {sidebarCollapsed && (
                         <Shield
                             className="w-5 h-5 mx-auto flex-shrink-0"
-                            style={{ color: "#16C7E7" }}
+                            style={{ color: "#18D3F6" }}
                         />
                     )}
                 </Link>
@@ -128,8 +128,8 @@ export default function AdminLayout({ children }) {
                                 href={item.href}
                                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group relative"
                                 style={{
-                                    backgroundColor: isActive ? "#10333E" : "transparent",
-                                    color: isActive ? "#16C7E7" : "#B2C0CD",
+                                    backgroundColor: isActive ? "#0E2C37" : "transparent",
+                                    color: isActive ? "#18D3F6" : "#A6BCD0",
                                 }}
                                 onMouseEnter={e => {
                                     if (!isActive) {
@@ -140,13 +140,13 @@ export default function AdminLayout({ children }) {
                                 onMouseLeave={e => {
                                     if (!isActive) {
                                         e.currentTarget.style.backgroundColor = "transparent";
-                                        e.currentTarget.style.color = "#B2C0CD";
+                                        e.currentTarget.style.color = "#A6BCD0";
                                     }
                                 }}
                             >
                                 <Icon
                                     className="w-5 h-5 flex-shrink-0 transition-colors"
-                                    style={{ color: isActive ? "#16C7E7" : "inherit" }}
+                                    style={{ color: isActive ? "#18D3F6" : "inherit" }}
                                 />
                                 <AnimatePresence mode="wait">
                                     {!sidebarCollapsed && (
@@ -164,7 +164,7 @@ export default function AdminLayout({ children }) {
                                 {item.badge && !sidebarCollapsed && (
                                     <span
                                         className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded"
-                                        style={{ backgroundColor: "#16C7E7", color: "#05080B" }}
+                                        style={{ backgroundColor: "#18D3F6", color: "#060B12" }}
                                     >
                                         {item.badge}
                                     </span>
@@ -175,18 +175,18 @@ export default function AdminLayout({ children }) {
                 </nav>
 
                 {/* Exit Admin */}
-                <div className="p-3" style={{ borderTop: "1px solid #1E2A34" }}>
+                <div className="p-3" style={{ borderTop: "1px solid #183042" }}>
                     <Link
                         href="/"
                         className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium"
-                        style={{ color: "#B2C0CD" }}
+                        style={{ color: "#A6BCD0" }}
                         onMouseEnter={e => {
                             e.currentTarget.style.backgroundColor = "rgba(239,68,68,0.1)";
                             e.currentTarget.style.color = "#f87171";
                         }}
                         onMouseLeave={e => {
                             e.currentTarget.style.backgroundColor = "transparent";
-                            e.currentTarget.style.color = "#B2C0CD";
+                            e.currentTarget.style.color = "#A6BCD0";
                         }}
                     >
                         <LogOut className="w-5 h-5 flex-shrink-0" />
@@ -216,20 +216,20 @@ export default function AdminLayout({ children }) {
                     top: 22,
                     left: sidebarCollapsed ? 66 : 266,
                     transition: "left 0.25s ease-in-out, background-color 0.15s, border-color 0.15s, color 0.15s",
-                    backgroundColor: "#121920",
-                    border: "1px solid #1E2A34",
-                    color: "#B2C0CD",
+                    backgroundColor: "#0B131D",
+                    border: "1px solid #183042",
+                    color: "#A6BCD0",
                     boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
                 }}
                 onMouseEnter={e => {
-                    e.currentTarget.style.backgroundColor = "#10333E";
-                    e.currentTarget.style.borderColor = "#16C7E7";
-                    e.currentTarget.style.color = "#16C7E7";
+                    e.currentTarget.style.backgroundColor = "#0E2C37";
+                    e.currentTarget.style.borderColor = "#18D3F6";
+                    e.currentTarget.style.color = "#18D3F6";
                 }}
                 onMouseLeave={e => {
-                    e.currentTarget.style.backgroundColor = "#121920";
-                    e.currentTarget.style.borderColor = "#1E2A34";
-                    e.currentTarget.style.color = "#B2C0CD";
+                    e.currentTarget.style.backgroundColor = "#0B131D";
+                    e.currentTarget.style.borderColor = "#183042";
+                    e.currentTarget.style.color = "#A6BCD0";
                 }}
             >
                 {sidebarCollapsed
@@ -241,18 +241,18 @@ export default function AdminLayout({ children }) {
             {/* ── Tablet Icon Rail (md, hidden on lg+) ──────────── */}
             <aside
                 className="hidden md:flex lg:hidden flex-col fixed h-screen z-40 w-14"
-                style={{ backgroundColor: "#121920", borderRight: "1px solid #1E2A34" }}
+                style={{ backgroundColor: "#0B131D", borderRight: "1px solid #183042" }}
             >
                 <Link
                     href="/admin/overview"
                     className="h-16 flex items-center justify-center transition-colors flex-shrink-0"
-                    style={{ borderBottom: "1px solid #1E2A34" }}
+                    style={{ borderBottom: "1px solid #183042" }}
                     onMouseEnter={e => e.currentTarget.style.backgroundColor = "#1A2129"}
                     onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                 >
                     <Shield
                         className="w-5 h-5"
-                        style={{ color: "#16C7E7" }}
+                        style={{ color: "#18D3F6" }}
                     />
                 </Link>
 
@@ -267,8 +267,8 @@ export default function AdminLayout({ children }) {
                                 title={item.label}
                                 className="w-10 h-10 flex items-center justify-center rounded-xl transition-all"
                                 style={{
-                                    backgroundColor: isActive ? "#10333E" : "transparent",
-                                    color: isActive ? "#16C7E7" : "#B2C0CD",
+                                    backgroundColor: isActive ? "#0E2C37" : "transparent",
+                                    color: isActive ? "#18D3F6" : "#A6BCD0",
                                 }}
                                 onMouseEnter={e => {
                                     if (!isActive) {
@@ -312,7 +312,7 @@ export default function AdminLayout({ children }) {
             {/* ── Mobile Header ──────────────────────────────────── */}
             <div
                 className="md:hidden fixed top-0 left-0 right-0 h-14 z-50 flex items-center justify-between px-4"
-                style={{ backgroundColor: "#163549", borderBottom: "1px solid #1E2A34" }}
+                style={{ backgroundColor: "#0B131D", borderBottom: "1px solid #183042" }}
             >
                 <div className="flex items-center gap-3">
                     <Image
@@ -325,7 +325,7 @@ export default function AdminLayout({ children }) {
                     />
                     <span
                         className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
-                        style={{ backgroundColor: "#16C7E7", color: "#05080B" }}
+                        style={{ backgroundColor: "#18D3F6", color: "#060B12" }}
                     >
                         Admin
                     </span>
@@ -350,7 +350,7 @@ export default function AdminLayout({ children }) {
                         exit={{ opacity: 0, x: "-100%" }}
                         transition={{ duration: 0.22, ease: "easeInOut" }}
                         className="md:hidden fixed inset-0 top-14 z-40 p-4 overflow-y-auto overflow-x-hidden"
-                        style={{ backgroundColor: "#121920" }}
+                        style={{ backgroundColor: "#0B131D" }}
                     >
                         <nav className="space-y-0.5">
                             {MENU_ITEMS.map((item) => {
@@ -372,7 +372,7 @@ export default function AdminLayout({ children }) {
                                         {item.badge && (
                                             <span
                                                 className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded"
-                                                style={{ backgroundColor: "#16C7E7", color: "#05080B" }}
+                                                style={{ backgroundColor: "#18D3F6", color: "#060B12" }}
                                             >
                                                 {item.badge}
                                             </span>
@@ -382,7 +382,7 @@ export default function AdminLayout({ children }) {
                             })}
                         </nav>
 
-                        <div className="mt-6 pt-4" style={{ borderTop: "1px solid #1E2A34" }}>
+                        <div className="mt-6 pt-4" style={{ borderTop: "1px solid #183042" }}>
                             <Link
                                 href="/"
                                 className="flex items-center gap-3 px-3 py-3 rounded-xl transition-all text-sm font-medium"
@@ -403,7 +403,7 @@ export default function AdminLayout({ children }) {
                 }`}
                 style={{ overflow: "hidden", maxWidth: "100vw" }}
             >
-                <div className="p-4 pt-[72px] md:pt-4 lg:pt-0 lg:p-8" style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+                <div className="p-4 pt-[72px] md:p-6 lg:p-8" style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
                     {children}
                 </div>
             </main>

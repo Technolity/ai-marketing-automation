@@ -24,20 +24,21 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { T as _T } from "@/components/admin/adminTheme";
 
 // ---- Shared style tokens ----
 const TOKEN = {
-    cardBg: "#0D1217",
-    surface: "#121920",
-    border: "#1E2A34",
-    cyan: "#16C7E7",
-    textPrimary: "#F4F8FB",
-    textSecondary: "#B2C0CD",
-    textMuted: "#5a6a78",
-    success: "#34d399",
-    danger: "#f87171",
-    purple: "#a78bfa",
-    blue: "#60a5fa",
+    cardBg: _T.card,
+    surface: _T.panel,
+    border: _T.border,
+    cyan: _T.cyan,
+    textPrimary: _T.textPrimary,
+    textSecondary: _T.textSecondary,
+    textMuted: _T.textMuted,
+    success: _T.green,
+    danger: _T.red,
+    purple: _T.purple,
+    blue: _T.blue || "#60a5fa",
 };
 
 // ---- Reusable inline Toggle ----

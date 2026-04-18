@@ -25,24 +25,25 @@ import {
     AlertCircle
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { T as _T } from "@/components/admin/adminTheme";
 
 const T = {
-    cardBg: "#0D1217",
-    surface: "#121920",
-    border: "#1E2A34",
-    cyan: "#16C7E7",
-    primary: "#F4F8FB",
-    secondary: "#B2C0CD",
-    muted: "#5a6a78",
-    success: "#34d399",
-    danger: "#f87171",
-    purple: "#a78bfa",
+    cardBg: _T.card,
+    surface: _T.panel,
+    border: _T.border,
+    cyan: _T.cyan,
+    primary: _T.textPrimary,
+    secondary: _T.textSecondary,
+    muted: _T.textMuted,
+    success: _T.green,
+    danger: _T.red,
+    purple: _T.purple,
 };
 
 const SOURCE_STYLE = {
-    youtube: { background: "rgba(248,113,113,0.12)", color: "#f87171" },
+    youtube: { background: "rgba(248,113,113,0.12)", color: _T.red },
     manual: { background: "rgba(96,165,250,0.12)", color: "#60a5fa" },
-    document: { background: "rgba(167,139,250,0.12)", color: "#a78bfa" },
+    document: { background: "rgba(167,139,250,0.12)", color: _T.purple },
 };
 
 const STATUS_STYLE = {

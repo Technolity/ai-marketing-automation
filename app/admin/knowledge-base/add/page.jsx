@@ -14,15 +14,16 @@ import {
     Loader2
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
+import { T as _T } from "@/components/admin/adminTheme";
 
 const T = {
-    cardBg: "#0D1217",
-    surface: "#121920",
-    border: "#1E2A34",
-    cyan: "#16C7E7",
-    primary: "#F4F8FB",
-    secondary: "#B2C0CD",
-    muted: "#5a6a78",
+    cardBg: _T.card,
+    surface: _T.panel,
+    border: _T.border,
+    cyan: _T.cyan,
+    primary: _T.textPrimary,
+    secondary: _T.textSecondary,
+    muted: _T.textMuted,
 };
 
 const INDUSTRIES = [

@@ -8,7 +8,8 @@ import {
     Check,
     Sparkles
 } from "lucide-react";
-import AdminLayout from "@/components/admin/AdminLayout";
+import AdminLayout from '@/components/admin/AdminLayout';
+import { T as _T } from '@/components/admin/adminTheme';
 
 const TIERS = [
     {
@@ -87,10 +88,10 @@ export default function AdminBilling() {
                 {/* Header */}
                 <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <div style={{ width: 3, height: 22, backgroundColor: "#16C7E7", borderRadius: 2 }} />
-                        <h1 style={{ color: "#F4F8FB", fontSize: 22, fontWeight: 700, margin: 0 }}>Billing / Tiers</h1>
+                        <div style={{ width: 3, height: 22, backgroundColor: _T.cyan, borderRadius: 2 }} />
+                        <h1 style={{ color: _T.textPrimary, fontSize: 22, fontWeight: 700, margin: 0 }}>Billing / Tiers</h1>
                     </div>
-                    <p style={{ color: "#B2C0CD", fontSize: 13, marginLeft: 11, margin: "0 0 0 11px" }}>Manage subscription tiers and pricing</p>
+                    <p style={{ color: _T.textSecondary, fontSize: 13, marginLeft: 11, margin: "0 0 0 11px" }}>Manage subscription tiers and pricing</p>
                 </div>
 
                 {/* Tiers Grid */}
@@ -106,7 +107,7 @@ export default function AdminBilling() {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.07 }}
                                 style={{
-                                    backgroundColor: "#0D1217",
+                                    backgroundColor: _T.card,
                                     border: `1px solid ${tier.popular ? "#16C7E7" : "#1E2A34"}`,
                                     borderTop: `3px solid ${tier.popular ? "#16C7E7" : "#1E2A34"}`,
                                     borderRadius: 14,
@@ -122,7 +123,7 @@ export default function AdminBilling() {
                                         position: "absolute",
                                         top: -1,
                                         right: 20,
-                                        backgroundColor: "#16C7E7",
+                                        backgroundColor: _T.cyan,
                                         color: "#05080B",
                                         fontSize: 10,
                                         fontWeight: 700,
@@ -147,19 +148,19 @@ export default function AdminBilling() {
                                         justifyContent: "center",
                                         flexShrink: 0,
                                     }}>
-                                        <Icon style={{ width: 20, height: 20, color: "#16C7E7" }} />
+                                        <Icon style={{ width: 20, height: 20, color: _T.cyan }} />
                                     </div>
                                     <div>
-                                        <p style={{ color: "#F4F8FB", fontSize: 20, fontWeight: 700, margin: 0 }}>{tier.name}</p>
-                                        <p style={{ color: "#B2C0CD", fontSize: 13, marginTop: 2, margin: "2px 0 0" }}>{tier.description}</p>
+                                        <p style={{ color: _T.textPrimary, fontSize: 20, fontWeight: 700, margin: 0 }}>{tier.name}</p>
+                                        <p style={{ color: _T.textSecondary, fontSize: 13, marginTop: 2, margin: "2px 0 0" }}>{tier.description}</p>
                                     </div>
                                 </div>
 
                                 {/* Price */}
                                 <div style={{ marginBottom: 20 }}>
-                                    <span style={{ color: "#F4F8FB", fontSize: 36, fontWeight: 700 }}>{tier.price}</span>
+                                    <span style={{ color: _T.textPrimary, fontSize: 36, fontWeight: 700 }}>{tier.price}</span>
                                     {tier.period && (
-                                        <span style={{ color: "#B2C0CD", fontSize: 14, marginLeft: 4 }}>{tier.period}</span>
+                                        <span style={{ color: _T.textSecondary, fontSize: 14, marginLeft: 4 }}>{tier.period}</span>
                                     )}
                                 </div>
 
@@ -167,8 +168,8 @@ export default function AdminBilling() {
                                 <ul style={{ listStyle: "none", padding: 0, margin: "0 0 24px", display: "flex", flexDirection: "column", gap: 10 }}>
                                     {tier.features.map((f) => (
                                         <li key={f} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                            <Check style={{ width: 14, height: 14, color: "#34d399", flexShrink: 0 }} />
-                                            <span style={{ color: "#B2C0CD", fontSize: 13 }}>{f}</span>
+                                            <Check style={{ width: 14, height: 14, color: _T.green, flexShrink: 0 }} />
+                                            <span style={{ color: _T.textSecondary, fontSize: 13 }}>{f}</span>
                                         </li>
                                     ))}
                                 </ul>
@@ -230,10 +231,10 @@ export default function AdminBilling() {
                         borderRadius: 12,
                     }}
                 >
-                    <Sparkles style={{ width: 18, height: 18, color: "#16C7E7", flexShrink: 0, marginTop: 1 }} />
+                    <Sparkles style={{ width: 18, height: 18, color: _T.cyan, flexShrink: 0, marginTop: 1 }} />
                     <div>
-                        <p style={{ color: "#F4F8FB", fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>Tier Management</p>
-                        <p style={{ color: "#B2C0CD", fontSize: 13, margin: 0, lineHeight: 1.6 }}>
+                        <p style={{ color: _T.textPrimary, fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>Tier Management</p>
+                        <p style={{ color: _T.textSecondary, fontSize: 13, margin: 0, lineHeight: 1.6 }}>
                             Toggle tiers on/off to control which plans are available to users.
                             Changes will take effect immediately for new subscriptions.
                             Existing subscriptions will not be affected.

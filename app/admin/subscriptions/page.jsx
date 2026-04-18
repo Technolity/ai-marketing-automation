@@ -19,7 +19,8 @@ import {
     Filter,
     Users,
 } from "lucide-react";
-import AdminLayout from "@/components/admin/AdminLayout";
+import AdminLayout from '@/components/admin/AdminLayout';
+import { T as _T } from '@/components/admin/adminTheme';
 import EditableCell from "@/components/admin/EditableCell";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -47,17 +48,17 @@ function Toast({ message, type = 'success', onClose }) {
         success: {
             backgroundColor: 'rgba(52,211,153,0.12)',
             border: '1px solid rgba(52,211,153,0.25)',
-            color: '#34d399',
+            color: _T.green,
         },
         error: {
             backgroundColor: 'rgba(239,68,68,0.12)',
             border: '1px solid rgba(239,68,68,0.25)',
-            color: '#f87171',
+            color: _T.red,
         },
         info: {
             backgroundColor: 'rgba(96,165,250,0.12)',
             border: '1px solid rgba(96,165,250,0.25)',
-            color: '#60a5fa',
+            color: _T.blue,
         },
     }[type] || {};
 
@@ -96,10 +97,10 @@ function Toast({ message, type = 'success', onClose }) {
 
 function StatusBadge({ status }) {
     const cfg = {
-        active:    { bg: 'rgba(52,211,153,0.12)',  color: '#34d399',  label: 'Active'    },
-        suspended: { bg: 'rgba(251,191,36,0.12)',  color: '#fbbf24',  label: 'Suspended' },
-        cancelled: { bg: 'rgba(239,68,68,0.12)',   color: '#f87171',  label: 'Cancelled' },
-    }[status] || { bg: 'rgba(90,106,120,0.15)', color: '#5a6a78', label: status || '—' };
+        active:    { bg: 'rgba(52,211,153,0.12)',  color: _T.green,  label: 'Active'    },
+        suspended: { bg: 'rgba(251,191,36,0.12)',  color: _T.amber,  label: 'Suspended' },
+        cancelled: { bg: 'rgba(239,68,68,0.12)',   color: _T.red,  label: 'Cancelled' },
+    }[status] || { bg: 'rgba(90,106,120,0.15)', color: _T.textMuted, label: status || '—' };
 
     return (
         <span style={{
@@ -122,9 +123,9 @@ function StatusBadge({ status }) {
 
 function CycleBadge({ cycle }) {
     const cfg = {
-        monthly: { bg: 'rgba(96,165,250,0.12)',  color: '#60a5fa',  label: 'Monthly' },
-        annual:  { bg: 'rgba(167,139,250,0.12)', color: '#a78bfa',  label: 'Annual'  },
-    }[cycle] || { bg: 'rgba(90,106,120,0.15)', color: '#5a6a78', label: cycle || '—' };
+        monthly: { bg: 'rgba(96,165,250,0.12)',  color: _T.blue,  label: 'Monthly' },
+        annual:  { bg: 'rgba(167,139,250,0.12)', color: _T.purple,  label: 'Annual'  },
+    }[cycle] || { bg: 'rgba(90,106,120,0.15)', color: _T.textMuted, label: cycle || '—' };
 
     return (
         <span style={{
@@ -391,7 +392,7 @@ export default function AdminSubscriptions() {
             label: 'Active',
             value: stats.active,
             type: 'status',
-            color: '#34d399',
+            color: _T.green,
             isSelected: statusFilter === 'active',
         },
         {
@@ -399,7 +400,7 @@ export default function AdminSubscriptions() {
             label: 'Suspended',
             value: stats.suspended,
             type: 'status',
-            color: '#fbbf24',
+            color: _T.amber,
             isSelected: statusFilter === 'suspended',
         },
         {
@@ -407,7 +408,7 @@ export default function AdminSubscriptions() {
             label: 'Cancelled',
             value: stats.cancelled,
             type: 'status',
-            color: '#f87171',
+            color: _T.red,
             isSelected: statusFilter === 'cancelled',
         },
         {
@@ -415,7 +416,7 @@ export default function AdminSubscriptions() {
             label: 'Monthly',
             value: stats.monthly,
             type: 'cycle',
-            color: '#60a5fa',
+            color: _T.blue,
             isSelected: cycleFilter === 'monthly',
         },
         {
@@ -423,7 +424,7 @@ export default function AdminSubscriptions() {
             label: 'Annual',
             value: stats.annual,
             type: 'cycle',
-            color: '#a78bfa',
+            color: _T.purple,
             isSelected: cycleFilter === 'annual',
         },
     ];
@@ -432,10 +433,10 @@ export default function AdminSubscriptions() {
 
     const selectStyle = {
         padding: '9px 12px',
-        backgroundColor: '#121920',
+        backgroundColor: _T.panel,
         border: '1px solid #1E2A34',
         borderRadius: 10,
-        color: '#F4F8FB',
+        color: _T.textPrimary,
         fontSize: 13,
         outline: 'none',
         cursor: 'pointer',
@@ -453,10 +454,10 @@ export default function AdminSubscriptions() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ marginBottom: 24 }}>
                     <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                            <div style={{ width: 3, height: 22, backgroundColor: '#16C7E7', borderRadius: 2 }} />
-                            <h1 style={{ color: '#F4F8FB', fontSize: 22, fontWeight: 700, margin: 0 }}>Subscriptions</h1>
+                            <div style={{ width: 3, height: 22, backgroundColor: _T.cyan, borderRadius: 2 }} />
+                            <h1 style={{ color: _T.textPrimary, fontSize: 22, fontWeight: 700, margin: 0 }}>Subscriptions</h1>
                         </div>
-                        <p style={{ color: '#B2C0CD', fontSize: 13, marginLeft: 11, margin: 0 }}>
+                        <p style={{ color: _T.textSecondary, fontSize: 13, marginLeft: 11, margin: 0 }}>
                             Manage subscription status, billing cycles, and period dates
                         </p>
                     </div>
@@ -468,10 +469,10 @@ export default function AdminSubscriptions() {
                             alignItems: 'center',
                             gap: 6,
                             padding: '8px 16px',
-                            backgroundColor: '#121920',
+                            backgroundColor: _T.panel,
                             border: '1px solid #1E2A34',
                             borderRadius: 10,
-                            color: '#B2C0CD',
+                            color: _T.textSecondary,
                             fontSize: 13,
                             cursor: 'pointer',
                             opacity: loading ? 0.5 : 1,
@@ -503,7 +504,7 @@ export default function AdminSubscriptions() {
                             }}
                         >
                             <p style={{
-                                color: '#B2C0CD',
+                                color: _T.textSecondary,
                                 fontSize: 11,
                                 fontWeight: 600,
                                 textTransform: 'uppercase',
@@ -537,7 +538,7 @@ export default function AdminSubscriptions() {
                             transform: 'translateY(-50%)',
                             width: 15,
                             height: 15,
-                            color: '#5a6a78',
+                            color: _T.textMuted,
                             pointerEvents: 'none',
                         }} />
                         <input
@@ -550,10 +551,10 @@ export default function AdminSubscriptions() {
                             style={{
                                 width: '100%',
                                 padding: '9px 12px 9px 34px',
-                                backgroundColor: '#121920',
+                                backgroundColor: _T.panel,
                                 border: `1px solid ${searchFocused ? '#16C7E7' : '#1E2A34'}`,
                                 borderRadius: 10,
-                                color: '#F4F8FB',
+                                color: _T.textPrimary,
                                 fontSize: 13,
                                 outline: 'none',
                                 boxSizing: 'border-box',
@@ -571,7 +572,7 @@ export default function AdminSubscriptions() {
                             transform: 'translateY(-50%)',
                             width: 13,
                             height: 13,
-                            color: '#5a6a78',
+                            color: _T.textMuted,
                             pointerEvents: 'none',
                         }} />
                         <select
@@ -629,8 +630,8 @@ export default function AdminSubscriptions() {
                                 flexWrap: 'wrap',
                             }}
                         >
-                            <Users style={{ width: 16, height: 16, color: '#16C7E7', flexShrink: 0 }} />
-                            <span style={{ fontSize: 13, color: '#16C7E7', fontWeight: 500 }}>
+                            <Users style={{ width: 16, height: 16, color: _T.cyan, flexShrink: 0 }} />
+                            <span style={{ fontSize: 13, color: _T.cyan, fontWeight: 500 }}>
                                 {selectedIds.size} user{selectedIds.size > 1 ? 's' : ''} selected
                             </span>
                             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
@@ -645,7 +646,7 @@ export default function AdminSubscriptions() {
                                         backgroundColor: 'rgba(52,211,153,0.12)',
                                         border: '1px solid rgba(52,211,153,0.25)',
                                         borderRadius: 8,
-                                        color: '#34d399',
+                                        color: _T.green,
                                         fontSize: 12,
                                         fontWeight: 500,
                                         cursor: 'pointer',
@@ -666,7 +667,7 @@ export default function AdminSubscriptions() {
                                         backgroundColor: 'rgba(251,191,36,0.12)',
                                         border: '1px solid rgba(251,191,36,0.25)',
                                         borderRadius: 8,
-                                        color: '#fbbf24',
+                                        color: _T.amber,
                                         fontSize: 12,
                                         fontWeight: 500,
                                         cursor: 'pointer',
@@ -687,7 +688,7 @@ export default function AdminSubscriptions() {
                                         backgroundColor: 'rgba(239,68,68,0.12)',
                                         border: '1px solid rgba(239,68,68,0.25)',
                                         borderRadius: 8,
-                                        color: '#f87171',
+                                        color: _T.red,
                                         fontSize: 12,
                                         fontWeight: 500,
                                         cursor: 'pointer',
@@ -701,10 +702,10 @@ export default function AdminSubscriptions() {
                                     onClick={() => setSelectedIds(new Set())}
                                     style={{
                                         padding: '6px 12px',
-                                        backgroundColor: '#121920',
+                                        backgroundColor: _T.panel,
                                         border: '1px solid #1E2A34',
                                         borderRadius: 8,
-                                        color: '#B2C0CD',
+                                        color: _T.textSecondary,
                                         fontSize: 12,
                                         cursor: 'pointer',
                                     }}
@@ -718,7 +719,7 @@ export default function AdminSubscriptions() {
 
                 {/* Table */}
                 <div style={{
-                    backgroundColor: '#0D1217',
+                    backgroundColor: _T.card,
                     border: '1px solid #1E2A34',
                     borderRadius: 12,
                     overflow: 'hidden',
@@ -726,10 +727,10 @@ export default function AdminSubscriptions() {
                 }}>
                     {loading ? (
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0' }}>
-                            <Loader2 style={{ width: 24, height: 24, color: '#16C7E7' }} className="animate-spin" />
+                            <Loader2 style={{ width: 24, height: 24, color: _T.cyan }} className="animate-spin" />
                         </div>
                     ) : users.length === 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: '#5a6a78' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: _T.textMuted }}>
                             <BadgeCheck style={{ width: 40, height: 40, marginBottom: 12, opacity: 0.3 }} />
                             <p style={{ fontSize: 13, margin: 0 }}>No subscriptions found</p>
                         </div>
@@ -740,7 +741,7 @@ export default function AdminSubscriptions() {
                                     <tr>
                                         {/* Checkbox header */}
                                         <th style={{
-                                            backgroundColor: '#121920',
+                                            backgroundColor: _T.panel,
                                             padding: '12px 16px',
                                             textAlign: 'left',
                                             borderBottom: '1px solid #1E2A34',
@@ -751,13 +752,13 @@ export default function AdminSubscriptions() {
                                                 checked={allSelected}
                                                 ref={el => { if (el) el.indeterminate = someSelected; }}
                                                 onChange={toggleSelectAll}
-                                                style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#16C7E7' }}
+                                                style={{ width: 15, height: 15, cursor: 'pointer', accentColor: _T.cyan }}
                                             />
                                         </th>
                                         {['User', 'Status', 'Tier', 'Billing', 'Period End', 'Last Renewed', 'GHL', 'Actions'].map(col => (
                                             <th key={col} style={{
-                                                backgroundColor: '#121920',
-                                                color: '#B2C0CD',
+                                                backgroundColor: _T.panel,
+                                                color: _T.textSecondary,
                                                 fontSize: 11,
                                                 fontWeight: 600,
                                                 textTransform: 'uppercase',
@@ -803,22 +804,22 @@ export default function AdminSubscriptions() {
                                                         type="checkbox"
                                                         checked={isSelected}
                                                         onChange={() => toggleSelect(user.id)}
-                                                        style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#16C7E7' }}
+                                                        style={{ width: 15, height: 15, cursor: 'pointer', accentColor: _T.cyan }}
                                                     />
                                                 </td>
 
                                                 {/* User */}
                                                 <td style={{ padding: '13px 16px' }}>
-                                                    <p style={{ color: '#F4F8FB', fontSize: 13, fontWeight: 500, margin: '0 0 2px 0', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    <p style={{ color: _T.textPrimary, fontSize: 13, fontWeight: 500, margin: '0 0 2px 0', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {user.full_name || '—'}
                                                     </p>
-                                                    <p style={{ color: '#B2C0CD', fontSize: 11, margin: 0, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    <p style={{ color: _T.textSecondary, fontSize: 11, margin: 0, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {user.email}
                                                     </p>
                                                 </td>
 
                                                 {/* Status — editable */}
-                                                <td style={{ padding: '13px 16px', color: '#F4F8FB', fontSize: 13 }}>
+                                                <td style={{ padding: '13px 16px', color: _T.textPrimary, fontSize: 13 }}>
                                                     <EditableCell
                                                         value={user.subscription_status || 'active'}
                                                         type="select"
@@ -831,7 +832,7 @@ export default function AdminSubscriptions() {
                                                 </td>
 
                                                 {/* Tier — editable */}
-                                                <td style={{ padding: '13px 16px', color: '#F4F8FB', fontSize: 13 }}>
+                                                <td style={{ padding: '13px 16px', color: _T.textPrimary, fontSize: 13 }}>
                                                     <EditableCell
                                                         value={user.subscription_tier || 'starter'}
                                                         type="select"
@@ -842,7 +843,7 @@ export default function AdminSubscriptions() {
                                                 </td>
 
                                                 {/* Billing cycle — editable */}
-                                                <td style={{ padding: '13px 16px', color: '#F4F8FB', fontSize: 13 }}>
+                                                <td style={{ padding: '13px 16px', color: _T.textPrimary, fontSize: 13 }}>
                                                     <EditableCell
                                                         value={user.billing_cycle || 'monthly'}
                                                         type="select"
@@ -869,7 +870,7 @@ export default function AdminSubscriptions() {
                                                                 fontWeight: pastDue && v ? 500 : 400,
                                                             }}>
                                                                 {formatDate(v)}
-                                                                {pastDue && v && <span style={{ marginLeft: 4, color: '#f87171' }}>!</span>}
+                                                                {pastDue && v && <span style={{ marginLeft: 4, color: _T.red }}>!</span>}
                                                             </span>
                                                         )}
                                                     />
@@ -877,7 +878,7 @@ export default function AdminSubscriptions() {
 
                                                 {/* Last renewed — read-only */}
                                                 <td style={{ padding: '13px 16px' }}>
-                                                    <span style={{ fontSize: 12, color: '#B2C0CD' }}>
+                                                    <span style={{ fontSize: 12, color: _T.textSecondary }}>
                                                         {formatDate(user.subscription_renewed_at)}
                                                     </span>
                                                 </td>
@@ -885,8 +886,8 @@ export default function AdminSubscriptions() {
                                                 {/* GHL provisioned */}
                                                 <td style={{ padding: '13px 16px' }}>
                                                     {user.ghl_saas_provisioned
-                                                        ? <BadgeCheck style={{ width: 16, height: 16, color: '#34d399' }} />
-                                                        : <BadgeX     style={{ width: 16, height: 16, color: '#5a6a78' }} />
+                                                        ? <BadgeCheck style={{ width: 16, height: 16, color: _T.green }} />
+                                                        : <BadgeX     style={{ width: 16, height: 16, color: _T.textMuted }} />
                                                     }
                                                 </td>
 
@@ -956,17 +957,17 @@ export default function AdminSubscriptions() {
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '12px 16px',
-                        backgroundColor: '#121920',
+                        backgroundColor: _T.panel,
                         border: '1px solid #1E2A34',
                         borderRadius: 10,
                     }}>
-                        <p style={{ color: '#B2C0CD', fontSize: 12, margin: 0 }}>
+                        <p style={{ color: _T.textSecondary, fontSize: 12, margin: 0 }}>
                             Showing{' '}
-                            <span style={{ color: '#16C7E7', fontWeight: 600 }}>
+                            <span style={{ color: _T.cyan, fontWeight: 600 }}>
                                 {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)}
                             </span>
                             {' '}of{' '}
-                            <span style={{ color: '#16C7E7', fontWeight: 600 }}>{pagination.total}</span>
+                            <span style={{ color: _T.cyan, fontWeight: 600 }}>{pagination.total}</span>
                         </p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <button
@@ -974,10 +975,10 @@ export default function AdminSubscriptions() {
                                 disabled={pagination.page <= 1 || loading}
                                 style={{
                                     padding: 7,
-                                    backgroundColor: '#0D1217',
+                                    backgroundColor: _T.card,
                                     border: '1px solid #1E2A34',
                                     borderRadius: 8,
-                                    color: '#B2C0CD',
+                                    color: _T.textSecondary,
                                     cursor: pagination.page <= 1 || loading ? 'not-allowed' : 'pointer',
                                     opacity: pagination.page <= 1 || loading ? 0.4 : 1,
                                     display: 'flex',
@@ -987,7 +988,7 @@ export default function AdminSubscriptions() {
                             >
                                 <ChevronLeft style={{ width: 16, height: 16 }} />
                             </button>
-                            <span style={{ fontSize: 13, color: '#B2C0CD', padding: '0 8px' }}>
+                            <span style={{ fontSize: 13, color: _T.textSecondary, padding: '0 8px' }}>
                                 {pagination.page} / {pagination.totalPages}
                             </span>
                             <button
@@ -995,10 +996,10 @@ export default function AdminSubscriptions() {
                                 disabled={pagination.page >= pagination.totalPages || loading}
                                 style={{
                                     padding: 7,
-                                    backgroundColor: '#0D1217',
+                                    backgroundColor: _T.card,
                                     border: '1px solid #1E2A34',
                                     borderRadius: 8,
-                                    color: '#B2C0CD',
+                                    color: _T.textSecondary,
                                     cursor: pagination.page >= pagination.totalPages || loading ? 'not-allowed' : 'pointer',
                                     opacity: pagination.page >= pagination.totalPages || loading ? 0.4 : 1,
                                     display: 'flex',
