@@ -1,32 +1,47 @@
-/**
- * Reusable FormSection Component for Admin Forms
- * Groups related form fields together with consistent styling
- */
-
 export function FormSection({
-  title,
-  description,
-  children,
-  className = "",
-  variant = "default" // "default", "danger", "info"
+    title,
+    description,
+    children,
+    className = "",
+    variant = "default",
 }) {
-  const variantClasses = {
-    default: "bg-[#0e0e0f] border-[#2a2a2d]",
-    danger: "bg-red-500/5 border-red-500/20",
-    info: "bg-cyan/5 border-cyan/20"
-  };
+    const variantStyle = {
+        default: { backgroundColor: "#0D1217", borderColor: "#1E2A34" },
+        danger: { backgroundColor: "rgba(239,68,68,0.04)", borderColor: "rgba(239,68,68,0.2)" },
+        info: { backgroundColor: "rgba(22,199,231,0.04)", borderColor: "rgba(22,199,231,0.2)" },
+    };
 
-  return (
-    <div className={`p-6 rounded-lg border ${variantClasses[variant]} ${className}`}>
-      {(title || description) && (
-        <div className="mb-6">
-          {title && <h3 className="text-lg font-semibold mb-2">{title}</h3>}
-          {description && <p className="text-sm text-gray-400">{description}</p>}
+    const titleColor = {
+        default: "#F4F8FB",
+        danger: "#f87171",
+        info: "#16C7E7",
+    };
+
+    const style = variantStyle[variant] || variantStyle.default;
+
+    return (
+        <div
+            className={`p-6 rounded-xl border ${className}`}
+            style={{ backgroundColor: style.backgroundColor, borderColor: style.borderColor }}
+        >
+            {(title || description) && (
+                <div className="mb-5">
+                    {title && (
+                        <h3
+                            className="text-base font-semibold mb-1"
+                            style={{ color: titleColor[variant] || titleColor.default }}
+                        >
+                            {title}
+                        </h3>
+                    )}
+                    {description && (
+                        <p className="text-sm" style={{ color: "#B2C0CD" }}>{description}</p>
+                    )}
+                </div>
+            )}
+            <div className="space-y-5">{children}</div>
         </div>
-      )}
-      <div className="space-y-6">{children}</div>
-    </div>
-  );
+    );
 }
 
 export default FormSection;

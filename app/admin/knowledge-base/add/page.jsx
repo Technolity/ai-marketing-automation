@@ -15,42 +15,85 @@ import {
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
+const T = {
+    cardBg: "#0D1217",
+    surface: "#121920",
+    border: "#1E2A34",
+    cyan: "#16C7E7",
+    primary: "#F4F8FB",
+    secondary: "#B2C0CD",
+    muted: "#5a6a78",
+};
+
 const INDUSTRIES = [
-    "Technology",
-    "Health & Fitness",
-    "Real Estate",
-    "Finance",
-    "Legal",
-    "Healthcare",
-    "Marketing",
-    "Retail",
-    "Education",
-    "Consulting",
+    "Technology", "Health & Fitness", "Real Estate", "Finance", "Legal",
+    "Healthcare", "Marketing", "Retail", "Education", "Consulting",
 ];
 
 const CONTENT_TYPES = [
-    "Guide",
-    "Article",
-    "Template",
-    "Resource",
-    "Research",
-    "Framework",
-    "Case Study",
-    "Checklist",
+    "Guide", "Article", "Template", "Resource", "Research",
+    "Framework", "Case Study", "Checklist",
 ];
 
 const AVAILABLE_TAGS = [
-    "Lead Generation",
-    "Email Marketing",
-    "Social Media",
-    "SEO",
-    "PPC",
-    "Content Marketing",
-    "Branding",
-    "Sales",
-    "Automation",
-    "Analytics",
+    "Lead Generation", "Email Marketing", "Social Media", "SEO", "PPC",
+    "Content Marketing", "Branding", "Sales", "Automation", "Analytics",
 ];
+
+function StyledInput({ value, onChange, placeholder, type = "text", required }) {
+    const [focused, setFocused] = useState(false);
+    return (
+        <input
+            type={type}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            required={required}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            style={{
+                width: "100%", boxSizing: "border-box",
+                padding: "11px 14px", backgroundColor: T.surface,
+                border: `1px solid ${focused ? T.cyan : T.border}`,
+                borderRadius: 10, color: T.primary, fontSize: 14, outline: "none",
+                transition: "border-color 0.15s ease",
+            }}
+        />
+    );
+}
+
+function DropdownButton({ label, value, isOpen, onToggle, children, placeholder }) {
+    return (
+        <div style={{ position: "relative" }}>
+            <label style={{ display: "block", color: T.secondary, fontSize: 13, fontWeight: 500, marginBottom: 6 }}>{label}</label>
+            <button
+                type="button"
+                onClick={onToggle}
+                style={{
+                    width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "11px 14px", backgroundColor: T.surface,
+                    border: `1px solid ${isOpen ? T.cyan : T.border}`,
+                    borderRadius: 10, textAlign: "left", cursor: "pointer",
+                    color: value ? T.primary : T.muted, fontSize: 14, outline: "none",
+                    transition: "border-color 0.15s ease",
+                }}
+            >
+                {value || placeholder}
+                <ChevronDown style={{ width: 16, height: 16, color: T.muted, transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s ease" }} />
+            </button>
+            {isOpen && (
+                <div style={{
+                    position: "absolute", zIndex: 10, width: "100%", marginTop: 4,
+                    backgroundColor: T.surface, border: `1px solid ${T.border}`,
+                    borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+                    overflow: "hidden", maxHeight: 220, overflowY: "auto",
+                }}>
+                    {children}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default function AddKnowledgeContent() {
     const router = useRouter();
@@ -65,6 +108,7 @@ export default function AddKnowledgeContent() {
     });
     const [industryOpen, setIndustryOpen] = useState(false);
     const [contentTypeOpen, setContentTypeOpen] = useState(false);
+    const [contentFocused, setContentFocused] = useState(false);
 
     const handleTagToggle = (tag) => {
         setFormData((prev) => ({
@@ -78,7 +122,6 @@ export default function AddKnowledgeContent() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-
         try {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) throw new Error("Not authenticated");
@@ -107,190 +150,190 @@ export default function AddKnowledgeContent() {
         }
     };
 
+    const dropdownItemStyle = {
+        width: "100%", padding: "10px 14px", textAlign: "left",
+        background: "none", border: "none", cursor: "pointer",
+        color: T.primary, fontSize: 14, transition: "background-color 0.12s ease",
+    };
+
     return (
         <AdminLayout>
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div style={{ maxWidth: 720, marginLeft: "auto", marginRight: "auto", display: "flex", flexDirection: "column", gap: 24, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+
                 {/* Header */}
-                <div className="flex items-center gap-4">
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <Link
                         href="/admin/knowledge-base"
-                        className="p-2 hover:bg-[#1b1b1d] rounded-lg transition-colors"
+                        style={{
+                            width: 36, height: 36, borderRadius: 9,
+                            backgroundColor: T.surface, border: `1px solid ${T.border}`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            textDecoration: "none",
+                        }}
                     >
-                        <ArrowLeft className="w-5 h-5 text-gray-400" />
+                        <ArrowLeft style={{ width: 16, height: 16, color: T.secondary }} />
                     </Link>
                     <div>
-                        <h1 className="text-3xl font-bold mb-1">Add Content</h1>
-                        <p className="text-gray-400">Add new content to the knowledge base for RAG.</p>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                            <div style={{ width: 3, height: 22, backgroundColor: T.cyan, borderRadius: 2 }} />
+                            <h1 style={{ color: T.primary, fontSize: 22, fontWeight: 700, margin: 0 }}>Add Content</h1>
+                        </div>
+                        <p style={{ color: T.secondary, fontSize: 13, margin: "0 0 0 11px" }}>Add new content to the knowledge base for RAG.</p>
                     </div>
                 </div>
 
                 {/* Form */}
                 <motion.form
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     onSubmit={handleSubmit}
-                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-8 space-y-6"
+                    style={{
+                        backgroundColor: T.cardBg, border: `1px solid ${T.border}`,
+                        borderRadius: 16, padding: 32, display: "flex", flexDirection: "column", gap: 22,
+                    }}
                 >
                     {/* Title */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Title *
+                        <label style={{ display: "block", color: T.secondary, fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                            Title <span style={{ color: "#f87171" }}>*</span>
                         </label>
-                        <input
-                            type="text"
+                        <StyledInput
                             value={formData.title}
                             onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                             placeholder="Enter content title..."
-                            className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors"
                             required
                         />
                     </div>
 
                     {/* Industry & Content Type Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Industry Dropdown */}
-                        <div className="relative">
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Industry *
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIndustryOpen(!industryOpen);
-                                    setContentTypeOpen(false);
-                                }}
-                                className="w-full flex items-center justify-between px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-left focus:outline-none focus:border-cyan transition-colors"
-                            >
-                                <span className={formData.industry ? "text-white" : "text-gray-500"}>
-                                    {formData.industry || "Select industry..."}
-                                </span>
-                                <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${industryOpen ? "rotate-180" : ""}`} />
-                            </button>
-                            {industryOpen && (
-                                <div className="absolute z-10 w-full mt-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
-                                    {INDUSTRIES.map((industry) => (
-                                        <button
-                                            key={industry}
-                                            type="button"
-                                            onClick={() => {
-                                                setFormData({ ...formData, industry });
-                                                setIndustryOpen(false);
-                                            }}
-                                            className="w-full px-4 py-3 text-left hover:bg-cyan/10 hover:text-cyan transition-colors"
-                                        >
-                                            {industry}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                        <DropdownButton
+                            label={<>Industry <span style={{ color: "#f87171" }}>*</span></>}
+                            value={formData.industry}
+                            isOpen={industryOpen}
+                            onToggle={() => { setIndustryOpen(!industryOpen); setContentTypeOpen(false); }}
+                            placeholder="Select industry..."
+                        >
+                            {INDUSTRIES.map((industry) => (
+                                <button
+                                    key={industry}
+                                    type="button"
+                                    onClick={() => { setFormData({ ...formData, industry }); setIndustryOpen(false); }}
+                                    style={dropdownItemStyle}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(22,199,231,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                                >
+                                    {industry}
+                                </button>
+                            ))}
+                        </DropdownButton>
 
-                        {/* Content Type Dropdown */}
-                        <div className="relative">
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Content Type *
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setContentTypeOpen(!contentTypeOpen);
-                                    setIndustryOpen(false);
-                                }}
-                                className="w-full flex items-center justify-between px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-left focus:outline-none focus:border-cyan transition-colors"
-                            >
-                                <span className={formData.contentType ? "text-white" : "text-gray-500"}>
-                                    {formData.contentType || "Select content type..."}
-                                </span>
-                                <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${contentTypeOpen ? "rotate-180" : ""}`} />
-                            </button>
-                            {contentTypeOpen && (
-                                <div className="absolute z-10 w-full mt-2 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl shadow-xl overflow-hidden max-h-60 overflow-y-auto">
-                                    {CONTENT_TYPES.map((type) => (
-                                        <button
-                                            key={type}
-                                            type="button"
-                                            onClick={() => {
-                                                setFormData({ ...formData, contentType: type });
-                                                setContentTypeOpen(false);
-                                            }}
-                                            className="w-full px-4 py-3 text-left hover:bg-cyan/10 hover:text-cyan transition-colors"
-                                        >
-                                            {type}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                        <DropdownButton
+                            label={<>Content Type <span style={{ color: "#f87171" }}>*</span></>}
+                            value={formData.contentType}
+                            isOpen={contentTypeOpen}
+                            onToggle={() => { setContentTypeOpen(!contentTypeOpen); setIndustryOpen(false); }}
+                            placeholder="Select content type..."
+                        >
+                            {CONTENT_TYPES.map((type) => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => { setFormData({ ...formData, contentType: type }); setContentTypeOpen(false); }}
+                                    style={dropdownItemStyle}
+                                    onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(22,199,231,0.06)"}
+                                    onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
+                                >
+                                    {type}
+                                </button>
+                            ))}
+                        </DropdownButton>
                     </div>
 
                     {/* Content Textarea */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Content *
+                        <label style={{ display: "block", color: T.secondary, fontSize: 13, fontWeight: 500, marginBottom: 6 }}>
+                            Content <span style={{ color: "#f87171" }}>*</span>
                         </label>
                         <textarea
                             value={formData.content}
                             onChange={(e) => setFormData({ ...formData, content: e.target.value })}
                             placeholder="Enter your content here... This will be used for RAG-based generation."
                             rows={12}
-                            className="w-full px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors resize-none"
                             required
+                            onFocus={() => setContentFocused(true)}
+                            onBlur={() => setContentFocused(false)}
+                            style={{
+                                width: "100%", boxSizing: "border-box",
+                                padding: "11px 14px", backgroundColor: T.surface,
+                                border: `1px solid ${contentFocused ? T.cyan : T.border}`,
+                                borderRadius: 10, color: T.primary, fontSize: 14, outline: "none",
+                                resize: "none", lineHeight: 1.6,
+                                transition: "border-color 0.15s ease", fontFamily: "inherit",
+                            }}
                         />
                     </div>
 
-                    {/* Tags Multi-select */}
+                    {/* Tags */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                            Tags
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                            {AVAILABLE_TAGS.map((tag) => (
-                                <button
-                                    key={tag}
-                                    type="button"
-                                    onClick={() => handleTagToggle(tag)}
-                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${formData.tags.includes(tag)
-                                            ? "bg-cyan text-black"
-                                            : "bg-[#0e0e0f] text-gray-400 border border-[#2a2a2d] hover:border-cyan/50"
-                                        }`}
-                                >
-                                    {formData.tags.includes(tag) ? (
-                                        <span className="flex items-center gap-1">
-                                            {tag}
-                                            <X className="w-3 h-3" />
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-1">
-                                            <Plus className="w-3 h-3" />
-                                            {tag}
-                                        </span>
-                                    )}
-                                </button>
-                            ))}
+                        <label style={{ display: "block", color: T.secondary, fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Tags</label>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                            {AVAILABLE_TAGS.map((tag) => {
+                                const selected = formData.tags.includes(tag);
+                                return (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => handleTagToggle(tag)}
+                                        style={{
+                                            display: "flex", alignItems: "center", gap: 5,
+                                            padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: "pointer",
+                                            backgroundColor: selected ? T.cyan : T.surface,
+                                            border: `1px solid ${selected ? T.cyan : T.border}`,
+                                            color: selected ? "#05080B" : T.secondary,
+                                            transition: "all 0.15s ease",
+                                        }}
+                                    >
+                                        {selected ? <X style={{ width: 12, height: 12 }} /> : <Plus style={{ width: 12, height: 12 }} />}
+                                        {tag}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
-                    {/* Submit Button */}
-                    <div className="flex items-center justify-end gap-4 pt-4 border-t border-[#2a2a2d]">
+                    {/* Footer */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 12, paddingTop: 16, borderTop: `1px solid ${T.border}` }}>
                         <Link
                             href="/admin/knowledge-base"
-                            className="px-6 py-3 bg-[#0e0e0f] hover:bg-[#2a2a2d] text-gray-300 rounded-xl font-medium transition-colors"
+                            style={{
+                                padding: "10px 20px", backgroundColor: T.surface, border: `1px solid ${T.border}`,
+                                borderRadius: 10, color: T.secondary, fontSize: 14, fontWeight: 500,
+                                textDecoration: "none", display: "inline-block",
+                            }}
                         >
                             Cancel
                         </Link>
                         <button
                             type="submit"
                             disabled={loading || !formData.title || !formData.industry || !formData.contentType || !formData.content}
-                            className="flex items-center gap-2 px-6 py-3 bg-cyan hover:brightness-110 text-black rounded-xl font-semibold transition-all shadow-lg shadow-cyan/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{
+                                display: "flex", alignItems: "center", gap: 8,
+                                padding: "10px 24px", backgroundColor: T.cyan,
+                                color: "#05080B", fontWeight: 700, fontSize: 14,
+                                border: "none", borderRadius: 10, cursor: loading || !formData.title || !formData.industry || !formData.contentType || !formData.content ? "not-allowed" : "pointer",
+                                opacity: loading || !formData.title || !formData.industry || !formData.contentType || !formData.content ? 0.5 : 1,
+                                transition: "opacity 0.15s ease",
+                            }}
                         >
                             {loading ? (
                                 <>
-                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    <Loader2 style={{ width: 16, height: 16, animation: "spin 1s linear infinite" }} />
                                     Saving...
                                 </>
                             ) : (
                                 <>
-                                    <Save className="w-5 h-5" />
+                                    <Save style={{ width: 16, height: 16 }} />
                                     Save Content
                                 </>
                             )}

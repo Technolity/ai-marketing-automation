@@ -17,15 +17,15 @@ const STATUS_TABS = [
 ];
 
 const TYPE_META = {
-  bug:      { label: "Bug Report",       Icon: Bug,          color: "#EF4444", bg: "rgba(239,68,68,0.12)"   },
-  feedback: { label: "Feedback",          Icon: MessageSquare,color: "#00E5FF", bg: "rgba(0,229,255,0.1)"    },
-  feature:  { label: "Feature Request",  Icon: Lightbulb,    color: "#A78BFA", bg: "rgba(167,139,250,0.12)" },
+  bug:      { label: "Bug Report",      Icon: Bug,           color: "#f87171", bg: "rgba(248,113,113,0.12)"   },
+  feedback: { label: "Feedback",         Icon: MessageSquare, color: "#16C7E7", bg: "rgba(22,199,231,0.1)"    },
+  feature:  { label: "Feature Request", Icon: Lightbulb,     color: "#a78bfa", bg: "rgba(167,139,250,0.12)" },
 };
 
 const STATUS_META = {
-  new:         { label: "New",         Icon: AlertCircle,  color: "#F59E0B", bg: "rgba(245,158,11,0.12)"  },
-  in_progress: { label: "In Progress", Icon: Clock,        color: "#00E5FF", bg: "rgba(0,229,255,0.1)"    },
-  resolved:    { label: "Resolved",    Icon: CheckCircle2, color: "#10B981", bg: "rgba(16,185,129,0.12)"  },
+  new:         { label: "New",         Icon: AlertCircle,  color: "#fbbf24", bg: "rgba(251,191,36,0.12)"  },
+  in_progress: { label: "In Progress", Icon: Clock,        color: "#16C7E7", bg: "rgba(22,199,231,0.1)"   },
+  resolved:    { label: "Resolved",    Icon: CheckCircle2, color: "#34d399", bg: "rgba(52,211,153,0.12)"  },
 };
 
 /* ── components ── */
@@ -33,8 +33,10 @@ function TypeBadge({ type }) {
   const m = TYPE_META[type] || TYPE_META.feedback;
   const { Icon } = m;
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-poppins text-[11px] font-semibold shrink-0"
-      style={{ background: m.bg, color: m.color }}>
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-poppins text-[11px] font-semibold shrink-0"
+      style={{ background: m.bg, color: m.color }}
+    >
       <Icon className="w-3 h-3" />
       {m.label}
     </span>
@@ -45,8 +47,10 @@ function StatusBadge({ status }) {
   const m = STATUS_META[status] || STATUS_META.new;
   const { Icon } = m;
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-poppins text-[11px] font-semibold"
-      style={{ background: m.bg, color: m.color }}>
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-poppins text-[11px] font-semibold"
+      style={{ background: m.bg, color: m.color }}
+    >
       <Icon className="w-3 h-3" />
       {m.label}
     </span>
@@ -69,7 +73,7 @@ function ImageModal({ src, onClose }) {
       <button
         onClick={onClose}
         className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center cursor-pointer transition-colors"
-        style={{ background: "rgba(255,255,255,0.1)" }}
+        style={{ background: "rgba(255,255,255,0.08)" }}
         aria-label="Close image"
       >
         <X className="w-5 h-5 text-white" />
@@ -86,10 +90,10 @@ function ImageModal({ src, onClose }) {
 }
 
 function DetailDrawer({ report, onClose, onStatusChange }) {
-  const [status, setStatus]   = useState(report.status);
-  const [note,   setNote]     = useState(report.admin_note || "");
-  const [saving, setSaving]   = useState(false);
-  const [imgSrc, setImgSrc]   = useState(null);
+  const [status, setStatus] = useState(report.status);
+  const [note,   setNote]   = useState(report.admin_note || "");
+  const [saving, setSaving] = useState(false);
+  const [imgSrc, setImgSrc] = useState(null);
 
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
@@ -128,16 +132,23 @@ function DetailDrawer({ report, onClose, onStatusChange }) {
 
       <div
         className="fixed top-0 right-0 h-full w-full max-w-[520px] z-[110] flex flex-col overflow-hidden"
-        style={{ background: "#0e0e0f", borderLeft: "1px solid rgba(0,229,255,0.12)" }}
+        style={{ background: "#121920", borderLeft: "1px solid #1E2A34" }}
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-6 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div
+          className="flex items-start justify-between p-6 shrink-0"
+          style={{ borderBottom: "1px solid #1E2A34" }}
+        >
           <div className="flex flex-col gap-2">
             <TypeBadge type={report.type} />
-            <p className="text-[#94A3B8] font-poppins text-xs">{report.email} · {created}</p>
+            <p style={{ color: "#B2C0CD", fontSize: 12 }}>{report.email} · {created}</p>
           </div>
-          <button onClick={onClose} className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-colors hover:bg-white/5" aria-label="Close">
-            <X className="w-4 h-4 text-[#94A3B8]" />
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-colors hover:bg-white/5"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" style={{ color: "#B2C0CD" }} />
           </button>
         </div>
 
@@ -146,9 +157,13 @@ function DetailDrawer({ report, onClose, onStatusChange }) {
 
           {/* Description */}
           <div>
-            <p className="text-[#4B5563] font-poppins text-xs uppercase tracking-widest mb-2">Description</p>
-            <div className="rounded-xl p-4 font-poppins text-sm text-[#E2E8F0] leading-relaxed whitespace-pre-wrap"
-              style={{ background: "rgba(0,229,255,0.03)", border: "1px solid rgba(0,229,255,0.08)" }}>
+            <p style={{ color: "#5a6a78", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+              Description
+            </p>
+            <div
+              className="rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap"
+              style={{ background: "rgba(22,199,231,0.03)", border: "1px solid rgba(22,199,231,0.08)", color: "#F4F8FB" }}
+            >
               {report.description}
             </div>
           </div>
@@ -156,7 +171,7 @@ function DetailDrawer({ report, onClose, onStatusChange }) {
           {/* Attachments */}
           {report.image_urls?.length > 0 && (
             <div>
-              <p className="text-[#4B5563] font-poppins text-xs uppercase tracking-widest mb-3">
+              <p style={{ color: "#5a6a78", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 12 }}>
                 Attachments ({report.image_urls.length})
               </p>
               <div className="flex gap-3 flex-wrap">
@@ -165,7 +180,7 @@ function DetailDrawer({ report, onClose, onStatusChange }) {
                     key={i}
                     onClick={() => setImgSrc(url)}
                     className="relative rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-105 focus:outline-none group/img"
-                    style={{ border: "1px solid rgba(0,229,255,0.2)" }}
+                    style={{ border: "1px solid rgba(22,199,231,0.2)" }}
                     aria-label={`View attachment ${i + 1}`}
                   >
                     <img src={url} alt={`Attachment ${i + 1}`} className="w-28 h-20 object-cover block" />
@@ -180,7 +195,9 @@ function DetailDrawer({ report, onClose, onStatusChange }) {
 
           {/* Status update */}
           <div>
-            <p className="text-[#4B5563] font-poppins text-xs uppercase tracking-widest mb-2">Update Status</p>
+            <p style={{ color: "#5a6a78", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+              Update Status
+            </p>
             <div className="flex gap-2 flex-wrap">
               {Object.entries(STATUS_META).map(([val, meta]) => {
                 const { Icon } = meta;
@@ -188,11 +205,11 @@ function DetailDrawer({ report, onClose, onStatusChange }) {
                   <button
                     key={val}
                     onClick={() => setStatus(val)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg font-poppins text-xs font-medium cursor-pointer transition-all duration-200"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-all duration-200"
                     style={{
                       background: status === val ? meta.bg : "rgba(255,255,255,0.04)",
-                      border: `1px solid ${status === val ? meta.color : "rgba(255,255,255,0.08)"}`,
-                      color: status === val ? meta.color : "#6B7280",
+                      border: `1px solid ${status === val ? meta.color : "#1E2A34"}`,
+                      color: status === val ? meta.color : "#5a6a78",
                     }}
                   >
                     <Icon className="w-3.5 h-3.5" />
@@ -205,31 +222,43 @@ function DetailDrawer({ report, onClose, onStatusChange }) {
 
           {/* Admin note */}
           <div>
-            <p className="text-[#4B5563] font-poppins text-xs uppercase tracking-widest mb-2">Internal Note</p>
+            <p style={{ color: "#5a6a78", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+              Internal Note
+            </p>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Add an internal note (not visible to user)..."
               rows={3}
-              className="w-full px-3.5 py-2.5 rounded-lg font-poppins text-sm text-[#E2E8F0] placeholder-[#4B5563] outline-none resize-none leading-relaxed transition-colors"
-              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
-              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(0,229,255,0.4)")}
-              onBlur={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.08)")}
+              className="w-full px-3.5 py-2.5 rounded-lg text-sm outline-none resize-none leading-relaxed transition-colors"
+              style={{
+                background: "#0D1217",
+                border: "1px solid #1E2A34",
+                color: "#F4F8FB",
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(22,199,231,0.4)")}
+              onBlur={(e) => (e.currentTarget.style.borderColor = "#1E2A34")}
             />
           </div>
         </div>
 
         {/* Footer actions */}
-        <div className="p-6 shrink-0 flex gap-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="p-6 shrink-0 flex gap-3" style={{ borderTop: "1px solid #1E2A34" }}>
           <button
             onClick={save}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-lg font-poppins font-semibold text-sm cursor-pointer transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            style={{ background: "#00E5FF", color: "#00031C" }}
+            className="flex-1 py-2.5 rounded-lg font-semibold text-sm cursor-pointer transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            style={{ background: "#16C7E7", color: "#05080B" }}
           >
             {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : "Save Changes"}
           </button>
-          <button onClick={onClose} className="px-5 py-2.5 rounded-lg font-poppins text-sm text-[#94A3B8] cursor-pointer transition-colors hover:text-white" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-lg text-sm cursor-pointer transition-colors"
+            style={{ border: "1px solid #1E2A34", color: "#B2C0CD", background: "transparent" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#F4F8FB")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#B2C0CD")}
+          >
             Cancel
           </button>
         </div>
@@ -240,12 +269,12 @@ function DetailDrawer({ report, onClose, onStatusChange }) {
 
 /* ── main page ── */
 export default function FeedbackPage() {
-  const [activeTab,  setActiveTab]  = useState("all");
-  const [reports,    setReports]    = useState([]);
-  const [total,      setTotal]      = useState(0);
-  const [loading,    setLoading]    = useState(true);
-  const [selected,   setSelected]   = useState(null);
-  const [deleting,   setDeleting]   = useState(null);
+  const [activeTab, setActiveTab] = useState("all");
+  const [reports,   setReports]   = useState([]);
+  const [total,     setTotal]     = useState(0);
+  const [loading,   setLoading]   = useState(true);
+  const [selected,  setSelected]  = useState(null);
+  const [deleting,  setDeleting]  = useState(null);
 
   const load = useCallback(async (tab) => {
     setLoading(true);
@@ -286,24 +315,28 @@ export default function FeedbackPage() {
     }
   };
 
-  // counts per tab
   const counts = reports.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
 
   return (
     <AdminLayout>
-      <div className="p-6 md:p-8 space-y-6">
+      <div className="p-6 md:p-8 space-y-6" style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
 
         {/* Page header */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-[#F4F7FF] font-poppins font-semibold text-2xl">Feedback & Reports</h1>
-            <p className="text-[#4B5563] font-poppins text-sm mt-1">{total} report{total !== 1 ? "s" : ""} total</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <div style={{ width: 3, height: 22, backgroundColor: "#16C7E7", borderRadius: 2, flexShrink: 0 }} />
+              <h1 style={{ color: "#F4F8FB", fontSize: 22, fontWeight: 700, margin: 0 }}>Feedback & Reports</h1>
+            </div>
+            <p style={{ color: "#B2C0CD", fontSize: 13, marginLeft: 11 }}>
+              {total} report{total !== 1 ? "s" : ""} total
+            </p>
           </div>
           <button
             onClick={() => load(activeTab)}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-poppins text-sm cursor-pointer transition-colors disabled:opacity-50"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#94A3B8" }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm cursor-pointer transition-colors disabled:opacity-50"
+            style={{ background: "#121920", border: "1px solid #1E2A34", color: "#B2C0CD" }}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -319,17 +352,22 @@ export default function FeedbackPage() {
               <button
                 key={value}
                 onClick={() => handleTabChange(value)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg font-poppins text-sm cursor-pointer transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm cursor-pointer transition-all duration-200"
                 style={{
-                  background: isActive ? "rgba(0,229,255,0.1)" : "rgba(255,255,255,0.03)",
-                  border: `1px solid ${isActive ? "rgba(0,229,255,0.35)" : "rgba(255,255,255,0.07)"}`,
-                  color: isActive ? "#00E5FF" : "#6B7280",
+                  background: isActive ? "rgba(22,199,231,0.1)" : "rgba(255,255,255,0.03)",
+                  border: `1px solid ${isActive ? "rgba(22,199,231,0.3)" : "#1E2A34"}`,
+                  color: isActive ? "#16C7E7" : "#5a6a78",
                 }}
               >
                 {label}
                 {count > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                    style={{ background: isActive ? "rgba(0,229,255,0.2)" : "rgba(255,255,255,0.08)", color: isActive ? "#00E5FF" : "#6B7280" }}>
+                  <span
+                    className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                    style={{
+                      background: isActive ? "rgba(22,199,231,0.2)" : "rgba(255,255,255,0.06)",
+                      color: isActive ? "#16C7E7" : "#5a6a78",
+                    }}
+                  >
                     {count}
                   </span>
                 )}
@@ -341,33 +379,36 @@ export default function FeedbackPage() {
         {/* Content */}
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <Loader2 className="w-8 h-8 text-[#00E5FF] animate-spin" />
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#16C7E7" }} />
           </div>
         ) : reports.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <MessageSquare className="w-10 h-10 text-[#2D2D30]" />
-            <p className="text-[#4B5563] font-poppins text-sm">No reports found.</p>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 0", gap: 10 }}>
+            <MessageSquare style={{ width: 36, height: 36, color: "#1E2A34" }} />
+            <p style={{ color: "#B2C0CD", fontSize: 14 }}>No reports found.</p>
           </div>
         ) : (
           <div className="space-y-2">
             {reports.map((report) => {
               const tMeta = TYPE_META[report.type] || TYPE_META.feedback;
-              const sMeta = STATUS_META[report.status] || STATUS_META.new;
               const { Icon: TIcon } = tMeta;
-              const created = new Date(report.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+              const created = new Date(report.created_at).toLocaleDateString("en-US", {
+                month: "short", day: "numeric", year: "numeric",
+              });
 
               return (
                 <div
                   key={report.id}
                   className="group flex items-start gap-4 p-4 rounded-xl cursor-pointer transition-all duration-200"
-                  style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "rgba(0,229,255,0.15)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)")}
+                  style={{ backgroundColor: "#0D1217", border: "1px solid #1E2A34" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#16C7E7")}
+                  onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#1E2A34")}
                   onClick={() => setSelected(report)}
                 >
                   {/* Type icon */}
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
-                    style={{ background: tMeta.bg }}>
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                    style={{ background: tMeta.bg }}
+                  >
                     <TIcon className="w-4 h-4" style={{ color: tMeta.color }} />
                   </div>
 
@@ -377,21 +418,21 @@ export default function FeedbackPage() {
                       <TypeBadge type={report.type} />
                       <StatusBadge status={report.status} />
                       {report.image_urls?.length > 0 && (
-                        <span className="flex items-center gap-1 text-[#4B5563] font-poppins text-[10px]">
+                        <span className="flex items-center gap-1 text-[10px]" style={{ color: "#5a6a78" }}>
                           <ImageIcon className="w-3 h-3" />
                           {report.image_urls.length}
                         </span>
                       )}
                     </div>
-                    <p className="text-[#94A3B8] font-poppins text-xs mb-1">{report.email}</p>
-                    <p className="text-[#E2E8F0] font-poppins text-sm leading-relaxed line-clamp-2">
+                    <p className="text-xs mb-1" style={{ color: "#B2C0CD" }}>{report.email}</p>
+                    <p className="text-sm leading-relaxed line-clamp-2" style={{ color: "#F4F8FB" }}>
                       {report.description}
                     </p>
                   </div>
 
                   {/* Date + actions */}
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    <span className="text-[#4B5563] font-poppins text-[11px]">{created}</span>
+                    <span className="text-[11px]" style={{ color: "#5a6a78" }}>{created}</span>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(report.id); }}
@@ -401,9 +442,9 @@ export default function FeedbackPage() {
                       >
                         {deleting === report.id
                           ? <Loader2 className="w-3.5 h-3.5 text-red-400 animate-spin" />
-                          : <Trash2 className="w-3.5 h-3.5 text-red-400" />}
+                          : <Trash2 className="w-3.5 h-3.5" style={{ color: "#f87171" }} />}
                       </button>
-                      <ChevronRight className="w-4 h-4 text-[#4B5563]" />
+                      <ChevronRight className="w-4 h-4" style={{ color: "#5a6a78" }} />
                     </div>
                   </div>
                 </div>

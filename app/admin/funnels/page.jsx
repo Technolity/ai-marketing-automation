@@ -45,55 +45,71 @@ import {
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
-const statusColors = {
-    not_started: "bg-gray-500/20 text-gray-400 border-gray-500/30",
-    pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-    in_progress: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-    completed: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-    failed: "bg-red-500/20 text-red-400 border-red-500/30",
+/* ── design tokens ── */
+const T = {
+    appBg:    "#05080B",
+    cardBg:   "#0D1217",
+    surface:  "#121920",
+    border:   "#1E2A34",
+    cyan:     "#16C7E7",
+    primary:  "#F4F8FB",
+    secondary:"#B2C0CD",
+    muted:    "#5a6a78",
+    success:  "#34d399",
+    warning:  "#fbbf24",
+    danger:   "#f87171",
+    purple:   "#a78bfa",
 };
 
-// Toast notification component
-function Toast({ message, type = 'success', onClose }) {
+const statusBadgeStyle = {
+    not_started: { bg: "rgba(90,106,120,0.15)", color: "#5a6a78", border: "rgba(90,106,120,0.3)" },
+    pending:     { bg: "rgba(251,191,36,0.12)",  color: "#fbbf24", border: "rgba(251,191,36,0.3)" },
+    in_progress: { bg: "rgba(22,199,231,0.1)",   color: "#16C7E7", border: "rgba(22,199,231,0.3)" },
+    completed:   { bg: "rgba(52,211,153,0.12)",  color: "#34d399", border: "rgba(52,211,153,0.3)" },
+    failed:      { bg: "rgba(248,113,113,0.12)", color: "#f87171", border: "rgba(248,113,113,0.3)" },
+};
+
+function statusStyle(status) {
+    return statusBadgeStyle[status] || statusBadgeStyle.not_started;
+}
+
+/* ── Toast ── */
+function Toast({ message, type = "success", onClose }) {
     useEffect(() => {
         const timer = setTimeout(onClose, 4000);
         return () => clearTimeout(timer);
     }, [onClose]);
+
+    const styles = {
+        success: { bg: "rgba(52,211,153,0.15)",  border: "rgba(52,211,153,0.3)",  color: "#34d399" },
+        error:   { bg: "rgba(248,113,113,0.15)", border: "rgba(248,113,113,0.3)", color: "#f87171" },
+        info:    { bg: "rgba(22,199,231,0.12)",  border: "rgba(22,199,231,0.3)",  color: "#16C7E7" },
+    };
+    const s = styles[type] || styles.info;
 
     return (
         <motion.div
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl border backdrop-blur-xl ${type === 'success'
-                ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400'
-                : type === 'error'
-                    ? 'bg-red-500/20 border-red-500/30 text-red-400'
-                    : 'bg-blue-500/20 border-blue-500/30 text-blue-400'
-                }`}
+            className="fixed top-4 right-4 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl"
+            style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.color }}
         >
-            {type === 'success' && <CheckCircle className="w-5 h-5" />}
-            {type === 'error' && <XCircle className="w-5 h-5" />}
-            <p className="font-medium">{message}</p>
-            <button onClick={onClose} className="ml-2 hover:opacity-70 transition-opacity">
+            {type === "success" && <CheckCircle className="w-4 h-4 shrink-0" />}
+            {type === "error"   && <XCircle     className="w-4 h-4 shrink-0" />}
+            {type === "info"    && <AlertCircle className="w-4 h-4 shrink-0" />}
+            <p className="text-sm font-medium" style={{ color: T.primary }}>{message}</p>
+            <button onClick={onClose} className="ml-1 opacity-60 hover:opacity-100 transition-opacity">
                 <XCircle className="w-4 h-4" />
             </button>
         </motion.div>
     );
 }
 
-const statusIcons = {
-    not_started: AlertCircle,
-    pending: PlayCircle,
-    in_progress: Loader2,
-    completed: CheckCircle,
-    failed: AlertCircle,
-};
-
 export default function AdminFunnels() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const filterUserId = searchParams.get('userId');
+    const filterUserId = searchParams.get("userId");
 
     const { session, loading: authLoading } = useAuth();
     const [funnels, setFunnels] = useState([]);
@@ -109,35 +125,24 @@ export default function AdminFunnels() {
     const [showVaultModal, setShowVaultModal] = useState(false);
     const [expandedSections, setExpandedSections] = useState(new Set());
     const [editingItem, setEditingItem] = useState(null);
-    const [editValue, setEditValue] = useState('');
+    const [editValue, setEditValue] = useState("");
     const [savingEdit, setSavingEdit] = useState(false);
     const [toast, setToast] = useState(null);
 
-    // ── Version History state ────────────────────────────────
-    // historyField: { sectionId } — which section's history is being viewed
     const [historyField, setHistoryField] = useState(null);
     const [historyLoading, setHistoryLoading] = useState(false);
-    // Section-level snapshots from vault_content
     const [historySectionVersions, setHistorySectionVersions] = useState([]);
-    // Field-level versions from vault_content_fields
     const [historyFieldVersions, setHistoryFieldVersions] = useState([]);
-    // Available field_ids in vault_content_fields for the dropdown
     const [historyAvailableFields, setHistoryAvailableFields] = useState([]);
-    // Active tab: 'sections' or 'fields'
-    const [historyTab, setHistoryTab] = useState('sections');
-    // Selected field_id filter for the fields tab
+    const [historyTab, setHistoryTab] = useState("sections");
     const [historyFieldFilter, setHistoryFieldFilter] = useState(null);
-    // The version object selected for preview
     const [selectedHistoryVersion, setSelectedHistoryVersion] = useState(null);
     const [restoringVersion, setRestoringVersion] = useState(false);
-    // ── Bulk Approve state ────────────────────────────────────
-    const [approvingSection, setApprovingSection] = useState(null); // section_id currently being approved
-    // ── Export state ──────────────────────────────────────────
+    const [approvingSection, setApprovingSection] = useState(null);
     const [exporting, setExporting] = useState(false);
-    // ── Transfer state ─────────────────────────────────────────
     const [showTransferModal, setShowTransferModal] = useState(false);
-    const [transferFunnel, setTransferFunnel] = useState(null); // the funnel being transferred
-    const [transferSearch, setTransferSearch] = useState('');
+    const [transferFunnel, setTransferFunnel] = useState(null);
+    const [transferSearch, setTransferSearch] = useState("");
     const [transferSearchResults, setTransferSearchResults] = useState([]);
     const [transferSearching, setTransferSearching] = useState(false);
     const [transferTargetUser, setTransferTargetUser] = useState(null);
@@ -146,38 +151,34 @@ export default function AdminFunnels() {
 
     const fetchFunnels = useCallback(async () => {
         if (!session) return;
-
         setLoading(true);
         try {
             const params = new URLSearchParams({
                 page: pagination.page.toString(),
                 limit: pagination.limit.toString(),
             });
-
-            if (filterUserId) params.append('userId', filterUserId);
-            if (statusFilter) params.append('status', statusFilter);
-            if (debouncedSearch) params.append('search', debouncedSearch);
+            if (filterUserId) params.append("userId", filterUserId);
+            if (statusFilter) params.append("status", statusFilter);
+            if (debouncedSearch) params.append("search", debouncedSearch);
 
             const response = await fetchWithAuth(`/api/admin/funnels?${params}`);
-
-            if (!response.ok) throw new Error('Failed to fetch funnels');
+            if (!response.ok) throw new Error("Failed to fetch funnels");
 
             const data = await response.json();
             setFunnels(data.funnels || []);
             setPagination(prev => ({
                 ...prev,
                 total: data.pagination?.total || 0,
-                totalPages: data.pagination?.totalPages || 0
+                totalPages: data.pagination?.totalPages || 0,
             }));
             setStatusStats(data.statusStats || {});
         } catch (err) {
-            console.error('Error fetching funnels:', err);
+            console.error("Error fetching funnels:", err);
         } finally {
             setLoading(false);
         }
     }, [session, pagination.page, pagination.limit, filterUserId, statusFilter, debouncedSearch]);
 
-    // Debounced search handler
     const handleSearchChange = useCallback((value) => {
         setSearchInput(value);
         if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -188,40 +189,32 @@ export default function AdminFunnels() {
     }, []);
 
     useEffect(() => {
-        if (!authLoading && session) {
-            fetchFunnels();
-        }
+        if (!authLoading && session) fetchFunnels();
     }, [authLoading, session, fetchFunnels]);
 
     const handleFunnelAction = useCallback(async (funnelId, action) => {
         try {
-            const response = await fetchWithAuth('/api/admin/funnels', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnelId, action })
+            const response = await fetchWithAuth("/api/admin/funnels", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ funnelId, action }),
             });
-
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to perform action');
+                throw new Error(errorData.error || "Failed to perform action");
             }
-
             const actionLabels = {
-                reset_status: 'Funnel status reset',
-                delete: 'Funnel deleted',
-                retry_generation: 'Generation retry initiated',
-                force_complete: 'Funnel marked as complete',
-                undeploy: 'Funnel undeployed — user can now re-deploy'
+                reset_status: "Funnel status reset",
+                delete: "Funnel deleted",
+                retry_generation: "Generation retry initiated",
+                force_complete: "Funnel marked as complete",
+                undeploy: "Funnel undeployed — user can now re-deploy",
             };
-
-            setToast({ message: actionLabels[action] || 'Action completed successfully!', type: 'success' });
-            console.log(`✓ Action '${action}' completed for funnel ${funnelId}`);
-
-            // Refresh funnels list
+            setToast({ message: actionLabels[action] || "Action completed successfully!", type: "success" });
             fetchFunnels();
         } catch (error) {
             console.error(`Error performing action ${action}:`, error);
-            setToast({ message: `Failed: ${error.message}`, type: 'error' });
+            setToast({ message: `Failed: ${error.message}`, type: "error" });
         }
     }, [fetchFunnels]);
 
@@ -229,7 +222,6 @@ export default function AdminFunnels() {
         setSelectedFunnel(funnel);
         setExpandedSections(new Set());
         setEditingItem(null);
-        // Reset version history state when opening a new funnel
         setHistoryField(null);
         setHistorySectionVersions([]);
         setHistoryFieldVersions([]);
@@ -241,126 +233,86 @@ export default function AdminFunnels() {
     const toggleSection = (sectionId) => {
         setExpandedSections(prev => {
             const next = new Set(prev);
-            if (next.has(sectionId)) {
-                next.delete(sectionId);
-            } else {
-                next.add(sectionId);
-            }
+            if (next.has(sectionId)) next.delete(sectionId);
+            else next.add(sectionId);
             return next;
         });
     };
 
-    // ── Version History Handlers ─────────────────────────────
-
-    /**
-     * Fetch ALL version history (both section + field-level) for a section.
-     * Called when admin clicks "History" on a section inside the vault modal.
-     */
     const handleFetchHistory = useCallback(async (sectionId) => {
         if (!selectedFunnel) return;
-
-        console.log(`[AdminHistory] Fetching FULL history for section=${sectionId}`);
         setHistoryField({ sectionId });
         setHistoryLoading(true);
         setSelectedHistoryVersion(null);
         setHistoryFieldFilter(null);
-
         try {
             const params = new URLSearchParams({ sectionId });
             const response = await fetchWithAuth(
                 `/api/admin/funnels/${selectedFunnel.id}/vault/history?${params}`
             );
-
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.error || 'Failed to fetch history');
+                throw new Error(errData.error || "Failed to fetch history");
             }
-
             const data = await response.json();
             const sv = data.sectionVersions || [];
             const fv = data.fieldVersions || [];
             const af = data.availableFieldIds || [];
-
-            console.log(`[AdminHistory] Got ${sv.length} section versions + ${fv.length} field versions across ${af.length} fields`);
-
             setHistorySectionVersions(sv);
             setHistoryFieldVersions(fv);
             setHistoryAvailableFields(af);
-
-            // Default to 'fields' tab if field-level data exists, else 'sections'
             if (fv.length > 0) {
-                setHistoryTab('fields');
-                // Default to the first available field
+                setHistoryTab("fields");
                 if (af.length > 0) setHistoryFieldFilter(af[0]);
             } else {
-                setHistoryTab('sections');
+                setHistoryTab("sections");
             }
         } catch (error) {
-            console.error('[AdminHistory] Error fetching history:', error);
-            setToast({ message: `Failed to load history: ${error.message}`, type: 'error' });
+            console.error("[AdminHistory] Error:", error);
+            setToast({ message: `Failed to load history: ${error.message}`, type: "error" });
             setHistoryField(null);
         } finally {
             setHistoryLoading(false);
         }
     }, [selectedFunnel]);
 
-    /**
-     * Restore a previously saved version.
-     * Determines the correct source (vault_content vs vault_content_fields) from the active tab.
-     */
     const handleRestoreVersion = useCallback(async (targetVersion) => {
         if (!selectedFunnel || !historyField) return;
-
-        // Determine source from the active tab
-        const source = historyTab === 'fields' ? 'vault_content_fields' : 'vault_content';
-        const label = historyTab === 'fields'
+        const source = historyTab === "fields" ? "vault_content_fields" : "vault_content";
+        const label = historyTab === "fields"
             ? `${historyFieldFilter} (v${targetVersion})`
             : `section snapshot v${targetVersion}`;
-
-        const confirmed = confirm(
-            `Are you sure you want to restore ${label}?\n\nThis will make the old data the current active version for the user.`
-        );
+        const confirmed = confirm(`Are you sure you want to restore ${label}?\n\nThis will make the old data the current active version for the user.`);
         if (!confirmed) return;
-
-        console.log(`[AdminHistory] Restoring ${historyField.sectionId} to v${targetVersion} (source: ${source})`);
         setRestoringVersion(true);
-
         try {
             const response = await fetchWithAuth(
                 `/api/admin/funnels/${selectedFunnel.id}/vault/restore`,
                 {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         sectionId: historyField.sectionId,
-                        fieldId: historyTab === 'fields' ? historyFieldFilter : null,
+                        fieldId: historyTab === "fields" ? historyFieldFilter : null,
                         targetVersion,
                         source,
                     }),
                 }
             );
-
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.error || 'Failed to restore version');
+                throw new Error(errData.error || "Failed to restore version");
             }
-
-            setToast({ message: `Restored to version ${targetVersion} successfully!`, type: 'success' });
-
-            // Re-fetch history to reflect the new state
+            setToast({ message: `Restored to version ${targetVersion} successfully!`, type: "success" });
             await handleFetchHistory(historyField.sectionId);
-
-            // Refresh the funnel data so the modal reflects the restored content
             fetchFunnels();
         } catch (error) {
-            console.error('[AdminHistory] Error restoring version:', error);
-            setToast({ message: `Restore failed: ${error.message}`, type: 'error' });
+            setToast({ message: `Restore failed: ${error.message}`, type: "error" });
         } finally {
             setRestoringVersion(false);
         }
     }, [selectedFunnel, historyField, historyTab, historyFieldFilter, handleFetchHistory, fetchFunnels]);
 
-    /** Close the history panel and go back to normal content view */
     const closeHistory = useCallback(() => {
         setHistoryField(null);
         setHistorySectionVersions([]);
@@ -370,167 +322,119 @@ export default function AdminFunnels() {
         setHistoryFieldFilter(null);
     }, []);
 
-    // ── Bulk Approve Handler ──────────────────────────────────
     const handleBulkApprove = useCallback(async (sectionId) => {
         if (!selectedFunnel) return;
-
-        const confirmed = confirm(
-            `Approve ALL fields in section "${sectionId}"?\n\nThis will mark every current-version field as approved and sync the vault_content status.`
-        );
+        const confirmed = confirm(`Approve ALL fields in section "${sectionId}"?\n\nThis will mark every current-version field as approved and sync the vault_content status.`);
         if (!confirmed) return;
-
-        console.log(`[AdminBulkApprove] Approving section=${sectionId} for funnel=${selectedFunnel.id}`);
         setApprovingSection(sectionId);
-
         try {
             const response = await fetchWithAuth(
                 `/api/admin/funnels/${selectedFunnel.id}/vault/approve`,
                 {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sectionId,
-                        approved: true,
-                    }),
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sectionId, approved: true }),
                 }
             );
-
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.error || 'Failed to approve section');
+                throw new Error(errData.error || "Failed to approve section");
             }
-
             const result = await response.json();
-            console.log(`[AdminBulkApprove] ✓ Section ${sectionId} approved:`, result);
-            setToast({ message: `Section "${sectionId}" approved (${result.updatedCount} fields)`, type: 'success' });
-
-            // Refresh funnel data to reflect new approval status
+            setToast({ message: `Section "${sectionId}" approved (${result.updatedCount} fields)`, type: "success" });
             fetchFunnels();
         } catch (error) {
-            console.error('[AdminBulkApprove] Error:', error);
-            setToast({ message: `Approve failed: ${error.message}`, type: 'error' });
+            setToast({ message: `Approve failed: ${error.message}`, type: "error" });
         } finally {
             setApprovingSection(null);
         }
     }, [selectedFunnel, fetchFunnels]);
 
-    // ── Export Handler ─────────────────────────────────────────
-    const handleExport = useCallback(async (format = 'json', singleFunnelId = null) => {
+    const handleExport = useCallback(async (format = "json", singleFunnelId = null) => {
         setExporting(true);
         try {
             const params = new URLSearchParams({ format });
-
             if (singleFunnelId) {
-                params.append('funnelId', singleFunnelId);
+                params.append("funnelId", singleFunnelId);
             } else {
-                // Apply the same filters the admin currently has active
-                if (filterUserId) params.append('userId', filterUserId);
-                if (statusFilter) params.append('status', statusFilter);
-                if (debouncedSearch) params.append('search', debouncedSearch);
+                if (filterUserId) params.append("userId", filterUserId);
+                if (statusFilter) params.append("status", statusFilter);
+                if (debouncedSearch) params.append("search", debouncedSearch);
             }
-
             const response = await fetchWithAuth(`/api/admin/funnels/export?${params}`);
-
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.error || 'Export failed');
+                throw new Error(errData.error || "Export failed");
             }
-
-            // Trigger browser file download
             const blob = await response.blob();
-            const contentDisposition = response.headers.get('Content-Disposition') || '';
+            const contentDisposition = response.headers.get("Content-Disposition") || "";
             const fileNameMatch = contentDisposition.match(/filename="(.+?)"/);
             const fileName = fileNameMatch ? fileNameMatch[1] : `funnels_export.${format}`;
-
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
+            const a = document.createElement("a");
             a.href = url;
             a.download = fileName;
             document.body.appendChild(a);
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
-
-            setToast({ message: `Export downloaded successfully (${format.toUpperCase()})`, type: 'success' });
+            setToast({ message: `Export downloaded successfully (${format.toUpperCase()})`, type: "success" });
         } catch (error) {
-            console.error('[AdminExport] Error:', error);
-            setToast({ message: `Export failed: ${error.message}`, type: 'error' });
+            setToast({ message: `Export failed: ${error.message}`, type: "error" });
         } finally {
             setExporting(false);
         }
     }, [filterUserId, statusFilter, debouncedSearch]);
 
-    // ── Transfer Handlers ──────────────────────────────────────
     const openTransferModal = useCallback((funnel) => {
         setTransferFunnel(funnel);
-        setTransferSearch('');
+        setTransferSearch("");
         setTransferSearchResults([]);
         setTransferTargetUser(null);
         setShowTransferModal(true);
     }, []);
 
     const searchUsersForTransfer = useCallback(async (query) => {
-        if (!query || query.length < 2) {
-            setTransferSearchResults([]);
-            return;
-        }
+        if (!query || query.length < 2) { setTransferSearchResults([]); return; }
         setTransferSearching(true);
         try {
             const res = await fetchWithAuth(`/api/admin/users?search=${encodeURIComponent(query)}&limit=8`);
             const data = await res.json();
-            // Filter out the current funnel owner
             const filtered = (data.users || []).filter(u => u.id !== transferFunnel?.user_id);
             setTransferSearchResults(filtered);
         } catch (err) {
-            console.error('[TransferSearch] Error:', err);
             setTransferSearchResults([]);
         } finally {
             setTransferSearching(false);
         }
     }, [transferFunnel]);
 
-    // Debounce the user search input
     useEffect(() => {
         if (!showTransferModal) return;
-        const timer = setTimeout(() => {
-            searchUsersForTransfer(transferSearch);
-        }, 400);
+        const timer = setTimeout(() => { searchUsersForTransfer(transferSearch); }, 400);
         return () => clearTimeout(timer);
     }, [transferSearch, showTransferModal, searchUsersForTransfer]);
 
     const handleTransfer = useCallback(async () => {
         if (!transferFunnel || !transferTargetUser) return;
-
-        const confirmed = confirm(
-            `Are you sure you want to transfer the funnel "${transferFunnel.funnel_name || 'Unnamed'}" from ${transferFunnel.user_profiles?.full_name || transferFunnel.user_profiles?.email || 'Unknown'} to ${transferTargetUser.full_name || transferTargetUser.email}?\n\nThis will reassign all vault content, questionnaire answers, and associated data.`
-        );
+        const confirmed = confirm(`Are you sure you want to transfer the funnel "${transferFunnel.funnel_name || "Unnamed"}" from ${transferFunnel.user_profiles?.full_name || transferFunnel.user_profiles?.email || "Unknown"} to ${transferTargetUser.full_name || transferTargetUser.email}?\n\nThis will reassign all vault content, questionnaire answers, and associated data.`);
         if (!confirmed) return;
-
         setTransferring(true);
         try {
-            const res = await fetchWithAuth('/api/admin/funnels/transfer', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    funnelId: transferFunnel.id,
-                    targetUserId: transferTargetUser.id,
-                }),
+            const res = await fetchWithAuth("/api/admin/funnels/transfer", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ funnelId: transferFunnel.id, targetUserId: transferTargetUser.id }),
             });
-
             const data = await res.json();
-
-            if (!res.ok) {
-                throw new Error(data.error || 'Transfer failed');
-            }
-
-            setToast({ message: data.message || 'Funnel transferred successfully', type: 'success' });
+            if (!res.ok) throw new Error(data.error || "Transfer failed");
+            setToast({ message: data.message || "Funnel transferred successfully", type: "success" });
             setShowTransferModal(false);
             setTransferFunnel(null);
             setTransferTargetUser(null);
             fetchFunnels();
         } catch (error) {
-            console.error('[Transfer] Error:', error);
-            setToast({ message: `Transfer failed: ${error.message}`, type: 'error' });
+            setToast({ message: `Transfer failed: ${error.message}`, type: "error" });
         } finally {
             setTransferring(false);
         }
@@ -541,114 +445,82 @@ export default function AdminFunnels() {
         setEditValue(JSON.stringify(item.content, null, 2));
     };
 
-    /**
-     * Save edits to vault content.
-     * @param {Object} item - The vault_content item being edited
-     * @param {boolean} approve - If true, also approve the content via admin fields endpoint
-     */
     const handleSaveEdit = async (item, approve = false) => {
         setSavingEdit(true);
         try {
             let parsedContent;
-            try {
-                parsedContent = JSON.parse(editValue);
-            } catch {
-                setToast({ message: 'Invalid JSON format', type: 'error' });
-                setSavingEdit(false);
-                return;
-            }
+            try { parsedContent = JSON.parse(editValue); }
+            catch { setToast({ message: "Invalid JSON format", type: "error" }); setSavingEdit(false); return; }
 
-            // Step 1: Save the vault_content (section-level JSON) as before
-            console.log(`[AdminEdit] Saving vault content for section ${item.section_id}, approve=${approve}`);
-            const response = await fetchWithAuth('/api/admin/funnels', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    funnelId: selectedFunnel.id,
-                    action: 'update_vault_content',
-                    vaultItemId: item.id,
-                    content: parsedContent
-                })
+            const response = await fetchWithAuth("/api/admin/funnels", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ funnelId: selectedFunnel.id, action: "update_vault_content", vaultItemId: item.id, content: parsedContent }),
             });
+            if (!response.ok) throw new Error("Failed to save vault content");
 
-            if (!response.ok) throw new Error('Failed to save vault content');
-
-            // Step 2: If approve=true, also bulk-approve all fields in this section
             if (approve) {
-                console.log(`[AdminEdit] Also approving section ${item.section_id}`);
                 const approveResp = await fetchWithAuth(
                     `/api/admin/funnels/${selectedFunnel.id}/vault/approve`,
                     {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sectionId: item.section_id,
-                            approved: true,
-                        }),
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ sectionId: item.section_id, approved: true }),
                     }
                 );
-
                 if (!approveResp.ok) {
                     const errData = await approveResp.json();
-                    console.warn('[AdminEdit] Approval failed (content was saved):', errData.error);
-                    setToast({ message: `Content saved but approval failed: ${errData.error}`, type: 'error' });
+                    setToast({ message: `Content saved but approval failed: ${errData.error}`, type: "error" });
                     setEditingItem(null);
                     fetchFunnels();
                     return;
                 }
-
                 const approveResult = await approveResp.json();
-                console.log(`[AdminEdit] ✓ Section approved: ${approveResult.updatedCount} fields`);
-                setToast({ message: `Content saved & approved (${approveResult.updatedCount} fields)!`, type: 'success' });
+                setToast({ message: `Content saved & approved (${approveResult.updatedCount} fields)!`, type: "success" });
             } else {
-                setToast({ message: 'Vault content saved as draft!', type: 'success' });
+                setToast({ message: "Vault content saved as draft!", type: "success" });
             }
-
             setEditingItem(null);
             fetchFunnels();
         } catch (error) {
-            console.error('[AdminEdit] Error saving vault content:', error);
-            setToast({ message: `Save failed: ${error.message}`, type: 'error' });
+            setToast({ message: `Save failed: ${error.message}`, type: "error" });
         } finally {
             setSavingEdit(false);
         }
     };
 
     const renderContentValue = (value, level = 0) => {
-        if (value === null || value === undefined) {
-            return <span className="text-gray-500 italic">null</span>;
-        }
+        if (value === null || value === undefined) return <span style={{ color: T.muted, fontStyle: "italic" }}>null</span>;
         if (Array.isArray(value)) {
-            if (value.length === 0) return <span className="text-gray-500 italic">[]</span>;
+            if (value.length === 0) return <span style={{ color: T.muted, fontStyle: "italic" }}>[]</span>;
             return (
                 <ul className="list-disc list-inside space-y-1 ml-4">
                     {value.map((item, idx) => (
-                        <li key={idx} className="text-gray-300">
-                            {typeof item === 'object' ? renderContentValue(item, level + 1) : String(item)}
+                        <li key={idx} style={{ color: T.secondary }}>
+                            {typeof item === "object" ? renderContentValue(item, level + 1) : String(item)}
                         </li>
                     ))}
                 </ul>
             );
         }
-        if (typeof value === 'object') {
+        if (typeof value === "object") {
             return (
-                <div className={`space-y-2 ${level > 0 ? 'ml-4 pl-4 border-l border-gray-700' : ''}`}>
+                <div className={`space-y-2 ${level > 0 ? "ml-4 pl-4" : ""}`}
+                    style={level > 0 ? { borderLeft: `1px solid ${T.border}` } : {}}>
                     {Object.entries(value).map(([k, v]) => (
                         <div key={k}>
-                            <span className="text-cyan font-medium">{k}:</span>{' '}
-                            <span className="text-gray-300">{renderContentValue(v, level + 1)}</span>
+                            <span style={{ color: T.cyan, fontWeight: 500 }}>{k}:</span>{" "}
+                            <span style={{ color: T.secondary }}>{renderContentValue(v, level + 1)}</span>
                         </div>
                     ))}
                 </div>
             );
         }
-        if (typeof value === 'string' && value.length > 200) {
-            return <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{value}</p>;
+        if (typeof value === "string" && value.length > 200) {
+            return <p style={{ color: T.secondary, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{value}</p>;
         }
-        return <span className="text-gray-300">{String(value)}</span>;
+        return <span style={{ color: T.secondary }}>{String(value)}</span>;
     };
-
-
 
     const columns = useMemo(
         () => [
@@ -657,10 +529,10 @@ export default function AdminFunnels() {
                 header: "Funnel Name",
                 cell: ({ row }) => (
                     <div>
-                        <div className="font-medium text-white">
-                            {row.original.funnel_name || 'Unnamed Funnel'}
+                        <div style={{ fontWeight: 500, color: T.primary }}>
+                            {row.original.funnel_name || "Unnamed Funnel"}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>
                             ID: {row.original.id.substring(0, 8)}...
                         </div>
                     </div>
@@ -671,10 +543,10 @@ export default function AdminFunnels() {
                 header: "User",
                 cell: ({ row }) => (
                     <div>
-                        <div className="text-white">
-                            {row.original.user_profiles?.full_name || 'Unknown'}
+                        <div style={{ color: T.primary }}>
+                            {row.original.user_profiles?.full_name || "Unknown"}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div style={{ fontSize: 12, color: T.muted }}>
                             {row.original.user_profiles?.email}
                         </div>
                     </div>
@@ -687,40 +559,28 @@ export default function AdminFunnels() {
                     const progress = row.original.progress_percent || 0;
                     const isDeployed = row.original.is_deployed;
                     const vaultItems = row.original.vault_items_count || 0;
-
-                    const barColor = progress >= 100 ? 'bg-emerald-500' : progress > 0 ? 'bg-cyan' : 'bg-gray-600';
-                    const textColor = progress >= 100 ? 'text-emerald-400' : progress > 0 ? 'text-cyan' : 'text-gray-500';
-
+                    const barColor = progress >= 100 ? T.success : progress > 0 ? T.cyan : T.muted;
+                    const textColor = progress >= 100 ? T.success : progress > 0 ? T.cyan : T.muted;
                     return (
-                        <div className="flex flex-col gap-2 min-w-[140px]">
-                            {/* Progress bar */}
-                            <div className="flex items-center gap-2.5">
-                                <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
-                                    <div
-                                        className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-                                        style={{ width: `${progress}%` }}
-                                    />
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 140 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ flex: 1, height: 6, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 3, overflow: "hidden" }}>
+                                    <div style={{ width: `${progress}%`, height: "100%", backgroundColor: barColor, borderRadius: 3, transition: "width 0.5s" }} />
                                 </div>
-                                <span className={`text-xs font-bold ${textColor} min-w-[32px] text-right`}>
-                                    {progress}%
-                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: textColor, minWidth: 32, textAlign: "right" }}>{progress}%</span>
                             </div>
-                            {/* Deployment badge */}
-                            <div className="flex items-center gap-1.5">
+                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                 {isDeployed ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                                        <Rocket className="w-3 h-3" />
-                                        Deployed
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 700, background: "rgba(52,211,153,0.15)", color: T.success, border: "1px solid rgba(52,211,153,0.3)" }}>
+                                        <Rocket className="w-3 h-3" /> Deployed
                                     </span>
                                 ) : (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-500/10 text-gray-500 border border-gray-500/20">
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 500, background: "rgba(90,106,120,0.1)", color: T.muted, border: `1px solid ${T.border}` }}>
                                         Not Deployed
                                     </span>
                                 )}
                                 {vaultItems > 0 && (
-                                    <span className="text-[10px] text-gray-500">
-                                        {vaultItems} sections
-                                    </span>
+                                    <span style={{ fontSize: 10, color: T.muted }}>{vaultItems} sections</span>
                                 )}
                             </div>
                         </div>
@@ -728,24 +588,11 @@ export default function AdminFunnels() {
                 },
             },
             {
-                accessorKey: "vault_items_count",
-                header: "Vault Items",
-                cell: ({ row }) => (
-                    <span className="text-gray-400">
-                        {row.original.vault_items_count || 0} items
-                    </span>
-                ),
-            },
-            {
                 accessorKey: "created_at",
                 header: "Created",
                 cell: ({ row }) => (
-                    <span className="text-gray-400">
-                        {row.original.created_at ? new Date(row.original.created_at).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                        }) : 'N/A'}
+                    <span style={{ color: T.secondary, fontSize: 13 }}>
+                        {row.original.created_at ? new Date(row.original.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A"}
                     </span>
                 ),
             },
@@ -753,96 +600,32 @@ export default function AdminFunnels() {
                 id: "actions",
                 header: "Actions",
                 cell: ({ row }) => (
-                    <div className="flex items-center gap-2">
-                        <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => handleViewVault(row.original)}
-                            className="p-2.5 hover:bg-cyan/20 rounded-xl transition-all group border border-transparent hover:border-cyan/30"
-                            title="View vault content"
-                        >
-                            <Eye className="w-4 h-4 text-gray-400 group-hover:text-cyan transition-colors" />
-                        </motion.button>
-
-                        <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => handleExport('json', row.original.id)}
-                            disabled={exporting}
-                            className="p-2.5 hover:bg-emerald-500/20 rounded-xl transition-all group border border-transparent hover:border-emerald-500/30 disabled:opacity-50"
-                            title="Export funnel data (JSON)"
-                        >
-                            <Download className="w-4 h-4 text-gray-400 group-hover:text-emerald-400 transition-colors" />
-                        </motion.button>
-
-                        <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => openTransferModal(row.original)}
-                            className="p-2.5 hover:bg-orange-500/20 rounded-xl transition-all group border border-transparent hover:border-orange-500/30"
-                            title="Transfer funnel to another user"
-                        >
-                            <ArrowRightLeft className="w-4 h-4 text-gray-400 group-hover:text-orange-400 transition-colors" />
-                        </motion.button>
-
-                        <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => {
-                                if (confirm(`Are you sure you want to reset the funnel "${row.original.business_name || 'Unnamed'}" to not started?`)) {
-                                    handleFunnelAction(row.original.id, 'reset_status');
-                                }
-                            }}
-                            className="p-2.5 hover:bg-blue-500/20 rounded-xl transition-all group border border-transparent hover:border-blue-500/30"
-                            title="Reset to not started"
-                        >
-                            <RotateCcw className="w-4 h-4 text-gray-400 group-hover:text-blue-400 transition-colors" />
-                        </motion.button>
-
-                        {/* Undeploy button — only visible on deployed funnels */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <ActionBtn title="View vault content" hoverColor="rgba(22,199,231,0.15)" onClick={() => handleViewVault(row.original)}>
+                            <Eye className="w-4 h-4" style={{ color: T.secondary }} />
+                        </ActionBtn>
+                        <ActionBtn title="Export funnel data (JSON)" hoverColor="rgba(52,211,153,0.15)" onClick={() => handleExport("json", row.original.id)} disabled={exporting}>
+                            <Download className="w-4 h-4" style={{ color: T.secondary }} />
+                        </ActionBtn>
+                        <ActionBtn title="Transfer funnel to another user" hoverColor="rgba(251,146,60,0.15)" onClick={() => openTransferModal(row.original)}>
+                            <ArrowRightLeft className="w-4 h-4" style={{ color: T.secondary }} />
+                        </ActionBtn>
+                        <ActionBtn title="Reset to not started" hoverColor="rgba(96,165,250,0.15)" onClick={() => { if (confirm(`Reset funnel "${row.original.business_name || "Unnamed"}" to not started?`)) handleFunnelAction(row.original.id, "reset_status"); }}>
+                            <RotateCcw className="w-4 h-4" style={{ color: T.secondary }} />
+                        </ActionBtn>
                         {row.original.is_deployed && (
-                            <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => {
-                                    if (confirm(
-                                        `Undeploy "${row.original.funnel_name || 'Unnamed'}"?\n\nThis clears the deployed_at timestamp so the user can trigger a full new deployment from the Vault — WITHOUT unapproving any of their sections.\n\nProceed?`
-                                    )) {
-                                        handleFunnelAction(row.original.id, 'undeploy');
-                                    }
-                                }}
-                                className="p-2.5 hover:bg-purple-500/20 rounded-xl transition-all group border border-transparent hover:border-purple-500/30"
-                                title="Undeploy funnel (allow fresh re-deployment)"
-                            >
-                                <CloudOff className="w-4 h-4 text-gray-400 group-hover:text-purple-400 transition-colors" />
-                            </motion.button>
+                            <ActionBtn title="Undeploy funnel" hoverColor="rgba(167,139,250,0.15)" onClick={() => { if (confirm(`Undeploy "${row.original.funnel_name || "Unnamed"}"?\n\nThis clears the deployed_at timestamp so the user can trigger a full new deployment from the Vault — WITHOUT unapproving any of their sections.\n\nProceed?`)) handleFunnelAction(row.original.id, "undeploy"); }}>
+                                <CloudOff className="w-4 h-4" style={{ color: T.secondary }} />
+                            </ActionBtn>
                         )}
-
-                        {row.original.vault_generation_status === 'failed' && (
-                            <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => handleFunnelAction(row.original.id, 'retry_generation')}
-                                className="p-2.5 hover:bg-yellow-500/20 rounded-xl transition-all group border border-transparent hover:border-yellow-500/30"
-                                title="Retry generation"
-                            >
-                                <PlayCircle className="w-4 h-4 text-gray-400 group-hover:text-yellow-400 transition-colors" />
-                            </motion.button>
+                        {row.original.vault_generation_status === "failed" && (
+                            <ActionBtn title="Retry generation" hoverColor="rgba(251,191,36,0.15)" onClick={() => handleFunnelAction(row.original.id, "retry_generation")}>
+                                <PlayCircle className="w-4 h-4" style={{ color: T.secondary }} />
+                            </ActionBtn>
                         )}
-
-                        <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => {
-                                if (confirm(`Are you sure you want to delete the funnel "${row.original.business_name}"? This action cannot be undone.`)) {
-                                    handleFunnelAction(row.original.id, 'delete');
-                                }
-                            }}
-                            className="p-2.5 hover:bg-red-500/20 rounded-xl transition-all group border border-transparent hover:border-red-500/30"
-                            title="Delete funnel"
-                        >
-                            <Trash2 className="w-4 h-4 text-gray-400 group-hover:text-red-400 transition-colors" />
-                        </motion.button>
+                        <ActionBtn title="Delete funnel" hoverColor="rgba(248,113,113,0.15)" onClick={() => { if (confirm(`Delete funnel "${row.original.business_name}"? This action cannot be undone.`)) handleFunnelAction(row.original.id, "delete"); }}>
+                            <Trash2 className="w-4 h-4" style={{ color: T.secondary }} />
+                        </ActionBtn>
                     </div>
                 ),
             },
@@ -862,773 +645,606 @@ export default function AdminFunnels() {
 
     return (
         <AdminLayout>
-            {/* Toast Notifications */}
             <AnimatePresence>
-                {toast && (
-                    <Toast
-                        message={toast.message}
-                        type={toast.type}
-                        onClose={() => setToast(null)}
-                    />
-                )}
+                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             </AnimatePresence>
 
-            <div className="space-y-6">
+            <div className="space-y-6" style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
                 {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-                >
-                    <div className="flex items-center gap-4">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         {filterUserId && (
-                            <motion.button
-                                whileHover={{ scale: 1.05, x: -4 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => router.push('/admin/users')}
-                                className="p-2.5 hover:bg-cyan/20 rounded-xl transition-all border border-transparent hover:border-cyan/30"
+                            <button
+                                onClick={() => router.push("/admin/users")}
+                                style={{ padding: 8, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, cursor: "pointer", display: "flex", alignItems: "center" }}
                             >
-                                <ArrowLeft className="w-5 h-5 text-cyan" />
-                            </motion.button>
+                                <ArrowLeft className="w-4 h-4" style={{ color: T.cyan }} />
+                            </button>
                         )}
-                        <motion.div
-                            whileHover={{ scale: 1.05, rotate: 5 }}
-                            className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500/30 via-cyan/20 to-purple-500/30 flex items-center justify-center border border-purple-500/30 shadow-lg shadow-purple-500/20"
-                        >
-                            <FolderKanban className="w-7 h-7 text-purple-400" />
-                        </motion.div>
                         <div>
-                            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent tracking-tight">
-                                {filterUserId ? 'User Funnels' : 'Funnel Management'}
-                            </h1>
-                            <p className="text-gray-400 text-sm sm:text-base mt-1 flex items-center gap-2">
-                                <Sparkles className="w-4 h-4 text-purple-400" />
-                                Monitor and manage funnel generation
-                            </p>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                <div style={{ width: 3, height: 22, backgroundColor: T.cyan, borderRadius: 2, flexShrink: 0 }} />
+                                <h1 style={{ color: T.primary, fontSize: 22, fontWeight: 700, margin: 0 }}>
+                                    {filterUserId ? "User Funnels" : "Funnel Management"}
+                                </h1>
+                            </div>
+                            <p style={{ color: T.secondary, fontSize: 13, marginLeft: 11 }}>Monitor and manage funnel generation</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        {/* Export Dropdown */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        {/* Export dropdown */}
                         <div className="relative group">
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
+                            <button
                                 disabled={exporting || loading}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500/20 to-cyan/20 hover:from-emerald-500/30 hover:to-cyan/30 rounded-xl transition-all border border-emerald-500/30 shadow-lg shadow-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, color: T.secondary, fontSize: 13, cursor: "pointer", opacity: (exporting || loading) ? 0.5 : 1 }}
                             >
-                                {exporting ? (
-                                    <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
-                                ) : (
-                                    <Download className="w-4 h-4 text-emerald-400" />
-                                )}
-                                <span className="font-medium text-white">{exporting ? 'Exporting...' : 'Export'}</span>
-                                <ChevronDown className="w-3.5 h-3.5 text-emerald-400/70" />
-                            </motion.button>
-                            {/* Dropdown menu */}
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-[#1b1b1d] border border-emerald-500/20 rounded-xl shadow-2xl shadow-black/40 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 overflow-hidden">
-                                <button
-                                    onClick={() => handleExport('json')}
-                                    disabled={exporting}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors text-left"
-                                >
-                                    <FileText className="w-4 h-4" />
-                                    Export as JSON
+                                {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                                <span style={{ color: T.primary, fontWeight: 500 }}>{exporting ? "Exporting..." : "Export"}</span>
+                                <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", width: 180, backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", zIndex: 50, overflow: "hidden" }}
+                                className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                                <button onClick={() => handleExport("json")} disabled={exporting}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left hover:bg-white/5"
+                                    style={{ color: T.secondary }}>
+                                    <FileText className="w-4 h-4" /> Export as JSON
                                 </button>
-                                <button
-                                    onClick={() => handleExport('csv')}
-                                    disabled={exporting}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-emerald-500/10 hover:text-emerald-400 transition-colors text-left border-t border-[#2a2a2d]"
-                                >
-                                    <FileText className="w-4 h-4" />
-                                    Export as CSV
+                                <button onClick={() => handleExport("csv")} disabled={exporting}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left hover:bg-white/5"
+                                    style={{ color: T.secondary, borderTop: `1px solid ${T.border}` }}>
+                                    <FileText className="w-4 h-4" /> Export as CSV
                                 </button>
                             </div>
                         </div>
-
-                        <motion.button
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                        <button
                             onClick={fetchFunnels}
                             disabled={loading}
-                            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500/20 to-cyan/20 hover:from-purple-500/30 hover:to-cyan/30 rounded-xl transition-all border border-purple-500/30 shadow-lg shadow-purple-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, color: T.secondary, fontSize: 13, cursor: "pointer", opacity: loading ? 0.5 : 1 }}
                         >
-                            <RefreshCw className={`w-4 h-4 text-purple-400 ${loading ? 'animate-spin' : ''}`} />
-                            <span className="font-medium text-white">Refresh</span>
-                        </motion.button>
+                            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                            <span style={{ color: T.primary, fontWeight: 500 }}>Refresh</span>
+                        </button>
                     </div>
-                </motion.div>
+                </div>
 
                 {/* Status Stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {Object.entries(statusStats).map(([status, count], idx) => {
-                        const gradients = {
-                            not_started: 'from-gray-500/10 to-gray-500/5',
-                            pending: 'from-yellow-500/10 to-yellow-500/5',
-                            in_progress: 'from-blue-500/10 to-cyan/5',
-                            completed: 'from-emerald-500/10 to-green-500/5',
-                            failed: 'from-red-500/10 to-red-500/5'
-                        };
+                        const s = statusStyle(status);
+                        const isActive = statusFilter === status;
                         return (
                             <motion.button
                                 key={status}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.1 + idx * 0.05 }}
-                                whileHover={{ scale: 1.02, y: -4 }}
-                                whileTap={{ scale: 0.98 }}
-                                onClick={() => setStatusFilter(statusFilter === status ? '' : status)}
-                                className={`bg-gradient-to-br ${gradients[status]} rounded-2xl p-5 border transition-all shadow-lg ${statusFilter === status
-                                    ? 'border-cyan/50 shadow-cyan/20 ring-2 ring-cyan/30'
-                                    : statusColors[status]?.split(' ')[2] || 'border-gray-500/30'
-                                    }`}
+                                transition={{ delay: 0.05 * idx }}
+                                onClick={() => setStatusFilter(statusFilter === status ? "" : status)}
+                                style={{
+                                    backgroundColor: s.bg,
+                                    border: `1px solid ${isActive ? T.cyan : s.border}`,
+                                    borderRadius: 12,
+                                    padding: "16px 18px",
+                                    cursor: "pointer",
+                                    textAlign: "left",
+                                    boxShadow: isActive ? `0 0 0 2px rgba(22,199,231,0.2)` : "none",
+                                    transition: "all 0.2s",
+                                }}
                             >
-                                <div className="flex items-center justify-between mb-2">
-                                    <p className={`text-sm font-semibold uppercase tracking-wide ${statusColors[status]?.split(' ')[1]}`}>
-                                        {status.replace('_', ' ')}
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                                    <p style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: s.color }}>
+                                        {status.replace("_", " ")}
                                     </p>
-                                    <TrendingUp className={`w-4 h-4 ${statusColors[status]?.split(' ')[1]}`} />
+                                    <TrendingUp className="w-3.5 h-3.5" style={{ color: s.color }} />
                                 </div>
-                                <p className={`text-2xl sm:text-3xl font-bold ${statusColors[status]?.split(' ')[1]}`}>
-                                    {count || 0}
-                                </p>
-                                <p className="text-gray-400 text-xs mt-1">funnels</p>
+                                <p style={{ fontSize: 26, fontWeight: 700, color: s.color }}>{count || 0}</p>
+                                <p style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>funnels</p>
                             </motion.button>
                         );
                     })}
                 </div>
 
                 {/* Search */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.4 }}
-                    className="relative"
-                >
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400/50" />
+                <div style={{ position: "relative" }}>
+                    <Search style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 18, height: 18, color: T.muted }} />
                     <input
                         type="text"
                         placeholder="Search by funnel name, user name, or email..."
                         value={searchInput}
                         onChange={(e) => handleSearchChange(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 bg-[#0e0e0f] border border-purple-500/30 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20 transition-all"
+                        style={{ width: "100%", paddingLeft: 44, paddingRight: 16, paddingTop: 11, paddingBottom: 11, backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 10, color: T.primary, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                        onFocus={(e) => (e.currentTarget.style.borderColor = T.cyan)}
+                        onBlur={(e) => (e.currentTarget.style.borderColor = T.border)}
                     />
-                </motion.div>
+                </div>
 
                 {/* Table */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                    className="bg-gradient-to-br from-[#1b1b1d] to-[#0e0e0f] rounded-2xl border border-purple-500/20 overflow-hidden shadow-xl"
-                >
+                <div style={{ backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center h-96">
-                            <Loader2 className="w-12 h-12 text-purple-400 animate-spin mb-4" />
-                            <p className="text-gray-400 text-lg font-medium">Loading funnels...</p>
-                            <p className="text-gray-500 text-sm mt-1">Please wait</p>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 320, gap: 12 }}>
+                            <Loader2 className="w-10 h-10 animate-spin" style={{ color: T.cyan }} />
+                            <p style={{ color: T.secondary, fontSize: 14 }}>Loading funnels...</p>
                         </div>
                     ) : (
                         <>
                             <div className="overflow-x-auto">
-                                <div>
-                                    <table className="w-full min-w-[800px]">
-                                        <thead className="bg-gradient-to-r from-[#0e0e0f] to-[#1a1a1c] sticky top-0 z-10 border-b border-purple-500/20">
-                                            {table.getHeaderGroups().map((headerGroup) => (
-                                                <tr key={headerGroup.id}>
-                                                    {headerGroup.headers.map((header) => (
-                                                        <th key={header.id} className="px-4 py-3 text-left text-xs font-bold text-purple-400 uppercase tracking-wider whitespace-nowrap">
-                                                            {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                                                        </th>
+                                <table className="w-full min-w-[800px]">
+                                    <thead>
+                                        {table.getHeaderGroups().map((headerGroup) => (
+                                            <tr key={headerGroup.id}>
+                                                {headerGroup.headers.map((header) => (
+                                                    <th key={header.id} style={{ backgroundColor: T.surface, color: T.secondary, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", padding: "11px 16px", borderBottom: `1px solid ${T.border}`, textAlign: "left", whiteSpace: "nowrap" }}>
+                                                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </thead>
+                                    <tbody>
+                                        {table.getRowModel().rows.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={columns.length} style={{ padding: "60px 24px", textAlign: "center" }}>
+                                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+                                                        <FolderKanban style={{ width: 36, height: 36, color: T.border }} />
+                                                        <p style={{ color: T.secondary, fontSize: 14 }}>No funnels found</p>
+                                                        <p style={{ color: T.muted, fontSize: 12 }}>Try adjusting your search or filters</p>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            table.getRowModel().rows.map((row) => (
+                                                <tr key={row.id}
+                                                    style={{ borderBottom: `1px solid ${T.border}`, transition: "background 0.15s" }}
+                                                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(22,199,231,0.03)")}
+                                                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+                                                    {row.getVisibleCells().map((cell) => (
+                                                        <td key={cell.id} style={{ color: T.primary, fontSize: 13, padding: "13px 16px" }}>
+                                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                        </td>
                                                     ))}
                                                 </tr>
-                                            ))}
-                                        </thead>
-                                        <tbody>
-                                            {table.getRowModel().rows.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={columns.length} className="px-6 py-16 text-center">
-                                                        <FolderKanban className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                                                        <p className="text-gray-400 text-lg font-medium">No funnels found</p>
-                                                        <p className="text-gray-500 text-sm mt-2">Try adjusting your search or filters</p>
-                                                    </td>
-                                                </tr>
-                                            ) : (
-                                                table.getRowModel().rows.map((row, idx) => (
-                                                    <motion.tr
-                                                        key={row.id}
-                                                        initial={{ opacity: 0, y: 20 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        transition={{ delay: idx * 0.02 }}
-                                                        className="border-b border-purple-500/5 hover:bg-[#0e0e0f]/50 transition-all"
-                                                    >
-                                                        {row.getVisibleCells().map((cell) => (
-                                                            <td key={cell.id} className="px-4 py-3">
-                                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                            </td>
-                                                        ))}
-                                                    </motion.tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
 
                             {/* Pagination */}
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-4 py-3 border-t border-[#2a2a2d]">
-                                <p className="text-sm text-gray-400">
-                                    Total: {pagination.total} funnels
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))}
-                                        disabled={pagination.page <= 1}
-                                        className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <ChevronLeft className="w-5 h-5" />
-                                    </button>
-                                    <span className="text-sm text-gray-400">
-                                        Page {pagination.page} of {pagination.totalPages || 1}
-                                    </span>
-                                    <button
-                                        onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
-                                        disabled={pagination.page >= pagination.totalPages}
-                                        className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <ChevronRight className="w-5 h-5" />
-                                    </button>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: `1px solid ${T.border}`, flexWrap: "wrap", gap: 8 }}>
+                                <p style={{ fontSize: 13, color: T.secondary }}>Total: {pagination.total} funnels</p>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <PaginationBtn onClick={() => setPagination(p => ({ ...p, page: p.page - 1 }))} disabled={pagination.page <= 1}>
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </PaginationBtn>
+                                    <span style={{ fontSize: 13, color: T.secondary }}>Page {pagination.page} of {pagination.totalPages || 1}</span>
+                                    <PaginationBtn onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))} disabled={pagination.page >= pagination.totalPages}>
+                                        <ChevronRight className="w-4 h-4" />
+                                    </PaginationBtn>
                                 </div>
                             </div>
                         </>
                     )}
-                </motion.div>
+                </div>
+            </div>
 
-                {/* Vault Content Modal */}
-                {showVaultModal && selectedFunnel && (
-                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-                        >
-                            {/* Modal Header */}
-                            <div className="p-6 border-b border-[#2a2a2d] flex items-center justify-between shrink-0">
-                                <div>
-                                    <h2 className="text-2xl font-bold">Vault Content</h2>
-                                    <p className="text-gray-400 text-sm">
-                                        {selectedFunnel.funnel_name || 'Unnamed Funnel'}
-                                        <span className="mx-2">·</span>
-                                        {selectedFunnel.user_profiles?.full_name || selectedFunnel.user_profiles?.email || ''}
-                                        <span className="mx-2">·</span>
-                                        <span className={`inline-flex px-2 py-0.5 rounded text-xs ${statusColors[selectedFunnel.vault_generation_status] || statusColors.not_started}`}>
-                                            {selectedFunnel.vault_generation_status || 'not_started'}
-                                        </span>
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => setShowVaultModal(false)}
-                                    className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
+            {/* Vault Content Modal */}
+            {showVaultModal && selectedFunnel && (
+                <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: 16 }}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        style={{ backgroundColor: T.cardBg, borderRadius: 16, border: `1px solid ${T.border}`, maxWidth: 900, width: "100%", maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
+                    >
+                        {/* Modal Header */}
+                        <div style={{ padding: "20px 24px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
+                            <div>
+                                <h2 style={{ color: T.primary, fontSize: 18, fontWeight: 700, margin: 0, marginBottom: 4 }}>Vault Content</h2>
+                                <p style={{ color: T.secondary, fontSize: 13, margin: 0 }}>
+                                    {selectedFunnel.funnel_name || "Unnamed Funnel"}
+                                    <span style={{ margin: "0 8px" }}>·</span>
+                                    {selectedFunnel.user_profiles?.full_name || selectedFunnel.user_profiles?.email || ""}
+                                    <span style={{ margin: "0 8px" }}>·</span>
+                                    <span style={{ ...statusStyle(selectedFunnel.vault_generation_status), padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, display: "inline-block" }}>
+                                        {selectedFunnel.vault_generation_status || "not_started"}
+                                    </span>
+                                </p>
                             </div>
+                            <button onClick={() => setShowVaultModal(false)} style={{ padding: 6, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.surface)}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+                                <X className="w-5 h-5" style={{ color: T.secondary }} />
+                            </button>
+                        </div>
 
-                            {/* Modal Body */}
-                            <div className="overflow-y-auto flex-1 p-6">
-                                {selectedFunnel.vault_items?.length > 0 ? (
-                                    <div className="space-y-3">
-                                        {/* Group by phase */}
-                                        {(() => {
-                                            const phases = {};
-                                            selectedFunnel.vault_items.forEach(item => {
-                                                const p = item.phase || 1;
-                                                if (!phases[p]) phases[p] = [];
-                                                phases[p].push(item);
-                                            });
-                                            return Object.entries(phases).map(([phase, items]) => (
-                                                <div key={phase} className="space-y-2">
-                                                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider px-1">
-                                                        Phase {phase} · {items.length} section{items.length !== 1 ? 's' : ''}
-                                                    </h3>
-                                                    {items.map(item => {
-                                                        const isExpanded = expandedSections.has(item.id);
-                                                        const isEditing = editingItem === item.id;
-                                                        return (
-                                                            <div key={item.id} className="bg-[#0e0e0f] rounded-xl border border-[#2a2a2d] overflow-hidden">
-                                                                {/* Section Header - Click to expand */}
-                                                                <button
-                                                                    onClick={() => toggleSection(item.id)}
-                                                                    className="w-full flex items-center justify-between p-4 hover:bg-[#1b1b1d] transition-colors text-left"
-                                                                >
-                                                                    <div className="flex items-center gap-3 min-w-0">
-                                                                        <FileText className="w-5 h-5 text-cyan shrink-0" />
-                                                                        <div className="min-w-0">
-                                                                            <span className="font-medium text-white block truncate">
-                                                                                {item.section_title || item.section_id}
-                                                                            </span>
-                                                                            <span className="text-xs text-gray-500">
-                                                                                v{item.version} · {new Date(item.updated_at || item.created_at).toLocaleDateString()}
-                                                                            </span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="flex items-center gap-2 shrink-0">
-                                                                        <span className={`px-2 py-0.5 rounded text-xs ${statusColors[item.status] || 'bg-gray-500/20 text-gray-400'}`}>
-                                                                            {item.status}
+                        {/* Modal Body */}
+                        <div style={{ overflowY: "auto", flex: 1, padding: 24 }}>
+                            {selectedFunnel.vault_items?.length > 0 ? (
+                                <div className="space-y-3">
+                                    {(() => {
+                                        const phases = {};
+                                        selectedFunnel.vault_items.forEach(item => {
+                                            const p = item.phase || 1;
+                                            if (!phases[p]) phases[p] = [];
+                                            phases[p].push(item);
+                                        });
+                                        return Object.entries(phases).map(([phase, items]) => (
+                                            <div key={phase} className="space-y-2">
+                                                <h3 style={{ fontSize: 11, fontWeight: 600, color: T.muted, textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 4px" }}>
+                                                    Phase {phase} · {items.length} section{items.length !== 1 ? "s" : ""}
+                                                </h3>
+                                                {items.map(item => {
+                                                    const isExpanded = expandedSections.has(item.id);
+                                                    const isEditing = editingItem === item.id;
+                                                    const ss = statusStyle(item.status);
+                                                    return (
+                                                        <div key={item.id} style={{ backgroundColor: T.surface, borderRadius: 10, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+                                                            <button
+                                                                onClick={() => toggleSection(item.id)}
+                                                                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+                                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.02)")}
+                                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                                                            >
+                                                                <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                                                                    <FileText className="w-4 h-4 shrink-0" style={{ color: T.cyan }} />
+                                                                    <div style={{ minWidth: 0 }}>
+                                                                        <span style={{ fontWeight: 500, color: T.primary, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                                            {item.section_title || item.section_id}
                                                                         </span>
-                                                                        {isExpanded ? (
-                                                                            <ChevronUp className="w-4 h-4 text-gray-400" />
-                                                                        ) : (
-                                                                            <ChevronDown className="w-4 h-4 text-gray-400" />
-                                                                        )}
+                                                                        <span style={{ fontSize: 11, color: T.muted }}>
+                                                                            v{item.version} · {new Date(item.updated_at || item.created_at).toLocaleDateString()}
+                                                                        </span>
                                                                     </div>
-                                                                </button>
+                                                                </div>
+                                                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                                                    <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 500, backgroundColor: ss.bg, color: ss.color, border: `1px solid ${ss.border}` }}>
+                                                                        {item.status}
+                                                                    </span>
+                                                                    {isExpanded ? <ChevronUp className="w-4 h-4" style={{ color: T.muted }} /> : <ChevronDown className="w-4 h-4" style={{ color: T.muted }} />}
+                                                                </div>
+                                                            </button>
 
-                                                                {/* Expanded Content */}
-                                                                <AnimatePresence>
-                                                                    {isExpanded && (
-                                                                        <motion.div
-                                                                            initial={{ height: 0, opacity: 0 }}
-                                                                            animate={{ height: 'auto', opacity: 1 }}
-                                                                            exit={{ height: 0, opacity: 0 }}
-                                                                            transition={{ duration: 0.2 }}
-                                                                            className="border-t border-[#2a2a2d]"
-                                                                        >
-                                                                            <div className="p-4">
-                                                                                {/* Action bar */}
-                                                                                <div className="flex items-center justify-end gap-2 mb-3">
-                                                                                    {isEditing ? (
-                                                                                        <>
-                                                                                            <button
-                                                                                                onClick={() => setEditingItem(null)}
-                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg transition-colors"
-                                                                                            >
-                                                                                                <X className="w-3.5 h-3.5" />
-                                                                                                Cancel
-                                                                                            </button>
-                                                                                            {/* Save Draft — saves JSON without changing approval */}
-                                                                                            <button
-                                                                                                onClick={() => handleSaveEdit(item, false)}
-                                                                                                disabled={savingEdit}
-                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-cyan/20 hover:bg-cyan/30 text-cyan rounded-lg transition-colors disabled:opacity-50"
-                                                                                            >
-                                                                                                {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                                                                                Save Draft
-                                                                                            </button>
-                                                                                            {/* Save & Approve — saves JSON AND marks all fields as approved */}
-                                                                                            <button
-                                                                                                onClick={() => handleSaveEdit(item, true)}
-                                                                                                disabled={savingEdit}
-                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-lg transition-colors disabled:opacity-50"
-                                                                                            >
-                                                                                                {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
-                                                                                                Save & Approve
-                                                                                            </button>
-                                                                                        </>
-                                                                                    ) : (
-                                                                                        <>
-                                                                                            {/* History button — opens field-level version history */}
-                                                                                            {historyField?.sectionId === item.section_id ? (
-                                                                                                <button
-                                                                                                    onClick={closeHistory}
-                                                                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded-lg transition-colors"
-                                                                                                >
-                                                                                                    <X className="w-3.5 h-3.5" />
-                                                                                                    Close History
-                                                                                                </button>
-                                                                                            ) : (
-                                                                                                <button
-                                                                                                    onClick={() => handleFetchHistory(item.section_id)}
-                                                                                                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2a2a2d] hover:bg-purple-500/20 hover:text-purple-400 rounded-lg transition-colors"
-                                                                                                >
-                                                                                                    <History className="w-3.5 h-3.5" />
-                                                                                                    History
-                                                                                                </button>
-                                                                                            )}
-
-                                                                                            {/* Bulk Approve button — approves ALL fields in this section */}
-                                                                                            <button
-                                                                                                onClick={() => handleBulkApprove(item.section_id)}
-                                                                                                disabled={approvingSection === item.section_id}
-                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors disabled:opacity-50"
-                                                                                            >
-                                                                                                {approvingSection === item.section_id
-                                                                                                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                                                                    : <ShieldCheck className="w-3.5 h-3.5" />
-                                                                                                }
-                                                                                                {approvingSection === item.section_id ? 'Approving...' : 'Bulk Approve'}
-                                                                                            </button>
-
-                                                                                            <button
-                                                                                                onClick={() => handleStartEdit(item)}
-                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg transition-colors"
-                                                                                            >
-                                                                                                <Edit3 className="w-3.5 h-3.5" />
-                                                                                                Edit JSON
-                                                                                            </button>
-                                                                                        </>
-                                                                                    )}
-                                                                                </div>
-
-                                                                                {/* ── Version History Panel (Tabbed: Sections + Fields) ─── */}
-                                                                                {historyField?.sectionId === item.section_id && !isEditing && (() => {
-                                                                                    // Compute visible versions based on active tab + field filter
-                                                                                    const activeVersions = historyTab === 'sections'
-                                                                                        ? historySectionVersions
-                                                                                        : historyFieldFilter
-                                                                                            ? historyFieldVersions.filter(v => v.field_id === historyFieldFilter)
-                                                                                            : historyFieldVersions;
-
-                                                                                    return (
-                                                                                        <div className="mb-4 bg-[#1b1b1d] border border-purple-500/20 rounded-xl p-4 space-y-4">
-
-                                                                                            {/* ── Tab switcher ──────────────────────────── */}
-                                                                                            <div className="flex items-center gap-1 bg-[#0e0e0f] p-1 rounded-lg w-fit">
-                                                                                                <button
-                                                                                                    onClick={() => { setHistoryTab('sections'); setSelectedHistoryVersion(null); }}
-                                                                                                    className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${historyTab === 'sections'
-                                                                                                        ? 'bg-purple-500/20 text-purple-400 shadow-sm'
-                                                                                                        : 'text-gray-500 hover:text-gray-300'
-                                                                                                        }`}
-                                                                                                >
-                                                                                                    Section Snapshots ({historySectionVersions.length})
-                                                                                                </button>
-                                                                                                <button
-                                                                                                    onClick={() => { setHistoryTab('fields'); setSelectedHistoryVersion(null); }}
-                                                                                                    className={`px-3 py-1.5 text-xs rounded-md font-medium transition-all ${historyTab === 'fields'
-                                                                                                        ? 'bg-purple-500/20 text-purple-400 shadow-sm'
-                                                                                                        : 'text-gray-500 hover:text-gray-300'
-                                                                                                        }`}
-                                                                                                >
-                                                                                                    Field History ({historyFieldVersions.length})
-                                                                                                </button>
-                                                                                            </div>
-
-                                                                                            {/* ── Tab info / field filter ───────────────── */}
-                                                                                            {historyTab === 'sections' ? (
-                                                                                                <p className="text-[11px] text-gray-500 leading-relaxed">
-                                                                                                    Full section snapshots from each generation/regeneration. Each version contains the entire section content.
-                                                                                                </p>
-                                                                                            ) : (
-                                                                                                <div className="flex items-center gap-3 flex-wrap">
-                                                                                                    <label className="text-xs text-gray-400 font-medium uppercase tracking-wider">Field:</label>
-                                                                                                    {historyAvailableFields.length > 0 ? (
-                                                                                                        <select
-                                                                                                            value={historyFieldFilter || ''}
-                                                                                                            onChange={(e) => {
-                                                                                                                setHistoryFieldFilter(e.target.value);
-                                                                                                                setSelectedHistoryVersion(null);
-                                                                                                            }}
-                                                                                                            className="bg-[#0e0e0f] border border-[#2a2a2d] text-white text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-purple-400 transition-colors min-w-[200px]"
-                                                                                                        >
-                                                                                                            {historyAvailableFields.map(fid => (
-                                                                                                                <option key={fid} value={fid}>{fid}</option>
-                                                                                                            ))}
-                                                                                                        </select>
-                                                                                                    ) : (
-                                                                                                        <span className="text-xs text-gray-500 italic">No field-level edits recorded yet</span>
-                                                                                                    )}
-                                                                                                    <span className="text-xs text-gray-500">
-                                                                                                        {activeVersions.length} version{activeVersions.length !== 1 ? 's' : ''}
-                                                                                                    </span>
-                                                                                                </div>
-                                                                                            )}
-
-                                                                                            {/* ── Version list ──────────────────────────── */}
-                                                                                            {historyLoading ? (
-                                                                                                <div className="flex items-center justify-center py-8">
-                                                                                                    <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
-                                                                                                </div>
-                                                                                            ) : activeVersions.length === 0 ? (
-                                                                                                <p className="text-gray-500 text-sm text-center py-4">
-                                                                                                    {historyTab === 'sections'
-                                                                                                        ? 'No section snapshots found.'
-                                                                                                        : 'No field-level history found. Field edits are tracked after the versioning system was enabled.'}
-                                                                                                </p>
-                                                                                            ) : (
-                                                                                                <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
-                                                                                                    {activeVersions.map((ver) => {
-                                                                                                        const isSelected = selectedHistoryVersion?.id === ver.id;
-                                                                                                        const isCurrent = ver.is_current_version;
-                                                                                                        return (
-                                                                                                            <button
-                                                                                                                key={ver.id}
-                                                                                                                onClick={() => setSelectedHistoryVersion(ver)}
-                                                                                                                className={`w-full flex items-center justify-between p-3 rounded-lg border text-left transition-all text-xs ${isSelected
-                                                                                                                    ? 'border-purple-500/50 bg-purple-500/10 ring-1 ring-purple-500/30'
-                                                                                                                    : 'border-[#2a2a2d] bg-[#0e0e0f] hover:border-gray-600'
-                                                                                                                    }`}
-                                                                                                            >
-                                                                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                                                                    <Clock className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                                                                                                                    <span className="font-medium text-white">v{ver.version}</span>
-                                                                                                                    {/* Show field_id label on fields tab */}
-                                                                                                                    {historyTab === 'fields' && ver.field_id && (
-                                                                                                                        <span className="px-1.5 py-0.5 bg-[#2a2a2d] text-gray-400 rounded text-[10px]">
-                                                                                                                            {ver.field_id}
-                                                                                                                        </span>
-                                                                                                                    )}
-                                                                                                                    {isCurrent && (
-                                                                                                                        <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[10px] font-semibold">
-                                                                                                                            CURRENT
-                                                                                                                        </span>
-                                                                                                                    )}
-                                                                                                                    {ver.is_approved && (
-                                                                                                                        <span className="px-1.5 py-0.5 bg-cyan/20 text-cyan rounded text-[10px] font-semibold">
-                                                                                                                            APPROVED
-                                                                                                                        </span>
-                                                                                                                    )}
-                                                                                                                    {/* Section status badge */}
-                                                                                                                    {historyTab === 'sections' && ver.status && (
-                                                                                                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${ver.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400'
-                                                                                                                            : ver.status === 'generated' ? 'bg-blue-500/10 text-blue-400'
-                                                                                                                                : 'bg-gray-500/10 text-gray-400'
-                                                                                                                            }`}>
-                                                                                                                            {ver.status}
-                                                                                                                        </span>
-                                                                                                                    )}
-                                                                                                                </div>
-                                                                                                                <span className="text-gray-500 shrink-0">
-                                                                                                                    {new Date(ver.updated_at || ver.created_at).toLocaleString('en-US', {
-                                                                                                                        month: 'short', day: 'numeric', year: 'numeric',
-                                                                                                                        hour: '2-digit', minute: '2-digit'
-                                                                                                                    })}
-                                                                                                                </span>
-                                                                                                            </button>
-                                                                                                        );
-                                                                                                    })}
-                                                                                                </div>
-                                                                                            )}
-
-                                                                                            {/* ── Selected version preview + restore ────── */}
-                                                                                            {selectedHistoryVersion && (
-                                                                                                <div className="border-t border-[#2a2a2d] pt-4 space-y-3">
-                                                                                                    <div className="flex items-center justify-between">
-                                                                                                        <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                                                                                            Preview — v{selectedHistoryVersion.version}
-                                                                                                            {selectedHistoryVersion.is_current_version && ' (Current)'}
-                                                                                                            {historyTab === 'fields' && selectedHistoryVersion.field_id && (
-                                                                                                                <span className="ml-2 text-purple-400">{selectedHistoryVersion.field_id}</span>
-                                                                                                            )}
-                                                                                                        </h4>
-                                                                                                        {/* Restore button for non-current versions */}
-                                                                                                        {!selectedHistoryVersion.is_current_version && (
-                                                                                                            <button
-                                                                                                                onClick={() => handleRestoreVersion(selectedHistoryVersion.version)}
-                                                                                                                disabled={restoringVersion}
-                                                                                                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-lg transition-colors disabled:opacity-50"
-                                                                                                            >
-                                                                                                                {restoringVersion ? (
-                                                                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                                                                                ) : (
-                                                                                                                    <Undo2 className="w-3.5 h-3.5" />
-                                                                                                                )}
-                                                                                                                Restore this version
-                                                                                                            </button>
-                                                                                                        )}
-                                                                                                    </div>
-                                                                                                    {/* Read-only JSON view */}
-                                                                                                    <div className="max-h-64 overflow-y-auto bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-3 custom-scrollbar">
-                                                                                                        <pre className="text-xs text-gray-300 font-mono whitespace-pre-wrap break-words">
-                                                                                                            {(() => {
-                                                                                                                // For section versions use .content, for field versions use .field_value
-                                                                                                                const previewData = historyTab === 'sections'
-                                                                                                                    ? selectedHistoryVersion.content
-                                                                                                                    : selectedHistoryVersion.field_value;
-                                                                                                                return typeof previewData === 'object'
-                                                                                                                    ? JSON.stringify(previewData, null, 2)
-                                                                                                                    : String(previewData ?? 'null');
-                                                                                                            })()}
-                                                                                                        </pre>
-                                                                                                    </div>
-                                                                                                </div>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    );
-                                                                                })()}
-
-                                                                                {/* Content display or editor (shown when NOT in history mode for this section) */}
+                                                            <AnimatePresence>
+                                                                {isExpanded && (
+                                                                    <motion.div
+                                                                        initial={{ height: 0, opacity: 0 }}
+                                                                        animate={{ height: "auto", opacity: 1 }}
+                                                                        exit={{ height: 0, opacity: 0 }}
+                                                                        transition={{ duration: 0.2 }}
+                                                                        style={{ borderTop: `1px solid ${T.border}` }}
+                                                                    >
+                                                                        <div style={{ padding: 16 }}>
+                                                                            {/* Action bar */}
+                                                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginBottom: 12 }}>
                                                                                 {isEditing ? (
-                                                                                    <textarea
-                                                                                        value={editValue}
-                                                                                        onChange={(e) => setEditValue(e.target.value)}
-                                                                                        className="w-full h-96 p-4 bg-[#1b1b1d] border border-[#2a2a2d] rounded-lg text-sm text-gray-300 font-mono resize-y focus:outline-none focus:border-cyan transition-colors"
-                                                                                        spellCheck={false}
-                                                                                    />
-                                                                                ) : historyField?.sectionId !== item.section_id ? (
-                                                                                    <div className="max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                                                                                        {item.content ? (
-                                                                                            renderContentValue(item.content)
+                                                                                    <>
+                                                                                        <SmallBtn onClick={() => setEditingItem(null)}>
+                                                                                            <X className="w-3 h-3" /> Cancel
+                                                                                        </SmallBtn>
+                                                                                        <SmallBtn onClick={() => handleSaveEdit(item, false)} disabled={savingEdit} color={T.cyan} colorBg="rgba(22,199,231,0.1)">
+                                                                                            {savingEdit ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />} Save Draft
+                                                                                        </SmallBtn>
+                                                                                        <SmallBtn onClick={() => handleSaveEdit(item, true)} disabled={savingEdit} color={T.success} colorBg="rgba(52,211,153,0.1)">
+                                                                                            {savingEdit ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />} Save & Approve
+                                                                                        </SmallBtn>
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        {historyField?.sectionId === item.section_id ? (
+                                                                                            <SmallBtn onClick={closeHistory} color={T.purple} colorBg="rgba(167,139,250,0.1)">
+                                                                                                <X className="w-3 h-3" /> Close History
+                                                                                            </SmallBtn>
                                                                                         ) : (
-                                                                                            <p className="text-gray-500 italic">No content data</p>
+                                                                                            <SmallBtn onClick={() => handleFetchHistory(item.section_id)}>
+                                                                                                <History className="w-3 h-3" /> History
+                                                                                            </SmallBtn>
+                                                                                        )}
+                                                                                        <SmallBtn onClick={() => handleBulkApprove(item.section_id)} disabled={approvingSection === item.section_id} color={T.success} colorBg="rgba(52,211,153,0.08)">
+                                                                                            {approvingSection === item.section_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                                                                                            {approvingSection === item.section_id ? "Approving..." : "Bulk Approve"}
+                                                                                        </SmallBtn>
+                                                                                        <SmallBtn onClick={() => handleStartEdit(item)}>
+                                                                                            <Edit3 className="w-3 h-3" /> Edit JSON
+                                                                                        </SmallBtn>
+                                                                                    </>
+                                                                                )}
+                                                                            </div>
+
+                                                                            {/* Version History Panel */}
+                                                                            {historyField?.sectionId === item.section_id && !isEditing && (() => {
+                                                                                const activeVersions = historyTab === "sections"
+                                                                                    ? historySectionVersions
+                                                                                    : historyFieldFilter
+                                                                                        ? historyFieldVersions.filter(v => v.field_id === historyFieldFilter)
+                                                                                        : historyFieldVersions;
+                                                                                return (
+                                                                                    <div style={{ marginBottom: 16, backgroundColor: T.cardBg, border: `1px solid rgba(167,139,250,0.2)`, borderRadius: 10, padding: 14 }} className="space-y-3">
+                                                                                        {/* Tab switcher */}
+                                                                                        <div style={{ display: "flex", gap: 4, backgroundColor: T.surface, padding: 4, borderRadius: 8, width: "fit-content" }}>
+                                                                                            {["sections", "fields"].map(tab => (
+                                                                                                <button key={tab} onClick={() => { setHistoryTab(tab); setSelectedHistoryVersion(null); }}
+                                                                                                    style={{ padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 500, border: "none", cursor: "pointer", transition: "all 0.15s", backgroundColor: historyTab === tab ? "rgba(167,139,250,0.2)" : "transparent", color: historyTab === tab ? T.purple : T.muted }}>
+                                                                                                    {tab === "sections" ? `Section Snapshots (${historySectionVersions.length})` : `Field History (${historyFieldVersions.length})`}
+                                                                                                </button>
+                                                                                            ))}
+                                                                                        </div>
+
+                                                                                        {historyTab === "sections" ? (
+                                                                                            <p style={{ fontSize: 11, color: T.muted }}>Full section snapshots from each generation/regeneration.</p>
+                                                                                        ) : (
+                                                                                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                                                                                <label style={{ fontSize: 11, color: T.secondary, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Field:</label>
+                                                                                                {historyAvailableFields.length > 0 ? (
+                                                                                                    <select value={historyFieldFilter || ""} onChange={(e) => { setHistoryFieldFilter(e.target.value); setSelectedHistoryVersion(null); }}
+                                                                                                        style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, color: T.primary, fontSize: 11, borderRadius: 8, padding: "4px 10px", outline: "none", minWidth: 200 }}>
+                                                                                                        {historyAvailableFields.map(fid => (
+                                                                                                            <option key={fid} value={fid}>{fid}</option>
+                                                                                                        ))}
+                                                                                                    </select>
+                                                                                                ) : (
+                                                                                                    <span style={{ fontSize: 11, color: T.muted, fontStyle: "italic" }}>No field-level edits recorded yet</span>
+                                                                                                )}
+                                                                                                <span style={{ fontSize: 11, color: T.muted }}>{activeVersions.length} version{activeVersions.length !== 1 ? "s" : ""}</span>
+                                                                                            </div>
+                                                                                        )}
+
+                                                                                        {historyLoading ? (
+                                                                                            <div style={{ display: "flex", justifyContent: "center", padding: 24 }}>
+                                                                                                <Loader2 className="w-5 h-5 animate-spin" style={{ color: T.purple }} />
+                                                                                            </div>
+                                                                                        ) : activeVersions.length === 0 ? (
+                                                                                            <p style={{ color: T.muted, fontSize: 13, textAlign: "center", padding: "12px 0" }}>
+                                                                                                {historyTab === "sections" ? "No section snapshots found." : "No field-level history found."}
+                                                                                            </p>
+                                                                                        ) : (
+                                                                                            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                                                                                                {activeVersions.map((ver) => {
+                                                                                                    const isSelected = selectedHistoryVersion?.id === ver.id;
+                                                                                                    return (
+                                                                                                        <button key={ver.id} onClick={() => setSelectedHistoryVersion(ver)}
+                                                                                                            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 8, border: `1px solid ${isSelected ? "rgba(167,139,250,0.5)" : T.border}`, backgroundColor: isSelected ? "rgba(167,139,250,0.08)" : T.surface, cursor: "pointer", textAlign: "left", transition: "all 0.15s" }}>
+                                                                                                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                                                                                                <Clock className="w-3 h-3" style={{ color: T.muted, flexShrink: 0 }} />
+                                                                                                                <span style={{ fontWeight: 500, color: T.primary, fontSize: 12 }}>v{ver.version}</span>
+                                                                                                                {historyTab === "fields" && ver.field_id && (
+                                                                                                                    <span style={{ padding: "1px 6px", backgroundColor: T.cardBg, color: T.secondary, borderRadius: 4, fontSize: 10 }}>{ver.field_id}</span>
+                                                                                                                )}
+                                                                                                                {ver.is_current_version && (
+                                                                                                                    <span style={{ padding: "1px 6px", backgroundColor: "rgba(52,211,153,0.15)", color: T.success, borderRadius: 4, fontSize: 10, fontWeight: 700 }}>CURRENT</span>
+                                                                                                                )}
+                                                                                                                {ver.is_approved && (
+                                                                                                                    <span style={{ padding: "1px 6px", backgroundColor: "rgba(22,199,231,0.1)", color: T.cyan, borderRadius: 4, fontSize: 10, fontWeight: 700 }}>APPROVED</span>
+                                                                                                                )}
+                                                                                                                {historyTab === "sections" && ver.status && (
+                                                                                                                    <span style={{ padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 600, ...statusStyle(ver.status) }}>{ver.status}</span>
+                                                                                                                )}
+                                                                                                            </div>
+                                                                                                            <span style={{ fontSize: 11, color: T.muted, flexShrink: 0 }}>
+                                                                                                                {new Date(ver.updated_at || ver.created_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                                                                                            </span>
+                                                                                                        </button>
+                                                                                                    );
+                                                                                                })}
+                                                                                            </div>
+                                                                                        )}
+
+                                                                                        {selectedHistoryVersion && (
+                                                                                            <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 14 }} className="space-y-3">
+                                                                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                                                                    <h4 style={{ fontSize: 11, fontWeight: 600, color: T.secondary, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+                                                                                                        Preview — v{selectedHistoryVersion.version}
+                                                                                                        {selectedHistoryVersion.is_current_version && " (Current)"}
+                                                                                                        {historyTab === "fields" && selectedHistoryVersion.field_id && (
+                                                                                                            <span style={{ marginLeft: 8, color: T.purple }}>{selectedHistoryVersion.field_id}</span>
+                                                                                                        )}
+                                                                                                    </h4>
+                                                                                                    {!selectedHistoryVersion.is_current_version && (
+                                                                                                        <button onClick={() => handleRestoreVersion(selectedHistoryVersion.version)} disabled={restoringVersion}
+                                                                                                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", fontSize: 11, backgroundColor: "rgba(251,191,36,0.12)", color: T.warning, border: "1px solid rgba(251,191,36,0.3)", borderRadius: 8, cursor: "pointer", opacity: restoringVersion ? 0.5 : 1 }}>
+                                                                                                            {restoringVersion ? <Loader2 className="w-3 h-3 animate-spin" /> : <Undo2 className="w-3 h-3" />}
+                                                                                                            Restore this version
+                                                                                                        </button>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                                <div style={{ maxHeight: 220, overflowY: "auto", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: 12 }}>
+                                                                                                    <pre style={{ fontSize: 11, color: T.secondary, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0 }}>
+                                                                                                        {(() => {
+                                                                                                            const previewData = historyTab === "sections" ? selectedHistoryVersion.content : selectedHistoryVersion.field_value;
+                                                                                                            return typeof previewData === "object" ? JSON.stringify(previewData, null, 2) : String(previewData ?? "null");
+                                                                                                        })()}
+                                                                                                    </pre>
+                                                                                                </div>
+                                                                                            </div>
                                                                                         )}
                                                                                     </div>
-                                                                                ) : null}
-                                                                            </div>
-                                                                        </motion.div>
-                                                                    )}
-                                                                </AnimatePresence>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ));
-                                        })()}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <FolderKanban className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-                                        <p className="text-gray-400">No vault content generated yet</p>
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
+                                                                                );
+                                                                            })()}
 
-                {/* ── Transfer Funnel Modal ──────────────────────── */}
-                {showTransferModal && transferFunnel && (
-                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="bg-[#111113] border border-[#2a2a2d] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
-                        >
-                            {/* Header */}
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-[#2a2a2d]">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-orange-500/10 rounded-xl border border-orange-500/20">
-                                        <ArrowRightLeft className="w-5 h-5 text-orange-400" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-white">Transfer Funnel</h3>
-                                        <p className="text-xs text-gray-500 mt-0.5">Reassign ownership to another user</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => { setShowTransferModal(false); setTransferFunnel(null); setTransferTargetUser(null); }}
-                                    className="p-2 hover:bg-[#2a2a2d] rounded-xl transition-colors"
-                                >
-                                    <X className="w-5 h-5 text-gray-400" />
-                                </button>
-                            </div>
-
-                            {/* Body */}
-                            <div className="px-6 py-5 space-y-5">
-                                {/* Funnel info */}
-                                <div className="p-4 bg-[#1b1b1d] rounded-xl border border-[#2a2a2d]">
-                                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Funnel Being Transferred</p>
-                                    <p className="text-sm font-medium text-white">{transferFunnel.funnel_name || 'Unnamed Funnel'}</p>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Current owner: <span className="text-gray-400">{transferFunnel.user_profiles?.full_name || transferFunnel.user_profiles?.email || 'Unknown'}</span>
-                                    </p>
-                                </div>
-
-                                {/* Search target user */}
-                                <div>
-                                    <label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">Search Target User</label>
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                        <input
-                                            ref={transferSearchRef}
-                                            type="text"
-                                            value={transferSearch}
-                                            onChange={(e) => setTransferSearch(e.target.value)}
-                                            placeholder="Search by name or email..."
-                                            className="w-full pl-10 pr-4 py-2.5 bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl text-sm text-white placeholder:text-gray-600 focus:outline-none focus:border-orange-500/50 transition-colors"
-                                            autoFocus
-                                        />
-                                        {transferSearching && (
-                                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-orange-400 animate-spin" />
-                                        )}
-                                    </div>
-
-                                    {/* Results */}
-                                    {transferSearchResults.length > 0 && !transferTargetUser && (
-                                        <div className="mt-2 max-h-48 overflow-y-auto bg-[#1b1b1d] border border-[#2a2a2d] rounded-xl divide-y divide-[#2a2a2d]">
-                                            {transferSearchResults.map((user) => (
-                                                <button
-                                                    key={user.id}
-                                                    onClick={() => { setTransferTargetUser(user); setTransferSearchResults([]); }}
-                                                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-orange-500/10 transition-colors"
-                                                >
-                                                    <div className="w-8 h-8 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-xs font-bold text-orange-400">
-                                                        {(user.full_name || user.email || '?')[0]?.toUpperCase()}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm text-white truncate">{user.full_name || 'No Name'}</p>
-                                                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
-                                                    </div>
-                                                    <span className="text-[10px] px-2 py-0.5 rounded-full border bg-purple-500/10 border-purple-500/20 text-purple-400">
-                                                        {user.subscription_tier || 'starter'}
-                                                    </span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {transferSearch.length >= 2 && transferSearchResults.length === 0 && !transferSearching && !transferTargetUser && (
-                                        <p className="text-xs text-gray-500 mt-2 text-center py-3">No users found</p>
-                                    )}
-                                </div>
-
-                                {/* Selected target user */}
-                                {transferTargetUser && (
-                                    <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-emerald-500/10 rounded-full">
-                                                    <UserCheck className="w-5 h-5 text-emerald-400" />
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-500 uppercase tracking-wider">Transfer To</p>
-                                                    <p className="text-sm font-medium text-white">{transferTargetUser.full_name || 'No Name'}</p>
-                                                    <p className="text-xs text-gray-400">{transferTargetUser.email}</p>
-                                                </div>
+                                                                            {/* Content display */}
+                                                                            {isEditing ? (
+                                                                                <textarea
+                                                                                    value={editValue}
+                                                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                                                    style={{ width: "100%", height: 360, padding: 14, backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12, color: T.secondary, fontFamily: "monospace", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                                                                                    onFocus={(e) => (e.currentTarget.style.borderColor = T.cyan)}
+                                                                                    onBlur={(e) => (e.currentTarget.style.borderColor = T.border)}
+                                                                                    spellCheck={false}
+                                                                                />
+                                                                            ) : historyField?.sectionId !== item.section_id ? (
+                                                                                <div style={{ maxHeight: 360, overflowY: "auto" }}>
+                                                                                    {item.content ? renderContentValue(item.content) : <p style={{ color: T.muted, fontStyle: "italic" }}>No content data</p>}
+                                                                                </div>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    </motion.div>
+                                                                )}
+                                                            </AnimatePresence>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
-                                            <button
-                                                onClick={() => { setTransferTargetUser(null); setTransferSearch(''); }}
-                                                className="p-1.5 hover:bg-[#2a2a2d] rounded-lg transition-colors"
-                                                title="Change user"
-                                            >
-                                                <X className="w-4 h-4 text-gray-500" />
+                                        ));
+                                    })()}
+                                </div>
+                            ) : (
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 0", gap: 12 }}>
+                                    <FolderKanban style={{ width: 36, height: 36, color: T.border }} />
+                                    <p style={{ color: T.secondary, fontSize: 14 }}>No vault content generated yet</p>
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Transfer Modal */}
+            {showTransferModal && transferFunnel && (
+                <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        style={{ backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 16, width: "100%", maxWidth: 480, overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}
+                    >
+                        {/* Header */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: `1px solid ${T.border}` }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <div style={{ padding: 8, backgroundColor: "rgba(251,146,60,0.1)", borderRadius: 10, border: "1px solid rgba(251,146,60,0.2)" }}>
+                                    <ArrowRightLeft className="w-4 h-4" style={{ color: "#fb923c" }} />
+                                </div>
+                                <div>
+                                    <h3 style={{ color: T.primary, fontSize: 16, fontWeight: 700, margin: 0 }}>Transfer Funnel</h3>
+                                    <p style={{ color: T.muted, fontSize: 11, margin: "2px 0 0" }}>Reassign ownership to another user</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setShowTransferModal(false); setTransferFunnel(null); setTransferTargetUser(null); }}
+                                style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6, borderRadius: 8 }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.surface)}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+                                <X className="w-4 h-4" style={{ color: T.secondary }} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div style={{ padding: 24 }} className="space-y-4">
+                            <div style={{ padding: "12px 14px", backgroundColor: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                                <p style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Funnel Being Transferred</p>
+                                <p style={{ fontSize: 13, fontWeight: 500, color: T.primary, margin: 0 }}>{transferFunnel.funnel_name || "Unnamed Funnel"}</p>
+                                <p style={{ fontSize: 11, color: T.muted, margin: "4px 0 0" }}>
+                                    Current owner: <span style={{ color: T.secondary }}>{transferFunnel.user_profiles?.full_name || transferFunnel.user_profiles?.email || "Unknown"}</span>
+                                </p>
+                            </div>
+
+                            <div>
+                                <label style={{ fontSize: 11, color: T.secondary, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>Search Target User</label>
+                                <div style={{ position: "relative" }}>
+                                    <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: T.muted }} />
+                                    <input ref={transferSearchRef} type="text" value={transferSearch} onChange={(e) => setTransferSearch(e.target.value)}
+                                        placeholder="Search by name or email..."
+                                        style={{ width: "100%", paddingLeft: 38, paddingRight: 14, paddingTop: 10, paddingBottom: 10, backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, fontSize: 13, color: T.primary, outline: "none", boxSizing: "border-box" }}
+                                        onFocus={(e) => (e.currentTarget.style.borderColor = "rgba(251,146,60,0.5)")}
+                                        onBlur={(e) => (e.currentTarget.style.borderColor = T.border)}
+                                        autoFocus />
+                                    {transferSearching && <Loader2 style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "#fb923c" }} className="animate-spin" />}
+                                </div>
+
+                                {transferSearchResults.length > 0 && !transferTargetUser && (
+                                    <div style={{ marginTop: 6, maxHeight: 180, overflowY: "auto", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+                                        {transferSearchResults.map((user) => (
+                                            <button key={user.id} onClick={() => { setTransferTargetUser(user); setTransferSearchResults([]); }}
+                                                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", borderBottom: `1px solid ${T.border}` }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(251,146,60,0.07)")}
+                                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+                                                <div style={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: "rgba(251,146,60,0.1)", border: "1px solid rgba(251,146,60,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fb923c", flexShrink: 0 }}>
+                                                    {(user.full_name || user.email || "?")[0]?.toUpperCase()}
+                                                </div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <p style={{ fontSize: 13, color: T.primary, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.full_name || "No Name"}</p>
+                                                    <p style={{ fontSize: 11, color: T.muted, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.email}</p>
+                                                </div>
+                                                <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, backgroundColor: "rgba(167,139,250,0.1)", border: "1px solid rgba(167,139,250,0.2)", color: T.purple }}>
+                                                    {user.subscription_tier || "starter"}
+                                                </span>
                                             </button>
-                                        </div>
+                                        ))}
                                     </div>
+                                )}
+
+                                {transferSearch.length >= 2 && transferSearchResults.length === 0 && !transferSearching && !transferTargetUser && (
+                                    <p style={{ fontSize: 11, color: T.muted, textAlign: "center", padding: "10px 0" }}>No users found</p>
                                 )}
                             </div>
 
-                            {/* Footer */}
-                            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#2a2a2d]">
-                                <button
-                                    onClick={() => { setShowTransferModal(false); setTransferFunnel(null); setTransferTargetUser(null); }}
-                                    className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors rounded-xl hover:bg-[#2a2a2d]"
-                                >
-                                    Cancel
-                                </button>
-                                <motion.button
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={handleTransfer}
-                                    disabled={!transferTargetUser || transferring}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-sm font-medium rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-orange-500/20"
-                                >
-                                    {transferring ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <ArrowRightLeft className="w-4 h-4" />
-                                    )}
-                                    {transferring ? 'Transferring...' : 'Confirm Transfer'}
-                                </motion.button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </div>
+                            {transferTargetUser && (
+                                <div style={{ padding: "12px 14px", backgroundColor: "rgba(52,211,153,0.05)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: 10 }}>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <div style={{ padding: 7, backgroundColor: "rgba(52,211,153,0.1)", borderRadius: "50%" }}>
+                                                <UserCheck className="w-4 h-4" style={{ color: T.success }} />
+                                            </div>
+                                            <div>
+                                                <p style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>Transfer To</p>
+                                                <p style={{ fontSize: 13, fontWeight: 500, color: T.primary, margin: "2px 0 0" }}>{transferTargetUser.full_name || "No Name"}</p>
+                                                <p style={{ fontSize: 11, color: T.secondary, margin: 0 }}>{transferTargetUser.email}</p>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => { setTransferTargetUser(null); setTransferSearch(""); }}
+                                            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6, borderRadius: 6 }}
+                                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.surface)}
+                                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+                                            <X className="w-4 h-4" style={{ color: T.muted }} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, padding: "16px 24px", borderTop: `1px solid ${T.border}` }}>
+                            <button onClick={() => { setShowTransferModal(false); setTransferFunnel(null); setTransferTargetUser(null); }}
+                                style={{ padding: "9px 14px", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, color: T.secondary, fontSize: 13, cursor: "pointer" }}>
+                                Cancel
+                            </button>
+                            <button onClick={handleTransfer} disabled={!transferTargetUser || transferring}
+                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", background: "linear-gradient(135deg, #f97316, #f59e0b)", color: "#05080B", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: (!transferTargetUser || transferring) ? 0.4 : 1 }}>
+                                {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                                {transferring ? "Transferring..." : "Confirm Transfer"}
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
         </AdminLayout>
+    );
+}
+
+/* ── small helpers ── */
+function ActionBtn({ children, onClick, title, hoverColor = "rgba(255,255,255,0.06)", disabled = false }) {
+    return (
+        <button onClick={onClick} title={title} disabled={disabled}
+            style={{ padding: 8, borderRadius: 8, background: "transparent", border: "none", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "background 0.15s", display: "flex", alignItems: "center" }}
+            onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.backgroundColor = hoverColor; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}>
+            {children}
+        </button>
+    );
+}
+
+function SmallBtn({ children, onClick, disabled = false, color = "#B2C0CD", colorBg = "rgba(255,255,255,0.05)" }) {
+    return (
+        <button onClick={onClick} disabled={disabled}
+            style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", fontSize: 11, backgroundColor: colorBg, color, border: `1px solid ${colorBg}`, borderRadius: 8, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, transition: "all 0.15s", whiteSpace: "nowrap" }}
+            onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.opacity = "0.8"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.opacity = disabled ? "0.5" : "1"; }}>
+            {children}
+        </button>
+    );
+}
+
+function PaginationBtn({ children, onClick, disabled }) {
+    return (
+        <button onClick={onClick} disabled={disabled}
+            style={{ padding: 6, backgroundColor: "#121920", border: "1px solid #1E2A34", borderRadius: 8, cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.4 : 1, color: "#B2C0CD", display: "flex", alignItems: "center", transition: "background 0.15s" }}
+            onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.backgroundColor = "#1E2A34"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#121920"; }}>
+            {children}
+        </button>
     );
 }

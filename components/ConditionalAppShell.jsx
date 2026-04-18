@@ -11,7 +11,7 @@ const SIDEBAR_STORAGE_KEY = "tedos-sidebar-collapsed";
 // Exact routes with no shell
 const NO_SHELL_EXACT = ["/", "/introduction"];
 // Prefix-based routes with no shell
-const NO_SHELL_PREFIXES = ["/dashboard", "/auth"];
+const NO_SHELL_PREFIXES = ["/dashboard", "/auth", "/admin"];
 
 export default function ConditionalAppShell({ children }) {
   const pathname = usePathname();

@@ -26,6 +26,32 @@ import {
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 
+const T = {
+    cardBg: "#0D1217",
+    surface: "#121920",
+    border: "#1E2A34",
+    cyan: "#16C7E7",
+    primary: "#F4F8FB",
+    secondary: "#B2C0CD",
+    muted: "#5a6a78",
+    success: "#34d399",
+    danger: "#f87171",
+    purple: "#a78bfa",
+};
+
+const SOURCE_STYLE = {
+    youtube: { background: "rgba(248,113,113,0.12)", color: "#f87171" },
+    manual: { background: "rgba(96,165,250,0.12)", color: "#60a5fa" },
+    document: { background: "rgba(167,139,250,0.12)", color: "#a78bfa" },
+};
+
+const STATUS_STYLE = {
+    pending: { background: "rgba(90,106,120,0.12)", color: "#5a6a78" },
+    processing: { background: "rgba(22,199,231,0.12)", color: "#16C7E7" },
+    completed: { background: "rgba(52,211,153,0.12)", color: "#34d399" },
+    failed: { background: "rgba(248,113,113,0.12)", color: "#f87171" },
+};
+
 export default function AdminKnowledgeBase() {
     const router = useRouter();
     const { session, loading: authLoading } = useAuth();
@@ -49,29 +75,16 @@ export default function AdminKnowledgeBase() {
     const fetchKnowledgeBase = async () => {
         try {
             setLoading(true);
-
-            // Fetch transcripts (knowledge base source)
-            const transcriptsResponse = await fetch('/api/admin/transcripts?limit=100', {
-                credentials: 'include'
-            });
-
-            if (!transcriptsResponse.ok) {
-                throw new Error('Failed to fetch knowledge base');
-            }
-
+            const transcriptsResponse = await fetch('/api/admin/transcripts?limit=100', { credentials: 'include' });
+            if (!transcriptsResponse.ok) throw new Error('Failed to fetch knowledge base');
             const transcriptsData = await transcriptsResponse.json();
             setTranscripts(transcriptsData.transcripts || []);
 
-            // Fetch RAG stats
-            const statsResponse = await fetch('/api/admin/transcripts/stats', {
-                credentials: 'include'
-            });
-
+            const statsResponse = await fetch('/api/admin/transcripts/stats', { credentials: 'include' });
             if (statsResponse.ok) {
                 const statsData = await statsResponse.json();
                 setStats(statsData.stats);
             }
-
             setError(null);
         } catch (err) {
             console.error('Error fetching knowledge base:', err);
@@ -81,7 +94,6 @@ export default function AdminKnowledgeBase() {
         }
     };
 
-    // Transform transcripts into knowledge base format
     const knowledgeData = useMemo(() => {
         return transcripts.map(t => ({
             id: t.id,
@@ -102,21 +114,24 @@ export default function AdminKnowledgeBase() {
                 accessorKey: "title",
                 header: ({ column }) => (
                     <button
-                        className="flex items-center gap-2 hover:text-cyan transition-colors"
+                        style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: T.muted, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.07em" }}
                         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                     >
-                        Title
-                        <ArrowUpDown className="w-4 h-4" />
+                        Title <ArrowUpDown style={{ width: 12, height: 12 }} />
                     </button>
                 ),
                 cell: ({ row }) => (
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan/20 to-purple-500/20 flex items-center justify-center border border-[#2a2a2d]">
-                            <FileText className="w-5 h-5 text-cyan" />
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div style={{
+                            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+                            backgroundColor: "rgba(22,199,231,0.08)", border: `1px solid ${T.border}`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                            <FileText style={{ width: 16, height: 16, color: T.cyan }} />
                         </div>
                         <div>
-                            <div className="font-medium">{row.original.title}</div>
-                            <div className="text-sm text-gray-400 truncate max-w-md">
+                            <div style={{ color: T.primary, fontWeight: 500, fontSize: 13 }}>{row.original.title}</div>
+                            <div style={{ color: T.muted, fontSize: 12, maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {row.original.description}
                             </div>
                         </div>
@@ -127,13 +142,9 @@ export default function AdminKnowledgeBase() {
                 accessorKey: "sourceType",
                 header: "Source",
                 cell: ({ row }) => {
-                    const sourceColors = {
-                        youtube: "bg-red-500/20 text-red-400",
-                        manual: "bg-blue-500/20 text-blue-400",
-                        document: "bg-purple-500/20 text-purple-400"
-                    };
+                    const st = SOURCE_STYLE[row.original.sourceType] || { background: "rgba(90,106,120,0.12)", color: T.muted };
                     return (
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${sourceColors[row.original.sourceType] || "bg-gray-500/20 text-gray-400"}`}>
+                        <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, textTransform: "capitalize", ...st }}>
                             {row.original.sourceType}
                         </span>
                     );
@@ -143,7 +154,7 @@ export default function AdminKnowledgeBase() {
                 accessorKey: "contentType",
                 header: "Type",
                 cell: ({ row }) => (
-                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-cyan/20 text-cyan">
+                    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: "rgba(22,199,231,0.12)", color: T.cyan }}>
                         {row.original.contentType}
                     </span>
                 ),
@@ -152,9 +163,9 @@ export default function AdminKnowledgeBase() {
                 accessorKey: "chunks",
                 header: "Chunks",
                 cell: ({ row }) => (
-                    <div className="flex items-center gap-2">
-                        <Database className="w-4 h-4 text-gray-400" />
-                        <span className="text-white font-medium">{row.original.chunks}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <Database style={{ width: 13, height: 13, color: T.muted }} />
+                        <span style={{ color: T.primary, fontWeight: 600, fontSize: 13 }}>{row.original.chunks}</span>
                     </div>
                 ),
             },
@@ -162,14 +173,9 @@ export default function AdminKnowledgeBase() {
                 accessorKey: "status",
                 header: "Status",
                 cell: ({ row }) => {
-                    const statusColors = {
-                        pending: "bg-gray-500/20 text-gray-400",
-                        processing: "bg-cyan/20 text-cyan",
-                        completed: "bg-green-500/20 text-green-400",
-                        failed: "bg-red-500/20 text-red-400"
-                    };
+                    const st = STATUS_STYLE[row.original.status] || STATUS_STYLE.pending;
                     return (
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${statusColors[row.original.status] || "bg-gray-500/20 text-gray-400"}`}>
+                        <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600, textTransform: "capitalize", ...st }}>
                             {row.original.status}
                         </span>
                     );
@@ -179,8 +185,8 @@ export default function AdminKnowledgeBase() {
                 accessorKey: "updatedAt",
                 header: "Updated",
                 cell: ({ row }) => (
-                    <div className="flex items-center gap-2 text-gray-400 text-sm">
-                        <Calendar className="w-4 h-4" />
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: T.muted, fontSize: 12 }}>
+                        <Calendar style={{ width: 12, height: 12 }} />
                         {row.original.updatedAt}
                     </div>
                 ),
@@ -191,7 +197,13 @@ export default function AdminKnowledgeBase() {
                 cell: ({ row }) => (
                     <button
                         onClick={() => router.push(`/admin/transcripts/${row.original.id}`)}
-                        className="px-3 py-1 bg-cyan/10 hover:bg-cyan/20 text-cyan rounded-lg text-sm font-medium transition-colors"
+                        style={{
+                            padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                            backgroundColor: "rgba(22,199,231,0.08)", border: `1px solid rgba(22,199,231,0.2)`,
+                            color: T.cyan, transition: "background-color 0.15s ease",
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(22,199,231,0.15)"}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = "rgba(22,199,231,0.08)"}
                     >
                         View Details
                     </button>
@@ -204,28 +216,21 @@ export default function AdminKnowledgeBase() {
     const table = useReactTable({
         data: knowledgeData,
         columns,
-        state: {
-            globalFilter,
-            sorting,
-        },
+        state: { globalFilter, sorting },
         onGlobalFilterChange: setGlobalFilter,
         onSortingChange: setSorting,
         getCoreRowModel: getCoreRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
-        initialState: {
-            pagination: {
-                pageSize: 10,
-            },
-        },
+        initialState: { pagination: { pageSize: 10 } },
     });
 
     if (authLoading || loading) {
         return (
             <AdminLayout>
-                <div className="flex items-center justify-center h-96">
-                    <Loader2 className="h-8 w-8 text-cyan animate-spin" />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 384 }}>
+                    <Loader2 style={{ width: 32, height: 32, color: T.cyan, animation: "spin 1s linear infinite" }} />
                 </div>
             </AdminLayout>
         );
@@ -234,11 +239,9 @@ export default function AdminKnowledgeBase() {
     if (error) {
         return (
             <AdminLayout>
-                <div className="flex items-center justify-center h-96">
-                    <div className="text-center">
-                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                        <p className="text-white text-lg">{error}</p>
-                    </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 384, gap: 12 }}>
+                    <AlertCircle style={{ width: 44, height: 44, color: T.danger }} />
+                    <p style={{ color: T.primary, fontSize: 15 }}>{error}</p>
                 </div>
             </AdminLayout>
         );
@@ -246,139 +249,130 @@ export default function AdminKnowledgeBase() {
 
     return (
         <AdminLayout>
-            <div className="space-y-6">
+            <div style={{ display: "flex", flexDirection: "column", gap: 24, width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+
                 {/* Header */}
-                <div>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-                        <h1 className="text-xl sm:text-2xl font-bold text-white">
-                            Knowledge Base
-                        </h1>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                        <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                <div style={{ width: 3, height: 22, backgroundColor: T.cyan, borderRadius: 2 }} />
+                                <h1 style={{ color: T.primary, fontSize: 22, fontWeight: 700, margin: 0 }}>Knowledge Base</h1>
+                            </div>
+                            <p style={{ color: T.secondary, fontSize: 13, marginLeft: 11 }}>
+                                Ted McGrath&apos;s knowledge base powered by RAG (Retrieval Augmented Generation)
+                            </p>
+                        </div>
                         <button
                             onClick={() => router.push('/admin/transcripts/add')}
-                            className="flex items-center gap-2 px-4 py-2 bg-cyan text-black rounded-lg hover:bg-cyan/90 transition-colors font-medium text-sm whitespace-nowrap self-start sm:self-auto"
+                            style={{
+                                display: "flex", alignItems: "center", gap: 7,
+                                padding: "9px 18px", backgroundColor: T.cyan,
+                                color: "#05080B", fontWeight: 600, fontSize: 13,
+                                border: "none", borderRadius: 8, cursor: "pointer",
+                                flexShrink: 0,
+                            }}
                         >
-                            <Plus className="w-4 h-4" />
+                            <Plus style={{ width: 15, height: 15 }} />
                             Add Content
                         </button>
                     </div>
-                    <p className="text-gray-400 text-sm">
-                        Ted McGrath's knowledge base powered by RAG (Retrieval Augmented Generation)
-                    </p>
                 </div>
 
                 {/* Stats Cards */}
                 {stats && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
-                        >
-                            <div className="text-gray-400 text-xs mb-1">Total Transcripts</div>
-                            <div className="text-2xl font-bold text-white">{stats.transcripts?.total || 0}</div>
-                        </motion.div>
-
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.1 }}
-                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
-                        >
-                            <div className="text-gray-400 text-xs mb-1">Total Chunks</div>
-                            <div className="text-2xl font-bold text-cyan">{stats.chunks?.total || 0}</div>
-                        </motion.div>
-
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
-                        >
-                            <div className="text-gray-400 text-xs mb-1">Completed</div>
-                            <div className="text-2xl font-bold text-green-500">{stats.transcripts?.completed || 0}</div>
-                        </motion.div>
-
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4"
-                        >
-                            <div className="text-gray-400 text-xs mb-1">Avg. Chunks/Transcript</div>
-                            <div className="text-2xl font-bold text-white">{stats.chunks?.average_per_transcript || 0}</div>
-                        </motion.div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 14 }}>
+                        {[
+                            { label: "Total Transcripts", value: stats.transcripts?.total || 0, color: T.primary, delay: 0 },
+                            { label: "Total Chunks", value: stats.chunks?.total || 0, color: T.cyan, delay: 0.07 },
+                            { label: "Completed", value: stats.transcripts?.completed || 0, color: T.success, delay: 0.14 },
+                            { label: "Avg. Chunks", value: stats.chunks?.average_per_transcript || 0, color: T.primary, delay: 0.21 },
+                        ].map(({ label, value, color, delay }) => (
+                            <motion.div
+                                key={label}
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay }}
+                                style={{ backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: "16px 18px" }}
+                            >
+                                <p style={{ color: T.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.07em", margin: "0 0 8px" }}>{label}</p>
+                                <p style={{ color, fontSize: 26, fontWeight: 700, margin: 0 }}>{value}</p>
+                            </motion.div>
+                        ))}
                     </div>
                 )}
 
                 {/* Search Bar */}
-                <div className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg p-4">
-                    <div className="relative">
-                        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
+                <div style={{ backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 12, padding: 16 }}>
+                    <div style={{ position: "relative" }}>
+                        <Search style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: T.muted }} />
                         <input
                             type="text"
                             placeholder="Search knowledge base..."
                             value={globalFilter}
                             onChange={(e) => setGlobalFilter(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-[#1a1a1c] border border-[#2a2a2d] rounded-lg text-white placeholder-gray-500 focus:border-cyan focus:outline-none transition-colors"
+                            style={{
+                                width: "100%", boxSizing: "border-box",
+                                paddingLeft: 42, paddingRight: 16, paddingTop: 10, paddingBottom: 10,
+                                backgroundColor: T.surface, border: `1px solid ${T.border}`,
+                                borderRadius: 9, color: T.primary, fontSize: 13, outline: "none",
+                            }}
+                            onFocus={e => e.currentTarget.style.borderColor = T.cyan}
+                            onBlur={e => e.currentTarget.style.borderColor = T.border}
                         />
                     </div>
                 </div>
 
                 {/* Table */}
-                <div className="bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg overflow-hidden">
+                <div style={{ backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden" }}>
                     {knowledgeData.length === 0 ? (
-                        <div className="text-center py-16">
-                            <Database className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                            <h3 className="text-xl font-semibold text-white mb-2">No Knowledge Base Content</h3>
-                            <p className="text-gray-400 mb-6">
-                                Add Ted McGrath's transcripts to power AI-generated content
-                            </p>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "64px 24px", gap: 14 }}>
+                            <Database style={{ width: 48, height: 48, color: T.border }} />
+                            <h3 style={{ color: T.primary, fontSize: 17, fontWeight: 600, margin: 0 }}>No Knowledge Base Content</h3>
+                            <p style={{ color: T.secondary, fontSize: 14, margin: 0 }}>Add Ted McGrath&apos;s transcripts to power AI-generated content</p>
                             <button
                                 onClick={() => router.push('/admin/transcripts/add')}
-                                className="px-6 py-3 bg-cyan text-black rounded-lg hover:bg-cyan/90 transition-colors inline-flex items-center gap-2 font-medium"
+                                style={{
+                                    display: "flex", alignItems: "center", gap: 7,
+                                    padding: "10px 20px", backgroundColor: T.cyan,
+                                    color: "#05080B", fontWeight: 600, fontSize: 13,
+                                    border: "none", borderRadius: 9, cursor: "pointer", marginTop: 6,
+                                }}
                             >
-                                <Plus className="w-5 h-5" />
+                                <Plus style={{ width: 15, height: 15 }} />
                                 Add First Transcript
                             </button>
                         </div>
                     ) : (
                         <>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-[#1a1a1c] border-b border-[#2a2a2d]">
-                                        {table.getHeaderGroups().map((headerGroup) => (
-                                            <tr key={headerGroup.id}>
-                                                {headerGroup.headers.map((header) => (
-                                                    <th
-                                                        key={header.id}
-                                                        className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider"
-                                                    >
-                                                        {header.isPlaceholder
-                                                            ? null
-                                                            : flexRender(
-                                                                header.column.columnDef.header,
-                                                                header.getContext()
-                                                            )}
+                            <div style={{ overflowX: "auto" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                    <thead>
+                                        {table.getHeaderGroups().map(headerGroup => (
+                                            <tr key={headerGroup.id} style={{ borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface }}>
+                                                {headerGroup.headers.map(header => (
+                                                    <th key={header.id} style={{
+                                                        padding: "10px 14px", textAlign: "left",
+                                                        color: T.muted, fontSize: 11, fontWeight: 600,
+                                                        textTransform: "uppercase", letterSpacing: "0.07em",
+                                                    }}>
+                                                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                                                     </th>
                                                 ))}
                                             </tr>
                                         ))}
                                     </thead>
-                                    <tbody className="divide-y divide-[#2a2a2d]">
-                                        {table.getRowModel().rows.map((row) => (
+                                    <tbody>
+                                        {table.getRowModel().rows.map(row => (
                                             <tr
                                                 key={row.id}
-                                                className="hover:bg-white/5 transition-colors"
+                                                style={{ borderBottom: `1px solid ${T.border}`, transition: "background-color 0.12s ease" }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(22,199,231,0.03)"}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
                                             >
-                                                {row.getVisibleCells().map((cell) => (
-                                                    <td
-                                                        key={cell.id}
-                                                        className="px-4 py-3 text-sm text-white"
-                                                    >
-                                                        {flexRender(
-                                                            cell.column.columnDef.cell,
-                                                            cell.getContext()
-                                                        )}
+                                                {row.getVisibleCells().map(cell => (
+                                                    <td key={cell.id} style={{ padding: "11px 14px", color: T.primary, fontSize: 13 }}>
+                                                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                                     </td>
                                                 ))}
                                             </tr>
@@ -388,34 +382,42 @@ export default function AdminKnowledgeBase() {
                             </div>
 
                             {/* Pagination */}
-                            <div className="px-4 py-3 border-t border-[#2a2a2d] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-[#1a1a1c]">
-                                <div className="text-sm text-gray-400">
-                                    Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1} to{" "}
-                                    {Math.min(
-                                        (table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize,
-                                        knowledgeData.length
-                                    )}{" "}
-                                    of {knowledgeData.length} results
-                                </div>
-                                <div className="flex items-center gap-2">
+                            <div style={{
+                                display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
+                                gap: 12, padding: "12px 16px", borderTop: `1px solid ${T.border}`, backgroundColor: T.surface,
+                            }}>
+                                <p style={{ color: T.secondary, fontSize: 13, margin: 0 }}>
+                                    Showing {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}–
+                                    {Math.min((table.getState().pagination.pageIndex + 1) * table.getState().pagination.pageSize, knowledgeData.length)}{" "}
+                                    of {knowledgeData.length}
+                                </p>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                     <button
                                         onClick={() => table.previousPage()}
                                         disabled={!table.getCanPreviousPage()}
-                                        className="px-4 py-2 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        style={{
+                                            display: "flex", alignItems: "center", gap: 6,
+                                            padding: "6px 12px", backgroundColor: T.cardBg, border: `1px solid ${T.border}`,
+                                            borderRadius: 8, color: T.secondary, fontSize: 13, cursor: !table.getCanPreviousPage() ? "not-allowed" : "pointer",
+                                            opacity: !table.getCanPreviousPage() ? 0.4 : 1,
+                                        }}
                                     >
-                                        <ChevronLeft className="w-4 h-4" />
-                                        Previous
+                                        <ChevronLeft style={{ width: 14, height: 14 }} /> Previous
                                     </button>
-                                    <span className="text-sm text-gray-400">
+                                    <span style={{ color: T.secondary, fontSize: 13 }}>
                                         Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
                                     </span>
                                     <button
                                         onClick={() => table.nextPage()}
                                         disabled={!table.getCanNextPage()}
-                                        className="px-4 py-2 bg-[#2a2a2d] hover:bg-[#3a3a3d] text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        style={{
+                                            display: "flex", alignItems: "center", gap: 6,
+                                            padding: "6px 12px", backgroundColor: T.cardBg, border: `1px solid ${T.border}`,
+                                            borderRadius: 8, color: T.secondary, fontSize: 13, cursor: !table.getCanNextPage() ? "not-allowed" : "pointer",
+                                            opacity: !table.getCanNextPage() ? 0.4 : 1,
+                                        }}
                                     >
-                                        Next
-                                        <ChevronRight className="w-4 h-4" />
+                                        Next <ChevronRight style={{ width: 14, height: 14 }} />
                                     </button>
                                 </div>
                             </div>

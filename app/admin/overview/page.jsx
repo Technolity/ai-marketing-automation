@@ -9,33 +9,59 @@ import {
     Activity,
     TrendingUp,
     TrendingDown,
-    ArrowUpRight,
-    Clock,
-    CheckCircle,
+    ExternalLink,
     AlertCircle,
-    Loader2,
-    ExternalLink
+    Loader2
 } from "lucide-react";
 import {
-    AreaChart,
-    Area,
+    BarChart,
+    Bar,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
+    Legend,
     ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell
+    RadarChart,
+    Radar,
+    PolarGrid,
+    PolarAngleAxis,
+    PolarRadiusAxis,
 } from "recharts";
 import AdminLayout from "@/components/admin/AdminLayout";
 import LaunchBuilderButton from "@/components/LaunchBuilderButton";
 
+// ── Design tokens ─────────────────────────────────────────────────────────────
+const T = {
+    cardBg:        "#0D1217",
+    surfaceBg:     "#121920",
+    border:        "#1E2A34",
+    activeHighlight: "#10333E",
+    cyan:          "#16C7E7",
+    textPrimary:   "#F4F8FB",
+    textSecondary: "#B2C0CD",
+    textMuted:     "#5a6a78",
+    error:         "#f87171",
+    success:       "#34d399",
+    warning:       "#fbbf24",
+    purple:        "#a78bfa",
+};
+
+// ── Shared style helpers ──────────────────────────────────────────────────────
+const sectionLabel = {
+    color: T.textSecondary,
+    fontSize: 13,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    margin: 0,
+};
+
 export default function AdminOverview() {
     const { session, loading: authLoading } = useAuth();
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState(null);
-    const [error, setError] = useState(null);
+    const [stats, setStats]     = useState(null);
+    const [error, setError]     = useState(null);
 
     useEffect(() => {
         if (!authLoading && session) {
@@ -48,27 +74,24 @@ export default function AdminOverview() {
 
     const fetchStats = async () => {
         try {
-            // Use AbortController for timeout (increased to 15s for stats)
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000);
+            const timeoutId  = setTimeout(() => controller.abort(), 15000);
 
-            const response = await fetch('/api/admin/stats', {
-                credentials: 'include', // Include cookies for auth
-                signal: controller.signal
+            const response = await fetch("/api/admin/stats", {
+                credentials: "include",
+                signal: controller.signal,
             });
 
             clearTimeout(timeoutId);
 
-            if (!response.ok) {
-                throw new Error('Failed to fetch stats');
-            }
+            if (!response.ok) throw new Error("Failed to fetch stats");
 
             const data = await response.json();
             setStats(data);
         } catch (err) {
-            console.error('Error fetching stats:', err);
-            if (err.name === 'AbortError') {
-                setError('Request timed out. Please try again.');
+            console.error("Error fetching stats:", err);
+            if (err.name === "AbortError") {
+                setError("Request timed out. Please try again.");
             } else {
                 setError(err.message);
             }
@@ -77,67 +100,89 @@ export default function AdminOverview() {
         }
     };
 
-    // Format tier data for pie chart (TedOS tiers)
-    const tierData = stats ? [
-        { name: "Starter", value: stats.users?.byTier?.starter || 0, color: "#6b7280" },
-        { name: "Growth", value: stats.users?.byTier?.growth || 0, color: "#00E5FF" },
-        { name: "Scale", value: stats.users?.byTier?.scale || 0, color: "#8b5cf6" },
+    // ── Derived data ──────────────────────────────────────────────────────────
+    const radarData = stats ? [
+        { subject: "Users",    value: Math.min(Math.round((stats.users?.total || 0) / 10), 100) },
+        { subject: "Content",  value: Math.min(Math.round((stats.content?.total || 0) / 50), 100) },
+        { subject: "Weekly\nGrowth", value: Math.min(Math.round(((stats.users?.thisWeek || 0) / Math.max(stats.users?.total || 1, 1)) * 2000), 100) },
+        { subject: "Paid %",   value: Math.min(Math.round(((stats.users?.byTier?.growth || 0) + (stats.users?.byTier?.scale || 0)) / Math.max(stats.users?.total || 1, 1) * 100), 100) },
+        { subject: "Sessions", value: Math.min(Math.round((stats.businesses?.total || 0) / 5), 100) },
     ] : [];
 
-    const STATS_CARDS = stats ? [
-        {
-            label: "Total Users",
-            value: stats.users?.total?.toLocaleString() || "0",
-            change: `+${stats.users?.thisWeek || 0} this week`,
-            up: true,
-            icon: Users,
-            color: "cyan"
-        },
-        {
-            label: "Marketing Engines",
-            value: stats.businesses?.total?.toLocaleString() || "0",
-            change: `${stats.businesses?.completed || 0} completed`,
-            up: true,
-            icon: Building2,
-            color: "blue"
-        },
-        {
-            label: "Content Generated",
-            value: stats.content?.total?.toLocaleString() || "0",
-            change: `+${stats.content?.thisWeek || 0} this week`,
-            up: true,
-            icon: FileText,
-            color: "purple"
-        },
-        {
-            label: "Paid Users",
-            value: ((stats.users?.byTier?.growth || 0) + (stats.users?.byTier?.scale || 0)).toLocaleString(),
-            change: `${Math.round(((stats.users?.byTier?.growth || 0) + (stats.users?.byTier?.scale || 0)) / Math.max(stats.users?.total || 1, 1) * 100)}%`,
-            up: true,
-            icon: Activity,
-            color: "green"
-        },
+    const tierPills = stats ? [
+        { name: "Starter", count: stats.users?.byTier?.starter || 0, color: "#5a6a78" },
+        { name: "Growth",  count: stats.users?.byTier?.growth  || 0, color: T.cyan },
+        { name: "Scale",   count: stats.users?.byTier?.scale   || 0, color: T.purple },
     ] : [];
 
+    const paidCount =
+        (stats?.users?.byTier?.growth || 0) + (stats?.users?.byTier?.scale || 0);
+
+    const STATS_CARDS = stats
+        ? [
+            {
+                label:  "Total Users",
+                value:  stats.users?.total?.toLocaleString() || "0",
+                change: `+${stats.users?.thisWeek || 0} this week`,
+                up:     true,
+                icon:   Users,
+            },
+            {
+                label:  "Marketing Engines",
+                value:  stats.businesses?.total?.toLocaleString() || "0",
+                change: `${stats.businesses?.completed || 0} completed`,
+                up:     true,
+                icon:   Building2,
+            },
+            {
+                label:  "Content Generated",
+                value:  stats.content?.total?.toLocaleString() || "0",
+                change: `+${stats.content?.thisWeek || 0} this week`,
+                up:     true,
+                icon:   FileText,
+            },
+            {
+                label:  "Paid Users",
+                value:  paidCount.toLocaleString(),
+                change: `${Math.round(
+                    (paidCount / Math.max(stats.users?.total || 1, 1)) * 100
+                )}% of total`,
+                up:     true,
+                icon:   Activity,
+            },
+        ]
+        : [];
+
+    // ── Loading ───────────────────────────────────────────────────────────────
     if (loading) {
         return (
             <AdminLayout>
-                <div className="flex items-center justify-center h-96">
-                    <Loader2 className="w-8 h-8 text-cyan animate-spin" />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 384 }}>
+                    <Loader2 style={{ width: 32, height: 32, color: T.cyan }} className="animate-spin" />
                 </div>
             </AdminLayout>
         );
     }
 
+    // ── Error ─────────────────────────────────────────────────────────────────
     if (error) {
         return (
             <AdminLayout>
-                <div className="flex flex-col items-center justify-center h-96">
-                    <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
-                    <p className="text-red-400">{error}</p>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 384, gap: 12 }}>
+                    <AlertCircle style={{ width: 40, height: 40, color: T.error }} />
+                    <p style={{ color: T.error, margin: 0 }}>{error}</p>
                     <button
                         onClick={fetchStats}
-                        className="mt-4 px-4 py-2 bg-cyan/10 text-cyan rounded-lg hover:bg-cyan/20 transition-colors"
+                        style={{
+                            marginTop: 8,
+                            padding: "8px 20px",
+                            border: `1px solid ${T.border}`,
+                            backgroundColor: T.surfaceBg,
+                            color: T.textSecondary,
+                            borderRadius: 8,
+                            cursor: "pointer",
+                            fontSize: 13,
+                        }}
                     >
                         Retry
                     </button>
@@ -146,213 +191,364 @@ export default function AdminOverview() {
         );
     }
 
+    // ── Page ──────────────────────────────────────────────────────────────────
     return (
         <AdminLayout>
-            <div className="space-y-6">
-                {/* Header */}
-                <div>
-                    <h1 className="text-xl sm:text-2xl font-bold mb-1">Dashboard Overview</h1>
-                    <p className="text-gray-400 text-sm">Welcome back! Here's what's happening with TedOS today.</p>
-                </div>
-
-                {/* Launch GHL Builder - Admin Tool */}
-                <div className="bg-purple-950/20 border border-purple-500/30 rounded-xl p-4 sm:p-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div>
-                            <h3 className="text-base sm:text-lg font-semibold mb-1 flex items-center gap-2">
-                                <ExternalLink className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400 flex-shrink-0" />
-                                GHL Builder Access
-                            </h3>
-                            <p className="text-gray-400 text-sm">Open your GoHighLevel subaccount builder with a single click</p>
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25 }}
+                style={{ display: "flex", flexDirection: "column", gap: 24, width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}
+            >
+                {/* ── Page header ─────────────────────────────────────────── */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                    <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                            <div style={{
+                                width: 3,
+                                height: 22,
+                                backgroundColor: T.cyan,
+                                borderRadius: 2,
+                                flexShrink: 0,
+                            }} />
+                            <h1 style={{ color: T.textPrimary, fontSize: 22, fontWeight: 700, margin: 0 }}>
+                                Dashboard Overview
+                            </h1>
                         </div>
-                        <div className="self-start sm:self-auto"><LaunchBuilderButton /></div>
+                        <p style={{ color: T.textSecondary, fontSize: 13, marginLeft: 13, marginTop: 2, marginBottom: 0 }}>
+                            Welcome back. Here's what's happening with TedOS today.
+                        </p>
                     </div>
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* ── GHL Builder card ────────────────────────────────────── */}
+                <div style={{
+                    backgroundColor: T.cardBg,
+                    border: `1px solid ${T.border}`,
+                    borderLeft: `3px solid ${T.purple}`,
+                    borderRadius: 12,
+                    padding: "20px 24px",
+                }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+                        <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                <ExternalLink style={{ width: 16, height: 16, color: T.purple, flexShrink: 0 }} />
+                                <p style={{ color: T.textPrimary, fontSize: 15, fontWeight: 600, margin: 0 }}>
+                                    GHL Builder Access
+                                </p>
+                            </div>
+                            <p style={{ color: T.textMuted, fontSize: 13, margin: 0, marginLeft: 24 }}>
+                                Open your GoHighLevel subaccount builder with a single click
+                            </p>
+                        </div>
+                        <div><LaunchBuilderButton /></div>
+                    </div>
+                </div>
+
+                {/* ── Stat cards ──────────────────────────────────────────── */}
+                <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                    gap: 16,
+                }}>
                     {STATS_CARDS.map((stat, index) => {
                         const Icon = stat.icon;
                         return (
                             <motion.div
                                 key={stat.label}
-                                initial={{ opacity: 0, y: 20 }}
+                                initial={{ opacity: 0, y: 12 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.1 }}
-                                className="bg-[#1b1b1d] rounded-2xl p-6 border border-[#2a2a2d] hover:border-cyan/30 transition-all"
+                                transition={{ delay: Math.min(index * 0.07, 0.15) }}
+                                style={{
+                                    backgroundColor: T.cardBg,
+                                    border: `1px solid ${T.border}`,
+                                    borderLeft: `3px solid ${T.cyan}`,
+                                    borderRadius: 12,
+                                    padding: "20px 24px",
+                                }}
                             >
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className={`p-3 rounded-xl bg-${stat.color}-500/10`}>
-                                        <Icon className={`w-6 h-6 text-${stat.color === 'cyan' ? 'cyan' : stat.color + '-500'}`} />
+                                {/* icon row */}
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                                    <div style={{
+                                        width: 36,
+                                        height: 36,
+                                        borderRadius: 8,
+                                        backgroundColor: T.surfaceBg,
+                                        border: `1px solid ${T.border}`,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}>
+                                        <Icon style={{ width: 18, height: 18, color: T.cyan }} />
                                     </div>
-                                    <div className={`flex items-center gap-1 text-sm ${stat.up ? 'text-green-500' : 'text-red-500'}`}>
-                                        {stat.up ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                                        {stat.change}
+                                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                        {stat.up
+                                            ? <TrendingUp style={{ width: 14, height: 14, color: T.success }} />
+                                            : <TrendingDown style={{ width: 14, height: 14, color: T.error }} />}
+                                        <span style={{ color: stat.up ? T.success : T.error, fontSize: 12 }}>
+                                            {stat.change}
+                                        </span>
                                     </div>
                                 </div>
-                                <h3 className="text-2xl sm:text-3xl font-bold mb-1">{stat.value}</h3>
-                                <p className="text-gray-400 text-sm">{stat.label}</p>
+
+                                <p style={{ color: T.textPrimary, fontSize: 32, fontWeight: 700, lineHeight: 1, margin: 0 }}>
+                                    {stat.value}
+                                </p>
+                                <p style={{ color: T.textSecondary, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 6, marginBottom: 0 }}>
+                                    {stat.label}
+                                </p>
                             </motion.div>
                         );
                     })}
                 </div>
 
-                {/* Charts Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Activity Chart */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
-                        className="lg:col-span-2 bg-[#1b1b1d] rounded-2xl p-6 border border-[#2a2a2d]"
+                {/* ── Charts row ──────────────────────────────────────────── */}
+                <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr",
+                    gap: 20,
+                }}>
+                    {/* inner grid: bar chart (2/3) + radar (1/3) */}
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
+                            gap: 20,
+                        }}
+                        className="charts-inner-grid"
                     >
-                        <h3 className="text-lg font-semibold mb-6">Weekly Activity</h3>
-                        {stats?.weeklyActivity && stats.weeklyActivity.length > 0 ? (
-                            <>
-                                <div className="h-72 w-full">
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={288}>
-                                        <AreaChart data={stats.weeklyActivity}>
-                                            <defs>
-                                                <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#00E5FF" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#00E5FF" stopOpacity={0} />
-                                                </linearGradient>
-                                                <linearGradient id="colorContent" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2d" />
-                                            <XAxis dataKey="name" stroke="#6b7280" fontSize={12} />
-                                            <YAxis stroke="#6b7280" fontSize={12} />
-                                            <Tooltip
-                                                contentStyle={{
-                                                    backgroundColor: "#1b1b1d",
-                                                    border: "1px solid #2a2a2d",
-                                                    borderRadius: "8px",
-                                                    color: "#fff"
-                                                }}
-                                            />
-                                            <Area
-                                                type="monotone"
-                                                dataKey="users"
-                                                stroke="#00E5FF"
-                                                fillOpacity={1}
-                                                fill="url(#colorUsers)"
-                                                strokeWidth={2}
-                                            />
-                                            <Area
-                                                type="monotone"
-                                                dataKey="content"
-                                                stroke="#8b5cf6"
-                                                fillOpacity={1}
-                                                fill="url(#colorContent)"
-                                                strokeWidth={2}
-                                            />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                                <div className="flex items-center justify-center gap-6 mt-4">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full bg-cyan" />
-                                        <span className="text-sm text-gray-400">New Users</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full bg-purple-500" />
-                                        <span className="text-sm text-gray-400">Content Generated</span>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="h-72 flex items-center justify-center text-gray-500">
-                                No activity data available
-                            </div>
-                        )}
-                    </motion.div>
+                        {/* Weekly Activity BarChart */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 }}
+                            style={{
+                                backgroundColor: T.cardBg,
+                                border: `1px solid ${T.border}`,
+                                borderRadius: 12,
+                                padding: 24,
+                            }}
+                        >
+                            <p style={{ ...sectionLabel, marginBottom: 20 }}>Weekly Activity</p>
 
-                    {/* Tier Distribution */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 }}
-                        className="bg-[#1b1b1d] rounded-2xl p-6 border border-[#2a2a2d]"
-                    >
-                        <h3 className="text-lg font-semibold mb-6">User Tiers</h3>
-                        {tierData && tierData.some(t => t.value > 0) ? (
-                            <>
-                                <div className="h-48 w-full">
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={192}>
-                                        <PieChart>
-                                            <Pie
-                                                data={tierData}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={50}
-                                                outerRadius={70}
-                                                paddingAngle={5}
-                                                dataKey="value"
-                                            >
-                                                {tierData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                                ))}
-                                            </Pie>
+                            {stats?.weeklyActivity && stats.weeklyActivity.length > 0 ? (
+                                <div style={{ height: 280, width: "100%" }}>
+                                    <ResponsiveContainer width="100%" height="100%" minWidth={260} minHeight={280}>
+                                        <BarChart data={stats.weeklyActivity} barGap={4} barSize={16}>
+                                            <CartesianGrid
+                                                strokeDasharray="3 3"
+                                                stroke={T.border}
+                                                vertical={false}
+                                            />
+                                            <XAxis
+                                                dataKey="name"
+                                                stroke={T.textMuted}
+                                                fontSize={11}
+                                                tickLine={false}
+                                                axisLine={false}
+                                                tick={{ fill: T.textSecondary }}
+                                            />
+                                            <YAxis
+                                                stroke={T.textMuted}
+                                                fontSize={11}
+                                                tickLine={false}
+                                                axisLine={false}
+                                                tick={{ fill: T.textSecondary }}
+                                                width={30}
+                                            />
                                             <Tooltip
                                                 contentStyle={{
-                                                    backgroundColor: "#1b1b1d",
-                                                    border: "1px solid #2a2a2d",
-                                                    borderRadius: "8px",
-                                                    color: "#fff"
+                                                    backgroundColor: T.cardBg,
+                                                    border: `1px solid ${T.border}`,
+                                                    borderRadius: 8,
+                                                    color: T.textPrimary,
+                                                    fontSize: 12,
                                                 }}
+                                                cursor={{ fill: "rgba(22,199,231,0.04)" }}
                                             />
-                                        </PieChart>
+                                            <Legend
+                                                wrapperStyle={{ fontSize: 12, color: T.textSecondary, paddingTop: 16 }}
+                                            />
+                                            <Bar
+                                                dataKey="users"
+                                                name="New Users"
+                                                fill={T.cyan}
+                                                fillOpacity={0.85}
+                                                radius={[4, 4, 0, 0]}
+                                            />
+                                            <Bar
+                                                dataKey="content"
+                                                name="Content"
+                                                fill={T.purple}
+                                                fillOpacity={0.85}
+                                                radius={[4, 4, 0, 0]}
+                                            />
+                                        </BarChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <div className="space-y-2 mt-4">
-                                    {tierData.map((tier) => (
-                                        <div key={tier.name} className="flex items-center gap-2">
-                                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: tier.color }} />
-                                            <span className="text-sm text-gray-400">{tier.name}</span>
-                                            <span className="text-sm text-white ml-auto">{tier.value} users</span>
-                                        </div>
-                                    ))}
+                            ) : (
+                                <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <p style={{ color: T.textMuted, fontSize: 13, margin: 0 }}>No activity data available</p>
                                 </div>
-                            </>
-                        ) : (
-                            <div className="h-48 flex items-center justify-center text-gray-500">
-                                No tier data available
-                            </div>
-                        )}
-                    </motion.div>
+                            )}
+                        </motion.div>
+
+                        {/* Platform Health RadarChart */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.15 }}
+                            style={{
+                                backgroundColor: T.cardBg,
+                                border: `1px solid ${T.border}`,
+                                borderRadius: 12,
+                                padding: 24,
+                                display: "flex",
+                                flexDirection: "column",
+                            }}
+                        >
+                            <p style={{ ...sectionLabel, marginBottom: 20 }}>Platform Health</p>
+
+                            {radarData.length > 0 ? (
+                                <>
+                                    {/* Radar chart — fixed size, centred */}
+                                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+                                        <RadarChart
+                                            cx="50%"
+                                            cy="50%"
+                                            outerRadius={90}
+                                            data={radarData}
+                                            width={280}
+                                            height={260}
+                                        >
+                                            <PolarGrid stroke={T.border} strokeOpacity={0.8} />
+                                            <PolarAngleAxis
+                                                dataKey="subject"
+                                                tick={{ fill: T.textSecondary, fontSize: 11, fontWeight: 500 }}
+                                            />
+                                            <PolarRadiusAxis
+                                                angle={90}
+                                                domain={[0, 100]}
+                                                tick={{ fill: T.textMuted, fontSize: 9 }}
+                                                tickCount={4}
+                                                stroke={T.border}
+                                            />
+                                            <Radar
+                                                name="Platform"
+                                                dataKey="value"
+                                                stroke={T.cyan}
+                                                fill={T.cyan}
+                                                fillOpacity={0.15}
+                                                strokeWidth={2}
+                                                dot={{ fill: T.cyan, r: 3 }}
+                                            />
+                                            <Tooltip
+                                                contentStyle={{
+                                                    backgroundColor: T.cardBg,
+                                                    border: `1px solid ${T.border}`,
+                                                    borderRadius: 8,
+                                                    color: T.textPrimary,
+                                                    fontSize: 12,
+                                                }}
+                                                formatter={(value) => [`${value}/100`, "Score"]}
+                                            />
+                                        </RadarChart>
+                                    </div>
+
+                                    {/* Tier pills */}
+                                    <div style={{
+                                        display: "flex",
+                                        justifyContent: "center",
+                                        gap: 8,
+                                        marginTop: 16,
+                                        flexWrap: "wrap",
+                                    }}>
+                                        {tierPills.map((tier) => (
+                                            <div
+                                                key={tier.name}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 6,
+                                                    backgroundColor: T.surfaceBg,
+                                                    border: `1px solid ${T.border}`,
+                                                    borderRadius: 20,
+                                                    padding: "4px 10px",
+                                                }}
+                                            >
+                                                <div style={{
+                                                    width: 7,
+                                                    height: 7,
+                                                    borderRadius: "50%",
+                                                    backgroundColor: tier.color,
+                                                    flexShrink: 0,
+                                                }} />
+                                                <span style={{ color: T.textSecondary, fontSize: 12 }}>{tier.name}</span>
+                                                <span style={{ color: T.textPrimary, fontSize: 12, fontWeight: 600 }}>{tier.count}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            ) : (
+                                <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <p style={{ color: T.textMuted, fontSize: 13, margin: 0 }}>No platform data available</p>
+                                </div>
+                            )}
+                        </motion.div>
+                    </div>
                 </div>
 
-                {/* Quick Stats */}
+                {/* ── Quick Stats ─────────────────────────────────────────── */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
-                    className="bg-[#1b1b1d] rounded-2xl p-6 border border-[#2a2a2d]"
+                    transition={{ delay: 0.15 }}
+                    style={{
+                        backgroundColor: T.cardBg,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: 12,
+                        padding: 24,
+                    }}
                 >
-                    <h3 className="text-lg font-semibold mb-6">Quick Stats</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="p-4 bg-[#0e0e0f] rounded-xl">
-                            <p className="text-gray-400 text-sm mb-1">New Users This Week</p>
-                            <p className="text-2xl font-bold text-cyan">{stats?.users?.thisWeek || 0}</p>
-                        </div>
-                        <div className="p-4 bg-[#0e0e0f] rounded-xl">
-                            <p className="text-gray-400 text-sm mb-1">New Users This Month</p>
-                            <p className="text-2xl font-bold text-cyan">{stats?.users?.thisMonth || 0}</p>
-                        </div>
-                        <div className="p-4 bg-[#0e0e0f] rounded-xl">
-                            <p className="text-gray-400 text-sm mb-1">Completed Businesses</p>
-                            <p className="text-2xl font-bold text-green-500">{stats?.businesses?.completed || 0}</p>
-                        </div>
-                        <div className="p-4 bg-[#0e0e0f] rounded-xl">
-                            <p className="text-gray-400 text-sm mb-1">Content This Week</p>
-                            <p className="text-2xl font-bold text-purple-500">{stats?.content?.thisWeek || 0}</p>
-                        </div>
+                    <p style={{ ...sectionLabel, marginBottom: 16 }}>Quick Stats</p>
+
+                    <div style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                        gap: 12,
+                    }}>
+                        {[
+                            { label: "New Users This Week",  value: stats?.users?.thisWeek    || 0, color: T.cyan   },
+                            { label: "New Users This Month", value: stats?.users?.thisMonth   || 0, color: T.cyan   },
+                            { label: "Completed Businesses", value: stats?.businesses?.completed || 0, color: T.success },
+                            { label: "Content This Week",    value: stats?.content?.thisWeek  || 0, color: T.purple },
+                        ].map(({ label, value, color }) => (
+                            <div
+                                key={label}
+                                style={{
+                                    backgroundColor: T.surfaceBg,
+                                    borderRadius: 10,
+                                    padding: 16,
+                                }}
+                            >
+                                <p style={{ color: T.textSecondary, fontSize: 12, margin: 0, marginBottom: 6 }}>{label}</p>
+                                <p style={{ color, fontSize: 26, fontWeight: 700, margin: 0, lineHeight: 1 }}>
+                                    {value.toLocaleString()}
+                                </p>
+                            </div>
+                        ))}
                     </div>
                 </motion.div>
-            </div>
+            </motion.div>
+
+            {/* ── Responsive chart grid fix ─────────────────────────────── */}
+            <style>{`
+                @media (max-width: 768px) {
+                    .charts-inner-grid {
+                        grid-template-columns: 1fr !important;
+                    }
+                }
+            `}</style>
         </AdminLayout>
     );
 }

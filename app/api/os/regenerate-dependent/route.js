@@ -271,18 +271,25 @@ async function processRegenerations(userId, sessionId, sections, context) {
         console.warn('[regenerate-dependent] Failed to fetch wizard_answers:', err?.message);
     }
 
-    // Fetch full_name from user_profiles for bio generation
+    // Fetch full_name and business_name from user_profiles for bio/funnelCopy generation
+    // IMPORTANT: Use targetUserId (workspace owner), not userId (Clerk auth ID)
+    // In admin/seat scenarios these can differ — we always want the workspace owner's profile
     try {
         const { data: profileRow } = await supabaseAdmin
             .from('user_profiles')
-            .select('full_name')
-            .eq('user_id', userId)
+            .select('full_name, business_name')
+            .eq('id', targetUserId)
             .maybeSingle();
         if (profileRow?.full_name) {
             baseData.fullName = profileRow.full_name;
+            console.log(`[regenerate-dependent] Injected fullName: "${profileRow.full_name}"`);
+        }
+        if (profileRow?.business_name && !baseData.businessName) {
+            baseData.businessName = profileRow.business_name;
+            console.log(`[regenerate-dependent] Injected businessName: "${profileRow.business_name}"`);
         }
     } catch (err) {
-        console.warn('[regenerate-dependent] Failed to fetch full_name:', err?.message);
+        console.warn('[regenerate-dependent] Failed to fetch user_profiles:', err?.message);
     }
 
     await updateJob(jobId, {

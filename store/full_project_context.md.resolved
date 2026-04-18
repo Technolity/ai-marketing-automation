@@ -34,6 +34,14 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-04-17)
+| File | Change |
+| :--- | :--- |
+| `app/api/os/generate-stream/route.js` | **Bug Fix (Founder Name)**: Added `user_profiles` fetch after `questionnaireData` is built. Injects `fullName` and `businessName` into `questionnaireData` before any section generation. This eliminates the "The Founder" fallback across ALL generated content (bio, funnelCopy, VSL appointment page). |
+| `app/api/os/regenerate-dependent/route.js` | **Bug Fix (Founder Name)**: Fixed profile query to use `targetUserId` (workspace owner) instead of `userId` (Clerk auth), and now also fetches `business_name`. Ensures correct name in admin/seat scenarios and propagates `fullName` + `businessName` to all regenerated sections. |
+| `app/api/os/refine-field/route.js` | **Bug Fix (Founder Name)**: Added `user_profiles` fetch after funnel ownership check. Injects founder name and business name into the system prompt via a `FOUNDER/BUSINESS INFO` block so the AI never outputs "The Founder" during field-level refinement. |
+| `lib/prompts/funnelCopyChunks.js` | **Bug Fix (Founder Name)**: Added `data.fullName` as first option in `founderName` resolution chain in `buildGlobalContext()`. **Bio Word Limit**: Tightened `bio_paragraph_text` in `chunk3_salesPart2` from "Max 300 words" to **STRICT MAX 120 WORDS, exactly 2 paragraphs** — with example structure and style guide to match the user's expected output format. |
+
 ### Recent Modifications (2026-04-14)
 | File | Change |
 | :--- | :--- |

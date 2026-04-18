@@ -17,10 +17,10 @@ import {
 } from "lucide-react";
 
 const TYPE_CONFIG = {
-    info: { label: "Info", icon: Info, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/30" },
-    success: { label: "Success", icon: CheckCircle, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/30" },
-    warning: { label: "Warning", icon: AlertTriangle, color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/30" },
-    discount: { label: "Discount", icon: Tag, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/30" },
+    info:     { label: "Info",     icon: Info,          color: "#60a5fa", bg: "rgba(96,165,250,0.12)",  border: "rgba(96,165,250,0.25)"  },
+    success:  { label: "Success",  icon: CheckCircle,   color: "#34d399", bg: "rgba(52,211,153,0.12)",  border: "rgba(52,211,153,0.25)"  },
+    warning:  { label: "Warning",  icon: AlertTriangle, color: "#fbbf24", bg: "rgba(251,191,36,0.12)",  border: "rgba(251,191,36,0.25)"  },
+    discount: { label: "Discount", icon: Tag,            color: "#a78bfa", bg: "rgba(167,139,250,0.12)", border: "rgba(167,139,250,0.25)" },
 };
 
 export default function AnnouncementsPage() {
@@ -103,23 +103,34 @@ export default function AnnouncementsPage() {
 
     return (
         <AdminLayout>
-            <div className="max-w-5xl mx-auto">
+            <div style={{ maxWidth: 860, margin: "0 auto", width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
                 {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20">
-                            <Megaphone className="w-6 h-6 text-white" />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
+                    <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <div style={{ width: 3, height: 22, backgroundColor: "#16C7E7", borderRadius: 2, flexShrink: 0 }} />
+                            <h1 style={{ color: "#F4F8FB", fontSize: 22, fontWeight: 700, margin: 0 }}>Announcements</h1>
                         </div>
-                        <div>
-                            <h1 className="text-2xl font-bold tracking-tight">Announcements</h1>
-                            <p className="text-sm text-gray-400">
-                                Manage global notifications for all users
-                            </p>
-                        </div>
+                        <p style={{ color: "#B2C0CD", fontSize: 13, margin: 0, marginLeft: 11 }}>
+                            Manage global notifications for all users
+                        </p>
                     </div>
                     <button
                         onClick={() => setShowForm(!showForm)}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan to-blue-500 text-black font-semibold rounded-xl hover:brightness-110 transition-all shadow-lg shadow-cyan/20"
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "9px 18px",
+                            backgroundColor: showForm ? "#121920" : "#16C7E7",
+                            border: showForm ? "1px solid #1E2A34" : "none",
+                            borderRadius: 10,
+                            color: showForm ? "#B2C0CD" : "#05080B",
+                            fontSize: 14,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            transition: "all 0.2s",
+                        }}
                     >
                         {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                         {showForm ? "Cancel" : "New Announcement"}
@@ -133,37 +144,81 @@ export default function AnnouncementsPage() {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="overflow-hidden mb-8"
+                            style={{ overflow: "hidden", marginBottom: 28 }}
                         >
                             <form
                                 onSubmit={handleCreate}
-                                className="bg-[#131314] border border-[#1b1b1d] rounded-2xl p-6 space-y-5"
+                                style={{
+                                    backgroundColor: "#0D1217",
+                                    border: "1px solid #1E2A34",
+                                    borderRadius: 14,
+                                    padding: 24,
+                                }}
                             >
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Title</label>
+                                {/* Title */}
+                                <div style={{ marginBottom: 16 }}>
+                                    <label style={{ color: "#B2C0CD", fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                        Title
+                                    </label>
                                     <input
                                         type="text"
                                         value={form.title}
                                         onChange={(e) => setForm({ ...form, title: e.target.value })}
-                                        placeholder="e.g., 🎉 New Feature Released!"
-                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30 outline-none transition-all"
+                                        placeholder="e.g., New Feature Released!"
                                         required
+                                        style={{
+                                            width: "100%",
+                                            padding: "10px 14px",
+                                            backgroundColor: "#121920",
+                                            border: "1px solid #1E2A34",
+                                            borderRadius: 10,
+                                            color: "#F4F8FB",
+                                            fontSize: 14,
+                                            outline: "none",
+                                            boxSizing: "border-box",
+                                            transition: "border-color 0.15s",
+                                        }}
+                                        onFocus={(e) => (e.target.style.borderColor = "#16C7E7")}
+                                        onBlur={(e) => (e.target.style.borderColor = "#1E2A34")}
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Message</label>
+
+                                {/* Message */}
+                                <div style={{ marginBottom: 16 }}>
+                                    <label style={{ color: "#B2C0CD", fontSize: 12, fontWeight: 600, display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                        Message
+                                    </label>
                                     <textarea
                                         value={form.message}
                                         onChange={(e) => setForm({ ...form, message: e.target.value })}
                                         placeholder="Describe the update, discount, or news..."
                                         rows={3}
-                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30 outline-none transition-all resize-none"
                                         required
+                                        style={{
+                                            width: "100%",
+                                            padding: "10px 14px",
+                                            backgroundColor: "#121920",
+                                            border: "1px solid #1E2A34",
+                                            borderRadius: 10,
+                                            color: "#F4F8FB",
+                                            fontSize: 14,
+                                            outline: "none",
+                                            resize: "none",
+                                            boxSizing: "border-box",
+                                            transition: "border-color 0.15s",
+                                            fontFamily: "inherit",
+                                        }}
+                                        onFocus={(e) => (e.target.style.borderColor = "#16C7E7")}
+                                        onBlur={(e) => (e.target.style.borderColor = "#1E2A34")}
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
-                                    <div className="flex gap-3 flex-wrap">
+
+                                {/* Type selector */}
+                                <div style={{ marginBottom: 20 }}>
+                                    <label style={{ color: "#B2C0CD", fontSize: 12, fontWeight: 600, display: "block", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                        Type
+                                    </label>
+                                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                                         {Object.entries(TYPE_CONFIG).map(([key, cfg]) => {
                                             const Icon = cfg.icon;
                                             const isSelected = form.type === key;
@@ -172,31 +227,56 @@ export default function AnnouncementsPage() {
                                                     key={key}
                                                     type="button"
                                                     onClick={() => setForm({ ...form, type: key })}
-                                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${
-                                                        isSelected
-                                                            ? `${cfg.bg} ${cfg.border} ${cfg.color}`
-                                                            : "bg-[#0e0e0f] border-[#2a2a2d] text-gray-400 hover:border-gray-500"
-                                                    }`}
+                                                    style={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: 6,
+                                                        padding: "7px 14px",
+                                                        borderRadius: 9,
+                                                        fontSize: 13,
+                                                        fontWeight: 600,
+                                                        cursor: "pointer",
+                                                        transition: "all 0.15s",
+                                                        backgroundColor: isSelected ? cfg.bg : "#121920",
+                                                        border: `1px solid ${isSelected ? cfg.border : "#1E2A34"}`,
+                                                        color: isSelected ? cfg.color : "#5a6a78",
+                                                    }}
                                                 >
-                                                    <Icon className="w-4 h-4" />
+                                                    <Icon style={{ width: 14, height: 14 }} />
                                                     {cfg.label}
                                                 </button>
                                             );
                                         })}
                                     </div>
                                 </div>
-                                <div className="flex justify-end">
+
+                                {/* Submit */}
+                                <div style={{ display: "flex", justifyContent: "flex-end" }}>
                                     <button
                                         type="submit"
                                         disabled={creating}
-                                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-cyan to-blue-500 text-black font-semibold rounded-xl hover:brightness-110 transition-all disabled:opacity-50"
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 6,
+                                            padding: "9px 20px",
+                                            backgroundColor: "#16C7E7",
+                                            color: "#05080B",
+                                            border: "none",
+                                            borderRadius: 10,
+                                            fontWeight: 600,
+                                            fontSize: 14,
+                                            cursor: creating ? "not-allowed" : "pointer",
+                                            opacity: creating ? 0.6 : 1,
+                                            transition: "opacity 0.15s",
+                                        }}
                                     >
                                         {creating ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" />
                                         ) : (
-                                            <Plus className="w-4 h-4" />
+                                            <Plus style={{ width: 16, height: 16 }} />
                                         )}
-                                        Publish Announcement
+                                        Publish
                                     </button>
                                 </div>
                             </form>
@@ -206,92 +286,170 @@ export default function AnnouncementsPage() {
 
                 {/* Announcements List */}
                 {loading ? (
-                    <div className="flex justify-center py-20">
-                        <Loader2 className="w-8 h-8 text-cyan animate-spin" />
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "80px 0" }}>
+                        <Loader2 style={{ color: "#16C7E7" }} className="w-8 h-8 animate-spin" />
                     </div>
                 ) : announcements.length === 0 ? (
-                    <div className="text-center py-20 text-gray-500">
-                        <Megaphone className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                        <p className="text-lg font-medium">No announcements yet</p>
-                        <p className="text-sm mt-1">Click "New Announcement" to create one.</p>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 0", gap: 12 }}>
+                        <Megaphone style={{ width: 40, height: 40, color: "#1E2A34" }} />
+                        <p style={{ color: "#B2C0CD", fontSize: 15, fontWeight: 500, margin: 0 }}>No announcements yet</p>
+                        <p style={{ color: "#5a6a78", fontSize: 13, margin: 0 }}>Click "New Announcement" to create one.</p>
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                         {announcements.map((a) => {
                             const cfg = TYPE_CONFIG[a.type] || TYPE_CONFIG.info;
                             const Icon = cfg.icon;
+                            const formattedDate = new Date(a.created_at).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            });
+
                             return (
                                 <motion.div
                                     key={a.id}
                                     layout
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className={`bg-[#131314] border rounded-2xl p-5 transition-all ${
-                                        a.is_active ? cfg.border : "border-[#1b1b1d] opacity-60"
-                                    }`}
+                                    style={{
+                                        backgroundColor: "#0D1217",
+                                        border: `1px solid ${a.is_active ? cfg.border : "#1E2A34"}`,
+                                        borderLeft: `3px solid ${a.is_active ? cfg.color : "#1E2A34"}`,
+                                        borderRadius: 12,
+                                        padding: "16px 20px",
+                                        opacity: a.is_active ? 1 : 0.55,
+                                        transition: "all 0.2s",
+                                    }}
                                 >
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.bg}`}>
-                                                <Icon className={`w-4 h-4 ${cfg.color}`} />
+                                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+                                        {/* Left: icon + content */}
+                                        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flex: 1, minWidth: 0 }}>
+                                            <div style={{
+                                                width: 36,
+                                                height: 36,
+                                                borderRadius: 9,
+                                                backgroundColor: cfg.bg,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}>
+                                                <Icon style={{ width: 16, height: 16, color: cfg.color }} />
                                             </div>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <h3 className="font-semibold text-white truncate">{a.title}</h3>
-                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                                                    <span style={{ color: "#F4F8FB", fontWeight: 600, fontSize: 14 }}>{a.title}</span>
+                                                    <span style={{
+                                                        padding: "2px 8px",
+                                                        borderRadius: 999,
+                                                        fontSize: 11,
+                                                        fontWeight: 600,
+                                                        backgroundColor: cfg.bg,
+                                                        color: cfg.color,
+                                                    }}>
                                                         {cfg.label}
                                                     </span>
-                                                    {a.is_active ? (
-                                                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400">
-                                                            Active
-                                                        </span>
-                                                    ) : (
-                                                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-500/10 text-gray-400">
-                                                            Inactive
-                                                        </span>
-                                                    )}
+                                                    <span style={{
+                                                        padding: "2px 8px",
+                                                        borderRadius: 999,
+                                                        fontSize: 11,
+                                                        fontWeight: 600,
+                                                        backgroundColor: a.is_active ? "rgba(52,211,153,0.12)" : "rgba(90,106,120,0.15)",
+                                                        color: a.is_active ? "#34d399" : "#5a6a78",
+                                                    }}>
+                                                        {a.is_active ? "Active" : "Inactive"}
+                                                    </span>
                                                 </div>
-                                                <p className="text-sm text-gray-400 line-clamp-2">{a.message}</p>
-                                                <p className="text-xs text-gray-600 mt-2">
-                                                    Created {new Date(a.created_at).toLocaleDateString("en-US", {
-                                                        month: "short",
-                                                        day: "numeric",
-                                                        year: "numeric",
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                    })}
+                                                <p style={{
+                                                    color: "#B2C0CD",
+                                                    fontSize: 13,
+                                                    lineHeight: 1.5,
+                                                    margin: 0,
+                                                    display: "-webkit-box",
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: "vertical",
+                                                    overflow: "hidden",
+                                                }}>
+                                                    {a.message}
+                                                </p>
+                                                <p style={{ color: "#5a6a78", fontSize: 11, marginTop: 8, marginBottom: 0 }}>
+                                                    Created {formattedDate}
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
+
+                                        {/* Right: action buttons */}
+                                        <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                                            {/* Toggle */}
                                             <button
                                                 onClick={() => handleToggle(a.id, a.is_active)}
                                                 disabled={togglingId === a.id}
                                                 title={a.is_active ? "Deactivate" : "Activate"}
-                                                className={`p-2 rounded-xl transition-all ${
-                                                    a.is_active
-                                                        ? "hover:bg-emerald-500/10 text-emerald-400"
-                                                        : "hover:bg-gray-500/10 text-gray-500"
-                                                }`}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    width: 34,
+                                                    height: 34,
+                                                    borderRadius: 8,
+                                                    border: "none",
+                                                    backgroundColor: "transparent",
+                                                    color: a.is_active ? "#34d399" : "#5a6a78",
+                                                    cursor: togglingId === a.id ? "not-allowed" : "pointer",
+                                                    transition: "background-color 0.15s",
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.backgroundColor = a.is_active
+                                                        ? "rgba(52,211,153,0.1)"
+                                                        : "rgba(90,106,120,0.1)";
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.backgroundColor = "transparent";
+                                                }}
                                             >
                                                 {togglingId === a.id ? (
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                    <Loader2 style={{ width: 18, height: 18 }} className="animate-spin" />
                                                 ) : a.is_active ? (
-                                                    <ToggleRight className="w-5 h-5" />
+                                                    <ToggleRight style={{ width: 18, height: 18 }} />
                                                 ) : (
-                                                    <ToggleLeft className="w-5 h-5" />
+                                                    <ToggleLeft style={{ width: 18, height: 18 }} />
                                                 )}
                                             </button>
+
+                                            {/* Delete */}
                                             <button
                                                 onClick={() => handleDelete(a.id)}
                                                 disabled={deletingId === a.id}
                                                 title="Delete"
-                                                className="p-2 rounded-xl hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-all"
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    width: 34,
+                                                    height: 34,
+                                                    borderRadius: 8,
+                                                    border: "none",
+                                                    backgroundColor: "transparent",
+                                                    color: "#5a6a78",
+                                                    cursor: deletingId === a.id ? "not-allowed" : "pointer",
+                                                    transition: "background-color 0.15s, color 0.15s",
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.backgroundColor = "rgba(239,68,68,0.1)";
+                                                    e.currentTarget.style.color = "#f87171";
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.backgroundColor = "transparent";
+                                                    e.currentTarget.style.color = "#5a6a78";
+                                                }}
                                             >
                                                 {deletingId === a.id ? (
-                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                    <Loader2 style={{ width: 18, height: 18 }} className="animate-spin" />
                                                 ) : (
-                                                    <Trash2 className="w-5 h-5" />
+                                                    <Trash2 style={{ width: 18, height: 18 }} />
                                                 )}
                                             </button>
                                         </div>
