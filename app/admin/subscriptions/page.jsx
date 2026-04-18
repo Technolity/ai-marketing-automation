@@ -448,7 +448,7 @@ export default function AdminSubscriptions() {
 
     return (
         <AdminLayout>
-            <div style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+            <div style={{ width: "100%", maxWidth: "100%", overflowX: "auto", boxSizing: "border-box" }}>
 
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3" style={{ marginBottom: 24 }}>

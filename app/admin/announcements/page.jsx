@@ -104,7 +104,7 @@ export default function AnnouncementsPage() {
 
     return (
         <AdminLayout>
-            <div style={{ maxWidth: 860, margin: "0 auto", width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+            <div style={{ maxWidth: 860, margin: "0 auto", width: "100%", overflowX: "auto", boxSizing: "border-box" }}>
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
                     <div>

@@ -650,7 +650,7 @@ export default function AdminFunnels() {
                 {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             </AnimatePresence>
 
-            <div className="space-y-6" style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+            <div className="space-y-6" style={{ width: "100%", maxWidth: "100%", overflowX: "auto", boxSizing: "border-box" }}>
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

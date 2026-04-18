@@ -84,7 +84,7 @@ export default function AdminBilling() {
 
     return (
         <AdminLayout>
-            <div style={{ display: "flex", flexDirection: "column", gap: 32, width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 32, width: "100%", maxWidth: "100%", overflowX: "auto", boxSizing: "border-box" }}>
                 {/* Header */}
                 <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>

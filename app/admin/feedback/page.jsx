@@ -320,7 +320,7 @@ export default function FeedbackPage() {
 
   return (
     <AdminLayout>
-      <div className="p-6 md:p-8 space-y-6" style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+      <div className="p-6 md:p-8 space-y-6" style={{ width: "100%", maxWidth: "100%", overflowX: "auto", boxSizing: "border-box" }}>
 
         {/* Page header */}
         <div className="flex items-start justify-between gap-4 flex-wrap">

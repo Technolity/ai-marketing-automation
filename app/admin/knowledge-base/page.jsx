@@ -250,7 +250,7 @@ export default function AdminKnowledgeBase() {
 
     return (
         <AdminLayout>
-            <div style={{ display: "flex", flexDirection: "column", gap: 24, width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 24, width: "100%", maxWidth: "100%", overflowX: "auto", boxSizing: "border-box" }}>
 
                 {/* Header */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

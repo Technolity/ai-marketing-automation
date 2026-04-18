@@ -159,7 +159,7 @@ export default function AddKnowledgeContent() {
 
     return (
         <AdminLayout>
-            <div style={{ maxWidth: 720, marginLeft: "auto", marginRight: "auto", display: "flex", flexDirection: "column", gap: 24, width: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+            <div style={{ maxWidth: 720, marginLeft: "auto", marginRight: "auto", display: "flex", flexDirection: "column", gap: 24, width: "100%", overflowX: "auto", boxSizing: "border-box" }}>
 
                 {/* Header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>

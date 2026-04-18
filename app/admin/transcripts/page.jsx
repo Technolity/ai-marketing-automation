@@ -194,7 +194,7 @@ export default function TranscriptsPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6" style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+      <div className="space-y-6" style={{ width: "100%", maxWidth: "100%", overflowX: "auto", boxSizing: "border-box" }}>
         {/* Header */}
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">

@@ -401,9 +401,9 @@ export default function AdminLayout({ children }) {
                 className={`flex-1 md:ml-14 transition-all duration-300 ${
                     sidebarCollapsed ? "lg:ml-20" : "lg:ml-[280px]"
                 }`}
-                style={{ overflow: "hidden", maxWidth: "100vw" }}
+                style={{ overflowX: "auto", overflowY: "hidden", maxWidth: "100vw" }}
             >
-                <div className="p-4 pt-[72px] md:p-6 lg:p-8" style={{ width: "100%", maxWidth: "100%", overflowX: "hidden", boxSizing: "border-box" }}>
+                <div className="p-4 pt-[72px] md:p-6 lg:p-8" style={{ width: "100%", maxWidth: "100%", overflowX: "auto", boxSizing: "border-box" }}>
                     {children}
                 </div>
             </main>
