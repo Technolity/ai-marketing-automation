@@ -337,7 +337,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Generation failed');
-            await handleFieldSave('product_mockup', data.image_url);
+            await handleFieldSave('banner_image', data.image_url);
             toast.success('Free gift image generated!');
             setAiPanelOpen(false);
             setAiStylePrompt('');
@@ -351,7 +351,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
     };
 
     const handleRemoveBg = async () => {
-        const currentUrl = getFieldValue('product_mockup');
+        const currentUrl = getFieldValue('banner_image');
         if (!currentUrl) { toast.error('No image to process. Upload or generate an image first.'); return; }
         setIsRemovingBg(true);
         try {
@@ -361,7 +361,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Background removal failed');
-            await handleFieldSave('product_mockup', data.url);
+            await handleFieldSave('banner_image', data.url);
             toast.success('Background removed!');
         } catch (err) {
             console.error('[MediaFields] Remove BG error:', err);
@@ -378,7 +378,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
         const isImage = fieldDef.field_type === 'cloudinary_image';
         const isVideo = fieldDef.field_type === 'video_url';
 
-        const isProductMockup = fieldDef.field_id === 'product_mockup';
+        const isFreeGiftImage = fieldDef.field_id === 'banner_image' || fieldDef.field_id === 'product_mockup';
 
         return (
             <div key={fieldDef.field_id} className="bg-[#18181b] border border-[#2a2a2d] rounded-xl p-6">
@@ -523,8 +523,8 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                     </div>
                 )}
 
-                {/* AI Generator — only on Free Gift Image (product_mockup) */}
-                {isProductMockup && (
+                {/* AI Generator — only on Free Gift Image (banner_image) */}
+                {isFreeGiftImage && (
                     <div className="mt-4 rounded-xl border border-[#2a2a2d] overflow-hidden">
                         <button
                             type="button"
