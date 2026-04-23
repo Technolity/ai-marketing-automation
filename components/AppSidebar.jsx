@@ -1,13 +1,16 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { BookOpen, Users, Shield, PanelLeftClose, PanelLeftOpen, LayoutDashboard, X } from "lucide-react";
+import { BookOpen, Users, Shield, PanelLeftClose, PanelLeftOpen, LayoutDashboard, X, ExternalLink } from "lucide-react";
 import { SignedIn, UserButton, useUser } from "@clerk/nextjs";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import PlanBadge from "@/components/PlanBadge";
+import BugReportModal from "@/components/BugReportModal";
 import { motion, AnimatePresence } from "framer-motion";
+import { GeistSans } from "geist/font/sans";
 
 function NavItem({ href, icon: Icon, label, collapsed, active, isAdmin: adminStyle, onClick }) {
   return (
@@ -43,6 +46,55 @@ function NavItem({ href, icon: Icon, label, collapsed, active, isAdmin: adminSty
 }
 
 function SidebarBody({ collapsed, onToggle, onClose, isAdmin, loading, pathname, workspaceDisplayName, workspaceAccessLabel, onLinkClick }) {
+  const [engineCount, setEngineCount] = useState(null);
+  const [maxEngines, setMaxEngines] = useState(null);
+  const [hasDeployedFunnel, setHasDeployedFunnel] = useState(false);
+  const [builderLocationId, setBuilderLocationId] = useState("");
+
+  useEffect(() => {
+    async function fetchEngineData() {
+      try {
+        const [funnelsRes, profileRes] = await Promise.all([
+          fetch("/api/user/funnels"),
+          fetch("/api/user/profile"),
+        ]);
+        if (funnelsRes.ok) {
+          const funnelsData = await funnelsRes.json();
+          const userFunnels = funnelsData.funnels || (Array.isArray(funnelsData) ? funnelsData : []);
+          setEngineCount(userFunnels.length || (funnelsData?.count ?? 0));
+          
+          const deployed = userFunnels.some((funnel) => funnel.deployed_at);
+          setHasDeployedFunnel(deployed);
+
+          if (deployed) {
+            try {
+              const builderRes = await fetch("/api/builder/location");
+              if (builderRes.ok) {
+                const builderData = await builderRes.json();
+                if (builderData.available && builderData.locationId) {
+                  setBuilderLocationId(builderData.locationId);
+                }
+              }
+            } catch (error) {
+              console.error("[AppSidebar] Builder location fetch error:", error);
+            }
+          }
+        }
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          setMaxEngines(profileData?.max_funnels ?? null);
+        }
+      } catch {
+        // silently fail — engine count is non-critical
+      }
+    }
+    fetchEngineData();
+  }, []);
+
+  const builderUrl = builderLocationId
+    ? `https://app.tedos.ai/v2/location/${builderLocationId}/funnels-websites/funnels`
+    : "https://app.tedos.ai";
+
   return (
     <>
       {/* Header */}
@@ -113,10 +165,33 @@ function SidebarBody({ collapsed, onToggle, onClose, isAdmin, loading, pathname,
         "border-t border-white/[0.06] flex-shrink-0",
         collapsed ? "p-3 flex flex-col items-center gap-3" : "p-4 flex flex-col gap-3"
       )}>
+        <BugReportModal collapsed={collapsed} />
         <SignedIn>
           {!collapsed && (
             <div className="w-full">
               <PlanBadge />
+              <div className="mt-3.5 rounded-[16px] border border-white/[0.07] bg-[#111214] p-3.5 mb-4">
+                  <div className="flex items-center justify-between gap-3">
+                      <div>
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#7d7d84]">Active engines</p>
+                          <p className={cn(GeistSans.className, "mt-1.5 text-[20px] font-semibold tracking-[-0.03em] text-white")}>
+                              {engineCount !== null ? engineCount : 0}<span className="ml-1 text-xs text-[#7d7d84]">/ {maxEngines !== null ? maxEngines : 1}</span>
+                          </p>
+                      </div>
+                      {(hasDeployedFunnel || builderLocationId) ? (
+                          <a href={builderUrl} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-emerald-500/25 bg-emerald-500/10 px-3 text-[12px] font-medium text-emerald-400 transition-colors hover:bg-emerald-500/20 hover:text-emerald-300">
+                              Builder<ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                      ) : (
+                          <span
+                              className="inline-flex h-9 items-center gap-1.5 rounded-[12px] border border-white/[0.06] bg-[#0d0e0f] px-3 text-[12px] font-medium text-[#4a4a52] cursor-not-allowed select-none"
+                              title="Deploy a funnel to unlock Builder">
+                              Builder<ExternalLink className="h-3.5 w-3.5" />
+                          </span>
+                      )}
+                  </div>
+              </div>
             </div>
           )}
           <div className={cn("flex items-center gap-2.5", collapsed ? "justify-center" : "")}>

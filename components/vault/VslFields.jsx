@@ -249,13 +249,23 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
         { id: 'shortForm', label: 'Short Form' }
     ];
 
-    // Teleprompter sections for the current tab
-    const teleprompterSections = currentPredefinedFields.map(def => ({
+    // Teleprompter sections for the current tab; falls back to long form if short form is empty
+    const rawTeleprompterSections = currentPredefinedFields.map(def => ({
         label: def.field_label,
         text: currentFields.find(f => f.field_id === def.field_id)?.field_value || ''
     })).filter(s => s.text);
 
-    const teleprompterTitle = activeTab === 'longForm' ? 'Funnel Video Script' : 'Appointment Booking Video Script';
+    const isUsingFallback = rawTeleprompterSections.length === 0 && activeTab === 'shortForm';
+    const teleprompterSections = isUsingFallback
+        ? longFormPredefinedFields.map(def => ({
+            label: def.field_label,
+            text: fields.find(f => f.field_id === def.field_id)?.field_value || ''
+        })).filter(s => s.text)
+        : rawTeleprompterSections;
+
+    const teleprompterTitle = isUsingFallback
+        ? 'Funnel Video Script'
+        : activeTab === 'longForm' ? 'Funnel Video Script' : 'Appointment Booking Video Script';
     const exportTitle = activeTab === 'longForm' ? 'VSL Script' : 'Short Form VSL Script';
 
     return (
@@ -288,7 +298,7 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
                 )}
             </div>
 
-            {!isLoading && currentFields.length > 0 && (
+            {!isLoading && fields.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-[#2a2a2d] flex items-center justify-between">
                     <button
                         onClick={() => setTeleprompterOpen(true)}
@@ -299,20 +309,24 @@ export default function VslFields({ funnelId, onUnapprove, isApproved, refreshTr
                         <span>Teleprompter</span>
                     </button>
                     <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => exportSectionToPDF(currentFields, exportTitle)}
-                            className="p-2 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
-                            title="Download PDF"
-                        >
-                            <Download className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => exportSectionToCSV(currentFields, exportTitle)}
-                            className="p-2 rounded-lg border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-colors"
-                            title="Download CSV"
-                        >
-                            <Table className="w-4 h-4" />
-                        </button>
+                        {currentFields.length > 0 && (
+                            <>
+                                <button
+                                    onClick={() => exportSectionToPDF(currentFields, exportTitle)}
+                                    className="p-2 rounded-lg border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
+                                    title="Download PDF"
+                                >
+                                    <Download className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => exportSectionToCSV(currentFields, exportTitle)}
+                                    className="p-2 rounded-lg border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 transition-colors"
+                                    title="Download CSV"
+                                >
+                                    <Table className="w-4 h-4" />
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}

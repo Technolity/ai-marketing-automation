@@ -14,9 +14,9 @@ import { toast } from "sonner";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const AI_MODELS = [
-  { id: "dall-e-3",     label: "DALL·E 3",     badge: "Best", provider: "OpenAI",  available: true },
-  { id: "dall-e-2",     label: "DALL·E 2",     badge: "Fast", provider: "OpenAI",  available: true },
-  { id: "nano-banana",  label: "Nano Banana",  badge: "New",  provider: "Google",  available: true },
+  { id: "gemini-2.5-flash-image", label: "Gemini Flash", badge: "Primary", provider: "Google",  available: true },
+  { id: "gpt-image-2",            label: "GPT Image 2",  badge: "Latest",  provider: "OpenAI",  available: true },
+  { id: "dall-e-3",               label: "DALL·E 3",     badge: "Quality", provider: "OpenAI",  available: true },
 ];
 
 const STYLE_TAGS = [
@@ -24,10 +24,7 @@ const STYLE_TAGS = [
   "Neon Glow", "Clean & Sharp", "Luxury", "High Contrast", "3D Render",
 ];
 
-const POST_TYPES = [
-  { id: "free_gift", label: "Free Gift Ad" },
-  { id: "general",  label: "General Post" },
-];
+// Post type is always "general" — free gift generation moved to Vault section
 
 const ASPECT_RATIOS = [
   { id: "1024x1024", label: "1:1" },
@@ -38,10 +35,10 @@ const ASPECT_RATIOS = [
 // ─── ModelDropdown (portal — renders below the button, never clipped) ──────────
 
 function ModelDropdown({ selected, onSelect }) {
-  const [open, setOpen]   = useState(false);
-  const [pos, setPos]     = useState({ top: 0, left: 0, width: 0 });
+  const [open, setOpen]       = useState(false);
+  const [pos, setPos]         = useState({ top: 0, left: 0, width: 0 });
   const [mounted, setMounted] = useState(false);
-  const btnRef            = useRef(null);
+  const btnRef                = useRef(null);
   const model = AI_MODELS.find(m => m.id === selected) || AI_MODELS[0];
 
   useEffect(() => { setMounted(true); }, []);
@@ -259,9 +256,9 @@ function EmptyCanvas({ hasContext, noFunnel }) {
 }
 
 function ImageCanvas({ post, onDownload, downloading }) {
-  const [copied, setCopied]       = useState(false);
+  const [copied, setCopied]         = useState(false);
   const [removingBg, setRemovingBg] = useState(false);
-  const [nobgUrl, setNobgUrl]     = useState(null);
+  const [nobgUrl, setNobgUrl]       = useState(null);
 
   const displayUrl = nobgUrl || post.image_url;
 
@@ -373,11 +370,11 @@ function ImageCanvas({ post, onDownload, downloading }) {
 // ─── CaptionPanel ─────────────────────────────────────────────────────────────
 
 function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset, onCaptionSaved }) {
-  const [caption, setCaption]       = useState(post.caption);
-  const [copied, setCopied]         = useState(false);
+  const [caption, setCaption]           = useState(post.caption);
+  const [copied, setCopied]             = useState(false);
   const [feedbackMode, setFeedbackMode] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
-  const [saving, setSaving]         = useState(false);
+  const [saving, setSaving]             = useState(false);
 
   const captionDirty = caption !== post.caption;
 
@@ -540,24 +537,365 @@ function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset, onCaptionS
   );
 }
 
+// ─── TopicRow ─────────────────────────────────────────────────────────────────
+
+function TopicRow({ item, onApprove, onUndo, onFeedbackChange, onFeedbackSubmit, onImageGenerate, onImageFeedbackChange, onImageFeedbackSubmit }) {
+  const approved = item.status === "approved";
+
+  return (
+    <div className={`rounded-lg border p-3 ${approved ? "border-cyan/20 bg-cyan/[0.03]" : "border-subtle bg-charcoal"}`}>
+      {/* Main row */}
+      <div className="flex items-center gap-2">
+        {approved ? (
+          <CheckCircle className="w-3.5 h-3.5 text-cyan shrink-0" />
+        ) : (
+          <span className="text-[10px] font-bold text-gray-600 w-6 shrink-0 tabular-nums">
+            {String(item.id).padStart(2, "0")}
+          </span>
+        )}
+
+        <span className="text-xs text-gray-300 flex-1 leading-snug">{item.topic}</span>
+
+        <div className="flex items-center gap-1 shrink-0">
+          {approved ? (
+            <>
+              <button
+                onClick={() => onImageGenerate(item.id)}
+                disabled={item.imageGenerating}
+                className="flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer disabled:opacity-40"
+              >
+                {item.imageGenerating ? (
+                  <><Loader2 className="w-3 h-3 animate-spin" /> Generating…</>
+                ) : (
+                  "Generate Image"
+                )}
+              </button>
+              <button
+                onClick={() => onUndo(item.id)}
+                className="px-2 py-1 rounded-md text-[10px] border border-subtle text-gray-500 hover:text-gray-300 cursor-pointer transition-colors"
+              >
+                Undo
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => onApprove(item.id)}
+                className="px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => onFeedbackChange(item.id, null)}
+                className="px-2 py-1 rounded-md text-[10px] border border-subtle text-gray-500 hover:text-gray-300 cursor-pointer transition-colors"
+              >
+                Feedback {item.feedbackOpen ? "▴" : "▾"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Pending: inline feedback textarea */}
+      {!approved && item.feedbackOpen && (
+        <div className="mt-2 space-y-1.5">
+          <textarea
+            value={item.feedback}
+            onChange={e => onFeedbackChange(item.id, e.target.value)}
+            rows={2}
+            placeholder="Describe what you'd like to change about this topic…"
+            className="bg-surface border border-subtle rounded-lg p-2 text-xs text-gray-300 w-full focus:outline-none focus:border-subtleAlt resize-none placeholder-gray-700"
+          />
+          <button
+            onClick={() => onFeedbackSubmit(item.id)}
+            disabled={!item.feedback.trim()}
+            className="px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer disabled:opacity-40"
+          >
+            Regenerate Topic
+          </button>
+        </div>
+      )}
+
+      {/* Approved: generated image */}
+      {approved && item.post !== null && (
+        <div className="mt-2">
+          <img
+            src={item.post.image_url}
+            alt={`Post for day ${item.id}`}
+            className="w-full max-h-40 object-cover rounded-lg mt-2 border border-subtle"
+          />
+          {item.post.caption && (
+            <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{item.post.caption}</p>
+          )}
+          {/* Image feedback row */}
+          <div className="flex gap-1.5 mt-2">
+            <input
+              type="text"
+              value={item.imageFeedback}
+              onChange={e => onImageFeedbackChange(item.id, e.target.value)}
+              placeholder="Refine this image…"
+              className="flex-1 bg-surface border border-subtle rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-subtleAlt placeholder-gray-700"
+            />
+            <button
+              onClick={() => onImageFeedbackSubmit(item.id)}
+              disabled={!item.imageFeedback.trim() || item.imageGenerating}
+              className="px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+            >
+              {item.imageGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : "Regenerate"}
+            </button>
+            <a
+              href={item.post.image_url}
+              download={`day-${item.id}-post.png`}
+              className="flex items-center justify-center px-2 py-1.5 rounded-lg border border-subtle text-gray-500 hover:text-gray-300 hover:border-subtleAlt transition-colors cursor-pointer"
+              title="Download image"
+            >
+              <Download className="w-3.5 h-3.5" />
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ThirtyDayCalendar ────────────────────────────────────────────────────────
+
+function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, referenceImages, userDescription, missingVault }) {
+  const [topics, setTopics]       = useState([]);
+  const [generating, setGenerating] = useState(false);
+  const [expandedId, setExpandedId] = useState(null); // reserved for future use
+
+  void expandedId; // suppress unused-var lint
+
+  const approvedCount = topics.filter(t => t.status === "approved").length;
+
+  const handleGenerateTopics = async () => {
+    if (!vaultCtx || missingVault) return;
+    setGenerating(true);
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/topics", {
+        method: "POST",
+        body: JSON.stringify({ funnel_id: funnelId, vault_context: vaultCtx }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to generate topics");
+      setTopics(
+        data.topics.map((t, i) => ({
+          id: i + 1,
+          topic: t,
+          status: "pending",
+          feedback: "",
+          feedbackOpen: false,
+          post: null,
+          imageGenerating: false,
+          imageFeedback: "",
+        }))
+      );
+    } catch (err) {
+      toast.error(err.message || "Topic generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleApprove = (id) => {
+    setTopics(prev => prev.map(t => t.id === id ? { ...t, status: "approved", feedbackOpen: false } : t));
+  };
+
+  const handleUndo = (id) => {
+    setTopics(prev => prev.map(t => t.id === id ? { ...t, status: "pending" } : t));
+  };
+
+  // value === null means toggle feedbackOpen; otherwise update feedback text
+  const handleFeedbackChange = (id, value) => {
+    setTopics(prev => prev.map(t => {
+      if (t.id !== id) return t;
+      if (value === null) return { ...t, feedbackOpen: !t.feedbackOpen, feedback: "" };
+      return { ...t, feedback: value };
+    }));
+  };
+
+  const handleFeedbackSubmit = async (id) => {
+    const item = topics.find(t => t.id === id);
+    if (!item || !item.feedback.trim()) return;
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/topics", {
+        method: "POST",
+        body: JSON.stringify({
+          funnel_id: funnelId,
+          vault_context: vaultCtx,
+          feedback: item.feedback,
+          topic_index: item.id - 1,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to regenerate topic");
+      const newTopic = Array.isArray(data.topics) ? data.topics[0] : data.topic;
+      setTopics(prev => prev.map(t =>
+        t.id === id ? { ...t, topic: newTopic, feedback: "", feedbackOpen: false } : t
+      ));
+    } catch (err) {
+      toast.error(err.message || "Topic regeneration failed");
+    }
+  };
+
+  const handleImageGenerate = async (id) => {
+    const item = topics.find(t => t.id === id);
+    if (!item) return;
+    setTopics(prev => prev.map(t => t.id === id ? { ...t, imageGenerating: true } : t));
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          funnel_id: funnelId,
+          post_type: "general",
+          model,
+          aspect_ratio: aspectRatio,
+          style_tags: styleTags,
+          user_description: userDescription
+            ? `${userDescription}\n\nPost topic: ${item.topic}`
+            : `Post topic: ${item.topic}`,
+          keyword: "TIPS",
+          reference_images: referenceImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Image generation failed");
+      setTopics(prev => prev.map(t => t.id === id ? { ...t, post: data.post, imageGenerating: false } : t));
+    } catch (err) {
+      toast.error(err.message || "Image generation failed");
+      setTopics(prev => prev.map(t => t.id === id ? { ...t, imageGenerating: false } : t));
+    }
+  };
+
+  const handleImageFeedbackChange = (id, value) => {
+    setTopics(prev => prev.map(t => t.id === id ? { ...t, imageFeedback: value } : t));
+  };
+
+  const handleImageFeedbackSubmit = async (id) => {
+    const item = topics.find(t => t.id === id);
+    if (!item || !item.imageFeedback.trim() || !item.post) return;
+    setTopics(prev => prev.map(t => t.id === id ? { ...t, imageGenerating: true } : t));
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/generate", {
+        method: "POST",
+        body: JSON.stringify({
+          funnel_id: funnelId,
+          post_type: "general",
+          model,
+          aspect_ratio: aspectRatio,
+          style_tags: styleTags,
+          user_description: item.imageFeedback,
+          keyword: "TIPS",
+          reference_images: referenceImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
+          is_refinement: true,
+          previous_image_url: item.post.image_url,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Image regeneration failed");
+      setTopics(prev => prev.map(t =>
+        t.id === id ? { ...t, post: data.post, imageGenerating: false, imageFeedback: "" } : t
+      ));
+    } catch (err) {
+      toast.error(err.message || "Image regeneration failed");
+      setTopics(prev => prev.map(t => t.id === id ? { ...t, imageGenerating: false } : t));
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Header bar */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-white">30-Day Content Calendar</p>
+          <p className="text-[10px] text-gray-600 mt-0.5">
+            Generate topics for 30 days, approve each, then create images one by one.
+          </p>
+        </div>
+        <button
+          onClick={handleGenerateTopics}
+          disabled={!vaultCtx || missingVault || generating}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan text-black text-xs font-semibold hover:bg-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+        >
+          {generating ? (
+            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating topics…</>
+          ) : (
+            <><Sparkles className="w-3.5 h-3.5" /> Generate 30 Topics</>
+          )}
+        </button>
+      </div>
+
+      {/* Vault warning */}
+      {missingVault && (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-3 py-2.5 flex items-center gap-2">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <p className="text-xs text-gray-400">Complete your Vault Free Gift setup before generating topics.</p>
+        </div>
+      )}
+
+      {/* Topic list */}
+      {topics.length > 0 && (
+        <>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600">
+            {approvedCount} / 30 approved
+          </p>
+          <div className="max-h-[560px] overflow-y-auto space-y-2 pr-0.5">
+            {topics.map(item => (
+              <TopicRow
+                key={item.id}
+                item={item}
+                onApprove={handleApprove}
+                onUndo={handleUndo}
+                onFeedbackChange={handleFeedbackChange}
+                onFeedbackSubmit={handleFeedbackSubmit}
+                onImageGenerate={handleImageGenerate}
+                onImageFeedbackChange={handleImageFeedbackChange}
+                onImageFeedbackSubmit={handleImageFeedbackSubmit}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Empty state */}
+      {topics.length === 0 && !generating && (
+        <div className="flex flex-col items-center justify-center gap-3 py-16 rounded-2xl border-2 border-dashed border-subtle">
+          <div className="w-11 h-11 rounded-xl border border-subtle bg-charcoal flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-gray-600" />
+          </div>
+          <div className="text-center px-8">
+            <p className="text-sm font-medium text-gray-500 mb-1">No topics yet</p>
+            <p className="text-xs text-gray-600 leading-relaxed max-w-[220px]">
+              {!vaultCtx || missingVault
+                ? "Set up your Vault Free Gift section first, then generate 30 topics."
+                : "Click \"Generate 30 Topics\" to get started."}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main GeneratorView ───────────────────────────────────────────────────────
 
 export default function GeneratorView({ funnels = [], onPostCreated, onPostChanged }) {
-  const [generating, setGenerating]           = useState(false);
-  const [stepIndex, setStepIndex]             = useState(0);
-  const [post, setPost]                       = useState(null);
-  const [quota, setQuota]                     = useState(null);
-  const [vaultCtx, setVaultCtx]               = useState(null);
-  const [missingVault, setMissingVault]       = useState(false);
+  const [generating, setGenerating]             = useState(false);
+  const [stepIndex, setStepIndex]               = useState(0);
+  const [post, setPost]                         = useState(null);
+  const [quota, setQuota]                       = useState(null);
+  const [vaultCtx, setVaultCtx]                 = useState(null);
+  const [missingVault, setMissingVault]         = useState(false);
   const [selectedFunnelId, setSelectedFunnelId] = useState(null);
-  const [loadingCtx, setLoadingCtx]           = useState(false);
-  const [downloading, setDownloading]         = useState(false);
-  const [userDescription, setUserDescription] = useState("");
-  const [selectedModel, setSelectedModel]     = useState("nano-banana");
-  const [selectedStyles, setSelectedStyles]   = useState([]);
-  const [postType, setPostType]               = useState("free_gift");
-  const [aspectRatio, setAspectRatio]         = useState("1024x1024");
-  const [referenceImages, setReferenceImages] = useState([]);
+  const [loadingCtx, setLoadingCtx]             = useState(false);
+  const [downloading, setDownloading]           = useState(false);
+  const [userDescription, setUserDescription]   = useState("");
+  const [selectedModel, setSelectedModel]       = useState("gemini-2.5-flash-image");
+  const [selectedStyles, setSelectedStyles]     = useState([]);
+  const [aspectRatio, setAspectRatio]           = useState("1024x1024");
+  const [referenceImages, setReferenceImages]   = useState([]);
+  const [view, setView]                         = useState("single");
 
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -637,12 +975,12 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
         method: "POST",
         body: JSON.stringify({
           funnel_id: selectedFunnelId,
-          post_type: postType,
+          post_type: "general",
           model: selectedModel,
           aspect_ratio: aspectRatio,
           style_tags: selectedStyles,
           user_description: userDescription.trim() || undefined,
-          keyword: postType === "free_gift" ? "GUIDE" : "TIPS",
+          keyword: "TIPS",
           reference_images: referenceImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
         }),
       });
@@ -662,7 +1000,7 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
       clearInterval(timer);
       setGenerating(false);
     }
-  }, [selectedFunnelId, postType, selectedModel, aspectRatio, selectedStyles, userDescription, stepForward, onPostCreated]);
+  }, [selectedFunnelId, selectedModel, aspectRatio, selectedStyles, userDescription, stepForward, onPostCreated]);
 
   const handleKeyDown = (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); if (canGenerate) generate(); }
@@ -700,12 +1038,12 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
         method: "POST",
         body: JSON.stringify({
           funnel_id: selectedFunnelId,
-          post_type: postType,
+          post_type: "general",
           model: selectedModel,
           aspect_ratio: aspectRatio,
           style_tags: selectedStyles,
           user_description: feedbackText,
-          keyword: postType === "free_gift" ? "GUIDE" : "TIPS",
+          keyword: "TIPS",
           reference_images: referenceImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
           is_refinement: true,
           previous_image_url: post?.image_url || null,
@@ -726,7 +1064,7 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
       clearInterval(timer);
       setGenerating(false);
     }
-  }, [selectedFunnelId, postType, selectedModel, aspectRatio, selectedStyles, referenceImages, stepForward, onPostCreated, post]);
+  }, [selectedFunnelId, selectedModel, aspectRatio, selectedStyles, referenceImages, stepForward, onPostCreated, post]);
 
   const canGenerate = !generating && !!selectedFunnelId && !missingVault && !loadingCtx;
   const selectedFunnel = funnels.find(f => f.id === selectedFunnelId);
@@ -873,9 +1211,9 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
               rows={3}
               disabled={!vaultCtx || generating}
               placeholder={
-                vaultCtx
-                  ? 'Describe the image… "dark background, bold typography"'
-                  : "Select a funnel first…"
+                view === "30-day"
+                  ? (vaultCtx ? "Topic prompt / style hint for all 30 posts…" : "Select a funnel first…")
+                  : (vaultCtx ? 'Describe the image… "dark background, bold typography"' : "Select a funnel first…")
               }
               className="w-full px-3 pt-3 pb-2 text-xs text-gray-300 leading-relaxed resize-none bg-transparent focus:outline-none placeholder-gray-700 disabled:opacity-40"
             />
@@ -883,8 +1221,8 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
               <div className="flex items-center gap-2 min-w-0">
                 <ModelDropdown selected={selectedModel} onSelect={setSelectedModel} />
 
-                {/* Reference image upload — shown for Nano Banana */}
-                {selectedModel === "nano-banana" && referenceImages.length < 4 && (
+                {/* Reference image upload */}
+                {referenceImages.length < 4 && (
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     title="Add reference images (logo, author photo, etc.)"
@@ -909,23 +1247,24 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
                   </div>
                 )}
               </div>
-              <button
-                onClick={generate}
-                disabled={!canGenerate}
-                title="Generate (Ctrl+Enter)"
-                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-cyan hover:bg-white transition-colors duration-150 cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed disabled:bg-white/10 disabled:hover:bg-white/10"
-              >
-                {generating
-                  ? <Loader2 className="w-3.5 h-3.5 text-black animate-spin" />
-                  : <ArrowUp className="w-3.5 h-3.5 text-black" />
-                }
-              </button>
+              {/* Generate button only shown in single-post view */}
+              {view === "single" && (
+                <button
+                  onClick={generate}
+                  disabled={!canGenerate}
+                  title="Generate (Ctrl+Enter)"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-cyan hover:bg-white transition-colors duration-150 cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed disabled:bg-white/10 disabled:hover:bg-white/10"
+                >
+                  {generating
+                    ? <Loader2 className="w-3.5 h-3.5 text-black animate-spin" />
+                    : <ArrowUp className="w-3.5 h-3.5 text-black" />
+                  }
+                </button>
+              )}
             </div>
           </div>
           <p className="text-[9px] text-gray-700 mt-1.5 text-center">
-            {selectedModel === "nano-banana"
-              ? "Ctrl+Enter · Brand colors & vault media auto-included"
-              : "Ctrl+Enter · Vault context applied automatically"}
+            Ctrl+Enter · Vault context auto-applied
           </p>
         </div>
       </div>
@@ -935,14 +1274,18 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
 
         {/* Controls bar */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Post type */}
+
+          {/* View toggle: Single Post | 30-Day Calendar */}
           <div className="flex items-center rounded-lg border border-subtle bg-grayDark p-0.5">
-            {POST_TYPES.map(({ id, label }) => (
+            {[
+              { id: "single", label: "Single Post" },
+              { id: "30-day", label: "30-Day Calendar" },
+            ].map(({ id, label }) => (
               <button
                 key={id}
-                onClick={() => setPostType(id)}
+                onClick={() => setView(id)}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150 cursor-pointer ${
-                  postType === id
+                  view === id
                     ? "bg-elevated text-white border border-subtle"
                     : "text-gray-500 hover:text-gray-300"
                 }`}
@@ -952,67 +1295,96 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
             ))}
           </div>
 
-          <div className="w-px h-4 bg-subtle" />
+          {view === "single" && (
+            <>
+              <div className="w-px h-4 bg-subtle" />
 
-          {/* Aspect ratio */}
-          <div className="flex items-center rounded-lg border border-subtle bg-grayDark p-0.5">
-            {ASPECT_RATIOS.map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setAspectRatio(id)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150 cursor-pointer ${
-                  aspectRatio === id
-                    ? "bg-elevated text-white border border-subtle"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+              {/* Aspect ratio */}
+              <div className="flex items-center rounded-lg border border-subtle bg-grayDark p-0.5">
+                {ASPECT_RATIOS.map(({ id, label }) => (
+                  <button
+                    key={id}
+                    onClick={() => setAspectRatio(id)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors duration-150 cursor-pointer ${
+                      aspectRatio === id
+                        ? "bg-elevated text-white border border-subtle"
+                        : "text-gray-500 hover:text-gray-300"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
 
-          {selectedFunnel && (
+              {selectedFunnel && (
+                <>
+                  <div className="w-px h-4 bg-subtle" />
+                  <span className="text-[10px] text-gray-600 truncate max-w-[180px]">{selectedFunnel.funnel_name}</span>
+                </>
+              )}
+
+              {post && !generating && (
+                <button
+                  onClick={() => setPost(null)}
+                  className="ml-auto flex items-center gap-1 text-[10px] text-gray-600 hover:text-gray-400 transition-colors cursor-pointer"
+                >
+                  <X className="w-3 h-3" /> Clear
+                </button>
+              )}
+            </>
+          )}
+
+          {view === "30-day" && selectedFunnel && (
             <>
               <div className="w-px h-4 bg-subtle" />
               <span className="text-[10px] text-gray-600 truncate max-w-[180px]">{selectedFunnel.funnel_name}</span>
             </>
           )}
-
-          {post && !generating && (
-            <button
-              onClick={() => setPost(null)}
-              className="ml-auto flex items-center gap-1 text-[10px] text-gray-600 hover:text-gray-400 transition-colors cursor-pointer"
-            >
-              <X className="w-3 h-3" /> Clear
-            </button>
-          )}
         </div>
 
-        {/* Canvas container */}
-        <div className="flex-1 rounded-2xl border border-subtle overflow-hidden" style={{ minHeight: 380 }}>
-          {generating ? (
-            <GeneratingCanvas step={stepIndex} />
-          ) : post ? (
-            <ImageCanvas post={post} onDownload={handleDownload} downloading={downloading} />
-          ) : (
-            <EmptyCanvas hasContext={!!vaultCtx} noFunnel={!selectedFunnelId} />
-          )}
-        </div>
+        {/* Canvas / Calendar area */}
+        {view === "single" ? (
+          <>
+            {/* Canvas container */}
+            <div className="flex-1 rounded-2xl border border-subtle overflow-hidden" style={{ minHeight: 380 }}>
+              {generating ? (
+                <GeneratingCanvas step={stepIndex} />
+              ) : post ? (
+                <ImageCanvas post={post} onDownload={handleDownload} downloading={downloading} />
+              ) : (
+                <EmptyCanvas hasContext={!!vaultCtx} noFunnel={!selectedFunnelId} />
+              )}
+            </div>
 
-        {/* Caption */}
-        {post && !generating && (
-          <CaptionPanel
-            post={post}
-            quota={quota}
-            onMarkPosted={handleMarkPosted}
-            onRefine={refine}
-            onReset={() => setPost(null)}
-            onCaptionSaved={(newCaption) => {
-              const updated = { ...post, caption: newCaption };
-              setPost(updated);
-              onPostChanged?.(updated);
-            }}
-          />
+            {/* Caption */}
+            {post && !generating && (
+              <CaptionPanel
+                post={post}
+                quota={quota}
+                onMarkPosted={handleMarkPosted}
+                onRefine={refine}
+                onReset={() => setPost(null)}
+                onCaptionSaved={(newCaption) => {
+                  const updated = { ...post, caption: newCaption };
+                  setPost(updated);
+                  onPostChanged?.(updated);
+                }}
+              />
+            )}
+          </>
+        ) : (
+          <div className="flex-1 rounded-2xl border border-subtle bg-grayDark p-4" style={{ minHeight: 380 }}>
+            <ThirtyDayCalendar
+              funnelId={selectedFunnelId}
+              vaultCtx={vaultCtx}
+              model={selectedModel}
+              aspectRatio={aspectRatio}
+              styleTags={selectedStyles}
+              referenceImages={referenceImages}
+              userDescription={userDescription}
+              missingVault={missingVault}
+            />
+          </div>
         )}
       </div>
     </div>

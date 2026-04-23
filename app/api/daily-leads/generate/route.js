@@ -57,12 +57,14 @@ async function getVaultContext(userId, funnelId = null) {
       .maybeSingle();
   };
 
-  const [leadMagnetResult, idealClientResult, messageResult, mediaResult, colorsResult] = await Promise.all([
+  const [leadMagnetResult, idealClientResult, messageResult, mediaResult, colorsResult, offerResult, storyResult] = await Promise.all([
     sectionQuery('leadMagnet'),
     sectionQuery('idealClient'),
     sectionQuery('message'),
     sectionQuery('media'),
     sectionQuery('colors'),
+    sectionQuery('offer'),
+    sectionQuery('story'),
   ]);
 
   const leadMagnet = leadMagnetResult.data?.content;
@@ -70,6 +72,8 @@ async function getVaultContext(userId, funnelId = null) {
   const message = messageResult.data?.content;
   const media = mediaResult.data?.content;
   const colors = colorsResult.data?.content;
+  const offer = offerResult.data?.content;
+  const story = storyResult.data?.content;
 
   const freeGiftName =
     leadMagnet?.leadMagnet?.concept?.title ||
@@ -134,6 +138,18 @@ async function getVaultContext(userId, funnelId = null) {
     funnelName = funnelData?.funnel_name || null;
   }
 
+  const offerName =
+    offer?.offer?.name ||
+    offer?.name ||
+    offer?.signatureOffer?.name ||
+    null;
+
+  const storyHook =
+    story?.story?.hook ||
+    story?.hook ||
+    story?.signatureStory?.hook ||
+    null;
+
   return {
     funnelId: resolvedFunnelId,
     vaultOwnerId,
@@ -146,6 +162,8 @@ async function getVaultContext(userId, funnelId = null) {
     brandAccent,
     brandSecondary,
     funnelName,
+    offerName,
+    storyHook,
   };
 }
 
@@ -166,38 +184,26 @@ function resolveStyleTheme(niche = '') {
 // Returns: { headline, subheadline, cta, badge, background_prompt }
 
 async function generateCopy(openai, ctx, postType, userDescription) {
-  const gift = ctx?.freeGiftName || 'Free Guide';
   const niche = ctx?.niche || 'business coaching';
   const transformation = ctx?.transformation || 'achieve their goals';
-  const isGift = postType === 'free_gift';
+  const offer = ctx?.offerName ? `Offer: ${ctx.offerName}.` : '';
+  const story = ctx?.storyHook ? `Brand story: ${ctx.storyHook}.` : '';
 
-  const userPrompt = isGift
-    ? `Generate social media ad image overlay text for a FREE digital product.
-Product name: "${gift}"
-Audience niche: ${niche}
+  const userPrompt = `Generate social media post image overlay text for a business in the ${niche} space.
 Core transformation: ${transformation}
-${userDescription ? `Creative direction from user: ${userDescription}` : ''}
+${offer}
+${story}
+${userDescription ? `Creative direction: ${userDescription}` : ''}
 
-Return JSON only, no markdown:
-{
-  "headline": "ALL CAPS headline, 4-7 words, bold and benefit-driven",
-  "subheadline": "One clear benefit sentence, 10-15 words, title case",
-  "cta": "Action CTA phrase, 2-4 words, ALL CAPS",
-  "badge": "1-2 words ALL CAPS label (e.g. FREE, NEW, LIVE)",
-  "background_prompt": "Detailed description for an AI image generator to create a PURE VISUAL background. Must describe only abstract shapes, environments, lighting, textures. Absolutely ZERO text, ZERO words, ZERO letters, ZERO numbers anywhere in the image. The background should match the ${niche} niche aesthetic with cinematic lighting and premium feel."
-}`
-    : `Generate social media post image overlay text.
-Niche: ${niche}
-Core message: ${transformation}
-${userDescription ? `Direction: ${userDescription}` : ''}
+The image should feel like a professional business content post — book mockup, workflow diagram concept, results showcase, or process visual. NOT a free gift ad.
 
 Return JSON only, no markdown:
 {
   "headline": "ALL CAPS headline, 4-7 words, aspirational and punchy",
-  "subheadline": "Inspirational sentence, 10-15 words, title case",
+  "subheadline": "Value-driven sentence, 10-15 words, title case",
   "cta": "Engagement phrase, 2-4 words, ALL CAPS",
-  "badge": "1-2 word label ALL CAPS (TIPS, GUIDE, FREE, etc)",
-  "background_prompt": "Description for an AI image generator. Pure visual scene matching ${niche} — cinematic, premium, atmospheric. ZERO text, ZERO words, ZERO letters anywhere in the image."
+  "badge": "1-2 word label ALL CAPS (TIPS, RESULTS, SYSTEM, PROCESS, etc)",
+  "background_prompt": "Description for an AI image generator. Pure visual scene matching ${niche} — professional workspace, book mockup, workflow visual, or results dashboard concept. Cinematic lighting, premium feel. ZERO text, ZERO words, ZERO letters anywhere in the image."
 }`;
 
   try {
@@ -240,63 +246,51 @@ Return JSON only, no markdown:
 
 async function generateCopyGemini(ctx, postType, userDescription) {
   const gemini = getGeminiClient();
-  const gift = ctx?.freeGiftName || 'Free Guide';
   const niche = ctx?.niche || 'business coaching';
   const transformation = ctx?.transformation || 'achieve their goals';
-  const isGift = postType === 'free_gift';
+  const offer = ctx?.offerName ? `Offer: ${ctx.offerName}.` : '';
+  const story = ctx?.storyHook ? `Brand story: ${ctx.storyHook}.` : '';
 
-  const userPrompt = isGift
-    ? `Generate social media ad image overlay text for a FREE digital product.
-Product name: "${gift}"
-Audience niche: ${niche}
+  const userPrompt = `Generate social media post image overlay text for a business in the ${niche} space.
 Core transformation: ${transformation}
-${userDescription ? `Creative direction from user: ${userDescription}` : ''}
+${offer}
+${story}
+${userDescription ? `Creative direction: ${userDescription}` : ''}
 
-Return JSON only, no markdown:
-{
-  "headline": "ALL CAPS headline, 4-7 words, bold and benefit-driven",
-  "subheadline": "One clear benefit sentence, 10-15 words, title case",
-  "cta": "Action CTA phrase, 2-4 words, ALL CAPS",
-  "badge": "1-2 words ALL CAPS label (e.g. FREE, NEW, LIVE)",
-  "background_prompt": "Detailed description for an AI image generator to create a PURE VISUAL background. Must describe only abstract shapes, environments, lighting, textures. Absolutely ZERO text, ZERO words, ZERO letters, ZERO numbers anywhere in the image. The background should match the ${niche} niche aesthetic with cinematic lighting and premium feel."
-}`
-    : `Generate social media post image overlay text.
-Niche: ${niche}
-Core message: ${transformation}
-${userDescription ? `Direction: ${userDescription}` : ''}
+The image should feel like professional business content — book mockup, workflow diagram concept, results showcase, or process visual. NOT a free gift ad.
 
 Return JSON only, no markdown:
 {
   "headline": "ALL CAPS headline, 4-7 words, aspirational and punchy",
-  "subheadline": "Inspirational sentence, 10-15 words, title case",
+  "subheadline": "Value-driven sentence, 10-15 words, title case",
   "cta": "Engagement phrase, 2-4 words, ALL CAPS",
-  "badge": "1-2 word label ALL CAPS (TIPS, GUIDE, FREE, etc)",
-  "background_prompt": "Description for an AI image generator. Pure visual scene matching ${niche} — cinematic, premium, atmospheric. ZERO text, ZERO words, ZERO letters anywhere in the image."
+  "badge": "1-2 word label ALL CAPS (TIPS, RESULTS, SYSTEM, PROCESS, etc)",
+  "background_prompt": "Description for an AI image generator. Professional business visual matching ${niche} — workspace, book mockup, workflow concept, or results dashboard. Cinematic lighting, premium feel. ZERO text, ZERO words, ZERO letters anywhere in the image."
 }`;
 
   try {
     const model = gemini.getGenerativeModel({
       model: 'gemini-2.5-flash-image',
       systemInstruction:
-        'You are a marketing creative director specializing in high-converting social media ads. ' +
+        'You are a marketing creative director specializing in high-converting social media content. ' +
         'Return only valid JSON, no markdown formatting, no explanation.',
       generationConfig: { responseMimeType: 'application/json', temperature: 0.72, maxOutputTokens: 400 },
     });
     const result = await model.generateContent(userPrompt);
     const parsed = JSON.parse(result.response.text());
     return {
-      headline: parsed.headline || (isGift ? 'GET THIS FREE TODAY' : 'LEVEL UP YOUR RESULTS'),
+      headline: parsed.headline || 'LEVEL UP YOUR RESULTS',
       subheadline: parsed.subheadline || `The proven system for ${transformation}`,
-      cta: parsed.cta || (isGift ? 'CLAIM FREE' : 'READ MORE'),
-      badge: parsed.badge || (isGift ? 'FREE' : 'TIPS'),
+      cta: parsed.cta || 'READ MORE',
+      badge: parsed.badge || 'TIPS',
       background_prompt: parsed.background_prompt || `Abstract dark premium background for ${niche}, cinematic lighting, no text`,
     };
   } catch {
     return {
-      headline: isGift ? 'GET THIS FREE TODAY' : 'LEVEL UP YOUR RESULTS',
-      subheadline: isGift ? `Claim your free copy of ${gift}` : `The proven path to ${transformation}`,
-      cta: isGift ? 'CLAIM FREE' : 'READ MORE',
-      badge: isGift ? 'FREE' : 'TIPS',
+      headline: 'LEVEL UP YOUR RESULTS',
+      subheadline: `The proven path to ${transformation}`,
+      cta: 'READ MORE',
+      badge: 'TIPS',
       background_prompt: `Dark cinematic abstract background for ${niche}, premium marketing aesthetic`,
     };
   }
@@ -801,10 +795,11 @@ export async function POST(req) {
     const userDescription =
       typeof body.user_description === 'string' ? body.user_description.trim() : null;
 
-    const isNanoBanana = model === 'nano-banana';
+    const isGemini     = model === 'gemini-2.5-flash-image';
     const isDalle2     = model === 'dall-e-2';
+    const isGptImage2  = model === 'gpt-image-2';
     const requestedSize = body.aspect_ratio || '1024x1024';
-    const size = isDalle2 || isNanoBanana
+    const size = isDalle2 || isGemini
       ? '1024x1024'
       : ['1024x1024', '1024x1792', '1792x1024'].includes(requestedSize)
       ? requestedSize
@@ -834,9 +829,9 @@ export async function POST(req) {
       );
     }
 
-    const openai = isNanoBanana ? null : getOpenAIClient();
+    const openai = isGemini ? null : getOpenAIClient();
 
-    // ── Reference images (nano-banana only) ──────────────────────────────────
+    // ── Reference images (gemini only) ───────────────────────────────────────
     // Merge user-uploaded reference images with vault media images fetched server-side
     const isRefinement     = body.is_refinement === true;
     const previousImageUrl = typeof body.previous_image_url === 'string' ? body.previous_image_url : null;
@@ -844,7 +839,7 @@ export async function POST(req) {
     let allRefImages  = [];
     let refImageLabels = []; // parallel array — same index as allRefImages, tells the model what each image is
 
-    if (isNanoBanana) {
+    if (isGemini) {
       // Previous image (refinement) — comes first so model sees it as the baseline to improve
       const prevImg = (isRefinement && previousImageUrl) ? await fetchImageAsBase64(previousImageUrl) : null;
       if (prevImg) {
@@ -884,18 +879,31 @@ export async function POST(req) {
 
     try {
       // ── STEP 1: Generate structured copy (headline, subheadline, cta, badge, bg prompt) ──
-      const copy = isNanoBanana
+      const copy = isGemini
         ? await generateCopyGemini(vaultCtx, postType, effectiveDescription)
         : await generateCopy(openai, vaultCtx, postType, effectiveDescription);
 
       // ── STEP 2: Generate image ────────────────────────────────────────────
       let bgBuffer;
 
-      if (isNanoBanana) {
+      if (isGemini) {
         // Full book cover rendered by AI — no compositing needed
         const imgPrompt = buildNanoBananaPrompt(copy, vaultCtx, styleTags, postType, isRefinement && previousImageUrl ? userDescription : null, refImageLabels);
         const { buffer } = await generateWithGemini(imgPrompt, allRefImages);
         bgBuffer = buffer;
+      } else if (isGptImage2) {
+        const hasProductImage = !!vaultCtx.productImageUrl;
+        const bgPrompt = buildBackgroundPrompt(copy, vaultCtx, styleTags, hasProductImage);
+        const imageResp = await openai.images.generate({
+          model: 'gpt-image-2',
+          prompt: bgPrompt,
+          n: 1,
+          size,
+          output_format: 'png',
+        });
+        const tempUrl = imageResp.data[0]?.url;
+        if (!tempUrl) throw new Error('gpt-image-2 did not return an image URL');
+        bgBuffer = Buffer.from(await fetch(tempUrl).then(r => r.arrayBuffer()));
       } else {
         const hasProductImage = !!vaultCtx.productImageUrl;
         const bgPrompt = buildBackgroundPrompt(copy, vaultCtx, styleTags, hasProductImage);
@@ -916,8 +924,8 @@ export async function POST(req) {
         bgBuffer = Buffer.from(await fetch(tempUrl).then(r => r.arrayBuffer()));
       }
 
-      // ── STEP 3: Composite SVG text overlay (DALL-E only — Nano Banana renders full image) ──
-      const finalBuffer = isNanoBanana
+      // ── STEP 3: Composite SVG text overlay (DALL-E only — Gemini renders full image) ──
+      const finalBuffer = isGemini
         ? bgBuffer
         : await compositeImage(bgBuffer, copy, size, postType, vaultCtx.productImageUrl);
 
@@ -963,7 +971,7 @@ export async function POST(req) {
 
     // ── Caption generation (social post text — separate from image overlay text) ──
     try {
-      if (isNanoBanana) {
+      if (isGemini) {
         caption = await generateCaptionGemini(vaultCtx, keyword);
       } else {
         const captionResp = await openai.chat.completions.create({

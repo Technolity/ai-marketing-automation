@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight } from "lucide-react";
+import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight, ExternalLink } from "lucide-react";
 
 // Guide configuration - easily extensible
 const GUIDES = [
@@ -138,6 +138,15 @@ export default function GuidePage() {
                         <div className="px-6 py-4 border-b border-white/10 flex items-center gap-3">
                             {React.createElement(activeGuide.icon, { className: "w-5 h-5 text-cyan" })}
                             <h2 className="text-lg font-semibold text-white">{activeGuide.title}</h2>
+                            <a
+                                href="https://docs.google.com/document/d/1-BDkFocpe3M5zvcar2usO_On3hZ0P3DhoXhbq1hi-1k/edit?tab=t.pj3ujvxwo1qp"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-auto flex items-center gap-1.5 text-sm text-cyan hover:text-white border border-cyan/30 hover:border-cyan/60 bg-cyan/5 hover:bg-cyan/15 px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap"
+                            >
+                                <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                                Get the latest version
+                            </a>
                         </div>
 
                         {/* PDF Content */}

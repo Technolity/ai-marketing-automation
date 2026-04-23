@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
-import { CheckCircle, ChevronDown, ChevronUp, Image as ImageIcon, Upload, Link as LinkIcon, X, Loader2 } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronUp, Image as ImageIcon, Upload, Link as LinkIcon, X, Loader2, Sparkles, ImagePlus } from 'lucide-react';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
@@ -35,6 +35,14 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
     const sectionId = 'media';
     const predefinedFields = getFieldsForSection(sectionId);
     const previousApprovalRef = useRef(false);
+
+    // AI Free Gift Image generator state
+    const [aiPanelOpen, setAiPanelOpen] = useState(false);
+    const [aiStylePrompt, setAiStylePrompt] = useState('');
+    const [refImages, setRefImages] = useState([]);
+    const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+    const [isRemovingBg, setIsRemovingBg] = useState(false);
+    const refImageInputRef = useRef(null);
 
     // Fetch fields from database
     const fetchFields = useCallback(async (silent = false) => {
@@ -299,12 +307,78 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
         return field ? field.field_value : null;
     };
 
+    // ── AI Free Gift Image generation handlers ────────────────────────────────
+
+    const handleRefImageAdd = (e) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+        files.slice(0, 4 - refImages.length).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const [meta, base64] = ev.target.result.split(',');
+                const mimeType = meta.match(/:(.*?);/)?.[1] || 'image/png';
+                setRefImages(prev => prev.length < 4 ? [...prev, { name: file.name, mimeType, base64, preview: ev.target.result }] : prev);
+            };
+            reader.readAsDataURL(file);
+        });
+        e.target.value = '';
+    };
+
+    const handleGenerateFreeGiftImage = async () => {
+        setIsGeneratingImage(true);
+        try {
+            const res = await fetchWithAuth('/api/os/generate-free-gift-image', {
+                method: 'POST',
+                body: JSON.stringify({
+                    funnel_id: funnelId,
+                    style_tags: aiStylePrompt.trim() ? [aiStylePrompt.trim()] : [],
+                    reference_images: refImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Generation failed');
+            await handleFieldSave('product_mockup', data.image_url);
+            toast.success('Free gift image generated!');
+            setAiPanelOpen(false);
+            setAiStylePrompt('');
+            setRefImages([]);
+        } catch (err) {
+            console.error('[MediaFields] AI generate error:', err);
+            toast.error(err.message || 'Image generation failed. Please try again.');
+        } finally {
+            setIsGeneratingImage(false);
+        }
+    };
+
+    const handleRemoveBg = async () => {
+        const currentUrl = getFieldValue('product_mockup');
+        if (!currentUrl) { toast.error('No image to process. Upload or generate an image first.'); return; }
+        setIsRemovingBg(true);
+        try {
+            const res = await fetchWithAuth('/api/daily-leads/remove-bg', {
+                method: 'POST',
+                body: JSON.stringify({ image_url: currentUrl }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Background removal failed');
+            await handleFieldSave('product_mockup', data.url);
+            toast.success('Background removed!');
+        } catch (err) {
+            console.error('[MediaFields] Remove BG error:', err);
+            toast.error(err.message || 'Background removal failed. Please try again.');
+        } finally {
+            setIsRemovingBg(false);
+        }
+    };
+
     // Render media field based on type
     const renderMediaField = (fieldDef) => {
         const currentValue = getFieldValue(fieldDef.field_id);
         const isUploading = uploadingFields[fieldDef.field_id];
         const isImage = fieldDef.field_type === 'cloudinary_image';
         const isVideo = fieldDef.field_type === 'video_url';
+
+        const isProductMockup = fieldDef.field_id === 'product_mockup';
 
         return (
             <div key={fieldDef.field_id} className="bg-[#18181b] border border-[#2a2a2d] rounded-xl p-6">
@@ -446,6 +520,92 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                             <Loader2 className="w-8 h-8 text-cyan animate-spin" />
                             <span className="text-cyan font-medium">Uploading to cloud...</span>
                         </div>
+                    </div>
+                )}
+
+                {/* AI Generator — only on Free Gift Image (product_mockup) */}
+                {isProductMockup && (
+                    <div className="mt-4 rounded-xl border border-[#2a2a2d] overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setAiPanelOpen(v => !v)}
+                            className="w-full flex items-center justify-between gap-2 px-4 py-3 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                        >
+                            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+                                <Sparkles className="w-3 h-3" />
+                                Generate with AI
+                            </span>
+                            {aiPanelOpen
+                                ? <ChevronUp className="w-3.5 h-3.5 text-gray-600" />
+                                : <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+                            }
+                        </button>
+
+                        {aiPanelOpen && (
+                            <div className="px-4 pb-4 flex flex-col gap-3 border-t border-[#2a2a2d]">
+                                <div className="pt-3">
+                                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Style prompt (optional)</label>
+                                    <textarea
+                                        value={aiStylePrompt}
+                                        onChange={e => setAiStylePrompt(e.target.value)}
+                                        placeholder="Clean design, bold typography, professional…"
+                                        rows={2}
+                                        className="w-full text-xs text-gray-300 placeholder-gray-600 bg-[#0D1217] border border-[#2a2a2d] rounded-lg p-2 resize-none focus:outline-none focus:border-cyan/40 transition-colors"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-semibold uppercase tracking-widest text-gray-600 mb-1.5">Reference images (max 4)</label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {refImages.map((img, idx) => (
+                                            <div key={idx} className="relative w-14 h-14 rounded-lg overflow-hidden border border-[#2a2a2d] bg-[#111113] shrink-0">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={img.preview} alt={img.name} className="w-full h-full object-cover" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setRefImages(prev => prev.filter((_, i) => i !== idx))}
+                                                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/70 border border-white/10 flex items-center justify-center cursor-pointer hover:bg-black/90"
+                                                >
+                                                    <X className="w-2.5 h-2.5 text-white" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {refImages.length < 4 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => refImageInputRef.current?.click()}
+                                                className="w-14 h-14 rounded-lg border border-dashed border-[#2a2a2d] bg-[#111113] flex items-center justify-center cursor-pointer hover:border-cyan/40 transition-colors shrink-0"
+                                            >
+                                                <ImagePlus className="w-4 h-4 text-gray-600" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <input ref={refImageInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleRefImageAdd} />
+                                </div>
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <button
+                                        type="button"
+                                        onClick={handleGenerateFreeGiftImage}
+                                        disabled={isGeneratingImage || isRemovingBg}
+                                        className="bg-cyan text-black text-xs font-semibold rounded-lg px-4 py-2 hover:bg-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                                    >
+                                        {isGeneratingImage ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Generating…</> : <><Sparkles className="w-3.5 h-3.5" />Generate Free Gift Image</>}
+                                    </button>
+
+                                    {currentValue && (
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveBg}
+                                            disabled={isRemovingBg || isGeneratingImage}
+                                            className="border border-[#2a2a2d] text-gray-400 text-xs font-medium rounded-lg px-3 py-2 hover:border-[#3a3a3d] hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+                                        >
+                                            {isRemovingBg ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Removing…</> : <><X className="w-3 h-3" />Remove Background</>}
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

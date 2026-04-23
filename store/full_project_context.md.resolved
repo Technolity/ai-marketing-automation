@@ -45,6 +45,7 @@
 ### Recent Modifications (2026-04-21)
 | File | Change |
 | :--- | :--- |
+| `components/AppSidebar.jsx` | **UI Enhancement**: Replaced the simple text representation of engine counts with a new interactive UI component that displays the engine statistics and provides a direct, conditional link to the Funnel Builder. Added API fetch logic for `hasDeployedFunnel` and `builderLocationId` to construct `builderUrl`. |
 | `contexts/AuthContext.jsx` | **Bug Fix (Auth Loop)**: Added forced sign-out when `/api/users/sync` returns a `401 Unauthorized`. This prevents an infinite redirect loop when the user's browser has a stale Clerk session token but the backend Clerk API keys have been rotated. |
 
 ### Recent Modifications (2026-04-17)

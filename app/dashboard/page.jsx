@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import LivePerformancePanel from "@/components/dashboard/LivePerformancePanel";
 import VaultReviewPanel from "@/components/dashboard/VaultReviewPanel";
 import { cn } from "@/lib/utils";
+import BugReportModal from "@/components/BugReportModal";
 
 const TOTAL_APPROVAL_SECTIONS = 16;
 const TOTAL_SETUP_STEPS = 20;
@@ -214,6 +215,7 @@ export default function Dashboard() {
     const [isSavingName, setIsSavingName] = useState(false);
     const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [subscriptionTier, setSubscriptionTier] = useState("free");
     const editInputRef = useRef(null);
     const sidebarPreferenceLoadedRef = useRef(false);
 
@@ -224,6 +226,7 @@ export default function Dashboard() {
                 const profileData = await profileRes.json();
                 setMaxFunnels(profileData.max_funnels || TIER_LIMITS[profileData.subscription_tier] || 1);
                 setCanManageTeam(["growth", "scale"].includes(profileData.subscription_tier) || isAdmin);
+                setSubscriptionTier(profileData.subscription_tier || "free");
             }
 
             const funnelsRes = await fetchWithAuth("/api/user/funnels");
@@ -541,6 +544,7 @@ export default function Dashboard() {
                 <div className={cn("mt-auto border-t border-white/[0.07] pt-5", collapsed ? "px-0" : "px-2")}>
                     {collapsed ? (
                         <div className="space-y-2.5">
+                            <BugReportModal collapsed={true} />
                             <div className="flex justify-center">
                                 <div className="flex h-12 w-12 flex-col items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#111214]">
                                     <span className={cn(displayFontClass, "text-sm font-semibold text-white")}>{businesses.length}</span>
@@ -569,17 +573,8 @@ export default function Dashboard() {
                         </div>
                     ) : (
                         <>
-                            <div className="flex items-center gap-2.5 mb-4">
-                                <UserButton
-                                    afterSignOutUrl="/auth/login"
-                                    appearance={{ elements: { avatarBox: "h-8 w-8" } }}
-                                />
-                                <div className="min-w-0 flex-1">
-                                    <p className="text-[11px] font-semibold text-white truncate">{workspaceDisplayName}</p>
-                                    <p className="text-[10px] text-[#8b8b93] truncate">{workspaceAccessLabel}</p>
-                                </div>
-                            </div>
-                            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">Workspace</p>
+                            <BugReportModal />
+                            <p className="mt-3.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">Workspace</p>
                             <h3 className={cn(displayFontClass, "mt-2.5 truncate text-[16px] font-semibold tracking-[-0.02em] text-white")}>{workspaceDisplayName}</h3>
                             <p className="mt-1 truncate text-[12px] text-[#8b8b93]">{workspaceContextLabel}</p>
                             <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[#64656c]">{workspaceAccessLabel}</p>
@@ -605,6 +600,16 @@ export default function Dashboard() {
                                     )}
                                 </div>
                             </div>
+                            <div className="flex items-center gap-2.5 mt-4">
+                                <UserButton
+                                    afterSignOutUrl="/auth/login"
+                                    appearance={{ elements: { avatarBox: "h-8 w-8" } }}
+                                />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-semibold text-white truncate">{workspaceDisplayName}</p>
+                                    <p className="text-[10px] text-[#8b8b93] truncate">{workspaceAccessLabel}</p>
+                                </div>
+                            </div>
                         </>
                     )}
                 </div>
@@ -613,23 +618,54 @@ export default function Dashboard() {
     );
 
     const renderMarketingEngines = () => {
+        const isStarter = !["growth", "scale", "tier2", "tier3"].includes(subscriptionTier);
+        const emptySlotCount = Math.max(0, maxFunnels - businesses.length);
+
+        const EmptySlotCard = ({ index }) => (
+            <button
+                key={`empty-${index}`}
+                type="button"
+                onClick={() => setShowCreateModal(true)}
+                className="rounded-[24px] border border-dashed border-white/[0.15] bg-[#111214]/50 p-6 flex flex-col items-center justify-center gap-3 min-h-[260px] transition-colors hover:border-cyan/30 hover:bg-[#111214] group"
+            >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-white/20 group-hover:border-cyan/30 transition-colors">
+                    <Plus className="h-5 w-5 text-[#4a4a52] group-hover:text-cyan transition-colors" />
+                </div>
+                <p className={cn(GeistSans.className, "text-sm font-medium text-[#4a4a52] group-hover:text-[#8b8b93] transition-colors")}>
+                    New Engine
+                </p>
+            </button>
+        );
+
+        const LockedCard = () => (
+            <div className="rounded-[24px] border border-white/[0.07] bg-[#111214] p-6 flex flex-col items-center justify-center gap-4 min-h-[260px] relative overflow-hidden select-none">
+                <div className="absolute inset-0 bg-[#0a0a0b]/60 backdrop-blur-[1px] rounded-[24px]" />
+                <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/[0.12] bg-[#1a1a1e]">
+                        <svg className="h-5 w-5 text-[#6b6b74]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className={cn(GeistSans.className, "text-sm font-semibold text-[#8b8b93]")}>Engine Slot Locked</p>
+                        <p className="mt-1.5 text-xs text-[#5a5a62] leading-5 max-w-[160px]">
+                            Upgrade to <span className="text-cyan font-medium">Growth</span> or <span className="text-cyan font-medium">Scale</span> to unlock more engines
+                        </p>
+                    </div>
+                    <Link
+                        href="/billing"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-[10px] border border-cyan/20 bg-cyan/10 px-3 text-xs font-semibold text-cyan transition-colors hover:bg-cyan/20"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        Upgrade plan
+                        <ArrowUpRight className="h-3 w-3" />
+                    </Link>
+                </div>
+            </div>
+        );
+
         return (
             <div>
-                <div className="mb-6">
-                    <h2 className="text-2xl font-semibold text-white">Your Marketing Engines</h2>
-                    <p className="mt-2 text-base text-[#8b8b93]">Click an engine to open it and see what's inside.</p>
-                </div>
-
-                {canCreateMore && (
-                    <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="mb-5 inline-flex h-12 items-center gap-2 rounded-[14px] bg-cyan/85 px-5 text-base font-semibold text-[#001418]"
-                    >
-                        <Plus className="h-5 w-5" />
-                        Create New Engine
-                    </button>
-                )}
-
                 <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                     {businesses.map((business) => {
                         const progress = getProgressPercentage(business);
@@ -767,6 +803,17 @@ export default function Dashboard() {
                             </div>
                         );
                     })}
+
+                    {isStarter ? (
+                        <>
+                            <LockedCard />
+                            <LockedCard />
+                        </>
+                    ) : (
+                        Array.from({ length: emptySlotCount }).map((_, i) => (
+                            <EmptySlotCard key={`empty-${i}`} index={i} />
+                        ))
+                    )}
                 </div>
             </div>
         );
