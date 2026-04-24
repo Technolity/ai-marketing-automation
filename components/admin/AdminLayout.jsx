@@ -31,6 +31,7 @@ const MENU_ITEMS = [
     { href: "/admin/subscriptions", label: "Subscriptions", icon: BadgeCheck },
     { href: "/admin/funnels", label: "Funnels", icon: FolderKanban },
     { href: "/admin/ghl-accounts", label: "GHL Sub-Accounts", icon: Database },
+    { href: "/admin/ghl-custom-values", label: "GHL Custom Values", icon: FolderKanban },
     { href: "/admin/database", label: "Database Manager", icon: Database, badge: "GOD MODE" },
     { href: "/admin/transcripts", label: "Transcripts", icon: FileText },
     { href: "/admin/knowledge-base", label: "Knowledge Base", icon: BookOpen },

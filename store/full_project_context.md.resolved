@@ -48,6 +48,15 @@
 | `components/AppSidebar.jsx` | **UI Enhancement**: Replaced the simple text representation of engine counts with a new interactive UI component that displays the engine statistics and provides a direct, conditional link to the Funnel Builder. Added API fetch logic for `hasDeployedFunnel` and `builderLocationId` to construct `builderUrl`. |
 | `contexts/AuthContext.jsx` | **Bug Fix (Auth Loop)**: Added forced sign-out when `/api/users/sync` returns a `401 Unauthorized`. This prevents an infinite redirect loop when the user's browser has a stale Clerk session token but the backend Clerk API keys have been rotated. |
 
+### Recent Modifications (2026-04-25)
+| File | Change |
+| :--- | :--- |
+| `lib/integrations/ghl.js` | **Feature (Bulk Create)**: Added `bulkCreateCustomValues(locationId, customValues)` — a new exported function that creates/updates custom values directly by GHL location ID (bypassing userId lookup). Returns detailed per-key results with GHL-assigned IDs, action type, and error info. Uses existing batching pattern (10 concurrent, 300ms delay). |
+| `app/api/admin/ghl-custom-values/bulk-create/route.js` | **New (API Route)**: Admin-protected POST endpoint for bulk-creating GHL custom values. Validates admin auth, calls `bulkCreateCustomValues`, and persists successful results to the new `ghl_custom_values_log` table with GHL IDs for record-keeping. Supports `maxDuration: 120` for large batches. |
+| `app/admin/ghl-custom-values/page.jsx` | **New (Admin Page)**: Full admin UI for bulk GHL custom value management. Includes Visual Builder (dynamic key-value rows) and JSON Input tabs, a "Load Template" button for standard `03_` keys, push-to-GHL action, results table with GHL IDs, export/copy functionality, and session history. Uses shared `adminTheme.js` design tokens. |
+| `components/admin/AdminLayout.jsx` | **Nav Update**: Added "GHL Custom Values" entry to the admin sidebar navigation menu. |
+| `supabase/migrations/20260425001800_create_ghl_custom_values_log.sql` | **New (Migration)**: Creates `ghl_custom_values_log` table to persist every custom value pushed via the admin tool, including GHL-assigned IDs, action type, and admin user who triggered it. Uses composite unique constraint on `(location_id, custom_value_name)` for upsert support. |
+
 ### Recent Modifications (2026-04-17)
 | File | Change |
 | :--- | :--- |
