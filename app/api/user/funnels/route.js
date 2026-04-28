@@ -122,6 +122,17 @@ export async function POST(req) {
             }, { status: 403 });
         }
 
+        // Calculate the next available slot_index for this user
+        const { data: maxSlotRow } = await supabaseAdmin
+            .from('user_funnels')
+            .select('slot_index')
+            .eq('user_id', userId)
+            .order('slot_index', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        const nextSlotIndex = (maxSlotRow?.slot_index || 0) + 1;
+
         // Create the funnel - columns must match schema exactly
         const { data: funnel, error } = await supabaseAdmin
             .from('user_funnels')
@@ -135,7 +146,8 @@ export async function POST(req) {
                 vault_generated: false,
                 vault_generation_status: 'not_started',
                 is_active: (currentCount || 0) === 0, // First funnel is active by default
-                is_deleted: false
+                is_deleted: false,
+                slot_index: nextSlotIndex
             })
             .select()
             .single();
