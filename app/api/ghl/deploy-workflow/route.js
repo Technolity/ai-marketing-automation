@@ -10,6 +10,9 @@ import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { toEmbedUrl } from '@/lib/utils/videoUrl';
+import { KEY_TEMPLATE } from '@/lib/ghl/slots';
+
+const TOTAL_SLOT_KEYS = KEY_TEMPLATE.length;
 
 export const dynamic = 'force_dynamic';
 export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (current deployment takes ~74s)
@@ -195,7 +198,7 @@ const SMS_KEY_MAP = {
     'sms5': 'optin_sms_5',
     'sms6': 'optin_sms_6',
     'sms7a': 'optin_sms_7',
-    'sms7b': 'optin_sms_8_evening',
+    'sms7b': 'optin_sms_7_evening',
 
     // Day 8 (Closing Day 1)
     'sms8a': 'optin_sms_8_morning',
@@ -486,7 +489,37 @@ export async function POST(req) {
             return NextResponse.json({ error: 'funnelId required' }, { status: 400 });
         }
 
+        // slot_index = GHL prefix number (3–12). Slot 3 is the base slot (03_ already in codebase).
+        // Slots 4–12 are additional funnel slots created by admin.
+        // Tier limits (by slot count): starter=1 (slot 3 only), growth=3 (03–05), scale=10 (03–12), admin=unlimited
+        const slotIndexRaw = body.slot_index ?? body.slotIndex ?? null;
+        let slotIndex = 3;
+        if (slotIndexRaw !== null) {
+            slotIndex = Number(slotIndexRaw);
+            if (!Number.isInteger(slotIndex) || slotIndex < 3 || slotIndex > 12) {
+                return NextResponse.json({ error: 'slot_index must be an integer 3–12' }, { status: 400 });
+            }
+            // Starter=1 slot (max 3), Growth=3 slots (max 5), Scale=10 slots (max 12), admin=unlimited
+            const TIER_SLOT_LIMITS = { starter: 1, growth: 3, scale: 10 };
+            const { data: profileTier } = await supabaseAdmin
+                .from('user_profiles')
+                .select('plan_tier')
+                .eq('id', targetUserId)
+                .single();
+            const tier = profileTier?.plan_tier || 'starter';
+            const limit = TIER_SLOT_LIMITS[tier];
+            // Slots start at 3, so max allowed slot = 3 + limit - 1
+            if (limit !== undefined && slotIndex > 2 + limit) {
+                return NextResponse.json({ error: `Your plan allows up to ${limit} slot(s). Upgrade to access more.` }, { status: 403 });
+            }
+        }
+        const slotPrefix = String(slotIndex).padStart(2, '0') + '_';
+        const p = slotPrefix;
+        // Base keys (emails, SMS, etc.) have no prefix on the default slot 3; all other slots prepend slot prefix
+        const basePrefix = slotIndex === 3 ? '' : slotPrefix;
+
         log(`[Deploy] ========== STARTING DEPLOY ==========`);
+        log(`[Deploy] Slot index: ${slotIndex} (prefix: "${p}"`);
         log(`[Deploy] Funnel ID: ${funnelId}`);
         log(`[Deploy] Auth User ID: ${userId}`);
         log(`[Deploy] Target User ID: ${targetUserId}`);
@@ -506,14 +539,38 @@ export async function POST(req) {
         log(`[Deploy] Location ID: ${subaccount.location_id}`);
         log(`[Deploy] Snapshot ID: ${subaccount.snapshot_id || 'none'}`);
 
+        // Load stored GHL value IDs for this slot (ID fast-path)
+        const { data: storedIds } = await supabaseAdmin
+            .from('ghl_slot_custom_value_ids')
+            .select('ghl_key, ghl_id')
+            .eq('user_id', targetUserId)
+            .eq('location_id', subaccount.location_id)
+            .eq('slot_index', slotIndex);
+        const idMap = new Map((storedIds || []).map(r => [r.ghl_key, r.ghl_id]));
+        log(`[Deploy] Loaded ${idMap.size} stored IDs for slot ${slotIndex}`);
+
+        // Remap module-level page maps from '03_' values to current slot prefix
+        const dynMap = (map) => slotIndex === 3 ? map : Object.fromEntries(
+            Object.entries(map).map(([k, v]) => [k, v.replace(/^03_/, slotPrefix)])
+        );
+        const OPTIN_MAP = dynMap(OPTIN_PAGE_MAP);
+        const SALES_MAP = dynMap(SALES_PAGE_MAP);
+        const CALENDAR_MAP = dynMap(CALENDAR_PAGE_MAP);
+        const THANKYOU_MAP = dynMap(THANK_YOU_PAGE_MAP);
+
         // 2. Get OAuth token (use targetUserId for owner's token)
         const tokenResult = await getLocationToken(targetUserId, subaccount.location_id);
         if (!tokenResult.success) {
             return NextResponse.json({ error: tokenResult.error }, { status: 401 });
         }
 
-        // 3. Fetch existing values
-        const existingValues = await fetchExistingValues(subaccount.location_id, tokenResult.access_token);
+        // 3. Fetch existing values (skip when all slot IDs are cached)
+        let existingValues = [];
+        if (idMap.size >= TOTAL_SLOT_KEYS) {
+            log('[Deploy] All slot IDs cached — skipping fetchExistingValues');
+        } else {
+            existingValues = await fetchExistingValues(subaccount.location_id, tokenResult.access_token);
+        }
 
         // Build lookup map with multiple key formats
         const existingMap = new Map();
@@ -651,6 +708,9 @@ export async function POST(req) {
         // Helper to find existing value - tries MULTIPLE naming formats
         // GHL uses inconsistent naming: "03_vsl_bio_image" vs "03 VSL Bio Image" vs "03 VSL Sub-Headline Text"
         const findExisting = (ghlKey) => {
+            // 0. FAST PATH: direct lookup by stored ID (skips name-matching entirely)
+            if (idMap.has(ghlKey)) return { id: idMap.get(ghlKey), name: ghlKey, source: 'stored_id' };
+
             // 1. Exact match
             if (existingMap.has(ghlKey)) return existingMap.get(ghlKey);
 
@@ -740,7 +800,7 @@ export async function POST(req) {
         log(`[Deploy] optinPage fields: ${Object.keys(optinPage).join(', ')}`);
 
         for (const [vaultKey, value] of Object.entries(optinPage)) {
-            const ghlKey = OPTIN_PAGE_MAP[vaultKey];
+            const ghlKey = OPTIN_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -766,7 +826,7 @@ export async function POST(req) {
         log(`[Deploy] salesPage fields count: ${Object.keys(salesPage).length}`);
 
         for (const [vaultKey, value] of Object.entries(salesPage)) {
-            const ghlKey = SALES_PAGE_MAP[vaultKey];
+            const ghlKey = SALES_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -792,7 +852,7 @@ export async function POST(req) {
         log(`[Deploy] calendarPage fields: ${Object.keys(calendarPage).join(', ')}`);
 
         for (const [vaultKey, value] of Object.entries(calendarPage)) {
-            const ghlKey = CALENDAR_PAGE_MAP[vaultKey];
+            const ghlKey = CALENDAR_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -818,7 +878,7 @@ export async function POST(req) {
         log(`[Deploy] thankYouPage fields: ${Object.keys(thankYouPage).join(', ')}`);
 
         for (const [vaultKey, value] of Object.entries(thankYouPage)) {
-            const ghlKey = THANK_YOU_PAGE_MAP[vaultKey];
+            const ghlKey = THANKYOU_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -874,7 +934,7 @@ export async function POST(req) {
 
             // Company Email
             if (userProfile.email) {
-                const companyEmailKey = '03_company_email';
+                const companyEmailKey = `${p}company_email`;
                 const existing = findExisting(companyEmailKey);
                 if (existing) {
                     const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, companyEmailKey, userProfile.email);
@@ -913,9 +973,9 @@ export async function POST(req) {
 
             // 3 Universal Color Keys (these exist in GHL)
             const universalColorMap = {
-                'primary_color': primary,
-                'secondary_color': secondary,
-                'tertiary_color': tertiary
+                [basePrefix + 'primary_color']: primary,
+                [basePrefix + 'secondary_color']: secondary,
+                [basePrefix + 'tertiary_color']: tertiary
             };
 
             for (const [ghlKey, hexVal] of Object.entries(universalColorMap)) {
@@ -967,35 +1027,35 @@ export async function POST(req) {
         // Strict Mapping Definition - using ACTUAL vault field names
         // Vault fields: logo, bio_author, product_mockup, main_vsl, thankyou_video
         const strictMediaMap = {
-            // Logo (universal)
+            // Logo (universal — no slot prefix, same across all funnels)
             'logo_image': combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
 
-            // Bio/Author Photo -> 03 VSL Bio Image
-            '03_vsl_bio_image': combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
+            // Bio/Author Photo
+            [`${p}vsl_bio_image`]: combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
 
-            // Product Mockup -> 03 Optin Mockup Image  
-            '03_optin_mockup_image': combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
+            // Product Mockup
+            [`${p}optin_mockup_image`]: combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
 
-            // VSL Video -> 03 VSL Video Link (convert YouTube watch URLs to embed format)
-            '03_vsl_video_link': toEmbedUrl(combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video),
+            // VSL Video (convert YouTube watch URLs to embed format)
+            [`${p}vsl_video_link`]: toEmbedUrl(combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video),
 
-            // Thank You Video -> 03 Thank You Page Video Link (convert YouTube watch URLs to embed format)
-            '03_thankyou_page_video_link': toEmbedUrl(combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video),
+            // Thank You Video (convert YouTube watch URLs to embed format)
+            [`${p}thankyou_page_video_link`]: toEmbedUrl(combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video),
 
             // Testimonials (from defaults or user uploads)
-            '03_vsl_testimonial_review_1_image': combinedMedia.testimonial_review_1_image || combinedMedia.testimonial1Photo || combinedMedia.testimonial_1_photo,
-            '03_vsl_testimonial_review_2_image': combinedMedia.testimonial_review_2_image || combinedMedia.testimonial2Photo || combinedMedia.testimonial_2_photo,
-            '03_vsl_testimonial_review_3_image': combinedMedia.testimonial_review_3_image || combinedMedia.testimonial3Photo || combinedMedia.testimonial_3_photo,
-            '03_vsl_testimonial_review_4_image': combinedMedia.testimonial_review_4_image || combinedMedia.testimonial4Photo || combinedMedia.testimonial_4_photo
+            [`${p}vsl_testimonial_review_1_image`]: combinedMedia.testimonial_review_1_image || combinedMedia.testimonial1Photo || combinedMedia.testimonial_1_photo,
+            [`${p}vsl_testimonial_review_2_image`]: combinedMedia.testimonial_review_2_image || combinedMedia.testimonial2Photo || combinedMedia.testimonial_2_photo,
+            [`${p}vsl_testimonial_review_3_image`]: combinedMedia.testimonial_review_3_image || combinedMedia.testimonial3Photo || combinedMedia.testimonial_3_photo,
+            [`${p}vsl_testimonial_review_4_image`]: combinedMedia.testimonial_review_4_image || combinedMedia.testimonial4Photo || combinedMedia.testimonial_4_photo
         };
 
         // Log each media field attempt for debugging
         log(`[Deploy] Media mapping attempts:`);
         log(`[Deploy]   logo: ${strictMediaMap['logo_image'] ? '✓' : '✗'}`);
-        log(`[Deploy]   bio_author: ${strictMediaMap['03_vsl_bio_image'] ? '✓' : '✗'}`);
-        log(`[Deploy]   product_mockup: ${strictMediaMap['03_optin_mockup_image'] ? '✓' : '✗'}`);
-        log(`[Deploy]   main_vsl: ${strictMediaMap['03_vsl_video_link'] ? '✓' : '✗'}`);
-        log(`[Deploy]   thankyou_video: ${strictMediaMap['03_thankyou_page_video_link'] ? '✓' : '✗'}`);
+        log(`[Deploy]   bio_author: ${strictMediaMap[`${p}vsl_bio_image`] ? '✓' : '✗'}`);
+        log(`[Deploy]   product_mockup: ${strictMediaMap[`${p}optin_mockup_image`] ? '✓' : '✗'}`);
+        log(`[Deploy]   main_vsl: ${strictMediaMap[`${p}vsl_video_link`] ? '✓' : '✗'}`);
+        log(`[Deploy]   thankyou_video: ${strictMediaMap[`${p}thankyou_page_video_link`] ? '✓' : '✗'}`);
 
 
         for (const [ghlKey, val] of Object.entries(strictMediaMap)) {
@@ -1050,7 +1110,7 @@ export async function POST(req) {
             const emailContent = emailSequence[`email${i}`] || {};
 
             // Subject line
-            const subjectKey = i === 1 ? 'free_gift_email_subject' : `optin_email_subject_${i - 1}`;
+            const subjectKey = basePrefix + (i === 1 ? 'free_gift_email_subject' : `optin_email_subject_${i - 1}`);
             if (emailContent.subject) {
                 const existing = findExisting(subjectKey);
                 if (existing) {
@@ -1068,7 +1128,7 @@ export async function POST(req) {
             }
 
             // Preview/Preheader (handle both 'preview' and 'previewText' field names)
-            const preheaderKey = i === 1 ? null : `optin_email_preheader_${i - 1}`;
+            const preheaderKey = i === 1 ? null : basePrefix + `optin_email_preheader_${i - 1}`;
             const previewValue = emailContent.preview || emailContent.previewText || emailContent.preheader;
             if (preheaderKey && previewValue) {
                 const existing = findExisting(preheaderKey);
@@ -1087,7 +1147,7 @@ export async function POST(req) {
             }
 
             // Body
-            const bodyKey = i === 1 ? 'free_gift_email_body' : `optin_email_body_${i - 1}`;
+            const bodyKey = basePrefix + (i === 1 ? 'free_gift_email_body' : `optin_email_body_${i - 1}`);
             if (emailContent.body) {
                 const existing = findExisting(bodyKey);
                 if (existing) {
@@ -1115,14 +1175,14 @@ export async function POST(req) {
         // SMS mapping - vault has: sms1-6, sms7a, sms7b, smsNoShow1, smsNoShow2
         // GHL has: optin_sms_1-14
         const smsVaultToGHL = {
-            'sms1': 'optin_sms_1',      // Day 1 - Welcome
-            'sms2': 'optin_sms_2',      // Day 2 - Value Nudge
-            'sms3': 'optin_sms_3',      // Day 3 - Quick Tip
-            'sms4': 'optin_sms_4',      // Day 4 - Social Proof
-            'sms5': 'optin_sms_5',      // Day 5 - Booking Reminder
-            'sms6': 'optin_sms_6',      // Day 6 - Final Value
-            'sms7a': 'optin_sms_7',     // Day 7 Morning - Last Chance A
-            'sms7b': 'optin_sms_9',     // Day 7 Evening - Last Chance B (use slot 9 to avoid overwrite)
+            'sms1': basePrefix + 'optin_sms_1',      // Day 1 - Welcome
+            'sms2': basePrefix + 'optin_sms_2',      // Day 2 - Value Nudge
+            'sms3': basePrefix + 'optin_sms_3',      // Day 3 - Quick Tip
+            'sms4': basePrefix + 'optin_sms_4',      // Day 4 - Social Proof
+            'sms5': basePrefix + 'optin_sms_5',      // Day 5 - Booking Reminder
+            'sms6': basePrefix + 'optin_sms_6',      // Day 6 - Final Value
+            'sms7a': basePrefix + 'optin_sms_7',     // Day 7 Morning - Last Chance A
+            'sms7b': basePrefix + 'optin_sms_7_evening', // Day 7 Evening - Last Chance B
             // No-show SMS - these should NOT go to optin SMS, they go to appointment reminders
             // But since we don't have separate appointment reminder SMS in vault, skip them here
             // They will be handled in appointment reminders section
@@ -1178,13 +1238,14 @@ export async function POST(req) {
         log(`[Deploy] Email format detected: ${hasArrayFormat ? 'ARRAY' : 'NAMED FIELDS'}`);
 
         // Array index to GHL key mapping (Format 1)
+        const bp = basePrefix;
         const emailArrayToGHL = [
-            { subject: 'email_subject_when_call_booked', preheader: 'email_preheader_when_call_booked', body: 'email_body_when_call_booked', label: 'When Call Booked' },
-            { subject: 'email_subject_48_hour_before_call_time', preheader: 'email_preheader_48_hour_before_call_time', body: 'email_body_48_hour_before_call_time', label: '48 Hours Before' },
-            { subject: 'email_subject_24_hour_before_call_time', preheader: 'email_preheader_24_hour_before_call_time', body: 'email_body_24_hour_before_call_time', label: '24 Hours Before' },
-            { subject: 'email_subject_1_hour_before_call_time', preheader: 'email_preheader_1_hour_before_call_time', body: 'email_body_1_hour_before_call_time', label: '1 Hour Before' },
-            { subject: 'email_subject_10_min_before_call_time', preheader: 'email_preheader_10_min_before_call_time', body: 'email_body_10_min_before_call_time', label: '10 Minutes Before' },
-            { subject: 'email_subject_at_call_time', preheader: 'email_preheader_at_call_time', body: 'email_body_at_call_time', label: 'At Call Time' },
+            { subject: bp + 'email_subject_when_call_booked', preheader: bp + 'email_preheader_when_call_booked', body: bp + 'email_body_when_call_booked', label: 'When Call Booked' },
+            { subject: bp + 'email_subject_48_hour_before_call_time', preheader: bp + 'email_preheader_48_hour_before_call_time', body: bp + 'email_body_48_hour_before_call_time', label: '48 Hours Before' },
+            { subject: bp + 'email_subject_24_hour_before_call_time', preheader: bp + 'email_preheader_24_hour_before_call_time', body: bp + 'email_body_24_hour_before_call_time', label: '24 Hours Before' },
+            { subject: bp + 'email_subject_1_hour_before_call_time', preheader: bp + 'email_preheader_1_hour_before_call_time', body: bp + 'email_body_1_hour_before_call_time', label: '1 Hour Before' },
+            { subject: bp + 'email_subject_10_min_before_call_time', preheader: bp + 'email_preheader_10_min_before_call_time', body: bp + 'email_body_10_min_before_call_time', label: '10 Minutes Before' },
+            { subject: bp + 'email_subject_at_call_time', preheader: bp + 'email_preheader_at_call_time', body: bp + 'email_body_at_call_time', label: 'At Call Time' },
         ];
 
         // Named field to GHL key mapping (Format 2)
@@ -1354,12 +1415,12 @@ export async function POST(req) {
         log(`[Deploy] SMS Reminders sample: ${JSON.stringify(smsReminders, null, 2).substring(0, 300)}`);
 
         const smsReminderToGHL = {
-            'reminderBooked': 'sms_when_call_booked',
-            'reminder48Hour': 'sms_48_hour_before_call_time',
-            'reminder1Day': 'sms_24_hour_before_call_time',
-            'reminder1Hour': 'sms_1_hour_before_call_time',
-            'reminder10Min': 'sms_10_min_before_call_time',
-            'reminderNow': 'sms_at_call_time',
+            'reminderBooked': bp + 'sms_when_call_booked',
+            'reminder48Hour': bp + 'sms_48_hour_before_call_time',
+            'reminder1Day': bp + 'sms_24_hour_before_call_time',
+            'reminder1Hour': bp + 'sms_1_hour_before_call_time',
+            'reminder10Min': bp + 'sms_10_min_before_call_time',
+            'reminderNow': bp + 'sms_at_call_time',
         };
 
         for (const [vaultKey, ghlKey] of Object.entries(smsReminderToGHL)) {

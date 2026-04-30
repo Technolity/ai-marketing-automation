@@ -93,6 +93,7 @@ export default function AdminGHLAccounts() {
     const [linkLocationId, setLinkLocationId] = useState('');
     const [isLinkingLocation, setIsLinkingLocation] = useState(false);
 
+
     const fetchAccounts = useCallback(async () => {
         if (!session) return;
 
@@ -835,6 +836,7 @@ export default function AdminGHLAccounts() {
 
                     return (
                         <div className="flex items-center gap-1">
+
                             {/* Retry Subaccount button */}
                             {canRetry && (
                                 <button
@@ -1537,6 +1539,8 @@ export default function AdminGHLAccounts() {
                     </div>
                 </div>
             )}
+
+
         </AdminLayout>
     );
 }
