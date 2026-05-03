@@ -916,7 +916,7 @@ export async function POST(req) {
 
             // Company Name
             if (userProfile.business_name) {
-                const companyNameKey = 'company_name';
+                const companyNameKey = basePrefix + 'company_name';
                 const existing = findExisting(companyNameKey);
                 if (existing) {
                     const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, companyNameKey, userProfile.business_name);
@@ -1027,8 +1027,8 @@ export async function POST(req) {
         // Strict Mapping Definition - using ACTUAL vault field names
         // Vault fields: logo, bio_author, product_mockup, main_vsl, thankyou_video
         const strictMediaMap = {
-            // Logo (universal — no slot prefix, same across all funnels)
-            'logo_image': combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
+            // Logo — slot-prefixed (04_logo_image for slot 4, etc.; '' for slot 3 = 'logo_image')
+            [basePrefix + 'logo_image']: combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
 
             // Bio/Author Photo
             [`${p}vsl_bio_image`]: combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
@@ -1051,7 +1051,7 @@ export async function POST(req) {
 
         // Log each media field attempt for debugging
         log(`[Deploy] Media mapping attempts:`);
-        log(`[Deploy]   logo: ${strictMediaMap['logo_image'] ? '✓' : '✗'}`);
+        log(`[Deploy]   logo: ${strictMediaMap[basePrefix + 'logo_image'] ? '✓' : '✗'}`);
         log(`[Deploy]   bio_author: ${strictMediaMap[`${p}vsl_bio_image`] ? '✓' : '✗'}`);
         log(`[Deploy]   product_mockup: ${strictMediaMap[`${p}optin_mockup_image`] ? '✓' : '✗'}`);
         log(`[Deploy]   main_vsl: ${strictMediaMap[`${p}vsl_video_link`] ? '✓' : '✗'}`);
@@ -1078,12 +1078,11 @@ export async function POST(req) {
             }
         }
 
-        // Company Name (Universal)
-        // Check multiple possible sources for company name
+        // Company Name from funnelCopy content
         const companyName = fcContent.company_name || optinPage.company_name || vaultContent.company_name;
 
         if (companyName) {
-            const ghlKey = 'company_name'; // Specific key
+            const ghlKey = basePrefix + 'company_name';
             const existing = findExisting(ghlKey);
             if (existing) {
                 const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, companyName);

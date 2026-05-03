@@ -14,6 +14,8 @@ import {
     ChevronDown,
     Database,
     Hash,
+    Layers,
+    Tag,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -390,6 +392,170 @@ function SlotRow({ slot, userId, locationId, onRefresh }) {
     );
 }
 
+// ── Key template breakdown panel ────────────────────────────────────────────
+
+const TEMPLATE_SECTIONS = [
+    {
+        name: "Funnel Copy",
+        section: "funnelCopy",
+        count: 75,
+        prefixType: "prefixed",
+        desc: "Optin page (4), Sales/VSL page (67), Calendar (2), Thank You (2)",
+        keyPattern: (prefix) => `${prefix}vsl_hero_headline_text, ${prefix}optin_headline_text, …`,
+    },
+    {
+        name: "Emails",
+        section: "emails",
+        count: 44,
+        prefixType: "base",
+        desc: "Free Gift (2) + Day 1–14 (subject, preheader, body × 14)",
+        keyPattern: (prefix) => `${prefix}free_gift_email_subject, ${prefix}optin_email_subject_1, …`,
+    },
+    {
+        name: "SMS",
+        section: "sms",
+        count: 20,
+        prefixType: "base",
+        desc: "Day 1–15 message sequence (incl. morning/afternoon/evening variants)",
+        keyPattern: (prefix) => `${prefix}optin_sms_1 … ${prefix}optin_sms_15_evening`,
+    },
+    {
+        name: "Appointment Reminders",
+        section: "appointmentReminders",
+        count: 24,
+        prefixType: "base",
+        desc: "6 triggers × 3 email fields (subject, preheader, body) + 6 SMS fields",
+        keyPattern: (prefix) => `${prefix}email_subject_when_call_booked, ${prefix}sms_when_call_booked, …`,
+    },
+    {
+        name: "Colors",
+        section: "colors",
+        count: 3,
+        prefixType: "base",
+        desc: "Primary, Secondary, Tertiary brand colors (hex values)",
+        keyPattern: (prefix) => `${prefix}primary_color, ${prefix}secondary_color, ${prefix}tertiary_color`,
+    },
+    {
+        name: "Media",
+        section: "media",
+        count: 9,
+        prefixType: "mixed",
+        desc: "8 prefixed (bio photo, mockup, VSL video, thank-you video, 4 testimonial images) + logo (base)",
+        keyPattern: (prefix, slotPrefix) => `${slotPrefix}vsl_bio_image, ${slotPrefix}optin_mockup_image, ${prefix}logo_image, …`,
+    },
+    {
+        name: "Company",
+        section: "company",
+        count: 2,
+        prefixType: "mixed",
+        desc: "company_name (base-prefixed) + company_email (slot-prefixed)",
+        keyPattern: (prefix, slotPrefix) => `${prefix}company_name, ${slotPrefix}company_email`,
+    },
+];
+
+const PREFIX_BADGE = {
+    prefixed: { label: "slot prefix", cls: "bg-purple-500/20 text-purple-300 border-purple-500/30" },
+    base:     { label: "base prefix", cls: "bg-blue-500/20 text-blue-300 border-blue-500/30" },
+    mixed:    { label: "mixed",       cls: "bg-orange-500/20 text-orange-300 border-orange-500/30" },
+};
+
+function KeyTemplatePanel({ activeSlotIndex }) {
+    const [open, setOpen] = useState(false);
+    const slotNum = activeSlotIndex ?? 4;
+    const slotPrefix = String(slotNum).padStart(2, "0") + "_";
+    const basePrefix = slotNum === 3 ? "" : slotPrefix;
+
+    return (
+        <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] overflow-hidden">
+            <button
+                onClick={() => setOpen((o) => !o)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-[#202022] transition-colors text-left"
+            >
+                <div className="flex items-center gap-3">
+                    <Layers className="w-4 h-4 text-cyan" />
+                    <div>
+                        <span className="text-sm font-semibold text-white">
+                            Key Template Reference
+                        </span>
+                        <span className="ml-3 text-xs text-gray-500">
+                            177 keys across 7 sections
+                        </span>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3">
+                    {activeSlotIndex && (
+                        <code className="text-xs font-mono text-cyan bg-cyan/10 border border-cyan/20 rounded px-2 py-0.5">
+                            showing slot {String(activeSlotIndex).padStart(2, "0")} keys
+                        </code>
+                    )}
+                    <ChevronDown
+                        className={`w-4 h-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+                    />
+                </div>
+            </button>
+
+            {open && (
+                <div className="border-t border-[#2a2a2d]">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="bg-[#131314] border-b border-[#2a2a2d]">
+                                    {["Section", "Keys", "Prefix Type", "Description", "Example Keys"].map((h) => (
+                                        <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                                            {h}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#2a2a2d]">
+                                {TEMPLATE_SECTIONS.map((s) => {
+                                    const badge = PREFIX_BADGE[s.prefixType];
+                                    const example = s.keyPattern(basePrefix, slotPrefix);
+                                    return (
+                                        <tr key={s.section} className="hover:bg-[#202022] transition-colors">
+                                            <td className="px-4 py-3 font-medium text-white whitespace-nowrap">
+                                                {s.name}
+                                            </td>
+                                            <td className="px-4 py-3 tabular-nums font-semibold text-cyan whitespace-nowrap">
+                                                {s.count}
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${badge.cls}`}>
+                                                    <Tag className="w-3 h-3" />
+                                                    {badge.label}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-400 text-xs max-w-xs">
+                                                {s.desc}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <code className="text-xs font-mono text-gray-300 bg-[#0e0e0f] border border-[#2a2a2d] rounded px-2 py-1 whitespace-nowrap">
+                                                    {example}
+                                                </code>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                            <tfoot>
+                                <tr className="bg-[#131314] border-t border-[#2a2a2d]">
+                                    <td className="px-4 py-2.5 font-semibold text-white text-sm">Total</td>
+                                    <td className="px-4 py-2.5 font-bold text-cyan text-sm">177</td>
+                                    <td colSpan={3} className="px-4 py-2.5 text-xs text-gray-500">
+                                        <strong className="text-gray-400">prefixed</strong> = always uses slot prefix (03_/04_/…) &nbsp;|&nbsp;
+                                        <strong className="text-gray-400">base</strong> = no prefix on slot 03, slot prefix on 04–12 &nbsp;|&nbsp;
+                                        <strong className="text-gray-400">mixed</strong> = entries of both types in this section
+                                    </td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default function AdminGHLCustomValues() {
@@ -535,7 +701,7 @@ export default function AdminGHLCustomValues() {
                         </h1>
                         <p className="text-gray-400 text-sm">
                             Bulk-create slot custom values in GHL for any user
-                            (slots 03–12, 178 keys each). Slot 03 is already
+                            (slots 03–12, 177 keys each). Slot 03 is already
                             mapped in the codebase — create slots 04–12 for
                             higher-tier users.
                         </p>
@@ -845,7 +1011,7 @@ export default function AdminGHLCustomValues() {
                                     {/* Table footer note */}
                                     <div className="px-4 py-3 border-t border-[#2a2a2d] bg-[#131314]">
                                         <p className="text-xs text-gray-500">
-                                            Slots 03–12 &nbsp;&bull;&nbsp; 178
+                                            Slots 03–12 &nbsp;&bull;&nbsp; 177
                                             custom values per slot &nbsp;&bull;&nbsp;
                                             Slot 03 hardcoded in codebase &nbsp;&bull;&nbsp;
                                             100 ms rate-limit delay with 429
@@ -855,6 +1021,9 @@ export default function AdminGHLCustomValues() {
                                 </div>
                             ) : null}
                         </div>
+
+                        {/* Key template breakdown */}
+                        <KeyTemplatePanel activeSlotIndex={slotData?.slots?.find(s => s.status === "active" && s.slot_index !== 3)?.slot_index ?? null} />
 
                         {/* No GHL subaccount warning */}
                         {slotData && !slotData.location_id && (
