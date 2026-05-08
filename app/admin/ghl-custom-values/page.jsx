@@ -16,6 +16,8 @@ import {
     Hash,
     Layers,
     Tag,
+    Send,
+    Palette,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -319,7 +321,7 @@ function SlotRow({ slot, userId, locationId, onRefresh }) {
                                 title={
                                     slot.status === "partial"
                                         ? "Resume creating remaining keys"
-                                        : "Bulk-create 178 GHL custom values"
+                                        : "Bulk-create 195 GHL custom values"
                                 }
                             >
                                 {creating ? (
@@ -406,9 +408,9 @@ const TEMPLATE_SECTIONS = [
     {
         name: "Emails",
         section: "emails",
-        count: 44,
+        count: 62,
         prefixType: "base",
-        desc: "Free Gift (2) + Day 1–14 (subject, preheader, body × 14)",
+        desc: "Free Gift (2) + Day 1–14 (subject, preheader, body × 14) + day 8/day 15 closing variants",
         keyPattern: (prefix) => `${prefix}free_gift_email_subject, ${prefix}optin_email_subject_1, …`,
     },
     {
@@ -478,7 +480,7 @@ function KeyTemplatePanel({ activeSlotIndex }) {
                             Key Template Reference
                         </span>
                         <span className="ml-3 text-xs text-gray-500">
-                            177 keys across 7 sections
+                            195 keys across 7 sections
                         </span>
                     </div>
                 </div>
@@ -540,7 +542,7 @@ function KeyTemplatePanel({ activeSlotIndex }) {
                             <tfoot>
                                 <tr className="bg-[#131314] border-t border-[#2a2a2d]">
                                     <td className="px-4 py-2.5 font-semibold text-white text-sm">Total</td>
-                                    <td className="px-4 py-2.5 font-bold text-cyan text-sm">177</td>
+                                    <td className="px-4 py-2.5 font-bold text-cyan text-sm">195</td>
                                     <td colSpan={3} className="px-4 py-2.5 text-xs text-gray-500">
                                         <strong className="text-gray-400">prefixed</strong> = always uses slot prefix (03_/04_/…) &nbsp;|&nbsp;
                                         <strong className="text-gray-400">base</strong> = no prefix on slot 03, slot prefix on 04–12 &nbsp;|&nbsp;
@@ -552,6 +554,323 @@ function KeyTemplatePanel({ activeSlotIndex }) {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+// ── Push Value Panel ────────────────────────────────────────────────────────
+
+function PushValuePanel({ mode, selectedUser, activeLocationId }) {
+    const [values, setValues] = useState([]);
+    const [cvLoading, setCvLoading] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedValue, setSelectedValue] = useState(null);
+    const [inputValue, setInputValue] = useState("");
+    const [pushing, setPushing] = useState(false);
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const panelRef = useRef(null);
+
+    useEffect(() => {
+        function handleClick(e) {
+            if (panelRef.current && !panelRef.current.contains(e.target)) {
+                setDropdownOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+    }, []);
+
+    useEffect(() => {
+        const hasTarget = mode === "direct" ? activeLocationId : selectedUser;
+        if (!hasTarget) return;
+        setCvLoading(true);
+        setValues([]);
+        setSelectedValue(null);
+        fetchWithAuth("/api/admin/ghl-custom-values", {
+            method: "POST",
+            body: JSON.stringify({
+                action: "list_values",
+                ...(activeLocationId ? { location_id: activeLocationId } : { userId: selectedUser?.id }),
+            }),
+        })
+            .then((r) => r.json())
+            .then((d) => { if (d.values) setValues(d.values); })
+            .catch(console.error)
+            .finally(() => setCvLoading(false));
+    }, [mode, selectedUser, activeLocationId]);
+
+    const filtered = values.filter(
+        (v) => !searchQuery || v.ghl_key.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const handlePush = async () => {
+        if (!selectedValue || pushing) return;
+        setPushing(true);
+        try {
+            const res = await fetchWithAuth("/api/admin/ghl-custom-values", {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "push_value",
+                    ...(activeLocationId ? { location_id: activeLocationId } : { userId: selectedUser?.id }),
+                    ghl_id: selectedValue.ghl_id,
+                    ghl_key: selectedValue.ghl_key,
+                    value: inputValue,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Push failed");
+            toast.success(`Pushed "${selectedValue.ghl_key}"`);
+            setInputValue("");
+        } catch (err) {
+            toast.error(err.message || "Push failed");
+        } finally {
+            setPushing(false);
+        }
+    };
+
+    return (
+        <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#2a2a2d] flex items-center gap-3">
+                <Send className="w-4 h-4 text-cyan" />
+                <div>
+                    <span className="text-sm font-semibold text-white">
+                        Push Value to Custom Value
+                    </span>
+                    <span className="ml-3 text-xs text-gray-500">
+                        {cvLoading ? "Loading…" : `${values.length} keys available`}
+                    </span>
+                </div>
+            </div>
+            <div className="p-5 space-y-4">
+                {/* Key selector */}
+                <div ref={panelRef} className="relative">
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">
+                        Custom Value Key
+                    </label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+                        <input
+                            type="text"
+                            placeholder={cvLoading ? "Loading keys…" : "Search for a key…"}
+                            value={selectedValue ? selectedValue.ghl_key : searchQuery}
+                            onChange={(e) => {
+                                setSelectedValue(null);
+                                setSearchQuery(e.target.value);
+                                setDropdownOpen(true);
+                            }}
+                            onFocus={() => setDropdownOpen(true)}
+                            className="w-full pl-9 pr-10 py-2.5 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors font-mono text-sm"
+                        />
+                        {selectedValue && (
+                            <button
+                                onClick={() => { setSelectedValue(null); setSearchQuery(""); }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded-md transition-colors"
+                            >
+                                <X className="w-3.5 h-3.5 text-gray-400" />
+                            </button>
+                        )}
+                    </div>
+                    {dropdownOpen && !selectedValue && (
+                        <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-[#131314] border border-[#2a2a2d] rounded-xl shadow-2xl max-h-64 overflow-y-auto">
+                            {filtered.length === 0 ? (
+                                <div className="px-4 py-6 text-center text-sm text-gray-500">
+                                    {cvLoading ? "Loading…" : "No keys found"}
+                                </div>
+                            ) : (
+                                filtered.slice(0, 60).map((v) => (
+                                    <button
+                                        key={`${v.slot_index}-${v.ghl_key}`}
+                                        onClick={() => {
+                                            setSelectedValue(v);
+                                            setSearchQuery("");
+                                            setDropdownOpen(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#1b1b1d] transition-colors text-left"
+                                    >
+                                        <span className="text-xs font-mono text-cyan shrink-0 w-6 text-right">
+                                            {String(v.slot_index).padStart(2, "0")}
+                                        </span>
+                                        <span className="text-xs font-mono text-gray-300 truncate flex-1">
+                                            {v.ghl_key}
+                                        </span>
+                                        <span className="text-xs text-gray-600 shrink-0">
+                                            {v.section}
+                                        </span>
+                                    </button>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Value textarea */}
+                <div>
+                    <label className="block text-xs font-semibold text-gray-400 mb-1.5">
+                        Value
+                    </label>
+                    <textarea
+                        rows={3}
+                        placeholder="Enter the value to push to GHL…"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors text-sm resize-none"
+                    />
+                </div>
+
+                <button
+                    onClick={handlePush}
+                    disabled={!selectedValue || pushing}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    {pushing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                        <Send className="w-4 h-4" />
+                    )}
+                    {pushing ? "Pushing…" : "Push Value"}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ── Default Colors Panel ─────────────────────────────────────────────────────
+
+const DEFAULT_COLORS = {
+    primary: "#1A1A2E",
+    secondary: "#16213E",
+    tertiary: "#0F3460",
+};
+
+const COLOR_ROWS = [
+    { key: "primary",   label: "Primary",   desc: "Backgrounds, headers, CTAs" },
+    { key: "secondary", label: "Secondary", desc: "Alternating backgrounds" },
+    { key: "tertiary",  label: "Tertiary",  desc: "Text colors, accents" },
+];
+
+function DefaultColorsPanel({ mode, selectedUser, activeLocationId }) {
+    const [colors, setColors] = useState(DEFAULT_COLORS);
+    const [pushing, setPushing] = useState(false);
+    const [result, setResult] = useState(null);
+
+    const setColor = (key, val) => setColors((prev) => ({ ...prev, [key]: val }));
+
+    const handlePush = async () => {
+        if (pushing) return;
+        setPushing(true);
+        setResult(null);
+        try {
+            const res = await fetchWithAuth("/api/admin/ghl-custom-values", {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "push_default_colors",
+                    ...(activeLocationId ? { location_id: activeLocationId } : { userId: selectedUser?.id }),
+                    primary: colors.primary,
+                    secondary: colors.secondary,
+                    tertiary: colors.tertiary,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Push failed");
+            setResult(data);
+            toast.success(`Colors pushed to ${data.updated} custom value${data.updated !== 1 ? "s" : ""}`);
+        } catch (err) {
+            toast.error(err.message || "Push failed");
+        } finally {
+            setPushing(false);
+        }
+    };
+
+    return (
+        <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#2a2a2d] flex items-center gap-3">
+                <Palette className="w-4 h-4 text-cyan" />
+                <div>
+                    <span className="text-sm font-semibold text-white">
+                        Default Brand Colors
+                    </span>
+                    <span className="ml-3 text-xs text-gray-500">
+                        One-click push to primary, secondary &amp; tertiary across all slots
+                    </span>
+                </div>
+            </div>
+            <div className="p-5 space-y-5">
+                <div className="space-y-3">
+                    {COLOR_ROWS.map(({ key, label, desc }) => (
+                        <div key={key} className="flex items-center gap-4">
+                            <div className="w-28 shrink-0">
+                                <p className="text-sm font-semibold text-white">{label}</p>
+                                <p className="text-xs text-gray-500">{desc}</p>
+                            </div>
+                            <div className="flex items-center gap-3 flex-1">
+                                {/* Native color picker */}
+                                <label className="relative cursor-pointer">
+                                    <input
+                                        type="color"
+                                        value={colors[key]}
+                                        onChange={(e) => setColor(key, e.target.value)}
+                                        className="sr-only"
+                                    />
+                                    <div
+                                        className="w-9 h-9 rounded-lg border-2 border-[#2a2a2d] hover:border-cyan transition-colors"
+                                        style={{ backgroundColor: colors[key] }}
+                                    />
+                                </label>
+                                {/* Hex text input */}
+                                <input
+                                    type="text"
+                                    value={colors[key]}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        if (/^#[0-9A-Fa-f]{0,6}$/.test(v)) setColor(key, v);
+                                    }}
+                                    maxLength={7}
+                                    placeholder="#000000"
+                                    className="w-28 px-3 py-2 bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg text-white focus:outline-none focus:border-cyan transition-colors font-mono text-sm"
+                                />
+                                <button
+                                    onClick={() => setColor(key, DEFAULT_COLORS[key])}
+                                    className="text-xs text-gray-600 hover:text-gray-300 transition-colors"
+                                    title="Reset to default"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {result && (
+                    <div
+                        className={`flex items-center gap-2 p-3 rounded-xl border text-sm ${
+                            result.failed > 0
+                                ? "bg-orange-500/10 border-orange-500/30 text-orange-200"
+                                : "bg-green-500/10 border-green-500/30 text-green-200"
+                        }`}
+                    >
+                        {result.failed > 0 ? (
+                            <AlertTriangle className="w-4 h-4 shrink-0" />
+                        ) : (
+                            <CheckCircle className="w-4 h-4 shrink-0" />
+                        )}
+                        Updated {result.updated}/{result.total} color values
+                        {result.failed > 0 && ` · ${result.failed} failed`}
+                    </div>
+                )}
+
+                <button
+                    onClick={handlePush}
+                    disabled={pushing}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    {pushing ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                        <Palette className="w-4 h-4" />
+                    )}
+                    {pushing ? "Pushing colors…" : "Push colors to all slots"}
+                </button>
+            </div>
         </div>
     );
 }
@@ -581,6 +900,7 @@ export default function AdminGHLCustomValues() {
     const [slotData, setSlotData] = useState(null);
     const [slotLoading, setSlotLoading] = useState(false);
     const [slotError, setSlotError] = useState(null);
+    const [backfillingAll, setBackfillingAll] = useState(false);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -676,6 +996,38 @@ export default function AdminGHLCustomValues() {
         loadSlots();
     }, [loadSlots]);
 
+    const handleBackfillAllSlots = async () => {
+        if (backfillingAll) return;
+        if (mode === "user" && !selectedUser?.id) return;
+        if (mode === "direct" && !activeLocationId) return;
+
+        setBackfillingAll(true);
+        try {
+            const res = await fetchWithAuth("/api/admin/ghl-custom-values", {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "create_all_slots",
+                    ...(mode === "direct"
+                        ? { location_id: activeLocationId }
+                        : { userId: selectedUser.id }),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "Backfill failed");
+            }
+            toast.success(
+                `Backfilled slots 04-12: ${data.created} missing keys created`
+            );
+            await loadSlots();
+        } catch (err) {
+            console.error("Backfill all slots error:", err);
+            toast.error(err.message || "Failed to backfill slots");
+        } finally {
+            setBackfillingAll(false);
+        }
+    };
+
     // Summary stats derived from slot data
     const stats = slotData
         ? {
@@ -701,7 +1053,7 @@ export default function AdminGHLCustomValues() {
                         </h1>
                         <p className="text-gray-400 text-sm">
                             Bulk-create slot custom values in GHL for any user
-                            (slots 03–12, 177 keys each). Slot 03 is already
+                            (slots 03–12, 195 keys each). Slot 03 is already
                             mapped in the codebase — create slots 04–12 for
                             higher-tier users.
                         </p>
@@ -954,6 +1306,32 @@ export default function AdminGHLCustomValues() {
                             </div>
                         )}
 
+                        {slotData && (
+                            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-2xl border border-cyan/20 bg-cyan/5 p-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-white">
+                                        Backfill legacy slots to the current 195-key template
+                                    </p>
+                                    <p className="mt-1 text-xs text-gray-400">
+                                        Adds only missing keys for slots 04-12 and skips slot 03, so it is safe to rerun after partial failures.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleBackfillAllSlots}
+                                    disabled={backfillingAll || slotLoading}
+                                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan/30 bg-cyan/10 px-4 py-2 text-sm font-semibold text-cyan transition-all hover:bg-cyan/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {backfillingAll ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Plus className="h-4 w-4" />
+                                    )}
+                                    {backfillingAll ? "Backfilling..." : "Backfill Slots 04-12"}
+                                </button>
+                            </div>
+                        )}
+
                         {/* Slot table */}
                         <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] overflow-hidden">
                             {slotLoading ? (
@@ -1011,7 +1389,7 @@ export default function AdminGHLCustomValues() {
                                     {/* Table footer note */}
                                     <div className="px-4 py-3 border-t border-[#2a2a2d] bg-[#131314]">
                                         <p className="text-xs text-gray-500">
-                                            Slots 03–12 &nbsp;&bull;&nbsp; 177
+                                            Slots 03–12 &nbsp;&bull;&nbsp; 195
                                             custom values per slot &nbsp;&bull;&nbsp;
                                             Slot 03 hardcoded in codebase &nbsp;&bull;&nbsp;
                                             100 ms rate-limit delay with 429
@@ -1024,6 +1402,20 @@ export default function AdminGHLCustomValues() {
 
                         {/* Key template breakdown */}
                         <KeyTemplatePanel activeSlotIndex={slotData?.slots?.find(s => s.status === "active" && s.slot_index !== 3)?.slot_index ?? null} />
+
+                        {/* Push value to any custom value */}
+                        <PushValuePanel
+                            mode={mode}
+                            selectedUser={selectedUser}
+                            activeLocationId={activeLocationId}
+                        />
+
+                        {/* Default brand colors — push to all slots */}
+                        <DefaultColorsPanel
+                            mode={mode}
+                            selectedUser={selectedUser}
+                            activeLocationId={activeLocationId}
+                        />
 
                         {/* No GHL subaccount warning */}
                         {slotData && !slotData.location_id && (

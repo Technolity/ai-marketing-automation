@@ -12,6 +12,8 @@ import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { replaceCustomValues } from '@/lib/ghl/contentPolisher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { addStoredSlotIdsToExistingMap, resolveSlotForFunnel, transformKey } from '@/lib/ghl/slotHelper';
+import { extractSmsMessage } from '@/lib/ghl/slotDeployMapper';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 180; // 3 minutes timeout for appointment reminders with batching
@@ -125,6 +127,17 @@ export async function POST(req) {
         return NextResponse.json({ error: 'funnelId required' }, { status: 400 });
     }
 
+    // Resolve slot assignment for this funnel
+    const { slotIndex, slotPrefix, basePrefix } = await resolveSlotForFunnel(funnelId, supabaseAdmin);
+
+    // Fetch user's hardcoded booking URL (replaces {{custom_values.schedule_link}})
+    const { data: profileData } = await supabaseAdmin
+        .from('user_profiles')
+        .select('schedule_link')
+        .eq('id', targetUserId)
+        .maybeSingle();
+    const scheduleLink = profileData?.schedule_link || null;
+
     console.log('[PushAppointmentReminders] Starting push for target user', targetUserId, '(Auth: ' + userId + ')');
     console.log('[PushAppointmentReminders] Funnel ID:', funnelId);
 
@@ -152,6 +165,13 @@ export async function POST(req) {
 
     // Build enhanced lookup map with 11-level matching
     const existingMap = buildExistingMap(existingValues);
+    const storedSlotIdCount = await addStoredSlotIdsToExistingMap(existingMap, {
+        userId: targetUserId,
+        locationId: subaccount.location_id,
+        slotIndex,
+        supabaseClient: supabaseAdmin,
+    });
+    console.log('[PushAppointmentReminders] Stored slot IDs loaded:', storedSlotIdCount);
 
     // Get appointment reminder content from vault_content_fields (granular storage)
     const { data: fields, error: fieldsError } = await supabaseAdmin
@@ -185,6 +205,18 @@ export async function POST(req) {
     //   reminder48Hours: { subject, previewText, body }
     //   etc.
     // Access them directly from the reconstructed appointmentReminders object.
+    const { data: vaultSection } = await supabaseAdmin
+        .from('vault_content')
+        .select('content')
+        .eq('funnel_id', funnelId)
+        .eq('user_id', targetUserId)
+        .eq('section_id', 'appointmentReminders')
+        .eq('is_current_version', true)
+        .maybeSingle();
+
+    const appointmentRemindersFromSection = vaultSection?.content?.appointmentReminders
+        || vaultSection?.content
+        || {};
 
     // Build items to push WITHOUT processing first (for batch processing)
     const itemsToPush = [];
@@ -199,13 +231,14 @@ export async function POST(req) {
 
         // Subject
         if (email.subject && validateEmailContent(email.subject, 'subject')) {
-            const match = findExistingId(existingMap, mapping.subject);
+            const transformedKey = transformKey(mapping.subject, slotPrefix, basePrefix);
+            const match = findExistingId(existingMap, transformedKey);
             itemsToPush.push({
                 type: 'email',
                 contentType: 'subject',
                 vaultKey: vaultKey,
                 raw: email.subject,
-                ghlKey: mapping.subject,
+                ghlKey: transformedKey,
                 match: match,
             });
         }
@@ -213,26 +246,28 @@ export async function POST(req) {
         // Preheader/Preview
         const preheaderValue = email.preheader || email.previewText || email.preview;
         if (preheaderValue && validateEmailContent(preheaderValue, 'preheader')) {
-            const match = findExistingId(existingMap, mapping.preheader);
+            const transformedKey = transformKey(mapping.preheader, slotPrefix, basePrefix);
+            const match = findExistingId(existingMap, transformedKey);
             itemsToPush.push({
                 type: 'email',
                 contentType: 'preheader',
                 vaultKey: vaultKey,
                 raw: preheaderValue,
-                ghlKey: mapping.preheader,
+                ghlKey: transformedKey,
                 match: match,
             });
         }
 
         // Body
         if (email.body && validateEmailContent(email.body, 'body')) {
-            const match = findExistingId(existingMap, mapping.body);
+            const transformedKey = transformKey(mapping.body, slotPrefix, basePrefix);
+            const match = findExistingId(existingMap, transformedKey);
             itemsToPush.push({
                 type: 'email',
                 contentType: 'body',
                 vaultKey: vaultKey,
                 raw: email.body,
-                ghlKey: mapping.body,
+                ghlKey: transformedKey,
                 match: match,
             });
         }
@@ -240,16 +275,18 @@ export async function POST(req) {
 
     // Collect SMS items from smsReminders sub-object
     const smsReminders = appointmentReminders.smsReminders || {};
-    for (const [vaultKey, ghlKey] of Object.entries(APPOINTMENT_SMS_MAP)) {
-        let smsValue = smsReminders[vaultKey];
+    const smsRemindersFromSection = appointmentRemindersFromSection.smsReminders || {};
+    for (const [vaultKey, rawGhlKey] of Object.entries(APPOINTMENT_SMS_MAP)) {
+        let smsValue = extractSmsMessage(smsReminders[vaultKey])
+            ? smsReminders[vaultKey]
+            : smsRemindersFromSection[vaultKey];
         if (!smsValue) continue;
 
         // Extract SMS text from various formats
-        if (typeof smsValue === 'object') {
-            smsValue = smsValue.message || smsValue.body || smsValue.text || JSON.stringify(smsValue);
-        }
+        smsValue = extractSmsMessage(smsValue);
 
         if (validateSMSContent(smsValue)) {
+            const ghlKey = transformKey(rawGhlKey, slotPrefix, basePrefix);
             const match = findExistingId(existingMap, ghlKey);
             itemsToPush.push({
                 type: 'sms',
@@ -289,8 +326,8 @@ export async function POST(req) {
                         };
                     }
 
-                    // Apply GHL custom value replacements
-                    const processedContent = replaceCustomValues(item.raw, 'appointment');
+                    // Apply GHL custom value replacements with user's booking URL
+                    const processedContent = replaceCustomValues(item.raw, 'appointment', scheduleLink);
 
                     // Skip if processed value matches what's already in GHL
                     if (item.match?.value !== undefined &&

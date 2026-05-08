@@ -24,7 +24,7 @@ import {
     Video, Mail, Megaphone, Layout, Bell, Lightbulb,
     Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
     ChevronDown, ChevronUp, Save, Image as ImageIcon, Video as VideoIcon, Plus, Trash2 as TrashIcon, ExternalLink,
-    Upload, X, Info, FileImage, Rocket, AlertOctagon, Play, Palette
+    Upload, X, Info, FileImage, Rocket, AlertOctagon, Play, Palette, Layers
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
@@ -32,6 +32,7 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { createLogger } from '@/lib/logger';
 import { applyFreeGiftReplacement } from "@/lib/vault/freeGiftReplacer";
 import { flattenAIResponseToFields } from '@/lib/vault/feedbackUtils';
+import { buildSlotDisplayOptions } from '@/lib/ghl/slotDisplay';
 
 // Initialize logger
 const logger = createLogger('VaultPage');
@@ -74,6 +75,9 @@ import PhaseWarningBanner from "@/components/vault/PhaseWarningBanner";
 import ActionModal from "@/components/vault/ActionModal";
 import EmergencyHelpButton from "@/components/vault/EmergencyHelpButton";
 import DeployedFunnelCard from "@/components/vault/DeployedFunnelCard";
+import SlotSelectorModal from "@/components/ghl/SlotSelectorModal";
+import SlotAssignmentBadge from "@/components/ghl/SlotAssignmentBadge";
+import ScheduleLinkCard from "@/components/vault/ScheduleLinkCard";
 
 // Map section IDs to granular field components (all 13 sections)
 const GRANULAR_FIELD_COMPONENTS = {
@@ -103,22 +107,26 @@ const PHASE_1_SECTIONS = [
     { id: 'offer', numericKey: 4, title: 'Offer & Pricing', subtitle: 'Your core offer', icon: Gift, hint: "This is your core product architecture. Use the 7-Step Blueprint names in your marketing to build 'method authority'.", videoKey: 'offerPricing' }
 ];
 
-// Phase 2: Marketing Assets - Funnel & marketing materials (locked until funnel choice made)
+// Phase 2: Funnel Assets - Funnel page copy, media, ads, bio, lead magnet (locked until funnel choice made)
 const PHASE_2_SECTIONS = [
     { id: 'leadMagnet', numericKey: 6, title: 'Free Gift', subtitle: 'Your value-packed free gift', icon: Magnet, hint: "Give this away in exchange for an email address. Use the title and hook in your ads and landing pages.", videoKey: 'freeGift' },
     { id: 'vsl', numericKey: 7, title: 'Appointment Booking Video', subtitle: 'Funnel video script', icon: Video, hint: "Record this script for your landing page or sales page video. Keep it authentic and focused on the viewer.", videoKey: 'vsl' },
     { id: 'bio', numericKey: 15, title: 'Professional Bio', subtitle: 'Authority positioning', icon: Users, hint: "Use the short bio for guesting (podcasts/events) and the full bio for your 'About' page.", videoKey: 'bio' },
     { id: 'facebookAds', numericKey: 9, title: 'Ad Copy', subtitle: 'Platform-specific ads', icon: Megaphone, hint: "Test these ad variations on Facebook/Instagram. Use the hooks as the first line of your captions.", videoKey: 'ads' },
-    { id: 'emails', numericKey: 8, title: 'Email Campaigns', subtitle: '15-day nurture series', icon: Mail, hint: "Load these into your email autoresponder to nurture new leads over 15 days.", videoKey: 'emailCampaigns' },
-    { id: 'sms', numericKey: 19, title: 'Text Messages', subtitle: 'Text message nurture', icon: MessageSquare, hint: "Send these automated texts to increase engagement and show-up rates.", videoKey: 'smsFollowUp' },
-    { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell, hint: "Add these to your calendar booking system (Calendly, GHL) to increase show-up rates.", videoKey: 'appointmentReminders' },
     { id: 'funnelCopy', numericKey: 10, title: 'Funnel Page Copy', subtitle: 'Landing & sales pages', icon: Layout, hint: "Copy and paste this into your landing page builder (ClickFunnels, GHL, etc.) for high conversion." },
     { id: 'media', numericKey: 18, title: 'Upload images & videos for your funnel', subtitle: 'Logo, images, and videos', icon: ImageIcon, hint: "Upload your professional assets here to be used across your funnel pages." },
     { id: 'colors', numericKey: 20, title: 'Brand Colors', subtitle: 'Your brand color palette', icon: Palette, hint: "These colors from your intake form will be applied to your funnel pages for consistent branding." }
 ];
 
-// Phase 3: Sales Scripts - Setter and Closer scripts (locked until Phase 2 approved)
+// Phase 3: Campaigns - Email, SMS, and appointment reminder sequences (locked until Phase 2 approved)
 const PHASE_3_SECTIONS = [
+    { id: 'emails', numericKey: 8, title: 'Email Campaigns', subtitle: '15-day nurture series', icon: Mail, hint: "Load these into your email autoresponder to nurture new leads over 15 days.", videoKey: 'emailCampaigns' },
+    { id: 'sms', numericKey: 19, title: 'Text Messages', subtitle: 'Text message nurture', icon: MessageSquare, hint: "Send these automated texts to increase engagement and show-up rates.", videoKey: 'smsFollowUp' },
+    { id: 'appointmentReminders', numericKey: 16, title: 'Appointment Reminders', subtitle: 'Show-up sequences', icon: Bell, hint: "Add these to your calendar booking system (Calendly, GHL) to increase show-up rates.", videoKey: 'appointmentReminders' },
+];
+
+// Phase 4: Sales Scripts - Setter and Closer scripts (locked until Phase 3 approved)
+const PHASE_4_SECTIONS = [
     { id: 'setterScript', numericKey: 17, title: 'Setter Script', subtitle: 'Appointment setting', icon: Bell, hint: "Use this for 15-min triage calls or DM conversations to qualify leads and book them into a sales call." },
     { id: 'salesScripts', numericKey: 5, title: 'Closer Script', subtitle: 'How you close deals', icon: Mic, hint: "Use this script for booked sales calls. Follow the flow to diagnose deeply before prescribing your solution." }
 ];
@@ -148,7 +156,7 @@ function normalizeData(rawData) {
     if (!rawData || typeof rawData !== 'object') return {};
 
     const normalized = {};
-    const allSections = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS, ...PHASE_3_SECTIONS];
+    const allSections = [...PHASE_1_SECTIONS, ...PHASE_2_SECTIONS, ...PHASE_3_SECTIONS, ...PHASE_4_SECTIONS];
     const hasNumericKeys = Object.keys(rawData).some(key => !isNaN(key));
 
     if (hasNumericKeys) {
@@ -574,6 +582,7 @@ export default function VaultPage() {
     const [hasFunnelChoice, setHasFunnelChoice] = useState(false);
     const [approvedPhase2, setApprovedPhase2] = useState([]);
     const [approvedPhase3, setApprovedPhase3] = useState([]);
+    const [approvedPhase4, setApprovedPhase4] = useState([]);
     const [expandedSections, setExpandedSections] = useState(() => new Set());
     const [editingSection, setEditingSection] = useState(null);
     const [activeVslTab, setActiveVslTab] = useState('longForm');
@@ -622,6 +631,20 @@ export default function VaultPage() {
     const [deploymentStep, setDeploymentStep] = useState(0); // 0 = not started, 1-3 = in progress
     const [emailSentOnDeploy, setEmailSentOnDeploy] = useState(false);
 
+    // Slot selector state
+    const [showSlotModal, setShowSlotModal] = useState(false);
+    const [slotModalPlan, setSlotModalPlan] = useState('starter');
+    const [slotModalAvailable, setSlotModalAvailable] = useState([3]);
+    const [slotModalInitial, setSlotModalInitial] = useState(null);
+    const [slotDropdownOpen, setSlotDropdownOpen] = useState(false);
+    const slotDropdownRef = useRef(null);
+    const [funnelSlotAssignment, setFunnelSlotAssignment] = useState(null); // { slot_index, assigned_at } | null
+    const [slotTakenSlots, setSlotTakenSlots] = useState([]);
+    const [scheduleLink, setScheduleLink] = useState('');
+    const [slotDisplayOptions, setSlotDisplayOptions] = useState(
+        buildSlotDisplayOptions({ planTier: 'starter', allowedSlots: [3], assignableSlots: [3] })
+    );
+
     // Ref to track completed job IDs we've already processed (prevents duplicate refreshes)
     const previouslyCompletedJobsRef = useRef(new Set());
 
@@ -633,16 +656,19 @@ export default function VaultPage() {
     const [pollVersion, setPollVersion] = useState(0);
 
     // Tab state - determine initial tab from URL param
-    const initialTab = searchParams.get('phase') === '2' ? 'assets' : searchParams.get('phase') === '3' ? 'scripts' : 'dna';
+    const initialTab = searchParams.get('phase') === '2' ? 'assets'
+        : searchParams.get('phase') === '3' ? 'campaigns'
+        : searchParams.get('phase') === '4' ? 'scripts'
+        : 'dna';
     const [activeTab, setActiveTab] = useState(initialTab);
 
     // Phase completion tracking
     const phase1FullyApproved = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const phase2FullyApproved = approvedPhase2.length >= PHASE_2_SECTIONS.length;
     const phase3FullyApproved = approvedPhase3.length >= PHASE_3_SECTIONS.length;
+    const phase4FullyApproved = approvedPhase4.length >= PHASE_4_SECTIONS.length;
 
     // Track if Phase 2 was ever fully approved to prevent locking user out of Phase 3
-    // when they unapprove a single Phase 2 section for editing
     const phase2WasFullyApprovedRef = useRef(false);
     useEffect(() => {
         if (phase2FullyApproved) {
@@ -650,9 +676,16 @@ export default function VaultPage() {
         }
     }, [phase2FullyApproved]);
 
-    // Phase 3 should be accessible if Phase 2 is fully approved OR if user is currently
-    // on Phase 3 (they got there when it was approved and are now editing)
-    const isPhase3Accessible = phase2FullyApproved || activeTab === 'scripts' || phase2WasFullyApprovedRef.current;
+    // Track if Phase 3 was ever fully approved to prevent locking user out of Phase 4
+    const phase3WasFullyApprovedRef = useRef(false);
+    useEffect(() => {
+        if (phase3FullyApproved) {
+            phase3WasFullyApprovedRef.current = true;
+        }
+    }, [phase3FullyApproved]);
+
+    const isPhase3Accessible = phase2FullyApproved || activeTab === 'campaigns' || phase2WasFullyApprovedRef.current;
+    const isPhase4Accessible = phase3FullyApproved || activeTab === 'scripts' || phase3WasFullyApprovedRef.current;
 
     // Handler for automated account setup
     const handleSetupAccount = async () => {
@@ -686,7 +719,8 @@ export default function VaultPage() {
     const isPhase1Complete = approvedPhase1.length >= PHASE_1_SECTIONS.length;
     const isPhase2Complete = approvedPhase2.length >= PHASE_2_SECTIONS.length;
     const isPhase3Complete = approvedPhase3.length >= PHASE_3_SECTIONS.length;
-    const isVaultComplete = isPhase1Complete && isPhase2Complete && isPhase3Complete;
+    const isPhase4Complete = approvedPhase4.length >= PHASE_4_SECTIONS.length;
+    const isVaultComplete = isPhase1Complete && isPhase2Complete && isPhase3Complete && isPhase4Complete;
 
     // Check if we came from early redirect (still generating in background)
     const isGeneratingMode = searchParams.get('generating') === 'true';
@@ -719,6 +753,9 @@ export default function VaultPage() {
                 break;
             case 'assets':
                 setActiveTab('assets');
+                break;
+            case 'campaigns':
+                setActiveTab('campaigns');
                 break;
             case 'scripts':
                 setActiveTab('scripts');
@@ -784,6 +821,39 @@ export default function VaultPage() {
                     setInitialLoadComplete(true);
                     console.log('[Vault] Successfully loaded funnel:', result.source?.id, result.source?.name);
 
+                    // Fetch slot assignment for this funnel
+                    const resolvedFunnelId = funnelId || result.source?.id;
+                    if (resolvedFunnelId) {
+                        try {
+                            const slotRes = await fetchWithAuth(`/api/ghl/available-slots?funnel_id=${resolvedFunnelId}`);
+                            if (slotRes.ok) {
+                                const slotData = await slotRes.json();
+                                const assignment = slotData.current_assignment != null
+                                    ? { slot_index: slotData.current_assignment, assigned_at: null }
+                                    : null;
+                                setFunnelSlotAssignment(
+                                    assignment
+                                );
+                                setSlotModalPlan(slotData.plan_tier || 'starter');
+                                setSlotModalAvailable(slotData.available_for_assignment || [3]);
+                                setSlotTakenSlots(slotData.taken_slots || []);
+                                setSlotDisplayOptions(buildSlotDisplayOptions({
+                                    planTier: slotData.plan_tier || 'starter',
+                                    allowedSlots: slotData.allowed_slots,
+                                    assignableSlots: slotData.available_for_assignment,
+                                    takenSlots: slotData.taken_slots || [],
+                                    provisionedSlots: slotData.provisioned_slots,
+                                    currentAssignment: slotData.current_assignment,
+                                    isAdmin: slotData.is_admin,
+                                }));
+                            }
+                            // Booking URL is per-funnel, comes from result.source
+                            setScheduleLink(result.source?.schedule_link || '');
+                        } catch (err) {
+                            console.error('[Vault] Slot assignment fetch error:', err);
+                        }
+                    }
+
                     // If funnel is deployed, fetch builder location_id from ghl_subaccounts
                     if (result.source?.deployed_at) {
                         try {
@@ -845,44 +915,58 @@ export default function VaultPage() {
 
                 // Deduplicate arrays to prevent count issues
                 const phase1Deduped = [...new Set(data.businessCoreApprovals || [])];
-                const phase2Deduped = [...new Set(data.funnelAssetsApprovals || [])];
+                // Phase 2 = funnel assets only (no campaign sections)
+                const phase2Raw = (data.funnelAssetsApprovals || []).filter(id =>
+                    PHASE_2_SECTIONS.some(s => s.id === id)
+                );
+                const phase2Deduped = [...new Set(phase2Raw)];
+                // Phase 3 = campaigns
+                const phase3Deduped = [...new Set(data.campaignsApprovals || [])];
+                // Phase 4 = scripts
+                const phase4Deduped = [...new Set(data.scriptsApprovals || [])];
 
                 console.log('[Vault] Approvals loaded:', {
-                    phase1: phase1Deduped,
-                    phase2: phase2Deduped,
-                    phase1Count: phase1Deduped.length,
-                    phase2Count: phase2Deduped.length
+                    phase1: phase1Deduped.length,
+                    phase2: phase2Deduped.length,
+                    phase3: phase3Deduped.length,
+                    phase4: phase4Deduped.length,
                 });
 
                 setApprovedPhase1(phase1Deduped);
                 setApprovedPhase2(phase2Deduped);
-
-                // Handle Phase 3 if present
-                const phase3Raw = data.scriptsApprovals || [];
-                const phase3Deduped = [...new Set(phase3Raw)];
                 setApprovedPhase3(phase3Deduped);
+                setApprovedPhase4(phase4Deduped);
 
                 // Keep local storage in sync
                 const approvals = {
                     phase1: phase1Deduped,
                     phase2: phase2Deduped,
-                    phase3: phase3Deduped
+                    phase3: phase3Deduped,
+                    phase4: phase4Deduped,
                 };
                 localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
             }
         } catch (e) {
             console.error('[Vault] Error loading approvals:', e);
-            // Fallback to localStorage
+            // Fallback to localStorage with backwards-compat migration
             const saved = localStorage.getItem(`vault_approvals_${session.user.id}_${activeSessionId}`);
             if (saved) {
-                const approvals = JSON.parse(saved);
-                // Deduplicate from localStorage too
-                const phase1Deduped = [...new Set(approvals.phase1 || [])];
-                const phase2Deduped = [...new Set(approvals.phase2 || [])];
-                const phase3Deduped = [...new Set(approvals.phase3 || [])];
+                const storedApprovals = JSON.parse(saved);
+                const phase1Deduped = [...new Set(storedApprovals.phase1 || [])];
+                const CAMPAIGN_IDS = ['emails', 'sms', 'appointmentReminders'];
+                const rawPhase2 = storedApprovals.phase2 || [];
+                const phase2Deduped = [...new Set(rawPhase2.filter(id => !CAMPAIGN_IDS.includes(id)))];
+                // If no phase4 key, old phase3 = scripts → new phase4; old campaigns were in phase2
+                const phase3Deduped = storedApprovals.phase4 !== undefined
+                    ? [...new Set(storedApprovals.phase3 || [])]
+                    : [...new Set(rawPhase2.filter(id => CAMPAIGN_IDS.includes(id)))];
+                const phase4Deduped = storedApprovals.phase4 !== undefined
+                    ? [...new Set(storedApprovals.phase4 || [])]
+                    : [...new Set(storedApprovals.phase3 || [])];
                 setApprovedPhase1(phase1Deduped);
                 setApprovedPhase2(phase2Deduped);
                 setApprovedPhase3(phase3Deduped);
+                setApprovedPhase4(phase4Deduped);
             }
         }
     }, [searchParams, session, dataSource]);
@@ -1206,12 +1290,12 @@ export default function VaultPage() {
     }, [searchParams, session, initialLoadComplete, isGeneratingMode, pollVersion, loadApprovals]); // pollVersion restarts polling on regeneration trigger
 
 
-    const saveApprovals = async (phase1, phase2, phase3 = []) => {
+    const saveApprovals = async (phase1, phase2, phase3 = [], phase4 = []) => {
         // Priority: dataSource.id > URL param > 'current'
         const funnelIdFromUrl = searchParams.get('funnel_id') || searchParams.get('session_id');
         const activeSessionId = dataSource?.id || funnelIdFromUrl || 'current';
 
-        const approvals = { phase1, phase2, phase3 };
+        const approvals = { phase1, phase2, phase3, phase4 };
         localStorage.setItem(`vault_approvals_${session.user.id}_${activeSessionId}`, JSON.stringify(approvals));
 
         // Only call API if we have a valid UUID
@@ -1229,7 +1313,8 @@ export default function VaultPage() {
                     sessionId: activeSessionId,
                     businessCoreApprovals: phase1,
                     funnelAssetsApprovals: phase2,
-                    scriptsApprovals: phase3
+                    campaignsApprovals: phase3,
+                    scriptsApprovals: phase4
                 })
             });
         } catch (e) {
@@ -1265,9 +1350,8 @@ export default function VaultPage() {
 
         // 2. Phase gating
         if (phaseNumber === 2 && !hasFunnelChoice) return 'locked';
-        // FIXED: Phase 3 uses isPhase3Accessible to remain unlocked when user is actively
-        // editing Phase 2 sections (unapproved for editing) while on Phase 3 tab
         if (phaseNumber === 3 && !isPhase3Accessible && !phase3FullyApproved && !approvedPhase3.includes(sectionId)) return 'locked';
+        if (phaseNumber === 4 && !isPhase4Accessible && !phase4FullyApproved && !approvedPhase4.includes(sectionId)) return 'locked';
 
         // 3. Check for explicit error in data (from DB or normalization)
         if (sectionData?.error) {
@@ -1306,7 +1390,8 @@ export default function VaultPage() {
         // This applies to both normal mode and regeneration mode (sequential approval enforced)
         const sections = phaseNumber === 1 ? PHASE_1_SECTIONS
             : phaseNumber === 2 ? PHASE_2_SECTIONS
-                : PHASE_3_SECTIONS;
+                : phaseNumber === 3 ? PHASE_3_SECTIONS
+                    : PHASE_4_SECTIONS;
 
         if (index === 0) {
             return 'current';
@@ -1357,10 +1442,15 @@ export default function VaultPage() {
         // Get sections list for current phase
         const phaseSections = phaseNumber === 1 ? PHASE_1_SECTIONS
             : phaseNumber === 2 ? PHASE_2_SECTIONS
-                : PHASE_3_SECTIONS;
+                : phaseNumber === 3 ? PHASE_3_SECTIONS
+                    : PHASE_4_SECTIONS;
         const currentIndex = phaseSections.findIndex(s => s.id === sectionId);
 
-        const willPush = (deploymentComplete || dataSource?.deployed_at) && ['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'].includes(sectionId);
+        const PHASE_2_PUSH_SECTIONS = ['funnelCopy', 'media', 'colors'];
+        const PHASE_3_PUSH_SECTIONS = ['emails', 'sms', 'appointmentReminders'];
+        const willPush = (deploymentComplete || dataSource?.deployed_at) &&
+            (phaseNumber === 2 ? PHASE_2_PUSH_SECTIONS.includes(sectionId)
+                : phaseNumber === 3 ? PHASE_3_PUSH_SECTIONS.includes(sectionId) : false);
 
         if (phaseNumber === 1) {
             if (approvedPhase1.includes(sectionId)) {
@@ -1370,7 +1460,7 @@ export default function VaultPage() {
 
             const newApprovals = [...approvedPhase1, sectionId];
             setApprovedPhase1(newApprovals);
-            await saveApprovals(newApprovals, approvedPhase2, approvedPhase3);
+            await saveApprovals(newApprovals, approvedPhase2, approvedPhase3, approvedPhase4);
 
             if (newApprovals.length >= PHASE_1_SECTIONS.length) {
                 toast.success("🎉 Phase 1 Complete! Choose your funnel to unlock Phase 2.");
@@ -1385,15 +1475,14 @@ export default function VaultPage() {
 
             const newApprovals = [...approvedPhase2, sectionId];
             setApprovedPhase2(newApprovals);
-            await saveApprovals(approvedPhase1, newApprovals, approvedPhase3);
+            await saveApprovals(approvedPhase1, newApprovals, approvedPhase3, approvedPhase4);
 
             if (newApprovals.length >= PHASE_2_SECTIONS.length) {
                 toast.success("🎉 Phase 2 Complete! Deploy your funnel or continue to Phase 3.");
             } else {
                 toast.success(willPush ? "Approved! Pushing to Builder..." : "Section approved!");
             }
-        } else {
-            // Phase 3
+        } else if (phaseNumber === 3) {
             if (approvedPhase3.includes(sectionId)) {
                 console.log('[Vault] Section already approved:', sectionId);
                 return;
@@ -1401,12 +1490,28 @@ export default function VaultPage() {
 
             const newApprovals = [...approvedPhase3, sectionId];
             setApprovedPhase3(newApprovals);
-            await saveApprovals(approvedPhase1, approvedPhase2, newApprovals);
+            await saveApprovals(approvedPhase1, approvedPhase2, newApprovals, approvedPhase4);
 
             if (newApprovals.length >= PHASE_3_SECTIONS.length) {
-                toast.success("🎉 All Phases Complete! Ready to Deploy.");
+                toast.success("🎉 Phase 3 Complete! Push campaigns or continue to Phase 4.");
             } else {
                 toast.success(willPush ? "Approved! Pushing to Builder..." : "Section approved!");
+            }
+        } else {
+            // Phase 4
+            if (approvedPhase4.includes(sectionId)) {
+                console.log('[Vault] Section already approved:', sectionId);
+                return;
+            }
+
+            const newApprovals = [...approvedPhase4, sectionId];
+            setApprovedPhase4(newApprovals);
+            await saveApprovals(approvedPhase1, approvedPhase2, approvedPhase3, newApprovals);
+
+            if (newApprovals.length >= PHASE_4_SECTIONS.length) {
+                toast.success("🎉 All Phases Complete!");
+            } else {
+                toast.success("Section approved!");
             }
         }
 
@@ -1465,19 +1570,24 @@ export default function VaultPage() {
         const isPhase1Section = PHASE_1_SECTIONS.some(s => s.id === sectionId);
         const isPhase2Section = PHASE_2_SECTIONS.some(s => s.id === sectionId);
         const isPhase3Section = PHASE_3_SECTIONS.some(s => s.id === sectionId);
+        const isPhase4Section = PHASE_4_SECTIONS.some(s => s.id === sectionId);
 
         if (isPhase1Section) {
             const newApprovals = approvedPhase1.filter(id => id !== sectionId);
             setApprovedPhase1(newApprovals);
-            await saveApprovals(newApprovals, approvedPhase2, approvedPhase3);
+            await saveApprovals(newApprovals, approvedPhase2, approvedPhase3, approvedPhase4);
         } else if (isPhase2Section) {
             const newApprovals = approvedPhase2.filter(id => id !== sectionId);
             setApprovedPhase2(newApprovals);
-            await saveApprovals(approvedPhase1, newApprovals, approvedPhase3);
+            await saveApprovals(approvedPhase1, newApprovals, approvedPhase3, approvedPhase4);
         } else if (isPhase3Section) {
             const newApprovals = approvedPhase3.filter(id => id !== sectionId);
             setApprovedPhase3(newApprovals);
-            await saveApprovals(approvedPhase1, approvedPhase2, newApprovals);
+            await saveApprovals(approvedPhase1, approvedPhase2, newApprovals, approvedPhase4);
+        } else if (isPhase4Section) {
+            const newApprovals = approvedPhase4.filter(id => id !== sectionId);
+            setApprovedPhase4(newApprovals);
+            await saveApprovals(approvedPhase1, approvedPhase2, approvedPhase3, newApprovals);
         }
 
         // Trigger refresh of field components - use sectionId to refresh only the unapproved section
@@ -1652,6 +1762,83 @@ export default function VaultPage() {
         setDeploymentComplete(false);
         checkGhlConnection();
         console.log('[Vault] showDeployModal state set');
+    };
+
+    // Push Phase 3 campaign content (emails, SMS, appointment reminders) to GHL
+    const handlePushCampaigns = async () => {
+        const funnelId = dataSource?.id || searchParams.get('funnel_id');
+        if (!funnelId) { toast.error('No funnel ID found'); return; }
+        const toastId = toast.loading('Pushing campaigns to Builder...');
+        try {
+            const res = await fetchWithAuth('/api/ghl/push-campaigns', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ funnelId }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success(`Campaigns pushed! ${data.summary?.updated || 0} values updated.`, { id: toastId });
+            } else {
+                toast.error(data.error || 'Failed to push campaigns', { id: toastId });
+            }
+        } catch (err) {
+            console.error('[Vault] Push campaigns failed:', err);
+            toast.error('Failed to push campaigns to Builder.', { id: toastId });
+        }
+    };
+
+    // Toggle slot dropdown — always re-fetch available slots on open to get fresh data
+    const handleToggleSlotDropdown = async () => {
+        if (slotDropdownOpen) {
+            setSlotDropdownOpen(false);
+            return;
+        }
+        const funnelId = dataSource?.id || searchParams.get('funnel_id');
+        try {
+            const url = funnelId ? `/api/ghl/available-slots?funnel_id=${funnelId}` : '/api/ghl/available-slots';
+            const res = await fetchWithAuth(url);
+            if (res.ok) {
+                const data = await res.json();
+                setSlotModalPlan(data.plan_tier || 'starter');
+                setSlotModalAvailable(data.available_for_assignment || data.allowed_slots || [3]);
+                setSlotTakenSlots(data.taken_slots || []);
+                setSlotDisplayOptions(buildSlotDisplayOptions({
+                    planTier: data.plan_tier || 'starter',
+                    allowedSlots: data.allowed_slots,
+                    assignableSlots: data.available_for_assignment,
+                    takenSlots: data.taken_slots || [],
+                    provisionedSlots: data.provisioned_slots,
+                    currentAssignment: data.current_assignment,
+                    isAdmin: data.is_admin,
+                }));
+                if (data.current_assignment != null) {
+                    setFunnelSlotAssignment(prev => prev ?? { slot_index: data.current_assignment, assigned_at: null });
+                }
+            }
+        } catch (err) {
+            console.error('[SlotDropdown] fetch failed:', err);
+        }
+        setSlotDropdownOpen(true);
+    };
+
+    // Close slot dropdown on outside click
+    useEffect(() => {
+        function handleOutsideClick(e) {
+            if (slotDropdownRef.current && !slotDropdownRef.current.contains(e.target)) {
+                setSlotDropdownOpen(false);
+            }
+        }
+        if (slotDropdownOpen) {
+            document.addEventListener('mousedown', handleOutsideClick);
+        }
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [slotDropdownOpen]);
+
+    // Pick a slot from the dropdown → open confirm modal
+    const handlePickSlot = (slotIndex) => {
+        setSlotDropdownOpen(false);
+        setSlotModalInitial(slotIndex);
+        setShowSlotModal(true);
     };
 
     // Handle GHL Deployment (Pabbly Workflow) with step visualization
@@ -2987,7 +3174,7 @@ export default function VaultPage() {
                         </div>
                     </div>
 
-                    {/* Phase 3 */}
+                    {/* Phase 3 — Campaigns */}
                     <div className="mb-8">
                         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                             <CheckCircle className="w-5 h-5 text-green-500" />
@@ -2995,6 +3182,17 @@ export default function VaultPage() {
                         </h2>
                         <div className="grid gap-3">
                             {PHASE_3_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 3))}
+                        </div>
+                    </div>
+
+                    {/* Phase 4 — Scripts */}
+                    <div className="mb-8">
+                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                            Phase 4
+                        </h2>
+                        <div className="grid gap-3">
+                            {PHASE_4_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 4))}
                         </div>
                     </div>
                 </div>
@@ -3453,11 +3651,18 @@ export default function VaultPage() {
                             Phase 2
                         </button>
                         <button
-                            onClick={() => { setActiveTab('scripts'); setShowMediaLibrary(false); }}
+                            onClick={() => { setActiveTab('campaigns'); setShowMediaLibrary(false); }}
                             disabled={!isPhase3Accessible}
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scripts' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : isPhase3Accessible ? 'text-gray-500 hover:text-gray-300' : 'text-gray-700 cursor-not-allowed'}`}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'campaigns' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : isPhase3Accessible ? 'text-gray-500 hover:text-gray-300' : 'text-gray-700 cursor-not-allowed'}`}
                         >
                             Phase 3
+                        </button>
+                        <button
+                            onClick={() => { setActiveTab('scripts'); setShowMediaLibrary(false); }}
+                            disabled={!isPhase4Accessible}
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'scripts' ? 'bg-cyan text-black shadow-lg shadow-cyan/20' : isPhase4Accessible ? 'text-gray-500 hover:text-gray-300' : 'text-gray-700 cursor-not-allowed'}`}
+                        >
+                            Phase 4
                         </button>
                     </div>
 
@@ -3467,16 +3672,22 @@ export default function VaultPage() {
                 {/* Content Header */}
                 <div className="text-center mb-10">
                     <h1 className="text-4xl sm:text-5xl font-black mb-4 tracking-tighter bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                        {showMediaLibrary ? 'Media Library' : (activeTab === 'dna' ? 'Phase 1' : activeTab === 'assets' ? 'Phase 2' : 'Phase 3')}
+                        {showMediaLibrary ? 'Media Library'
+                            : activeTab === 'dna' ? 'Phase 1'
+                            : activeTab === 'assets' ? 'Phase 2'
+                            : activeTab === 'campaigns' ? 'Phase 3'
+                            : 'Phase 4'}
                     </h1>
                     <p className="text-gray-400 max-w-xl mx-auto mb-4">
                         {showMediaLibrary
                             ? 'Update your funnel images and videos.'
-                            : (activeTab === 'dna'
+                            : activeTab === 'dna'
                                 ? 'Your core business foundations. The foundation for all marketing.'
                                 : activeTab === 'assets'
-                                    ? 'Deployable assets for your marketing funnels, emails, and ads.'
-                                    : 'Sales scripts to close deals and set appointments.')}
+                                    ? 'Deployable funnel assets — pages, media, and brand.'
+                                    : activeTab === 'campaigns'
+                                        ? 'Email, SMS, and appointment reminder campaigns.'
+                                        : 'Sales scripts to close deals and set appointments.'}
                     </p>
                     {!showMediaLibrary && (activeTab === 'dna' || activeTab === 'assets') && (
                         <div className="flex justify-center">
@@ -3499,7 +3710,9 @@ export default function VaultPage() {
                                     ? `${approvedPhase1.length} of ${PHASE_1_SECTIONS.length}`
                                     : activeTab === 'assets'
                                         ? `${approvedPhase2.length} of ${PHASE_2_SECTIONS.length}`
-                                        : `${approvedPhase3.length} of ${PHASE_3_SECTIONS.length}`}
+                                        : activeTab === 'campaigns'
+                                            ? `${approvedPhase3.length} of ${PHASE_3_SECTIONS.length}`
+                                            : `${approvedPhase4.length} of ${PHASE_4_SECTIONS.length}`}
                             </span>
                         </div>
                         <div className="h-2.5 bg-[#0e0e0f] rounded-full overflow-hidden border border-white/5">
@@ -3510,7 +3723,9 @@ export default function VaultPage() {
                                         ? (approvedPhase1.length / PHASE_1_SECTIONS.length) * 100
                                         : activeTab === 'assets'
                                             ? (approvedPhase2.length / PHASE_2_SECTIONS.length) * 100
-                                            : (approvedPhase3.length / PHASE_3_SECTIONS.length) * 100}%`
+                                            : activeTab === 'campaigns'
+                                                ? (approvedPhase3.length / PHASE_3_SECTIONS.length) * 100
+                                                : (approvedPhase4.length / PHASE_4_SECTIONS.length) * 100}%`
                                 }}
                                 className="h-full bg-gradient-to-r from-cyan via-blue-500 to-indigo-600 rounded-full shadow-[0_0_10px_rgba(34,211,238,0.5)]"
                             />
@@ -3600,7 +3815,7 @@ export default function VaultPage() {
                                                         </div>
                                                         <h3 className="text-xl font-bold mb-2">Funnel Has Been Deployed!</h3>
                                                         <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                            Your funnel is live. Continue to Phase 3 or log in to your Builder.
+                                                            Your funnel is live. Continue to Phase 3 (Campaigns) or log in to your Builder.
                                                         </p>
                                                         <div className="flex flex-col sm:flex-row gap-3 justify-center">
                                                             {/* Greyed-out non-clickable deployed indicator */}
@@ -3612,7 +3827,7 @@ export default function VaultPage() {
                                                                 Funnel Deployed
                                                             </button>
                                                             <button
-                                                                onClick={() => setActiveTab('scripts')}
+                                                                onClick={() => setActiveTab('campaigns')}
                                                                 className="px-8 py-3 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 hover:brightness-110 transition-all group"
                                                             >
                                                                 <Sparkles className="w-5 h-5" />
@@ -3632,28 +3847,125 @@ export default function VaultPage() {
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <div className="w-16 h-16 bg-cyan/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                                                            <Rocket className="w-8 h-8 text-cyan" />
+                                                        {/* Header */}
+                                                        <div className="w-12 h-12 bg-cyan/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan/20">
+                                                            <Rocket className="w-5 h-5 text-cyan" />
                                                         </div>
-                                                        <h3 className="text-xl font-bold mb-2">All Marketing Assets Complete!</h3>
-                                                        <p className="text-gray-400 mb-6 max-w-sm mx-auto">
-                                                            Deploy your funnel to go live, or continue reviewing Phase 3 first.
+                                                        <h3 className="text-lg font-bold mb-1.5">Ready to Deploy</h3>
+                                                        <p className="text-[#B2C0CD] text-sm mb-5 max-w-xs mx-auto">
+                                                            All assets complete. Set up your booking link and slot, then launch.
                                                         </p>
-                                                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+
+                                                        {/* Primary CTA */}
+                                                        <button
+                                                            onClick={handleOpenDeployModal}
+                                                            disabled={isDeploying}
+                                                            className="w-full max-w-xs mx-auto px-6 py-3 bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer mb-6"
+                                                        >
+                                                            <Rocket className="w-4 h-4" />
+                                                            Deploy Funnel
+                                                        </button>
+
+                                                        {/* Optional setup section */}
+                                                        <div className="border-t border-[#1E2A34] mb-5" />
+                                                        <div className="text-left space-y-3">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a] mb-3">
+                                                                Before you deploy
+                                                            </p>
+
+                                                            {/* Slot assignment */}
+                                                            {funnelSlotAssignment ? (
+                                                                <SlotAssignmentBadge
+                                                                    slotIndex={funnelSlotAssignment.slot_index}
+                                                                    assignedAt={funnelSlotAssignment.assigned_at}
+                                                                    funnelId={dataSource?.id || searchParams.get('funnel_id')}
+                                                                    onRedeploy={() => {
+                                                                        setSlotModalInitial(funnelSlotAssignment.slot_index);
+                                                                        setShowSlotModal(true);
+                                                                    }}
+                                                                    isDeploying={isDeploying}
+                                                                />
+                                                            ) : (
+                                                                <div className="relative" ref={slotDropdownRef}>
+                                                                    <button
+                                                                        onClick={handleToggleSlotDropdown}
+                                                                        disabled={isDeploying}
+                                                                        className="w-full px-4 py-2.5 bg-[#0D1217] hover:bg-[#121920] text-[#F4F8FB] rounded-xl font-medium text-sm flex items-center justify-between border border-[#1E2A34] hover:border-[#2a3a44] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                                                    >
+                                                                        <span className="flex items-center gap-2 text-[#B2C0CD]">
+                                                                            <Layers className="w-4 h-4" />
+                                                                            Assign Funnel Slot
+                                                                        </span>
+                                                                        <ChevronDown className={`w-3.5 h-3.5 text-[#4a5a6a] transition-transform ${slotDropdownOpen ? 'rotate-180' : ''}`} />
+                                                                    </button>
+                                                                    {slotDropdownOpen && (
+                                                                        <div className="absolute z-50 left-0 top-full mt-1.5 w-full bg-[#0D1217] border border-[#1E2A34] rounded-xl shadow-2xl overflow-hidden"
+                                                                             style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                                                                            <p className="px-3 pt-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a]">
+                                                                                Funnel slots
+                                                                            </p>
+                                                                            {slotDisplayOptions.map((slot) => {
+                                                                                const isLocked = !slot.isSelectable;
+                                                                                return (
+                                                                                    <button
+                                                                                        key={slot.slotIndex}
+                                                                                        onClick={() => !isLocked && handlePickSlot(slot.slotIndex)}
+                                                                                        disabled={isLocked}
+                                                                                        title={slot.disabledLabel || `Assign Slot ${slot.slotIndex}`}
+                                                                                        className={[
+                                                                                            "w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left",
+                                                                                            isLocked
+                                                                                                ? "opacity-55 cursor-not-allowed"
+                                                                                                : "hover:bg-[#121920] cursor-pointer",
+                                                                                        ].join(" ")}
+                                                                                    >
+                                                                                        <span className={[
+                                                                                            "w-7 h-7 rounded-md flex items-center justify-center font-bold text-xs shrink-0",
+                                                                                            isLocked
+                                                                                                ? "bg-[#151c23] text-[#4a5a6a]"
+                                                                                                : "bg-[#1E2A34] text-[#F4F8FB]",
+                                                                                        ].join(" ")}>
+                                                                                            {String(slot.slotIndex).padStart(2,'0')}
+                                                                                        </span>
+                                                                                        <div className="min-w-0 flex-1">
+                                                                                            <p className={[
+                                                                                                "text-sm font-medium",
+                                                                                                isLocked ? "text-[#6d7a86]" : "text-[#F4F8FB]",
+                                                                                            ].join(" ")}>
+                                                                                                Slot {slot.slotIndex}
+                                                                                            </p>
+                                                                                            <p className={[
+                                                                                                "text-[10px] font-mono",
+                                                                                                isLocked ? "text-[#3a4a5a]" : "text-[#4a5a6a]",
+                                                                                            ].join(" ")}>
+                                                                                                {slot.prefix}
+                                                                                            </p>
+                                                                                        </div>
+                                                                                        {isLocked ? (
+                                                                                            <div className="flex items-center gap-1 text-[10px] text-[#6d7a86] shrink-0">
+                                                                                                <Lock className="w-3 h-3" />
+                                                                                                {slot.lockReason === 'upgrade' ? 'Upgrade' : 'Locked'}
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <CheckCircle className="w-3.5 h-3.5 text-cyan shrink-0" />
+                                                                                        )}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Skip to Phase 3 (Campaigns) */}
+                                                        <div className="mt-5 pt-4 border-t border-[#1E2A34] text-center">
                                                             <button
-                                                                onClick={handleOpenDeployModal}
-                                                                disabled={isDeploying}
-                                                                className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-black flex items-center justify-center gap-3 hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100"
+                                                                onClick={() => setActiveTab('campaigns')}
+                                                                className="text-sm text-[#4a5a6a] hover:text-[#B2C0CD] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                                                             >
-                                                                <Rocket className="w-5 h-5" />
-                                                                Build Your Funnel
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setActiveTab('scripts')}
-                                                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-white rounded-xl font-bold flex items-center justify-center gap-3 border border-[#2a2a2d] transition-all group"
-                                                            >
-                                                                Proceed to Phase 3
-                                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                                Skip to Phase 3
+                                                                <ArrowRight className="w-3.5 h-3.5" />
                                                             </button>
                                                         </div>
                                                     </>
@@ -3684,6 +3996,79 @@ export default function VaultPage() {
                                     </div>
                                 )}
                             </motion.div>
+                        ) : activeTab === 'campaigns' ? (
+                            <motion.div
+                                key="campaigns-content"
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -20 }}
+                                className="space-y-4"
+                            >
+                                {/* Schedule Link Card — appears FIRST so user can paste booking URL
+                                    before reviewing sections. Saving hardcodes the URL into all
+                                    emails, SMS, and appointment reminders in the DB immediately. */}
+                                <div className="p-5 bg-[#131314] rounded-2xl border border-cyan/20">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan">
+                                            Step 1 — Paste your booking link
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-[#B2C0CD] mb-3">
+                                        Add your calendar URL first. It will be embedded into all emails, SMS, and reminders so your content is ready to approve.
+                                    </p>
+                                    <ScheduleLinkCard
+                                        funnelId={dataSource?.id || searchParams.get('funnel_id')}
+                                        initialUrl={scheduleLink}
+                                        onSaved={(url) => setScheduleLink(url)}
+                                        saveOnly={!(deploymentComplete || dataSource?.deployed_at)}
+                                    />
+                                </div>
+
+                                {/* Step 2 label */}
+                                <div className="px-1 pt-2">
+                                    <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a]">
+                                        Step 2 — Review &amp; approve your campaign content
+                                    </span>
+                                </div>
+
+                                <div className="grid gap-3">
+                                    {PHASE_3_SECTIONS.map((section, index) => {
+                                        const status = getSectionStatus(section.id, 3, approvedPhase3, index);
+                                        return renderSection(section, status, index, 3);
+                                    })}
+                                </div>
+
+                                {/* Push to Campaign Builder */}
+                                {(deploymentComplete || dataSource?.deployed_at) && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-cyan/20 text-center shadow-2xl shadow-cyan/5"
+                                    >
+                                        <div className="w-12 h-12 bg-cyan/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan/20">
+                                            <Mail className="w-5 h-5 text-cyan" />
+                                        </div>
+                                        <h3 className="text-lg font-bold mb-1.5">Push Campaigns to Builder</h3>
+                                        <p className="text-[#B2C0CD] text-sm mb-5 max-w-xs mx-auto">
+                                            Send your approved email, SMS, and reminder sequences to your Campaign Builder.
+                                        </p>
+                                        <button
+                                            onClick={handlePushCampaigns}
+                                            className="w-full max-w-xs mx-auto px-6 py-3 bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer mb-4"
+                                        >
+                                            <Mail className="w-4 h-4" />
+                                            Push to Campaign Builder
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveTab('scripts')}
+                                            className="text-sm text-[#4a5a6a] hover:text-[#B2C0CD] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                                        >
+                                            Continue to Phase 4
+                                            <ArrowRight className="w-3.5 h-3.5" />
+                                        </button>
+                                    </motion.div>
+                                )}
+                            </motion.div>
                         ) : (
                             <motion.div
                                 key="scripts-content"
@@ -3692,7 +4077,7 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                {/* Phase 3 Warning Banner */}
+                                {/* Phase 4 Warning Banner */}
                                 <PhaseWarningBanner
                                     type="warning"
                                     title="Before Deploying Any Assets"
@@ -3702,9 +4087,9 @@ export default function VaultPage() {
                                 />
 
                                 <div className="grid gap-3">
-                                    {PHASE_3_SECTIONS.map((section, index) => {
-                                        const status = getSectionStatus(section.id, 3, approvedPhase3, index);
-                                        return renderSection(section, status, index, 3);
+                                    {PHASE_4_SECTIONS.map((section, index) => {
+                                        const status = getSectionStatus(section.id, 4, approvedPhase4, index);
+                                        return renderSection(section, status, index, 4);
                                     })}
                                 </div>
                             </motion.div>
@@ -3798,7 +4183,7 @@ export default function VaultPage() {
                     }
                     primaryActionText={deploymentComplete ? "Go to Builder" : "Start Deployment"}
                     secondaryAction={deploymentComplete
-                        ? () => { setShowDeployModal(false); setDeploymentStep(0); setDeploymentComplete(false); setActiveTab('scripts'); }
+                        ? () => { setShowDeployModal(false); setDeploymentStep(0); setDeploymentComplete(false); setActiveTab('campaigns'); }
                         : (!isDeploying ? () => setShowDeployModal(false) : null)
                     }
                     secondaryActionText={deploymentComplete ? "Proceed to Phase 3" : "Cancel"}
@@ -3830,6 +4215,31 @@ export default function VaultPage() {
                         </div>
                     )}
                 </ActionModal>
+
+                {/* Slot Selector Modal — push vault content to a specific slot (04–12) */}
+                <SlotSelectorModal
+                    isOpen={showSlotModal}
+                    onClose={() => { setShowSlotModal(false); setSlotModalInitial(null); }}
+                    funnelId={dataSource?.id || searchParams.get('funnel_id')}
+                    userPlan={slotModalPlan}
+                    availableSlots={slotModalAvailable}
+                    takenSlots={slotTakenSlots}
+                    currentAssignment={funnelSlotAssignment?.slot_index ?? null}
+                    initialSlot={slotModalInitial}
+                    slotOptions={slotDisplayOptions}
+                    onAssign={(slotIndex) => {
+                        setFunnelSlotAssignment({ slot_index: slotIndex, assigned_at: new Date().toISOString() });
+                        setShowSlotModal(false);
+                        setSlotModalInitial(null);
+                        toast.success(`Slot ${slotIndex} assigned to this funnel`);
+                    }}
+                    onSuccess={(slotIndex) => {
+                        setFunnelSlotAssignment({ slot_index: slotIndex, assigned_at: new Date().toISOString() });
+                        setShowSlotModal(false);
+                        setSlotModalInitial(null);
+                        toast.success(`Funnel deployed to slot ${slotIndex}`);
+                    }}
+                />
             </div>
 
             <FeedbackChatModal
@@ -3878,14 +4288,17 @@ export default function VaultPage() {
                 phase1Complete={isPhase1Complete}
                 phase2Complete={isPhase2Complete}
                 phase3Complete={isPhase3Complete}
+                phase4Complete={isPhase4Complete}
                 hasFunnelChoice={hasFunnelChoice}
                 onNavigate={handleEmergencyNavigate}
                 approvedPhase1Count={approvedPhase1.length}
                 approvedPhase2Count={approvedPhase2.length}
                 approvedPhase3Count={approvedPhase3.length}
+                approvedPhase4Count={approvedPhase4.length}
                 totalPhase1={PHASE_1_SECTIONS.length}
                 totalPhase2={PHASE_2_SECTIONS.length}
                 totalPhase3={PHASE_3_SECTIONS.length}
+                totalPhase4={PHASE_4_SECTIONS.length}
             />
         </div>
     );

@@ -1,9 +1,13 @@
 "use client";
 /**
  * FeedbackChatModal - AI Feedback Chat for Vault Sections
- * 
- * Replaces Edit/Regenerate buttons with a conversational AI feedback system.
- * User describes what they want changed, AI generates targeted updates.
+ *
+ * Enhanced with:
+ * - Group-wise field selection panel with content previews
+ * - Multi-field selection (checkboxes) per group
+ * - FunnelCopy sub-page drill-down (optinPage / salesPage / etc.)
+ * - Filtered before/after diff — only changed fields shown
+ * - Improved content parser & UI
  */
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -12,7 +16,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Send, Loader2, CheckCircle, MessageSquare,
     Lightbulb, RefreshCw, Save, AlertCircle,
-    ChevronDown, ChevronUp, FileImage
+    ChevronDown, ChevronUp, FileImage, CheckSquare,
+    Square, ChevronRight, Layers, SlidersHorizontal,
+    ArrowLeft, LayoutList
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
@@ -20,315 +26,378 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { getFieldsForSection } from "@/lib/vault/fieldStructures";
 import { calculateDependencyImpact } from "@/lib/vault/dependencyGraph";
 
-// Friendly AI chat openers
+// ─── Chat openers ────────────────────────────────────────────────────────────
 const CHAT_OPENERS = [
-    "Oh, seems like you want to improve this section! 🎯",
-    "Let's make this even better! What would you like to change?",
-    "I'm here to help refine this. What's not quite right?"
+    "Let's make this even better. Select the fields you want to refine from the panel.",
+    "I'm ready to help you improve this section. Pick the fields you want to change.",
+    "Choose which fields to refine — you can select one or several at once."
 ];
 
-// Sub-section options for different vault sections
-// IMPORTANT: IDs must match schema field names in fieldStructures.js exactly
+// ─── Section options (sub-field list per section) ────────────────────────────
 const SECTION_OPTIONS = {
-    // ============================================
-    // PHASE 1: CORE FOUNDATIONS
-    // ============================================
     idealClient: [
-        { id: 'bestIdealClient', label: 'Best Ideal Client' },
-        { id: 'top3Challenges', label: 'Top 3 Challenges' },
-        { id: 'whatTheyWant', label: 'What They Want' },
-        { id: 'whatMakesThemPay', label: 'What Makes Them Pay' },
-        { id: 'howToTalkToThem', label: 'How to Talk to Them' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'bestIdealClient', label: 'Best Ideal Client', group: 'Demographics' },
+        { id: 'top3Challenges', label: 'Top 3 Challenges', group: 'Psychographics' },
+        { id: 'whatTheyWant', label: 'What They Want', group: 'Psychographics' },
+        { id: 'whatMakesThemPay', label: 'What Makes Them Pay', group: 'Buying Behavior' },
+        { id: 'howToTalkToThem', label: 'How to Talk to Them', group: 'Communication' },
     ],
     message: [
-        { id: 'oneLineMessage', label: 'One-Liner Message' },
-        { id: 'spokenIntroduction', label: '30-Second Coffee Talk' },
-        { id: 'powerPositioningLines', label: 'Power Positioning Lines' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'oneLineMessage', label: 'One-Liner Message', group: 'Core' },
+        { id: 'spokenIntroduction', label: '30-Second Coffee Talk', group: 'Core' },
+        { id: 'powerPositioningLines', label: 'Power Positioning Lines', group: 'Core' },
     ],
     story: [
-        { id: 'bigIdea', label: 'Big Idea (Core Concept)' },
-        { id: 'networkingStory', label: 'Networking Story (60-90s)' },
-        { id: 'stageStory', label: 'Stage/Podcast Story (3-5 min)' },
-        { id: 'socialPostVersion', label: 'Social Media Version' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'bigIdea', label: 'Big Idea (Core Concept)', group: 'Story' },
+        { id: 'networkingStory', label: 'Networking Story (60-90s)', group: 'Story' },
+        { id: 'stageStory', label: 'Stage/Podcast Story (3-5 min)', group: 'Story' },
+        { id: 'socialPostVersion', label: 'Social Media Version', group: 'Story' },
     ],
     offer: [
-        { id: 'offerMode', label: 'Offer Mode' },
-        { id: 'offerName', label: 'Branded System Name' },
-        { id: 'sevenStepBlueprint', label: '7-Step Blueprint' },
-        { id: 'tier1Promise', label: 'Tier 1: The Promise' },
-        { id: 'tier1Timeframe', label: 'Tier 1: Timeframe' },
-        { id: 'tier1Deliverables', label: 'Tier 1: Deliverables' },
-        { id: 'tier1RecommendedPrice', label: 'Tier 1: Recommended Price' },
-        { id: 'tier2Promise', label: 'Tier 2: The Promise' },
-        { id: 'tier2Timeframe', label: 'Tier 2: Timeframe' },
-        { id: 'tier2Deliverables', label: 'Tier 2: Deliverables' },
-        { id: 'tier2RecommendedPrice', label: 'Tier 2: Recommended Price' },
-        { id: 'offerPromise', label: 'Combined Offer Promise' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'offerMode', label: 'Offer Mode', group: 'Basics' },
+        { id: 'offerName', label: 'Branded System Name', group: 'Basics' },
+        { id: 'sevenStepBlueprint', label: '7-Step Blueprint', group: 'Blueprint' },
+        { id: 'tier1Promise', label: 'Tier 1: The Promise', group: 'Tier 1 (90-day)' },
+        { id: 'tier1Timeframe', label: 'Tier 1: Timeframe', group: 'Tier 1 (90-day)' },
+        { id: 'tier1Deliverables', label: 'Tier 1: Deliverables', group: 'Tier 1 (90-day)' },
+        { id: 'tier1RecommendedPrice', label: 'Tier 1: Price', group: 'Tier 1 (90-day)' },
+        { id: 'tier2Promise', label: 'Tier 2: The Promise', group: 'Tier 2 (12-month)' },
+        { id: 'tier2Timeframe', label: 'Tier 2: Timeframe', group: 'Tier 2 (12-month)' },
+        { id: 'tier2Deliverables', label: 'Tier 2: Deliverables', group: 'Tier 2 (12-month)' },
+        { id: 'tier2RecommendedPrice', label: 'Tier 2: Price', group: 'Tier 2 (12-month)' },
+        { id: 'offerPromise', label: 'Combined Offer Promise', group: 'Combined' },
     ],
-
-    // ============================================
-    // PHASE 2: LEAD GENERATION
-    // ============================================
     leadMagnet: [
-        { id: 'mainTitle', label: 'Lead Magnet Title' },
-        { id: 'subtitle', label: 'Subtitle / Hook' },
-        { id: 'coreDeliverables', label: 'Core Deliverables (5 sections)' },
-        { id: 'optInHeadline', label: 'Opt-In Page Headline' },
-        { id: 'bullets', label: 'Benefit Bullets' },
-        { id: 'ctaButtonText', label: 'CTA Button Text' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'mainTitle', label: 'Lead Magnet Title', group: 'Core' },
+        { id: 'subtitle', label: 'Subtitle / Hook', group: 'Core' },
+        { id: 'coreDeliverables', label: 'Core Deliverables', group: 'Content' },
+        { id: 'optInHeadline', label: 'Opt-In Page Headline', group: 'Landing Page' },
+        { id: 'bullets', label: 'Benefit Bullets', group: 'Landing Page' },
+        { id: 'ctaButtonText', label: 'CTA Button Text', group: 'Landing Page' },
     ],
     vsl: [
-        { id: 'step1_patternInterrupt', label: 'Step 1: Pattern Interrupt' },
-        { id: 'step1_characterIntro', label: 'Step 1: Character Introduction' },
-        { id: 'step1_problemStatement', label: 'Step 1: Problem Statement' },
-        { id: 'step1_emotionalConnection', label: 'Step 1: Emotional Connection' },
-        { id: 'step2_benefitLead', label: 'Step 2: Benefit Lead' },
-        { id: 'step2_uniqueSolution', label: 'Step 2: Unique Solution' },
-        { id: 'step2_benefitsHighlight', label: 'Step 2: Benefits Highlight' },
-        { id: 'step2_problemAgitation', label: 'Step 2: Problem Agitation' },
-        { id: 'step3_nightmareStory', label: 'Step 3: Nightmare Story' },
-        { id: 'step3_clientTestimonials', label: 'Step 3: Client Testimonials' },
-        { id: 'step3_dataPoints', label: 'Step 3: Data Points' },
-        { id: 'step3_expertEndorsements', label: 'Step 3: Expert Endorsements' },
-        { id: 'step4_detailedDescription', label: 'Step 4: Detailed Description' },
-        { id: 'step4_demonstration', label: 'Step 4: Demonstration' },
-        { id: 'step4_psychologicalTriggers', label: 'Step 4: Psychological Triggers' },
-        { id: 'step5_intro', label: 'Step 5: Value Tips Intro' },
-        { id: 'step5_tips', label: 'Step 5: 3 Actionable Tips' },
-        { id: 'step5_transition', label: 'Step 5: Transition to Offer' },
-        { id: 'step6_directEngagement', label: 'Step 6: Direct Engagement' },
-        { id: 'step6_urgencyCreation', label: 'Step 6: Urgency Creation' },
-        { id: 'step6_clearOffer', label: 'Step 6: Clear Offer' },
-        { id: 'step6_stepsToSuccess', label: 'Step 6: Steps to Success' },
-        { id: 'step7_recap', label: 'Step 7: Recap' },
-        { id: 'step7_primaryCTA', label: 'Step 7: Primary CTA' },
-        { id: 'step7_offerFeaturesAndPrice', label: 'Step 7: Offer Features & Price' },
-        { id: 'step7_bonuses', label: 'Step 7: Bonuses' },
-        { id: 'step7_secondaryCTA', label: 'Step 7: Secondary CTA' },
-        { id: 'step7_guarantee', label: 'Step 7: Guarantee' },
-        { id: 'step8_theClose', label: 'Step 8: The Close' },
-        { id: 'step8_addressObjections', label: 'Step 8: Address Objections' },
-        { id: 'step8_reiterateValue', label: 'Step 8: Reiterate Value' },
-        { id: 'step9_followUpStrategy', label: 'Step 9: Follow-Up Strategy' },
-        { id: 'step9_finalPersuasion', label: 'Step 9: Final Persuasion' },
-        { id: 'step10_hardClose', label: 'Step 10: Hard Close' },
-        { id: 'step10_handleObjectionsAgain', label: 'Step 10: Handle Objections' },
-        { id: 'step10_scarcityClose', label: 'Step 10: Scarcity Close' },
-        { id: 'step10_inspirationClose', label: 'Step 10: Inspiration Close' },
-        { id: 'step10_speedUpAction', label: 'Step 10: Speed Up Action' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'step1_patternInterrupt', label: 'Pattern Interrupt', group: 'Step 1: Introduction' },
+        { id: 'step1_characterIntro', label: 'Character Introduction', group: 'Step 1: Introduction' },
+        { id: 'step1_problemStatement', label: 'Problem Statement', group: 'Step 1: Introduction' },
+        { id: 'step1_emotionalConnection', label: 'Emotional Connection', group: 'Step 1: Introduction' },
+        { id: 'step2_benefitLead', label: 'Benefit Lead', group: 'Step 2: Solution' },
+        { id: 'step2_uniqueSolution', label: 'Unique Solution', group: 'Step 2: Solution' },
+        { id: 'step2_benefitsHighlight', label: 'Benefits Highlight', group: 'Step 2: Solution' },
+        { id: 'step2_problemAgitation', label: 'Problem Agitation', group: 'Step 2: Solution' },
+        { id: 'step3_nightmareStory', label: 'Nightmare Story', group: 'Step 3: Proof' },
+        { id: 'step3_clientTestimonials', label: 'Client Testimonials', group: 'Step 3: Proof' },
+        { id: 'step3_dataPoints', label: 'Data Points', group: 'Step 3: Proof' },
+        { id: 'step5_intro', label: 'Value Tips Intro', group: 'Step 5: Value Tips' },
+        { id: 'step5_tips', label: '3 Actionable Tips', group: 'Step 5: Value Tips' },
+        { id: 'step5_transition', label: 'Transition to Offer', group: 'Step 5: Value Tips' },
+        { id: 'step7_recap', label: 'Recap', group: 'Step 7: CTA' },
+        { id: 'step7_primaryCTA', label: 'Primary CTA', group: 'Step 7: CTA' },
+        { id: 'step8_theClose', label: 'The Close', group: 'Step 8: Close' },
+        { id: 'step8_addressObjections', label: 'Address Objections', group: 'Step 8: Close' },
     ],
     facebookAds: [
-        { id: 'shortAd1Headline', label: 'Short Ad #1: Headline' },
-        { id: 'shortAd1PrimaryText', label: 'Short Ad #1: Primary Text' },
-        { id: 'shortAd1CTA', label: 'Short Ad #1: CTA' },
-        { id: 'shortAd2Headline', label: 'Short Ad #2: Headline' },
-        { id: 'shortAd2PrimaryText', label: 'Short Ad #2: Primary Text' },
-        { id: 'shortAd2CTA', label: 'Short Ad #2: CTA' },
-        { id: 'longAdHeadline', label: 'Long Ad: Headline' },
-        { id: 'longAdPrimaryText', label: 'Long Ad: Primary Text' },
-        { id: 'longAdCTA', label: 'Long Ad: CTA' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'shortAd1Headline', label: 'Short Ad #1: Headline', group: 'Short Ad 1' },
+        { id: 'shortAd1PrimaryText', label: 'Short Ad #1: Body', group: 'Short Ad 1' },
+        { id: 'shortAd1CTA', label: 'Short Ad #1: CTA', group: 'Short Ad 1' },
+        { id: 'shortAd2Headline', label: 'Short Ad #2: Headline', group: 'Short Ad 2' },
+        { id: 'shortAd2PrimaryText', label: 'Short Ad #2: Body', group: 'Short Ad 2' },
+        { id: 'shortAd2CTA', label: 'Short Ad #2: CTA', group: 'Short Ad 2' },
+        { id: 'longAdHeadline', label: 'Long Ad: Headline', group: 'Long Ad' },
+        { id: 'longAdPrimaryText', label: 'Long Ad: Body', group: 'Long Ad' },
+        { id: 'longAdCTA', label: 'Long Ad: CTA', group: 'Long Ad' },
     ],
     vslShort: [
-        { id: 'patternInterruptHook', label: 'Pattern Interrupt Hook' },
-        { id: 'identifyAudience', label: 'Identify Audience' },
-        { id: 'amplifyCorePain', label: 'Amplify Core Pain' },
-        { id: 'introduceEnemy', label: 'Introduce Enemy' },
-        { id: 'revealHiddenTruth', label: 'Reveal Hidden Truth' },
-        { id: 'earlyCTA', label: 'Early CTA' },
-        { id: 'authorityStory', label: 'Authority Story' },
-        { id: 'namedFramework', label: 'Named Framework' },
-        { id: 'insightOne', label: 'Insight One' },
-        { id: 'insightTwo', label: 'Insight Two' },
-        { id: 'insightThree', label: 'Insight Three' },
-        { id: 'microCommitment', label: 'Micro Commitment' },
-        { id: 'futurePace', label: 'Future Pace' },
-        { id: 'objectionHandling', label: 'Objection Handling' },
-        { id: 'riskReversal', label: 'Risk Reversal' },
-        { id: 'finalCTA', label: 'Final CTA' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'patternInterruptHook', label: 'Pattern Interrupt Hook', group: 'Opening' },
+        { id: 'identifyAudience', label: 'Identify Audience', group: 'Opening' },
+        { id: 'amplifyCorePain', label: 'Amplify Core Pain', group: 'Opening' },
+        { id: 'introduceEnemy', label: 'Introduce Enemy', group: 'Problem' },
+        { id: 'revealHiddenTruth', label: 'Reveal Hidden Truth', group: 'Problem' },
+        { id: 'earlyCTA', label: 'Early CTA', group: 'CTA' },
+        { id: 'authorityStory', label: 'Authority Story', group: 'Authority' },
+        { id: 'namedFramework', label: 'Named Framework', group: 'Solution' },
+        { id: 'insightOne', label: 'Insight One', group: 'Insights' },
+        { id: 'insightTwo', label: 'Insight Two', group: 'Insights' },
+        { id: 'insightThree', label: 'Insight Three', group: 'Insights' },
+        { id: 'finalCTA', label: 'Final CTA', group: 'Close' },
     ],
     emails: [
-        { id: 'email1', label: 'Day 1: Gift Delivery + Welcome' },
-        { id: 'email2', label: 'Day 2: Tip #1' },
-        { id: 'email3', label: 'Day 3: Tip #2' },
-        { id: 'email4', label: 'Day 4: Tip #3' },
-        { id: 'email5', label: 'Day 5: Tip #4' },
-        { id: 'email6', label: 'Day 6: Tip #5' },
-        { id: 'email7', label: 'Day 7: Tip #6' },
-        { id: 'email8a', label: 'Day 8 AM: Why a Call Helps' },
-        { id: 'email8b', label: 'Day 8 PM: Success Story' },
-        { id: 'email8c', label: 'Day 8 EVE: Last Chance' },
-        { id: 'email9', label: 'Day 9: Mindset/Strategy' },
-        { id: 'email10', label: 'Day 10: Common Mistakes' },
-        { id: 'email11', label: 'Day 11: Hidden Obstacles' },
-        { id: 'email12', label: 'Day 12: Behind Scenes' },
-        { id: 'email13', label: 'Day 13: Results Timeline' },
-        { id: 'email14', label: 'Day 14: Simplify' },
-        { id: 'email15a', label: 'Day 15 AM: Final Day' },
-        { id: 'email15b', label: 'Day 15 PM: FAQ/Objections' },
-        { id: 'email15c', label: 'Day 15 EVE: Final Push' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'email1', label: 'Day 1: Gift Delivery + Welcome', group: 'Week 1' },
+        { id: 'email2', label: 'Day 2: Tip #1', group: 'Week 1' },
+        { id: 'email3', label: 'Day 3: Tip #2', group: 'Week 1' },
+        { id: 'email4', label: 'Day 4: Tip #3', group: 'Week 1' },
+        { id: 'email5', label: 'Day 5: Tip #4', group: 'Week 1' },
+        { id: 'email6', label: 'Day 6: Tip #5', group: 'Week 1' },
+        { id: 'email7', label: 'Day 7: Tip #6', group: 'Week 1' },
+        { id: 'email8a', label: 'Day 8 AM: Why a Call Helps', group: 'Week 2 Push' },
+        { id: 'email8b', label: 'Day 8 PM: Success Story', group: 'Week 2 Push' },
+        { id: 'email8c', label: 'Day 8 EVE: Last Chance', group: 'Week 2 Push' },
+        { id: 'email9', label: 'Day 9: Mindset/Strategy', group: 'Week 2' },
+        { id: 'email10', label: 'Day 10: Common Mistakes', group: 'Week 2' },
+        { id: 'email14', label: 'Day 14: Simplify', group: 'Week 2' },
+        { id: 'email15a', label: 'Day 15 AM: Final Day', group: 'Final Push' },
+        { id: 'email15b', label: 'Day 15 PM: FAQ/Objections', group: 'Final Push' },
+        { id: 'email15c', label: 'Day 15 EVE: Final Push', group: 'Final Push' },
     ],
-
-    // ============================================
-    // PHASE 3: SALES & OPERATIONS
-    // ============================================
     salesScripts: [
-        { id: 'agendaPermission', label: 'Box 1: Agenda + Permission' },
-        { id: 'discoveryQuestions', label: 'Box 2: Discovery Questions' },
-        { id: 'stakesImpact', label: 'Box 3: Stakes + Cost of Inaction' },
-        { id: 'commitmentScale', label: 'Box 4: Commitment Scale' },
-        { id: 'decisionGate', label: 'Box 5: Decision Gate' },
-        { id: 'recapConfirmation', label: 'Box 6: Recap + Confirmation' },
-        { id: 'pitchScript', label: 'Box 7: 3-Step Plan Pitch' },
-        { id: 'proofLine', label: 'Box 8: Proof Line' },
-        { id: 'investmentClose', label: 'Box 9: Investment + Close' },
-        { id: 'nextSteps', label: 'Box 10: Next Steps' },
-        { id: 'objectionHandling', label: 'Box 11: Objection Handling' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'agendaPermission', label: 'Box 1: Agenda + Permission', group: 'Opening' },
+        { id: 'discoveryQuestions', label: 'Box 2: Discovery Questions', group: 'Discovery' },
+        { id: 'stakesImpact', label: 'Box 3: Stakes + Cost of Inaction', group: 'Discovery' },
+        { id: 'commitmentScale', label: 'Box 4: Commitment Scale', group: 'Qualification' },
+        { id: 'decisionGate', label: 'Box 5: Decision Gate', group: 'Qualification' },
+        { id: 'recapConfirmation', label: 'Box 6: Recap + Confirmation', group: 'Pitch' },
+        { id: 'pitchScript', label: 'Box 7: 3-Step Plan Pitch', group: 'Pitch' },
+        { id: 'proofLine', label: 'Box 8: Proof Line', group: 'Pitch' },
+        { id: 'investmentClose', label: 'Box 9: Investment + Close', group: 'Close' },
+        { id: 'nextSteps', label: 'Box 10: Next Steps', group: 'Close' },
+        { id: 'objectionHandling', label: 'Box 11: Objection Handling', group: 'Objections' },
     ],
     setterScript: [
-        { id: 'callGoal', label: 'Goal of This Call' },
-        { id: 'setterMindset', label: 'Setter Mindset' },
-        { id: 'openingOptIn', label: 'Opening: Free Gift Opt-In' },
-        { id: 'permissionPurpose', label: 'Permission + Purpose' },
-        { id: 'currentSituation', label: 'Current Situation Snapshot' },
-        { id: 'primaryGoal', label: 'Primary Goal' },
-        { id: 'primaryObstacle', label: 'Primary Obstacle + Stakes' },
-        { id: 'authorityDrop', label: 'Authority Drop' },
-        { id: 'fitReadiness', label: 'Fit + Readiness Check' },
-        { id: 'bookCall', label: 'Book Call Live' },
-        { id: 'confirmShowUp', label: 'Confirm Show-Up + Wrap' },
-        { id: 'objectionHandling', label: 'Objection Handling' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'callGoal', label: 'Goal of This Call', group: 'Setup' },
+        { id: 'setterMindset', label: 'Setter Mindset', group: 'Setup' },
+        { id: 'openingOptIn', label: 'Opening: Free Gift Opt-In', group: 'Opening' },
+        { id: 'permissionPurpose', label: 'Permission + Purpose', group: 'Opening' },
+        { id: 'currentSituation', label: 'Current Situation Snapshot', group: 'Discovery' },
+        { id: 'primaryGoal', label: 'Primary Goal', group: 'Discovery' },
+        { id: 'primaryObstacle', label: 'Primary Obstacle + Stakes', group: 'Discovery' },
+        { id: 'authorityDrop', label: 'Authority Drop', group: 'Positioning' },
+        { id: 'fitReadiness', label: 'Fit + Readiness Check', group: 'Qualification' },
+        { id: 'bookCall', label: 'Book Call Live', group: 'Close' },
+        { id: 'confirmShowUp', label: 'Confirm Show-Up + Wrap', group: 'Close' },
+        { id: 'objectionHandling', label: 'Objection Handling', group: 'Objections' },
     ],
     appointmentReminders: [
-        { id: 'preCallTips', label: 'Pre-Call Tips' },
-        { id: 'confirmation', label: 'Confirmation Email' },
-        { id: 'reminder24Hour', label: '24-Hour Reminder' },
-        { id: 'reminder1Hour', label: '1-Hour Reminder' },
-        { id: 'startingNow', label: 'Starting Now' },
-        { id: 'noShowFollowup', label: 'No-Show Follow-up' },
-        { id: 'smsReminders', label: 'SMS Reminders' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'preCallTips', label: 'Pre-Call Tips', group: 'Email' },
+        { id: 'confirmation', label: 'Confirmation Email', group: 'Email' },
+        { id: 'reminder24Hour', label: '24-Hour Reminder', group: 'Email' },
+        { id: 'reminder1Hour', label: '1-Hour Reminder', group: 'Email' },
+        { id: 'startingNow', label: 'Starting Now', group: 'Email' },
+        { id: 'noShowFollowup', label: 'No-Show Follow-up', group: 'Email' },
+        { id: 'smsReminders', label: 'SMS Reminders', group: 'SMS' },
     ],
-
-    // ============================================
-    // PHASE 4: ASSETS
-    // ============================================
     bio: [
-        { id: 'fullBio', label: 'Full Bio (200 words)' },
-        { id: 'shortBio', label: 'Short Bio (75 words)' },
-        { id: 'speakerBio', label: 'Speaker Bio (150 words)' },
-        { id: 'oneLiner', label: 'One-Liner' },
-        { id: 'keyAchievements', label: 'Key Achievements' },
-        { id: 'all', label: 'Update the entire section' }
+        { id: 'fullBio', label: 'Full Bio (200 words)', group: 'Bios' },
+        { id: 'shortBio', label: 'Short Bio (75 words)', group: 'Bios' },
+        { id: 'speakerBio', label: 'Speaker Bio (150 words)', group: 'Bios' },
+        { id: 'oneLiner', label: 'One-Liner', group: 'Quick Lines' },
+        { id: 'keyAchievements', label: 'Key Achievements', group: 'Quick Lines' },
+        { id: 'socialMediaVersions', label: 'Social Media Versions', group: 'Social' },
+        { id: 'personalTouch', label: 'Personal Touch', group: 'Social' },
     ],
-    funnelCopy: [
-        { id: 'optinPage', label: 'Opt-In Page' },
-        { id: 'salesPage', label: 'Appointment Booking Page' },
-        { id: 'calendarPage', label: 'Calendar Page' },
-        { id: 'thankYouPage', label: 'Thank You Page' },
-        { id: 'all', label: 'Regenerate All Funnel Copy' }
-    ],
-
-    // Default fallback for unmapped sections
-    default: [
-        { id: 'all', label: 'Update the entire section' }
-    ]
+    // funnelCopy uses sub-page drill-down (handled separately)
+    default: []
 };
 
-/**
- * Helper Functions for Hierarchical Field Selection
- */
+// ─── FunnelCopy sub-page definitions ─────────────────────────────────────────
+const FUNNEL_SUBPAGES = [
+    { id: 'optinPage', label: 'Opt-In Page', icon: '📋' },
+    { id: 'salesPage', label: 'Appointment Booking Page', icon: '📅' },
+    { id: 'calendarPage', label: 'Calendar Page', icon: '🗓' },
+    { id: 'thankYouPage', label: 'Thank You Page', icon: '🎉' },
+];
 
-// Get field structure from fieldStructures.js
+const FUNNEL_SUBPAGE_FIELDS = {
+    optinPage: [
+        { id: 'headline_text', label: 'Headline', group: 'Opt-In Page' },
+        { id: 'subheadline_text', label: 'Subheadline', group: 'Opt-In Page' },
+        { id: 'cta_button_text', label: 'CTA Button Text', group: 'Opt-In Page' },
+        { id: 'popup_form_headline', label: 'Popup Form Headline', group: 'Popup' },
+        { id: 'footer_text', label: 'Footer', group: 'Footer' },
+    ],
+    salesPage: [
+        { id: 'hero_headline_text', label: 'Hero Headline', group: 'Hero Section' },
+        { id: 'hero_subheadline_text', label: 'Hero Subheadline', group: 'Hero Section' },
+        { id: 'hero_below_cta_sub_text', label: 'Text Below CTA', group: 'Hero Section' },
+        { id: 'cta_text', label: 'Primary CTA Button', group: 'Hero Section' },
+        { id: 'process_headline', label: 'Process Section Headline', group: 'Process Overview' },
+        { id: 'process_subheadline', label: 'Process Subheadline', group: 'Process Overview' },
+        { id: 'process_1_headline', label: 'Process 1 Headline', group: 'Process Steps' },
+        { id: 'process_1_subheadline', label: 'Process 1 Description', group: 'Process Steps' },
+        { id: 'process_2_headline', label: 'Process 2 Headline', group: 'Process Steps' },
+        { id: 'process_2_subheadline', label: 'Process 2 Description', group: 'Process Steps' },
+        { id: 'process_3_headline', label: 'Process 3 Headline', group: 'Process Steps' },
+        { id: 'process_3_subheadline', label: 'Process 3 Description', group: 'Process Steps' },
+        { id: 'how_it_works_headline', label: 'How It Works Headline', group: 'How It Works' },
+        { id: 'audience_headline', label: 'Audience Headline', group: 'Audience' },
+        { id: 'call_expectations_is_for_headline', label: 'Call Is For Headline', group: 'Call Expectations' },
+        { id: 'call_expectations_is_for_bullet_1', label: 'Is-For Bullet 1', group: 'Call Expectations' },
+        { id: 'call_expectations_is_for_bullet_2', label: 'Is-For Bullet 2', group: 'Call Expectations' },
+        { id: 'call_expectations_is_for_bullet_3', label: 'Is-For Bullet 3', group: 'Call Expectations' },
+        { id: 'call_expectations_not_for_headline', label: 'Not-For Headline', group: 'Call Expectations' },
+        { id: 'call_expectations_not_for_bullet_1', label: 'Not-For Bullet 1', group: 'Call Expectations' },
+        { id: 'call_expectations_not_for_bullet_2', label: 'Not-For Bullet 2', group: 'Call Expectations' },
+        { id: 'call_expectations_not_for_bullet_3', label: 'Not-For Bullet 3', group: 'Call Expectations' },
+        { id: 'bio_headline_text', label: 'Bio Headline', group: 'Bio Section' },
+        { id: 'bio_paragraph_text', label: 'Bio Paragraph', group: 'Bio Section' },
+        { id: 'testimonial_headline_text', label: 'Testimonials Headline', group: 'Testimonials' },
+        { id: 'faq_headline_text', label: 'FAQ Headline', group: 'FAQ' },
+        { id: 'final_cta_headline_text', label: 'Final CTA Headline', group: 'Final CTA' },
+        { id: 'final_cta_button_text', label: 'Final CTA Button', group: 'Final CTA' },
+        { id: 'footer_text', label: 'Footer', group: 'Footer' },
+    ],
+    calendarPage: [
+        { id: 'headline_text', label: 'Headline', group: 'Calendar Page' },
+        { id: 'subheadline_text', label: 'Subheadline', group: 'Calendar Page' },
+        { id: 'footer_text', label: 'Footer', group: 'Footer' },
+    ],
+    thankYouPage: [
+        { id: 'headline_text', label: 'Headline', group: 'Thank You Page' },
+        { id: 'subheadline_text', label: 'Subheadline', group: 'Thank You Page' },
+        { id: 'video_headline_text', label: 'Video Headline', group: 'Thank You Page' },
+        { id: 'footer_text', label: 'Footer', group: 'Footer' },
+    ],
+};
+
+// ─── Helper: get field structure ─────────────────────────────────────────────
 function getFieldStructure(sectionId, fieldId) {
     try {
         const sectionFields = getFieldsForSection(sectionId);
         return sectionFields?.find(f => f.field_id === fieldId);
-    } catch (error) {
-        console.error('[FeedbackChat] Error getting field structure:', error);
-        return null;
-    }
+    } catch { return null; }
 }
 
-// Check if field has nested structure
 function isNestedField(sectionId, fieldId) {
-    const fieldStructure = getFieldStructure(sectionId, fieldId);
-    return (
-        fieldStructure?.field_type === 'object' &&
-        Array.isArray(fieldStructure?.field_metadata?.subfields) &&
-        fieldStructure.field_metadata.subfields.length > 0
-    );
+    const fs = getFieldStructure(sectionId, fieldId);
+    return fs?.field_type === 'object' && Array.isArray(fs?.field_metadata?.subfields) && fs.field_metadata.subfields.length > 0;
 }
 
-// Generate child field options grouped by category
 function getChildFieldOptions(sectionId, parentFieldId) {
-    const fieldStructure = getFieldStructure(sectionId, parentFieldId);
-    const subfields = fieldStructure?.field_metadata?.subfields || [];
-
-    // Group by 'group' property
+    const fs = getFieldStructure(sectionId, parentFieldId);
+    const subfields = fs?.field_metadata?.subfields || [];
     const grouped = {};
-    subfields.forEach(subfield => {
-        const group = subfield.group || 'General';
+    subfields.forEach(sf => {
+        const group = sf.group || 'General';
         if (!grouped[group]) grouped[group] = [];
-        grouped[group].push({
-            id: subfield.field_id,
-            label: subfield.field_label || subfield.field_id,
-            group: group
-        });
+        grouped[group].push({ id: sf.field_id, label: sf.field_label || sf.field_id, group });
     });
-
     return grouped;
 }
 
-// Get human-readable label for field
 function getFieldLabel(sectionId, fieldId) {
-    const fieldStructure = getFieldStructure(sectionId, fieldId);
-    return fieldStructure?.field_label || fieldId;
+    const fs = getFieldStructure(sectionId, fieldId);
+    return fs?.field_label || fieldId;
 }
 
-/**
- * Check if a string contains HTML tags (e.g. email bodies)
- */
+// ─── Helper: extract current content snippet for a field ─────────────────────
+function extractContentValue(currentContent, fieldId, funnelSubPage) {
+    if (!currentContent) return null;
+    try {
+        if (funnelSubPage) {
+            const pageData = currentContent?.[funnelSubPage] ?? currentContent?.funnelCopy?.[funnelSubPage];
+            return pageData?.[fieldId] ?? null;
+        }
+        return currentContent[fieldId] ?? null;
+    } catch { return null; }
+}
+
+function getContentSnippet(value, maxLen = 90) {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+        const clean = value.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+        return clean.length > maxLen ? clean.slice(0, maxLen) + '…' : clean || null;
+    }
+    if (Array.isArray(value)) return `${value.length} item${value.length !== 1 ? 's' : ''}`;
+    if (typeof value === 'object') {
+        const keys = Object.keys(value);
+        return keys.length ? `{${keys.slice(0, 3).join(', ')}${keys.length > 3 ? '…' : ''}}` : null;
+    }
+    return String(value).slice(0, maxLen) || null;
+}
+
+// ─── Helper: HTML detection ───────────────────────────────────────────────────
 function isHtmlContent(str) {
     if (typeof str !== 'string') return false;
     return /<(?:p|div|strong|em|ul|ol|li|a|br|h[1-6]|span|table|tr|td|th|img)[\/\s>]/i.test(str);
 }
 
-/**
- * Format AI-generated content for human-readable display
- * Converts JSON objects/strings into clean, formatted text
- */
-function formatPreviewContent(content) {
-    if (!content) return '';
-
-    // Deep parse to handle nested JSON strings
-    const parsed = deepParseJSON(content);
-
-    // Format the parsed content for display
-    return formatForDisplay(parsed);
+// ─── Deep JSON parser ─────────────────────────────────────────────────────────
+function deepParseJSON(content) {
+    if (!content) return content;
+    if (typeof content === 'string') {
+        let cleaned = content.replace(/^```(?:json)?[\s\n]*/gi, '').replace(/[\s\n]*```$/gi, '').trim();
+        try {
+            return deepParseJSON(JSON.parse(cleaned));
+        } catch {
+            return cleaned.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+        }
+    }
+    if (Array.isArray(content)) return content.map(deepParseJSON);
+    if (typeof content === 'object' && content !== null) {
+        const result = {};
+        for (const [k, v] of Object.entries(content)) result[k] = deepParseJSON(v);
+        return result;
+    }
+    return content;
 }
 
-/**
- * Render content with HTML awareness.
- * If the content contains HTML tags (like email bodies), render as HTML.
- * Otherwise, render as plain formatted text.
- */
+// ─── Collect diff paths between two structures ────────────────────────────────
+function collectDiffPaths(before, after, path, diff) {
+    if (before === after) return;
+    const bArr = Array.isArray(before), aArr = Array.isArray(after);
+    if (bArr || aArr) {
+        if (JSON.stringify(before) !== JSON.stringify(after)) diff.add(path || '__all__');
+        return;
+    }
+    const bObj = before && typeof before === 'object';
+    const aObj = after && typeof after === 'object';
+    if (bObj && aObj) {
+        const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+        for (const key of keys) {
+            if (key.startsWith('_')) continue;
+            collectDiffPaths(before?.[key], after?.[key], path ? `${path}.${key}` : key, diff);
+        }
+        return;
+    }
+    diff.add(path || '__all__');
+}
+
+// ─── Format for readable display ─────────────────────────────────────────────
+function formatForDisplay(content, depth = 0, options = {}) {
+    if (!content) return '';
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+        return content.map((item, i) => {
+            if (typeof item === 'object' && item !== null) return `${i + 1}. ${formatForDisplay(item, depth + 1, options)}`;
+            return `${i + 1}. ${item}`;
+        }).join('\n\n');
+    }
+    if (typeof content === 'object') {
+        const lines = [];
+        const indent = '  '.repeat(depth);
+        const entries = options.getOrderedEntries
+            ? options.getOrderedEntries(content, options.path || '')
+            : Object.entries(content);
+        for (const [key, value] of entries) {
+            if (key.startsWith('_')) continue;
+            const label = key
+                .replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ')
+                .replace(/part(\d+)/gi, 'Part $1').replace(/step(\d+)/gi, 'Step $1')
+                .trim().split(' ')
+                .map(w => /^\d+$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .join(' ');
+            if (Array.isArray(value)) {
+                lines.push(`${indent}${label}:`);
+                value.forEach((item, i) => {
+                    lines.push(`${indent}  ${i + 1}. ${typeof item === 'object' ? formatForDisplay(item, depth + 1, options) : String(item)}`);
+                });
+                lines.push('');
+            } else if (typeof value === 'object' && value !== null) {
+                lines.push(`${indent}${label}:`);
+                lines.push(formatForDisplay(value, depth + 1, { ...options, path: options.path ? `${options.path}.${key}` : key }));
+            } else if (value !== null && value !== undefined) {
+                lines.push(`${indent}${label}:`);
+                lines.push(`${indent}${String(value).replace(/\\n/g, '\n')}`);
+                lines.push('');
+            }
+        }
+        return lines.join('\n').trim();
+    }
+    return String(content);
+}
+
+// ─── ContentPreviewRenderer ───────────────────────────────────────────────────
 function ContentPreviewRenderer({ content, className = '', highlightMap, basePath = '', sectionId }) {
     if (!content) return null;
-
     let parsed = deepParseJSON(content);
-
-    // Normalize funnel copy wrapper for consistent preview structure
     if (sectionId === 'funnelCopy' && parsed && typeof parsed === 'object' && parsed.funnelCopy) {
         parsed = parsed.funnelCopy;
     }
@@ -337,128 +406,71 @@ function ContentPreviewRenderer({ content, className = '', highlightMap, basePat
         if (!highlightMap) return false;
         if (highlightMap.has('__all__')) return true;
         if (highlightMap.has(path)) return true;
-        for (const p of highlightMap) {
-            if (p.startsWith(path + '.')) return true;
-        }
+        for (const p of highlightMap) { if (p.startsWith(path + '.')) return true; }
         return false;
     };
 
     const getOrderedKeys = (obj, path = '') => {
         if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return Object.keys(obj || {});
-
         try {
             const fieldStructure = getFieldsForSection(sectionId);
-            if (!fieldStructure || fieldStructure.length === 0) return Object.keys(obj);
-
+            if (!fieldStructure?.length) return Object.keys(obj);
             if (!path) {
                 const ordered = fieldStructure.map(f => f.field_id).filter(k => k in obj);
-                const extras = Object.keys(obj).filter(k => !ordered.includes(k));
-                return [...ordered, ...extras];
+                return [...ordered, ...Object.keys(obj).filter(k => !ordered.includes(k))];
             }
-
-            const pathParts = path.split('.');
-            const parentFieldId = pathParts[0];
-            const parentField = fieldStructure.find(f => f.field_id === parentFieldId);
+            const parentField = fieldStructure.find(f => f.field_id === path.split('.')[0]);
             const subfields = parentField?.field_metadata?.subfields || [];
-            if (subfields.length === 0) return Object.keys(obj);
-
+            if (!subfields.length) return Object.keys(obj);
             const ordered = subfields.map(sf => sf.field_id).filter(k => k in obj);
-            const extras = Object.keys(obj).filter(k => !ordered.includes(k));
-            return [...ordered, ...extras];
-        } catch {
-            return Object.keys(obj);
-        }
+            return [...ordered, ...Object.keys(obj).filter(k => !ordered.includes(k))];
+        } catch { return Object.keys(obj); }
     };
 
-    const getOrderedEntries = (obj, path = '') => {
-        const keys = getOrderedKeys(obj, path);
-        return keys.map(key => [key, obj[key]]);
-    };
+    const getOrderedEntries = (obj, path = '') => getOrderedKeys(obj, path).map(key => [key, obj[key]]);
 
-    // If it's a string with HTML, render it directly
     if (typeof parsed === 'string' && isHtmlContent(parsed)) {
-        return (
-            <div
-                className={`prose prose-invert prose-sm max-w-none ${className}`}
-                style={{ fontSize: '0.8125rem', lineHeight: '1.6' }}
-                dangerouslySetInnerHTML={{ __html: parsed }}
-            />
-        );
+        return <div className={`prose prose-invert prose-sm max-w-none ${className}`} style={{ fontSize: '0.8125rem', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: parsed }} />;
     }
 
-    // If it's an object, check if any values contain HTML (e.g. email objects with body fields)
     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        const hasHtmlValues = Object.values(parsed).some(v => {
-            if (typeof v === 'string') return isHtmlContent(v);
-            if (typeof v === 'object' && v !== null) {
-                return Object.values(v).some(sv => typeof sv === 'string' && isHtmlContent(sv));
-            }
-            return false;
-        });
-
-        if (hasHtmlValues) {
+        const hasHtmlVals = Object.values(parsed).some(v =>
+            (typeof v === 'string' && isHtmlContent(v)) ||
+            (typeof v === 'object' && v !== null && Object.values(v).some(sv => typeof sv === 'string' && isHtmlContent(sv)))
+        );
+        if (hasHtmlVals) {
             return (
                 <div className={`space-y-4 ${className}`}>
                     {getOrderedEntries(parsed, basePath).map(([key, value]) => {
                         if (key.startsWith('_')) return null;
-                        const label = key
-                            .replace(/([A-Z])/g, ' $1')
-                            .replace(/[_-]/g, ' ')
-                            .trim()
-                            .split(' ')
-                            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-                            .join(' ');
-
+                        const label = key.replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ').trim()
+                            .split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
                         const fieldPath = basePath ? `${basePath}.${key}` : key;
                         const isHighlighted = hasHighlight(fieldPath);
-
                         if (typeof value === 'object' && value !== null) {
                             return (
-                                <div
-                                    key={key}
-                                    className={`border border-[#2a2a2d] rounded-lg p-3 space-y-2 ${isHighlighted ? 'bg-cyan/10 border-cyan/40' : ''}`}
-                                >
+                                <div key={key} className={`border border-[#2a2a2d] rounded-lg p-3 space-y-2 ${isHighlighted ? 'bg-cyan/10 border-cyan/40' : ''}`}>
                                     <div className="text-xs font-bold text-cyan uppercase tracking-wide">{label}</div>
-                                    {getOrderedEntries(value, fieldPath).map(([subKey, subVal]) => {
-                                        const subLabel = subKey.charAt(0).toUpperCase() + subKey.slice(1);
-                                        const subPath = `${fieldPath}.${subKey}`;
-                                        const subHighlighted = hasHighlight(subPath);
-                                        if (typeof subVal === 'string' && isHtmlContent(subVal)) {
-                                            return (
-                                                <div key={subKey} className={subHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
-                                                    <span className="text-xs text-gray-500 font-medium">{subLabel}:</span>
-                                                    <div
-                                                        className="mt-1 prose prose-invert prose-sm max-w-none"
-                                                        style={{ fontSize: '0.75rem', lineHeight: '1.5' }}
-                                                        dangerouslySetInnerHTML={{ __html: subVal }}
-                                                    />
-                                                </div>
-                                            );
-                                        }
-                                        return (
-                                            <div key={subKey} className={subHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
-                                                <span className="text-xs text-gray-500 font-medium">{subLabel}:</span>
-                                                <p className="text-xs text-gray-300 mt-0.5">{String(subVal)}</p>
-                                            </div>
-                                        );
-                                    })}
+                                    {getOrderedEntries(value, fieldPath).map(([sk, sv]) => (
+                                        <div key={sk} className={hasHighlight(`${fieldPath}.${sk}`) ? 'rounded-md bg-cyan/10 p-2' : ''}>
+                                            <span className="text-xs text-gray-500 font-medium">{sk.charAt(0).toUpperCase() + sk.slice(1)}:</span>
+                                            {typeof sv === 'string' && isHtmlContent(sv)
+                                                ? <div className="mt-1 prose prose-invert prose-sm max-w-none" style={{ fontSize: '0.75rem' }} dangerouslySetInnerHTML={{ __html: sv }} />
+                                                : <p className="text-xs text-gray-300 mt-0.5">{String(sv)}</p>
+                                            }
+                                        </div>
+                                    ))}
                                 </div>
                             );
                         }
-
                         if (typeof value === 'string' && isHtmlContent(value)) {
                             return (
                                 <div key={key} className={isHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
                                     <span className="text-xs text-gray-500 font-medium">{label}:</span>
-                                    <div
-                                        className="mt-1 prose prose-invert prose-sm max-w-none"
-                                        style={{ fontSize: '0.75rem', lineHeight: '1.5' }}
-                                        dangerouslySetInnerHTML={{ __html: value }}
-                                    />
+                                    <div className="mt-1 prose prose-invert prose-sm max-w-none" style={{ fontSize: '0.75rem' }} dangerouslySetInnerHTML={{ __html: value }} />
                                 </div>
                             );
                         }
-
                         return (
                             <div key={key} className={isHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
                                 <span className="text-xs text-gray-500 font-medium">{label}:</span>
@@ -471,7 +483,6 @@ function ContentPreviewRenderer({ content, className = '', highlightMap, basePat
         }
     }
 
-    // Fallback: plain text rendering
     return (
         <pre className={`text-xs whitespace-pre-wrap font-sans ${className}`}>
             {formatForDisplay(parsed, 0, { getOrderedEntries, path: basePath })}
@@ -479,491 +490,640 @@ function ContentPreviewRenderer({ content, className = '', highlightMap, basePat
     );
 }
 
-/**
- * Recursively parse JSON strings, including those wrapped in markdown code blocks
- */
-function deepParseJSON(content) {
-    if (!content) return content;
+// ─── FilteredDiffPanel: Only shows changed fields ────────────────────────────
+function FilteredDiffPanel({ before, after, highlightMap, sectionId, selectedFields, funnelSubPage }) {
+    const beforeParsed = deepParseJSON(before);
+    const afterParsed = deepParseJSON(after);
 
-    if (typeof content === 'string') {
-        // Remove markdown code blocks if present
-        let cleaned = content
-            .replace(/^```(?:json)?[\s\n]*/gi, '')
-            .replace(/[\s\n]*```$/gi, '')
-            .trim();
+    // Normalise funnelCopy wrapper
+    const normBefore = (sectionId === 'funnelCopy' && beforeParsed?.funnelCopy) ? beforeParsed.funnelCopy : beforeParsed;
+    const normAfter = (sectionId === 'funnelCopy' && afterParsed?.funnelCopy) ? afterParsed.funnelCopy : afterParsed;
 
-        // Try to parse as JSON
+    // Determine which fields to show
+    const fieldsToShow = useMemo(() => {
+        if (!normAfter || typeof normAfter !== 'object') return [];
+
+        if (highlightMap?.has('__all__')) {
+            // Show all top-level fields that have content
+            return Object.keys(normAfter).filter(k => !k.startsWith('_'));
+        }
+
+        if (highlightMap && highlightMap.size > 0) {
+            // Only show top-level keys that appear in highlightMap
+            const topLevelChanged = new Set();
+            for (const path of highlightMap) {
+                const top = path.split('.')[0];
+                topLevelChanged.add(top);
+            }
+            return [...topLevelChanged].filter(k => k in normAfter);
+        }
+
+        // Fall back to showing all
+        return Object.keys(normAfter).filter(k => !k.startsWith('_'));
+    }, [normAfter, highlightMap]);
+
+    if (!fieldsToShow.length) {
+        return (
+            <div className="text-center py-8 text-gray-500 text-sm">
+                No changes detected in the content.
+            </div>
+        );
+    }
+
+    const renderValue = (val, depth = 0) => {
+        if (!val && val !== 0) return <span className="text-gray-500 italic text-xs">—</span>;
+        const parsed = deepParseJSON(val);
+        if (typeof parsed === 'string') {
+            if (isHtmlContent(parsed)) {
+                return <div className="prose prose-invert prose-xs max-w-none text-xs" dangerouslySetInnerHTML={{ __html: parsed }} />;
+            }
+            return <p className="text-xs leading-relaxed whitespace-pre-wrap text-gray-300">{parsed}</p>;
+        }
+        if (Array.isArray(parsed)) {
+            return (
+                <ol className="space-y-1 list-decimal list-inside">
+                    {parsed.map((item, i) => (
+                        <li key={i} className="text-xs text-gray-300 leading-relaxed">
+                            {typeof item === 'object' ? formatForDisplay(item, depth) : String(item)}
+                        </li>
+                    ))}
+                </ol>
+            );
+        }
+        if (typeof parsed === 'object') {
+            return (
+                <div className="space-y-1.5">
+                    {Object.entries(parsed).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
+                        <div key={k} className="text-xs">
+                            <span className="text-gray-500 font-medium capitalize">
+                                {k.replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ').trim()}:
+                            </span>{' '}
+                            <span className="text-gray-300">
+                                {typeof v === 'string' ? v : typeof v === 'object' ? formatForDisplay(v) : String(v)}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        return <span className="text-xs text-gray-300">{String(parsed)}</span>;
+    };
+
+    const getFieldLabel = (key) => {
+        // Try to find label from fieldStructures
         try {
-            const parsed = JSON.parse(cleaned);
-            // Recursively parse any nested JSON strings
-            return deepParseJSON(parsed);
-        } catch {
-            // Not JSON, return cleaned string
-            return cleaned.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-        }
-    }
-
-    if (Array.isArray(content)) {
-        return content.map(item => deepParseJSON(item));
-    }
-
-    if (typeof content === 'object' && content !== null) {
-        const result = {};
-        for (const [key, value] of Object.entries(content)) {
-            result[key] = deepParseJSON(value);
-        }
-        return result;
-    }
-
-    return content;
-}
-
-/**
- * Build a set of dot-paths that changed between two structures
- */
-function collectDiffPaths(before, after, path, diff) {
-    if (before === after) return;
-
-    const beforeIsArray = Array.isArray(before);
-    const afterIsArray = Array.isArray(after);
-
-    if (beforeIsArray || afterIsArray) {
-        if (JSON.stringify(before) !== JSON.stringify(after)) {
-            diff.add(path || '__all__');
-        }
-        return;
-    }
-
-    const beforeIsObject = before && typeof before === 'object';
-    const afterIsObject = after && typeof after === 'object';
-
-    if (beforeIsObject && afterIsObject) {
-        const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-        for (const key of keys) {
-            if (key.startsWith('_')) continue;
-            const nextPath = path ? `${path}.${key}` : key;
-            collectDiffPaths(before?.[key], after?.[key], nextPath, diff);
-        }
-        return;
-    }
-
-    diff.add(path || '__all__');
-}
-
-/**
- * Format parsed content into clean, simple human-readable text
- * NO JSON structure, NO icons, just clean formatted content
- */
-function formatForDisplay(content, depth = 0, options = {}) {
-    if (!content) return '';
-
-    if (typeof content === 'string') {
-        return content;
-    }
-
-    if (Array.isArray(content)) {
-        return content.map((item, i) => {
-            if (typeof item === 'object' && item !== null) {
-                return `${i + 1}. ${formatForDisplay(item, depth + 1, options)}`;
+            const fields = getFieldsForSection(sectionId);
+            if (fields) {
+                if (funnelSubPage) {
+                    const pageField = fields.find(f => f.field_id === funnelSubPage);
+                    const subfield = pageField?.field_metadata?.subfields?.find(sf => sf.field_id === key);
+                    if (subfield) return subfield.field_label;
+                }
+                const field = fields.find(f => f.field_id === key);
+                if (field) return field.field_label;
             }
-            return `${i + 1}. ${item}`;
-        }).join('\n\n');
-    }
+        } catch {}
+        return key.replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ').trim()
+            .split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    };
 
-    if (typeof content === 'object') {
-        const lines = [];
-        const indent = '  '.repeat(depth);
-        const entries = options.getOrderedEntries
-            ? options.getOrderedEntries(content, options.path || '')
-            : Object.entries(content);
+    return (
+        <div className="space-y-4">
+            {fieldsToShow.map(fieldKey => {
+                const beforeVal = normBefore?.[fieldKey];
+                const afterVal = normAfter?.[fieldKey];
+                const isChanged = JSON.stringify(beforeVal) !== JSON.stringify(afterVal);
 
-        for (const [key, value] of entries) {
-            // Skip internal keys
-            if (key.startsWith('_')) continue;
+                return (
+                    <div key={fieldKey} className={`rounded-xl border overflow-hidden ${isChanged ? 'border-[#2a3a3d]' : 'border-[#2a2a2d] opacity-60'}`}>
+                        {/* Field label header */}
+                        <div className={`px-3 py-2 flex items-center justify-between ${isChanged ? 'bg-[#0e1a1c]' : 'bg-[#111113]'}`}>
+                            <span className={`text-xs font-semibold uppercase tracking-wide ${isChanged ? 'text-cyan' : 'text-gray-500'}`}>
+                                {getFieldLabel(fieldKey)}
+                            </span>
+                            {isChanged && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan/20 text-cyan border border-cyan/30 font-medium">
+                                    CHANGED
+                                </span>
+                            )}
+                        </div>
 
-            // Format the key as a readable label (convert camelCase/snake_case to Title Case)
-            const label = key
-                .replace(/([A-Z])/g, ' $1')
-                .replace(/[_-]/g, ' ')
-                .replace(/part(\d+)/gi, 'Part $1')  // Fix Part1 -> Part 1
-                .replace(/step(\d+)/gi, 'Step $1')  // Fix step1 -> Step 1
-                .trim()
-                .split(' ')
-                .map(word => {
-                    // Keep numbers as-is, capitalize first letter of words
-                    if (/^\d+$/.test(word)) return word;
-                    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-                })
-                .join(' ');
-
-            if (Array.isArray(value)) {
-                // Arrays: Show label, then numbered items
-                lines.push(`${indent}${label}:`);
-                value.forEach((item, i) => {
-                    if (typeof item === 'object' && item !== null) {
-                        lines.push(`${indent}  ${i + 1}. ${formatForDisplay(item, depth + 1, options)}`);
-                    } else {
-                        lines.push(`${indent}  ${i + 1}. ${String(item)}`);
-                    }
-                });
-                lines.push(''); // Add blank line after arrays
-            } else if (typeof value === 'object' && value !== null) {
-                // Nested objects: Show label and recurse
-                lines.push(`${indent}${label}:`);
-                const childPath = options.path ? `${options.path}.${key}` : key;
-                lines.push(formatForDisplay(value, depth + 1, { ...options, path: childPath }));
-            } else if (value !== null && value !== undefined) {
-                // Simple values
-                const valueStr = String(value).replace(/\\n/g, '\n');
-                lines.push(`${indent}${label}:`);
-                lines.push(`${indent}${valueStr}`);
-                lines.push(''); // Add blank line
-            }
-        }
-
-        return lines.join('\n').trim();
-    }
-
-    return String(content);
+                        {/* Before / After columns */}
+                        <div className="grid grid-cols-2 divide-x divide-[#2a2a2d]">
+                            <div className="p-3 bg-[#100c0c]">
+                                <div className="flex items-center gap-1.5 mb-2">
+                                    <span className="w-2 h-2 rounded-full bg-red-500/70 inline-block" />
+                                    <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Before</span>
+                                </div>
+                                <div className="max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                                    {renderValue(beforeVal)}
+                                </div>
+                            </div>
+                            <div className={`p-3 ${isChanged ? 'bg-[#0a120e]' : 'bg-[#0e0e0f]'}`}>
+                                <div className="flex items-center gap-1.5 mb-2">
+                                    <span className={`w-2 h-2 rounded-full inline-block ${isChanged ? 'bg-emerald-400' : 'bg-gray-600'}`} />
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isChanged ? 'text-emerald-400' : 'text-gray-500'}`}>After</span>
+                                </div>
+                                <div className="max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                                    {renderValue(afterVal)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
 }
 
+// ─── FieldSelectorPanel ───────────────────────────────────────────────────────
+function FieldSelectorPanel({
+    sectionId, currentContent, selectedFields, onToggleField, onToggleGroup,
+    funnelSubPage, onSetFunnelSubPage, onSelectAll, onClearAll
+}) {
+    const [expandedGroups, setExpandedGroups] = useState({});
+
+    const isFunnelCopy = sectionId === 'funnelCopy';
+
+    // Build groups — derive fields inside useMemo to keep stable deps
+    const groups = useMemo(() => {
+        const allFields = isFunnelCopy
+            ? (funnelSubPage ? FUNNEL_SUBPAGE_FIELDS[funnelSubPage] || [] : [])
+            : (SECTION_OPTIONS[sectionId] || []);
+        const map = {};
+        allFields.forEach(f => {
+            const g = f.group || 'General';
+            if (!map[g]) map[g] = [];
+            map[g].push(f);
+        });
+        return Object.entries(map);
+    }, [sectionId, funnelSubPage, isFunnelCopy]);
+
+    const toggleGroup = (group) => {
+        setExpandedGroups(prev => ({ ...prev, [group]: prev[group] === false ? true : false }));
+    };
+
+    const isGroupExpanded = (group) => expandedGroups[group] !== false;
+
+    const groupSelected = (group, groupFields) => groupFields.filter(f => selectedFields.has(f.id)).length;
+    const groupTotal = (_, groupFields) => groupFields.length;
+
+    if (isFunnelCopy && !funnelSubPage) {
+        return (
+            <div className="h-full flex flex-col">
+                <div className="px-4 py-3 border-b border-[#1E2A34]">
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                        Funnel Page Copy has multiple pages. Choose a page to see its fields.
+                    </p>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {FUNNEL_SUBPAGES.map(page => (
+                        <button
+                            key={page.id}
+                            onClick={() => onSetFunnelSubPage(page.id)}
+                            className="w-full flex items-center gap-3 px-4 py-3.5 bg-[#0D1217] hover:bg-[#111820] border border-[#1E2A34] hover:border-cyan/40 rounded-xl text-left transition-all group cursor-pointer"
+                        >
+                            <span className="text-xl leading-none">{page.icon}</span>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-white group-hover:text-cyan transition-colors">{page.label}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    {FUNNEL_SUBPAGE_FIELDS[page.id]?.length || 0} fields
+                                </p>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-cyan transition-colors flex-shrink-0" />
+                        </button>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="h-full flex flex-col">
+            {/* Panel header */}
+            <div className="px-4 py-3 border-b border-[#1E2A34] space-y-2.5">
+                {isFunnelCopy && funnelSubPage && (
+                    <button
+                        onClick={() => { onSetFunnelSubPage(null); onClearAll(); }}
+                        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        Back to pages
+                    </button>
+                )}
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">
+                        {selectedFields.size > 0
+                            ? <span className="text-cyan font-medium">{selectedFields.size} field{selectedFields.size !== 1 ? 's' : ''} selected</span>
+                            : <span>Select fields to refine</span>
+                        }
+                    </span>
+                    <div className="flex gap-2">
+                        <button onClick={onSelectAll} className="text-[10px] text-gray-500 hover:text-cyan transition-colors cursor-pointer">
+                            All
+                        </button>
+                        <span className="text-gray-700">·</span>
+                        <button onClick={onClearAll} className="text-[10px] text-gray-500 hover:text-white transition-colors cursor-pointer">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Field groups */}
+            <div className="flex-1 overflow-y-auto">
+                {groups.length === 0 && (
+                    <div className="px-4 py-8 text-center text-gray-600 text-xs">No fields available</div>
+                )}
+                {groups.map(([group, groupFields]) => {
+                    const selCount = groupSelected(group, groupFields);
+                    const isOpen = isGroupExpanded(group);
+
+                    return (
+                        <div key={group} className="border-b border-[#1a2028]">
+                            {/* Group header */}
+                            <div
+                                className="flex items-center gap-2 px-4 py-2.5 hover:bg-[#0D1217] cursor-pointer select-none"
+                                onClick={() => toggleGroup(group)}
+                            >
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onToggleGroup(groupFields); }}
+                                    className="flex-shrink-0 text-gray-500 hover:text-cyan transition-colors cursor-pointer"
+                                    title={selCount === groupFields.length ? 'Deselect group' : 'Select group'}
+                                >
+                                    {selCount === groupFields.length && groupFields.length > 0
+                                        ? <CheckSquare className="w-3.5 h-3.5 text-cyan" />
+                                        : selCount > 0
+                                            ? <div className="w-3.5 h-3.5 border border-cyan rounded-sm bg-cyan/30 flex items-center justify-center">
+                                                <div className="w-1.5 h-1.5 bg-cyan rounded-sm" />
+                                              </div>
+                                            : <Square className="w-3.5 h-3.5" />
+                                    }
+                                </button>
+                                <span className="flex-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider truncate">
+                                    {group}
+                                </span>
+                                {selCount > 0 && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan/20 text-cyan border border-cyan/30 font-medium flex-shrink-0">
+                                        {selCount}
+                                    </span>
+                                )}
+                                {isOpen ? <ChevronUp className="w-3 h-3 text-gray-600 flex-shrink-0" /> : <ChevronDown className="w-3 h-3 text-gray-600 flex-shrink-0" />}
+                            </div>
+
+                            {/* Field items */}
+                            <AnimatePresence initial={false}>
+                                {isOpen && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.18 }}
+                                        className="overflow-hidden"
+                                    >
+                                        {groupFields.map(field => {
+                                            const isSelected = selectedFields.has(field.id);
+                                            const snippet = getContentSnippet(extractContentValue(currentContent, field.id, isFunnelCopy ? funnelSubPage : null));
+
+                                            return (
+                                                <label
+                                                    key={field.id}
+                                                    className={`flex items-start gap-2.5 px-4 py-2.5 cursor-pointer transition-colors select-none ${isSelected ? 'bg-cyan/5 hover:bg-cyan/8' : 'hover:bg-[#0D1217]'}`}
+                                                    onClick={() => onToggleField(field.id)}
+                                                >
+                                                    <div className={`flex-shrink-0 mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-all ${isSelected ? 'bg-cyan border-cyan' : 'border-[#3a4a54] bg-[#0D1217]'}`}>
+                                                        {isSelected && (
+                                                            <svg className="w-2.5 h-2.5 text-black" fill="currentColor" viewBox="0 0 12 12">
+                                                                <path d="M10 3L5 8.5 2 5.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={`text-xs font-medium leading-snug transition-colors ${isSelected ? 'text-white' : 'text-gray-400'}`}>
+                                                            {field.label}
+                                                        </p>
+                                                        {snippet && (
+                                                            <p className="text-[10px] text-gray-600 mt-0.5 truncate leading-tight">
+                                                                {snippet}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function FeedbackChatModal({
-    isOpen,
-    onClose,
-    sectionId,
-    sectionTitle,
-    subSection,
-    currentContent,
-    sessionId,
-    onSave
+    isOpen, onClose, sectionId, sectionTitle, subSection, currentContent, sessionId, onSave
 }) {
     const { getToken } = useAuth();
     const [messages, setMessages] = useState([]);
     const [inputText, setInputText] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [selectedSubSection, setSelectedSubSection] = useState(null);
-    const [chatStep, setChatStep] = useState(1); // 1: Ask what to change, 2: Get feedback, 3: Show preview, 4: Dependency review
+    const [chatStep, setChatStep] = useState(1);
     const [suggestedChanges, setSuggestedChanges] = useState(null);
     const [regenerationCount, setRegenerationCount] = useState(0);
-
-    // Dependency review state
     const [dependencyImpact, setDependencyImpact] = useState(null);
     const [selectedDependencies, setSelectedDependencies] = useState([]);
     const [isDependencyProcessing, setIsDependencyProcessing] = useState(false);
     const [lastUserFeedback, setLastUserFeedback] = useState('');
-    const [previousAlternatives, setPreviousAlternatives] = useState([]); // Track all generated alternatives
+    const [previousAlternatives, setPreviousAlternatives] = useState([]);
     const messagesEndRef = useRef(null);
 
-    // NEW: Streaming state
+    // Streaming state
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingMessage, setStreamingMessage] = useState(null);
     const [partialContent, setPartialContent] = useState(null);
     const [partialError, setPartialError] = useState(null);
-    const [latestContent, setLatestContent] = useState(currentContent); // Track latest revision for continuous refinement
-    const [showContentPreview, setShowContentPreview] = useState(false); // Toggle for context preview
-    const [originalContent, setOriginalContent] = useState(null); // Store original content for before/after comparison
+    const [latestContent, setLatestContent] = useState(currentContent);
+    const [originalContent, setOriginalContent] = useState(null);
 
+    // Field selection state (new)
+    const [selectedFields, setSelectedFields] = useState(new Set());
+    const [funnelSubPage, setFunnelSubPage] = useState(null);
+
+    // Hierarchical / blueprint
+    const [selectedParentField, setSelectedParentField] = useState(null);
+    const [selectedChildField, setSelectedChildField] = useState(null);
+    const [isHierarchicalSection, setIsHierarchicalSection] = useState(false);
+    const [selectedBlueprintStep, setSelectedBlueprintStep] = useState(null);
+
+    const abortControllerRef = useRef(null);
+    const streamCompletedRef = useRef(false);
+
+    const MAX_REGENERATIONS = 5;
+    const USE_STREAMING = true;
+
+    const subSectionOptions = SECTION_OPTIONS[sectionId] || SECTION_OPTIONS.default;
+    const isFunnelCopy = sectionId === 'funnelCopy';
+
+    // Compute highlight map from diff
     const highlightMap = useMemo(() => {
         if (!suggestedChanges) return null;
-        if (subSection && subSection !== 'all') {
-            return new Set([subSection]);
+        // For funnelCopy sub-pages, compute the real diff between the flat sub-page objects.
+        // Don't early-return — `selectedSubSection` is a page name (e.g. 'salesPage'), not a leaf key.
+        const isFunnelSubPageSelection = isFunnelCopy && funnelSubPage !== null && FUNNEL_SUBPAGES.some(p => p.id === selectedSubSection);
+        if (selectedSubSection && selectedSubSection !== 'all' && !isFunnelSubPageSelection) {
+            return new Set([selectedSubSection]);
         }
-
         const diff = new Set();
         const before = deepParseJSON(originalContent || currentContent);
         const after = deepParseJSON(suggestedChanges);
         collectDiffPaths(before, after, '', diff);
-
         if (diff.size === 0) diff.add('__all__');
         return diff;
-    }, [suggestedChanges, originalContent, currentContent, subSection]);
+    }, [suggestedChanges, originalContent, currentContent, selectedSubSection, isFunnelCopy, funnelSubPage]);
 
-    // NEW state for hierarchical field selection
-    const [selectedParentField, setSelectedParentField] = useState(null);
-    const [selectedChildField, setSelectedChildField] = useState(null);
-    const [isHierarchicalSection, setIsHierarchicalSection] = useState(false);
-
-    // 7-Step Blueprint step picker state
-    const [selectedBlueprintStep, setSelectedBlueprintStep] = useState(null); // null or 0-6
-
-    const abortControllerRef = useRef(null);
-    const streamCompletedRef = useRef(false); // Track stream completion (ref avoids stale closures)
-
-    const MAX_REGENERATIONS = 5;
-    const USE_STREAMING = true; // Feature flag
-
-    // Get sub-section options for this section
-    const subSectionOptions = SECTION_OPTIONS[sectionId] || SECTION_OPTIONS.default;
-
-    // Scroll to bottom when new messages arrive or streaming content updates
+    // Scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages, streamingMessage?.content]);
 
-    // Cleanup abort controller on unmount
-    useEffect(() => {
-        return () => {
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-            }
-        };
-    }, []);
+    // Cleanup on unmount
+    useEffect(() => () => { abortControllerRef.current?.abort(); }, []);
 
     // Initialize chat when modal opens
     useEffect(() => {
         if (isOpen) {
             const opener = CHAT_OPENERS[Math.floor(Math.random() * CHAT_OPENERS.length)];
-            setMessages([
-                {
-                    role: 'assistant',
-                    content: opener
-                },
-                {
-                    role: 'assistant',
-                    content: "Which part of this section would you like to improve?",
-                    showOptions: true
-                }
-            ]);
+            setMessages([{ role: 'assistant', content: opener }]);
             setChatStep(1);
             setSelectedSubSection(subSection || null);
             setSelectedBlueprintStep(null);
             setSuggestedChanges(null);
-            setPreviousAlternatives([]); // Reset previous alternatives for fresh session
+            setPreviousAlternatives([]);
             setStreamingMessage(null);
+            setSelectedFields(new Set());
+            setFunnelSubPage(null);
+            setLatestContent(currentContent);
         }
-    }, [isOpen, subSection]);
+    }, [isOpen, subSection]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Handle sub-section selection
+    // ── Field selection handlers ───────────────────────────────────────────────
+    const handleToggleField = (fieldId) => {
+        setSelectedFields(prev => {
+            const next = new Set(prev);
+            if (next.has(fieldId)) next.delete(fieldId); else next.add(fieldId);
+            return next;
+        });
+    };
+
+    const handleToggleGroup = (groupFields) => {
+        const allSelected = groupFields.every(f => selectedFields.has(f.id));
+        setSelectedFields(prev => {
+            const next = new Set(prev);
+            groupFields.forEach(f => allSelected ? next.delete(f.id) : next.add(f.id));
+            return next;
+        });
+    };
+
+    const handleSelectAll = () => {
+        const allFields = isFunnelCopy
+            ? (funnelSubPage ? FUNNEL_SUBPAGE_FIELDS[funnelSubPage] || [] : [])
+            : (SECTION_OPTIONS[sectionId] || []);
+        setSelectedFields(new Set(allFields.map(f => f.id)));
+    };
+
+    const handleClearAll = () => setSelectedFields(new Set());
+
+    // ── Proceed with selected fields ──────────────────────────────────────────
+    const handleProceedWithFields = () => {
+        if (selectedFields.size === 0) {
+            toast.error('Please select at least one field to refine.');
+            return;
+        }
+
+        // Determine subSection for the API
+        let subSec;
+        let fieldLabels = [];
+
+        if (isFunnelCopy) {
+            subSec = funnelSubPage || 'all';
+            const pageFields = FUNNEL_SUBPAGE_FIELDS[funnelSubPage] || [];
+            fieldLabels = pageFields.filter(f => selectedFields.has(f.id)).map(f => f.label);
+        } else if (selectedFields.size === 1) {
+            subSec = [...selectedFields][0];
+            const opt = (SECTION_OPTIONS[sectionId] || []).find(o => o.id === subSec);
+            fieldLabels = [opt?.label || subSec];
+        } else {
+            subSec = 'all';
+            const opts = SECTION_OPTIONS[sectionId] || [];
+            fieldLabels = opts.filter(o => selectedFields.has(o.id)).map(o => o.label);
+        }
+
+        setSelectedSubSection(subSec);
+        setIsHierarchicalSection(false);
+        setLatestContent(currentContent);
+
+        // For funnelCopy, unwrap the funnelCopy wrapper before extracting the sub-page
+        if (isFunnelCopy && funnelSubPage) {
+            const raw = currentContent?.funnelCopy ?? currentContent;
+            setOriginalContent(raw?.[funnelSubPage] ?? null);
+        } else {
+            setOriginalContent(subSec === 'all' ? currentContent : (currentContent?.[subSec] ?? currentContent));
+        }
+
+        const fieldList = fieldLabels.length > 0
+            ? fieldLabels.map(l => `• ${l}`).join('\n')
+            : subSec;
+
+        const pageSuffix = isFunnelCopy && funnelSubPage
+            ? ` on the **${FUNNEL_SUBPAGES.find(p => p.id === funnelSubPage)?.label || funnelSubPage}**`
+            : '';
+
+        setMessages(prev => [
+            ...prev,
+            { role: 'user', content: `Selected field${selectedFields.size !== 1 ? 's' : ''}:\n${fieldList}` },
+            {
+                role: 'assistant',
+                content: `Got it — I'll refine ${selectedFields.size === 1 ? 'that field' : `those ${selectedFields.size} fields`}${pageSuffix}.\n\nWhat specifically would you like to change? Be as detailed as you can — for example:\n• "Make the tone more conversational"\n• "Add more urgency"\n• "Focus on the pain point of time scarcity"`
+            }
+        ]);
+        setChatStep(2);
+    };
+
+    // ── Legacy sub-section select (for backward compat / blueprint) ───────────
     const handleSubSectionSelect = (option) => {
-        // Special flow: 7-Step Blueprint needs a step picker
         if (option.id === 'sevenStepBlueprint') {
             setSelectedSubSection('sevenStepBlueprint');
             setIsHierarchicalSection(false);
             setLatestContent(currentContent);
-
             setMessages(prev => [
                 ...prev,
                 { role: 'user', content: option.label },
-                {
-                    role: 'assistant',
-                    content: 'Which step of the 7-Step Blueprint would you like to refine?',
-                    showBlueprintStepPicker: true
-                }
+                { role: 'assistant', content: 'Which step of the 7-Step Blueprint would you like to refine?', showBlueprintStepPicker: true }
             ]);
-            setChatStep(1.7); // Intermediate step for blueprint step selection
+            setChatStep(1.7);
             return;
         }
-
-        // Check if this is a nested field (hierarchical structure)
         if (option.id !== 'all' && isNestedField(sectionId, option.id)) {
-            // Hierarchical flow - show child field selection
             setSelectedParentField(option.id);
             setIsHierarchicalSection(true);
             setLatestContent(currentContent);
-
             setMessages(prev => [
                 ...prev,
                 { role: 'user', content: option.label },
-                {
-                    role: 'assistant',
-                    content: `Great! Now which specific field in **${option.label}** would you like to refine?`,
-                    showChildFieldOptions: true,
-                    parentField: option.id
-                }
+                { role: 'assistant', content: `Which specific field in **${option.label}** would you like to refine?`, showChildFieldOptions: true, parentField: option.id }
             ]);
-            setChatStep(1.5); // Intermediate step for field selection
+            setChatStep(1.5);
         } else {
-            // Simple field - proceed normally
             setSelectedSubSection(option.id);
             setIsHierarchicalSection(false);
             setLatestContent(currentContent);
-            // Store original content for before/after comparison
-            setOriginalContent(option.id === 'all' ? currentContent : currentContent[option.id]);
-
+            setOriginalContent(option.id === 'all' ? currentContent : currentContent?.[option.id]);
             setMessages(prev => [
                 ...prev,
                 { role: 'user', content: option.label },
-                {
-                    role: 'assistant',
-                    content: `Great choice! What specifically would you like to change about the "${option.label}"?
-
-Be as specific as possible - for example:
-• "Make the language more conversational"
-• "Focus more on the pain point of time scarcity"
-• "Add urgency without being pushy"`
-                }
+                { role: 'assistant', content: `What specifically would you like to change about **${option.label}**?\n\nFor example:\n• "Make the language more conversational"\n• "Add urgency without being pushy"\n• "Focus on the pain point of time scarcity"` }
             ]);
             setChatStep(2);
         }
     };
 
-    // Handle 7-Step Blueprint step selection
     const handleBlueprintStepSelect = (stepIndex) => {
-        const blueprint = Array.isArray(currentContent?.sevenStepBlueprint)
-            ? currentContent.sevenStepBlueprint
-            : [];
+        const blueprint = Array.isArray(currentContent?.sevenStepBlueprint) ? currentContent.sevenStepBlueprint : [];
         const step = blueprint[stepIndex];
-        const stepLabel = step?.stepName
-            ? `Step ${stepIndex + 1}: ${step.stepName}`
-            : `Step ${stepIndex + 1}`;
-
+        const stepLabel = step?.stepName ? `Step ${stepIndex + 1}: ${step.stepName}` : `Step ${stepIndex + 1}`;
         setSelectedBlueprintStep(stepIndex);
-        // Store original content: the specific step being edited
         setOriginalContent(step || null);
-
         setMessages(prev => [
             ...prev,
             { role: 'user', content: stepLabel },
-            {
-                role: 'assistant',
-                content: `Perfect! What specifically would you like to change about **${stepLabel}**?
-
-Be as specific as possible - for example:
-• "Make the step name more compelling"
-• "Rewrite the outcome to focus on speed of results"
-• "Make the problem solved more specific to pain points"`
-            }
+            { role: 'assistant', content: `What specifically would you like to change about **${stepLabel}**?` }
         ]);
         setChatStep(2);
     };
 
-    // Handle child field selection (hierarchical flow)
     const handleChildFieldSelect = (childFieldId) => {
-        const parentFieldId = selectedParentField;
-        const combinedPath = `${parentFieldId}.${childFieldId}`;
-
+        const combinedPath = `${selectedParentField}.${childFieldId}`;
         setSelectedChildField(childFieldId);
         setSelectedSubSection(combinedPath);
-
-        // Store original content for comparison
-        const parentContent = currentContent[parentFieldId];
-        const childContent = parentContent?.[childFieldId];
-        setOriginalContent(childContent);
-
+        setOriginalContent(currentContent?.[selectedParentField]?.[childFieldId]);
         setChatStep(2);
-
-        // Add messages showing field selection and asking for feedback
         setMessages(prev => [
             ...prev,
             { role: 'user', content: getFieldLabel(sectionId, childFieldId) },
-            {
-                role: 'assistant',
-                content: `Perfect! What specifically would you like to change about the **${getFieldLabel(sectionId, childFieldId)}**?
-
-Be as specific as possible - for example:
-• "Make it more compelling"
-• "Add more urgency"
-• "Use simpler language"`
-            }
+            { role: 'assistant', content: `What specifically would you like to change about **${getFieldLabel(sectionId, childFieldId)}**?` }
         ]);
     };
 
-    // Handle sending feedback with streaming support
+    // ── Send feedback (streaming) ─────────────────────────────────────────────
     const handleSendFeedback = async () => {
         if (!inputText.trim() || isProcessing || isStreaming) return;
 
         const feedback = inputText.trim();
-        setLastUserFeedback(feedback); // Track for dependency context
-        const userMessage = {
-            id: `msg_${Date.now()}`,
-            role: 'user',
-            content: feedback,
-            timestamp: Date.now(),
-            isComplete: true
-        };
+        setLastUserFeedback(feedback);
 
+        // Prepend field targeting when multiple fields were selected
+        const targetingPrefix = selectedFields.size > 1
+            ? `[Target fields: ${[...selectedFields].join(', ')}]\n`
+            : '';
+        const effectiveFeedback = targetingPrefix + feedback;
+
+        const userMessage = { id: `msg_${Date.now()}`, role: 'user', content: feedback, timestamp: Date.now(), isComplete: true };
         setInputText("");
         setMessages(prev => [...prev, userMessage]);
         setIsProcessing(true);
 
         if (USE_STREAMING) {
-            // NEW: Streaming implementation
             setIsStreaming(true);
-
-            // Initialize streaming assistant message
             const assistantMessageId = `msg_${Date.now() + 1}`;
-            setStreamingMessage({
-                id: assistantMessageId,
-                role: 'assistant',
-                content: '',
-                timestamp: Date.now(),
-                isComplete: false,
-                isStreaming: true
-            });
-
-            // Create abort controller for cleanup
+            setStreamingMessage({ id: assistantMessageId, role: 'assistant', content: '', timestamp: Date.now(), isComplete: false, isStreaming: true });
             abortControllerRef.current = new AbortController();
 
             try {
-                // Get Clerk auth token
                 const token = await getToken();
-
-                // COMPREHENSIVE LOGGING: Message sent
-                // Parse nested field path (dot notation support)
-                let parentSection = null;
-                let childField = null;
-
-                if (selectedSubSection?.includes('.')) {
-                    [parentSection, childField] = selectedSubSection.split('.');
-                }
+                let parentSection = null, childField = null;
+                if (selectedSubSection?.includes('.')) [parentSection, childField] = selectedSubSection.split('.');
 
                 const requestPayload = {
                     sectionId,
                     subSection: selectedSubSection,
-                    ...(parentSection && { parentSection }), // Add parent context for hierarchical fields
-                    // Blueprint step refinement: pass index + full blueprint array for context
+                    ...(parentSection && { parentSection }),
                     ...(selectedBlueprintStep !== null && selectedSubSection === 'sevenStepBlueprint' && {
                         stepIndex: selectedBlueprintStep,
-                        blueprintContext: Array.isArray(currentContent?.sevenStepBlueprint)
-                            ? currentContent.sevenStepBlueprint
-                            : []
+                        blueprintContext: Array.isArray(currentContent?.sevenStepBlueprint) ? currentContent.sevenStepBlueprint : []
                     }),
+                    // Always send targetFields for funnelCopy (even 1 field); other sections only need it for multi-select
+                    ...((isFunnelCopy && funnelSubPage && selectedFields.size > 0
+                        ? true
+                        : selectedFields.size > 1) && { targetFields: [...selectedFields] }),
+                    ...(funnelSubPage && { funnelSubPage }),
+                    feedback: effectiveFeedback,
                     messageHistory: [...messages, userMessage],
-                    currentContent: originalContent || latestContent, // Use original for before/after comparison
+                    currentContent: originalContent || latestContent,
                     sessionId
                 };
-                console.log('[FeedbackChat] ========== MESSAGE SENT ==========');
-                console.log('[FeedbackChat] Sending feedback:', {
-                    sectionId,
-                    subSection: selectedSubSection || 'all',
-                    messageLength: feedback.length,
-                    totalMessagesInHistory: requestPayload.messageHistory.length,
-                    currentContentSize: (JSON.stringify(currentContent) || "").length,
-                    inputPreview: feedback.substring(0, 100) + (feedback.length > 100 ? '...' : '')
-                });
 
-                // Reset completion ref before starting new stream
                 streamCompletedRef.current = false;
 
                 const response = await fetch('/api/os/refine-section-stream', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
-                        'Accept': 'text/event-stream',
-                    },
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
                     body: JSON.stringify(requestPayload),
                     signal: abortControllerRef.current.signal
                 });
 
-                if (!response.ok) {
-                    throw new Error('Stream failed');
-                }
+                if (!response.ok) throw new Error('Stream failed');
 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
-                let buffer = '';
-                // currentEvent must persist across read() calls — for large events like the
-                // parallel-refinement 'validated' payload (~200KB+), the 'event:' line and the
-                // 'data:' line arrive in different TCP chunks. Declaring it inside the while
-                // loop would reset it to '' on every read(), causing the data line to be
-                // silently dropped (the '&& currentEvent' guard fails).
-                let currentEvent = '';
+                let buffer = '', currentEvent = '';
 
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
-
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n');
                     buffer = lines.pop() || '';
@@ -974,1061 +1134,532 @@ Be as specific as possible - for example:
                         } else if (line.startsWith('data: ') && currentEvent) {
                             try {
                                 const data = JSON.parse(line.slice(6));
-
                                 if (currentEvent === 'token') {
-                                    // Append token to streaming message
-                                    setStreamingMessage(prev => {
-                                        const newContent = prev ? prev.content + data.content : data.content;
-
-                                        // COMPREHENSIVE LOGGING: Token received (every 100 chars to avoid spam)
-                                        if (newContent.length % 100 === 0 || newContent.length < 100) {
-                                            console.log('[FeedbackChat] Token received:', {
-                                                totalCharsReceived: newContent.length,
-                                                latestToken: data.content.substring(0, 20)
-                                            });
-                                        }
-
-                                        return prev ? ({ ...prev, content: newContent }) : null;
-                                    });
+                                    setStreamingMessage(prev => prev ? ({ ...prev, content: prev.content + data.content }) : null);
                                 } else if (currentEvent === 'validated') {
-                                    // COMPREHENSIVE LOGGING: Validation received
-                                    console.log('[FeedbackChat] ========== VALIDATION RECEIVED ==========');
-                                    console.log('[FeedbackChat] Validation result:', {
-                                        hasContent: !!data.refinedContent,
-                                        validationSuccess: data.validationSuccess,
-                                        hasWarning: !!data.validationWarning,
-                                        warning: data.validationWarning || 'none',
-                                        contentKeys: Object.keys(data.refinedContent || {}),
-                                        rawTextLength: data.rawText?.length || 0,
-                                        refinedContentSize: JSON.stringify(data.refinedContent || {}).length
-                                    });
-                                    console.log('[FeedbackChat] Refined content preview:', JSON.stringify(data.refinedContent, null, 2).substring(0, 500));
-
-                                    // Store validated content FIRST
                                     setSuggestedChanges(data.refinedContent);
-
-                                    // Mark stream as successfully completed (ref won't suffer from stale closures)
                                     streamCompletedRef.current = true;
-
-                                    // Complete message with validated content (CREATE if null!)
-                                    // Update tracking for continuous refinement
-                                    if (data.refinedContent) {
-                                        setLatestContent(data.refinedContent);
-                                        setPreviousAlternatives(prev => [...prev, data.refinedContent]);
-                                    }
-
-                                    // Move to result step
+                                    if (data.refinedContent) { setLatestContent(data.refinedContent); setPreviousAlternatives(prev => [...prev, data.refinedContent]); }
                                     setChatStep(3);
-
-                                    // If partial chunks failed, show a warning toast
-                                    if (data.partialInfo?.isPartial) {
-                                        toast.warning(
-                                            `${data.partialInfo.failedChunkNames.join(', ')} couldn't be regenerated and kept their original content. You can retry those individually.`,
-                                            { duration: 8000 }
-                                        );
-                                    }
-
-                                    // Complete message with validated content (CREATE if null!)
-                                    setStreamingMessage(prev => {
-                                        const updated = prev ? {
-                                            ...prev,
-                                            isComplete: true,
-                                            isStreaming: false,
-                                            metadata: {
-                                                validatedContent: data.refinedContent,
-                                                rawText: data.rawText,
-                                                validationWarning: data.validationWarning
-                                            }
-                                        } : {
-                                            // CREATE NEW if prev is null
-                                            id: `msg_${Date.now()}`,
-                                            role: 'assistant',
-                                            content: '',
-                                            timestamp: Date.now(),
-                                            isComplete: true,
-                                            isStreaming: false,
-                                            metadata: {
-                                                validatedContent: data.refinedContent,
-                                                rawText: data.rawText,
-                                                validationWarning: data.validationWarning
-                                            }
-                                        };
-                                        return updated;
-                                    });
-
-                                    if (data.validationWarning) {
-                                        toast.warning(data.validationWarning);
-                                    }
+                                    if (data.partialInfo?.isPartial) toast.warning(`${data.partialInfo.failedChunkNames.join(', ')} couldn't be regenerated. You can retry them individually.`, { duration: 8000 });
+                                    setStreamingMessage(prev => prev ? ({ ...prev, isComplete: true, isStreaming: false, metadata: { validatedContent: data.refinedContent, rawText: data.rawText, validationWarning: data.validationWarning } }) : { id: `msg_${Date.now()}`, role: 'assistant', content: '', timestamp: Date.now(), isComplete: true, isStreaming: false, metadata: { validatedContent: data.refinedContent } });
+                                    if (data.validationWarning) toast.warning(data.validationWarning);
                                 } else if (currentEvent === 'partial') {
-                                    // Partial content received - show recovery dialog
-                                    console.log('[FeedbackChat] Partial content received:', {
-                                        contentLength: data.partialContent?.length,
-                                        reason: data.reason,
-                                        canSave: data.canSave,
-                                        canRetry: data.canRetry
-                                    });
-
-                                    // Clear streaming message
                                     setStreamingMessage(null);
-
-                                    // Store partial content and metadata
                                     setPartialContent(data.partialContent);
-                                    setPartialError({
-                                        reason: data.reason,
-                                        error: data.error,
-                                        canSave: data.canSave,
-                                        canRetry: data.canRetry,
-                                        canDiscard: data.canDiscard
-                                    });
-
-                                    // Add message about partial content
-                                    const reasonText = data.reason === 'timeout'
-                                        ? '⏱️ Generation timed out after receiving partial content'
-                                        : `❌ Generation failed: ${data.error || 'Unknown error'}`;
-
-                                    setMessages(prev => [...prev, {
-                                        role: 'assistant',
-                                        content: `${reasonText}\n\nI received ${data.partialContent?.length || 0} characters before the ${data.reason}.\n\nWhat would you like to do?`,
-                                        isPartialError: true
-                                    }]);
-
-                                    setIsStreaming(false);
-                                    setIsProcessing(false);
-                                    setChatStep(2); // Stay in feedback step
-
-                                    return;
+                                    setPartialError({ reason: data.reason, error: data.error, canSave: data.canSave, canRetry: data.canRetry, canDiscard: data.canDiscard });
+                                    setMessages(prev => [...prev, { role: 'assistant', content: `${data.reason === 'timeout' ? '⏱️ Generation timed out' : `❌ Generation failed: ${data.error || 'Unknown error'}`}\n\nReceived ${data.partialContent?.length || 0} characters. What would you like to do?`, isPartialError: true }]);
+                                    setIsStreaming(false); setIsProcessing(false); setChatStep(2); return;
                                 } else if (currentEvent === 'error') {
-                                    // Handle error without throwing - preserve any content generated
-                                    console.error('[FeedbackChat] Stream error:', data);
-
-                                    // Clear streaming message since error occurred
                                     setStreamingMessage(null);
-
-                                    // Format error message
                                     let errorText = data.message || 'Stream error';
-                                    if (errorText.includes('wrong schema') || errorText.includes('mixed schemas')) {
-                                        errorText = '⚠️ Schema validation failed. The AI generated the wrong structure.\n\nPlease try again - I will ensure the correct schema is used this time.';
-                                    } else if (errorText.includes('timeout')) {
-                                        errorText = '⏱️ The request took too long. Please try a simpler refinement or try again.';
-                                    }
-
-                                    // Show error in chat
-                                    setMessages(prev => [...prev, {
-                                        role: 'assistant',
-                                        content: errorText,
-                                        isError: true
-                                    }]);
-
+                                    if (errorText.includes('wrong schema') || errorText.includes('mixed schemas')) errorText = '⚠️ Schema validation failed. Please try again.';
+                                    else if (errorText.includes('timeout')) errorText = '⏱️ The request took too long. Please try a simpler refinement.';
+                                    setMessages(prev => [...prev, { role: 'assistant', content: errorText, isError: true, showRetry: true }]);
                                     toast.error(data.message);
-
-                                    // Keep in feedback step so user can try again
-                                    setChatStep(2);
-                                    setIsStreaming(false);
-                                    setIsProcessing(false);
-
-                                    // Don't throw - error is handled
-                                    return;
+                                    setChatStep(2); setIsStreaming(false); setIsProcessing(false); return;
                                 } else if (currentEvent === 'complete') {
-                                    // COMPREHENSIVE LOGGING: Stream complete
-                                    console.log('[FeedbackChat] ========== STREAM COMPLETE ==========');
-                                    console.log('[FeedbackChat] Moving to preview step');
-
-                                    // Use functional update to get latest suggestedChanges
-                                    // NOTE: suggestedChanges was already set by the 'validated' event
                                     setSuggestedChanges(prev => {
                                         const contentToUse = prev || streamingMessage?.metadata?.validatedContent;
-
-                                        console.log('[FeedbackChat] Complete event - content check:', {
-                                            hasPrevSuggestedChanges: !!prev,
-                                            hasStreamingMetadata: !!streamingMessage?.metadata?.validatedContent,
-                                            usingContent: !!contentToUse
-                                        });
-
-                                        if (contentToUse) {
-                                            // Add final message to messages array
-                                            setMessages(msgs => [...msgs, {
-                                                role: 'assistant',
-                                                content: "✓ Content generated successfully. Review the changes below:",
-                                                showPreview: true,
-                                                previewContent: contentToUse
-                                            }]);
-                                        }
-
+                                        if (contentToUse) setMessages(msgs => [...msgs, { role: 'assistant', content: "✓ Content generated. Review the changes below:", showPreview: true, previewContent: contentToUse }]);
                                         return contentToUse || prev;
                                     });
-
                                     setStreamingMessage(null);
-                                    setChatStep(3);
-                                    setRegenerationCount(prev => prev + 1);
-                                    setIsStreaming(false);
-                                    setIsProcessing(false);
+                                    setChatStep(3); setRegenerationCount(prev => prev + 1);
+                                    setIsStreaming(false); setIsProcessing(false);
                                 }
-
-                            } catch (parseError) {
-                                console.warn('[FeedbackChat] Failed to parse SSE data:', parseError);
-                            }
+                            } catch (parseError) { console.warn('[FeedbackChat] SSE parse error:', parseError); }
                             currentEvent = '';
                         }
                     }
                 }
 
-                // ── Abrupt stream termination detection ──
-                // If the reader finished (done=true) but we never received a
-                // 'validated' or 'complete' event, it means Vercel killed the
-                // function or the connection dropped. Show a clear error.
                 if (!streamCompletedRef.current) {
-                    console.warn('[FeedbackChat] Stream ended without validated/complete events – likely Vercel timeout or connection drop');
                     setStreamingMessage(null);
-                    setMessages(prev => [...prev, {
-                        role: 'assistant',
-                        content: '⏱️ The connection was interrupted before the AI finished generating. This can happen with large sections.\n\nPlease click **Try Again** to retry — the request often succeeds on a second attempt.',
-                        showRetry: true
-                    }]);
-                    setChatStep(2);
-                    setIsStreaming(false);
-                    setIsProcessing(false);
+                    setMessages(prev => [...prev, { role: 'assistant', content: '⏱️ Connection interrupted. Click **Try Again** to retry.', showRetry: true }]);
+                    setChatStep(2); setIsStreaming(false); setIsProcessing(false);
                 }
-
             } catch (error) {
-                if (error.name === 'AbortError') {
-                    console.log('[FeedbackChat] Stream aborted by user');
-                    return;
-                }
-
-                console.error('Streaming error:', error);
-
-                // Clear any partial streaming message
+                if (error.name === 'AbortError') return;
                 setStreamingMessage(null);
-
-                // Show detailed error with retry option
                 let errorMessage = error.message;
-                if (errorMessage.includes('wrong schema structure') || errorMessage.includes('mixed schemas')) {
-                    errorMessage = '⚠️ Schema validation failed. The AI generated the wrong structure. Please try again.';
-                } else if (errorMessage.includes('timeout')) {
-                    errorMessage = '⏱️ The request took too long. Please try a simpler refinement or try again.';
-                } else if (errorMessage.includes('JSON')) {
-                    errorMessage = '❌ The AI returned invalid data. Please try again.';
-                } else {
-                    errorMessage = `❌ ${errorMessage}`;
-                }
-
+                if (errorMessage.includes('timeout')) errorMessage = '⏱️ Request timed out. Please try a simpler refinement.';
+                else if (errorMessage.includes('JSON')) errorMessage = '❌ The AI returned invalid data. Please try again.';
+                else errorMessage = `❌ ${errorMessage}`;
                 toast.error(errorMessage);
-
-                setMessages(prev => [...prev, {
-                    role: 'assistant',
-                    content: `${errorMessage}\n\nClick "Try Again" below to retry your request.`,
-                    showRetry: true
-                }]);
-            } finally {
-                setIsStreaming(false);
-                setIsProcessing(false);
-            }
-
+                setMessages(prev => [...prev, { role: 'assistant', content: `${errorMessage}\n\nClick "Try Again" to retry.`, showRetry: true }]);
+            } finally { setIsStreaming(false); setIsProcessing(false); }
         } else {
-            // FALLBACK: Non-streaming implementation (original code)
+            // Non-streaming fallback
             try {
                 setMessages(prev => [...prev, { role: 'assistant', content: '🤔 Analyzing your feedback...', isThinking: true }]);
-
                 const response = await fetchWithAuth('/api/os/refine-section', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sectionId,
-                        subSection: selectedSubSection,
-                        feedback,
-                        currentContent,
-                        sessionId
-                    })
+                    body: JSON.stringify({ sectionId, subSection: selectedSubSection, feedback: effectiveFeedback, currentContent, sessionId })
                 });
-
-                if (!response.ok) {
-                    throw new Error('Failed to generate refinement');
-                }
-
+                if (!response.ok) throw new Error('Failed to generate refinement');
                 const data = await response.json();
-
-                setMessages(prev => {
-                    const withoutThinking = prev.filter(m => !m.isThinking);
-                    return [
-                        ...withoutThinking,
-                        {
-                            role: 'assistant',
-                            content: "Here's my suggested update based on your feedback:",
-                            showPreview: true,
-                            previewContent: data.refinedContent
-                        }
-                    ];
-                });
-
-                setSuggestedChanges(data.refinedContent);
-                setRegenerationCount(prev => prev + 1);
-                setChatStep(3);
-
+                setMessages(prev => [...prev.filter(m => !m.isThinking), { role: 'assistant', content: "Here's my suggested update:", showPreview: true, previewContent: data.refinedContent }]);
+                setSuggestedChanges(data.refinedContent); setRegenerationCount(prev => prev + 1); setChatStep(3);
             } catch (error) {
-                console.error('Refinement error:', error);
-                setMessages(prev => {
-                    const withoutThinking = prev.filter(m => !m.isThinking);
-                    return [
-                        ...withoutThinking,
-                        { role: 'assistant', content: `❌ Sorry, I couldn't generate that refinement. ${error.message}` }
-                    ];
-                });
+                setMessages(prev => [...prev.filter(m => !m.isThinking), { role: 'assistant', content: `❌ ${error.message}` }]);
                 toast.error("Refinement failed");
-            } finally {
-                setIsProcessing(false);
-            }
+            } finally { setIsProcessing(false); }
         }
     };
 
-    // Handle saving changes
+    // ── Save changes ──────────────────────────────────────────────────────────
     const handleSaveChanges = () => {
         if (!suggestedChanges) return;
-
-        // Build save payload — include stepIndex for blueprint step refinements
         const savePayload = {
-            refinedContent: suggestedChanges,
-            subSection: selectedSubSection,
-            ...(selectedBlueprintStep !== null && selectedSubSection === 'sevenStepBlueprint' && {
-                stepIndex: selectedBlueprintStep
-            })
+            refinedContent: suggestedChanges, subSection: selectedSubSection,
+            ...(selectedBlueprintStep !== null && selectedSubSection === 'sevenStepBlueprint' && { stepIndex: selectedBlueprintStep })
         };
-
-        // COMPREHENSIVE LOGGING: Save triggered
-        console.log('[FeedbackChat] ========== SAVE TRIGGERED ==========');
-        console.log('[FeedbackChat] Saving changes:', {
-            sectionId,
-            subSection: selectedSubSection || 'all',
-            stepIndex: selectedBlueprintStep,
-            hasContent: !!suggestedChanges,
-            contentKeys: Object.keys(suggestedChanges),
-            contentSize: JSON.stringify(suggestedChanges).length,
-            messageHistoryLength: messages.length
-        });
-        console.log('[FeedbackChat] Content being saved:', JSON.stringify(suggestedChanges, null, 2).substring(0, 500));
-
-        // Check for dependency impacts BEFORE saving (saving triggers refresh which closes modal)
         const impact = calculateDependencyImpact(sectionId, selectedSubSection);
-        console.log('[FeedbackChat] Dependency impact:', impact);
-
         if (impact.hasImpact) {
-            // DON'T save yet — show dependency review step first
-            // onSave() will be called when user clicks Regenerate or Skip
             setDependencyImpact(impact);
-            setSelectedDependencies(impact.affectedSections.map(s => s.sectionId)); // Pre-select all
+            setSelectedDependencies(impact.affectedSections.map(s => s.sectionId));
             setChatStep(4);
-
-            setMessages(prev => [
-                ...prev,
-                {
-                    role: 'assistant',
-                    content: `🔗 **Heads up** — ${impact.affectedSections.length} other section${impact.affectedSections.length > 1 ? 's' : ''} depend${impact.affectedSections.length === 1 ? 's' : ''} on your changes to **${sectionTitle}**. Would you like to regenerate them for consistency?\n\nYour changes will be saved when you choose an option below.`,
-                    isDependencyPrompt: true
-                }
-            ]);
+            setMessages(prev => [...prev, { role: 'assistant', content: `🔗 **Heads up** — ${impact.affectedSections.length} other section${impact.affectedSections.length > 1 ? 's' : ''} depend on your changes to **${sectionTitle}**. Would you like to regenerate them?`, isDependencyPrompt: true }]);
         } else {
-            // No dependencies — save immediately and close
-            onSave(savePayload);
-            toast.success("Changes saved!");
-            onClose();
+            onSave(savePayload); toast.success("Changes saved!"); onClose();
         }
     };
 
-    // Actually perform the save (deferred when dependencies exist)
     const commitSave = () => {
-        console.log('[FeedbackChat] Committing save (deferred)');
-        onSave({
-            refinedContent: suggestedChanges,
-            subSection: selectedSubSection,
-            ...(selectedBlueprintStep !== null && selectedSubSection === 'sevenStepBlueprint' && {
-                stepIndex: selectedBlueprintStep
-            })
-        });
+        onSave({ refinedContent: suggestedChanges, subSection: selectedSubSection, ...(selectedBlueprintStep !== null && selectedSubSection === 'sevenStepBlueprint' && { stepIndex: selectedBlueprintStep }) });
         toast.success("Changes saved!");
     };
 
-    // Handle dependency regeneration
-    const pollDependencyJob = (jobId) => {
-        const poll = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/os/generation-status?jobId=${jobId}`);
-                if (!res.ok) return;
-                const job = await res.json();
-
-                if (job.status === 'completed') {
-                    clearInterval(poll);
-                    window.dispatchEvent(new CustomEvent('dependencyRegenerationComplete', {
-                        detail: { jobId, sections: selectedDependencies }
-                    }));
-                    toast.success('Dependency regeneration complete', {
-                        description: 'Updated sections are ready in your vault.',
-                        duration: 5000
-                    });
-                } else if (job.status === 'failed') {
-                    clearInterval(poll);
-                    toast.error('Dependency regeneration failed', {
-                        description: job.errorMessage || 'Please try again or regenerate manually.',
-                        duration: 10000
-                    });
-                }
-            } catch (error) {
-                console.error('[FeedbackChat] Polling error:', error);
-            }
-        }, 3000);
-
-        setTimeout(() => clearInterval(poll), 10 * 60 * 1000);
-    };
-
     const handleRegenerateDependencies = async () => {
-        // Save the changes first (deferred from handleSaveChanges)
         commitSave();
-
-        if (selectedDependencies.length === 0) {
-            toast.info('No sections selected. Skipping dependency regeneration.');
-            onClose();
-            return;
-        }
-
+        if (selectedDependencies.length === 0) { toast.info('No sections selected.'); onClose(); return; }
         setIsDependencyProcessing(true);
-        console.log('[FeedbackChat] Triggering dependency regeneration:', selectedDependencies);
-
         try {
             const response = await fetchWithAuth('/api/os/regenerate-dependent', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sessionId,
-                    sections: selectedDependencies,
-                    sourceSection: sectionId,
-                    sourceField: selectedSubSection,
-                    userFeedback: lastUserFeedback,
-                    refinedChanges: JSON.stringify(suggestedChanges).substring(0, 1000),
-                })
+                body: JSON.stringify({ sessionId, sections: selectedDependencies, sourceSection: sectionId, sourceField: selectedSubSection, userFeedback: lastUserFeedback, refinedChanges: JSON.stringify(suggestedChanges).substring(0, 1000) })
             });
-
-            if (!response.ok) {
-                throw new Error('Failed to trigger dependency regeneration');
-            }
-
+            if (!response.ok) throw new Error('Failed to trigger dependency regeneration');
             const result = await response.json();
-            console.log('[FeedbackChat] Dependency regeneration triggered:', result);
-
-            // Notify the vault page to restart polling so it picks up the 'generating' status
-            window.dispatchEvent(new CustomEvent('regenerationTriggered', {
-                detail: { sections: selectedDependencies, sourceSection: sectionId }
-            }));
-
-            if (result.jobId) {
-                pollDependencyJob(result.jobId);
-            }
-
-            toast.success(
-                `Regenerating ${selectedDependencies.length} dependent section${selectedDependencies.length > 1 ? 's' : ''}. Check the vault to see progress.`,
-                { duration: 5000 }
-            );
+            window.dispatchEvent(new CustomEvent('regenerationTriggered', { detail: { sections: selectedDependencies, sourceSection: sectionId } }));
+            toast.success(`Regenerating ${selectedDependencies.length} dependent section${selectedDependencies.length > 1 ? 's' : ''}. Check the vault for progress.`, { duration: 5000 });
         } catch (error) {
-            console.error('[FeedbackChat] Dependency regeneration error:', error);
             toast.error('Failed to start dependency regeneration. You can manually regenerate from the vault.');
-        } finally {
-            setIsDependencyProcessing(false);
-            onClose();
-        }
+        } finally { setIsDependencyProcessing(false); onClose(); }
     };
 
-    // Toggle a dependency section selection
-    const toggleDependencySection = (sectionIdToToggle) => {
-        setSelectedDependencies(prev =>
-            prev.includes(sectionIdToToggle)
-                ? prev.filter(id => id !== sectionIdToToggle)
-                : [...prev, sectionIdToToggle]
-        );
-    };
+    const toggleDependencySection = (id) => setSelectedDependencies(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-    // Handle "Try Again" - same feedback, different output
     const handleTryAgain = async () => {
-        if (regenerationCount >= MAX_REGENERATIONS) {
-            toast.error(`Maximum refinements (${MAX_REGENERATIONS}) reached for this section.`);
-            return;
-        }
-
-        // Track current suggested changes as a previous alternative before generating new one
-        const updatedAlternatives = suggestedChanges
-            ? [...previousAlternatives, suggestedChanges]
-            : previousAlternatives;
-
-        setPreviousAlternatives(updatedAlternatives);
-
+        if (regenerationCount >= MAX_REGENERATIONS) { toast.error(`Maximum refinements (${MAX_REGENERATIONS}) reached.`); return; }
+        const updatedAlts = suggestedChanges ? [...previousAlternatives, suggestedChanges] : previousAlternatives;
+        setPreviousAlternatives(updatedAlts);
         setIsProcessing(true);
         setMessages(prev => [...prev, { role: 'assistant', content: '🔄 Generating a different alternative...', isThinking: true }]);
-
         try {
             const response = await fetchWithAuth('/api/os/refine-section', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    sectionId,
-                    subSection: selectedSubSection,
-                    feedback: 'Please provide a completely different alternative version with different wording and structure',
-                    currentContent: latestContent, // Use the latest content for context
-                    sessionId,
-                    iteration: regenerationCount + 2,
-                    previousAlternatives: updatedAlternatives
-                })
+                body: JSON.stringify({ sectionId, subSection: selectedSubSection, feedback: 'Please provide a completely different alternative with different wording and structure', currentContent: latestContent, sessionId, iteration: regenerationCount + 2, previousAlternatives: updatedAlts })
             });
-
             if (!response.ok) throw new Error('Failed to regenerate');
-
             const data = await response.json();
-
-            setMessages(prev => {
-                const withoutThinking = prev.filter(m => !m.isThinking);
-                return [
-                    ...withoutThinking,
-                    {
-                        role: 'assistant',
-                        content: `Here's alternative #${regenerationCount + 2}:`,
-                        showPreview: true,
-                        previewContent: data.refinedContent
-                    }
-                ];
-            });
-
-            setSuggestedChanges(data.refinedContent);
-            setLatestContent(data.refinedContent);
-            setRegenerationCount(prev => prev + 1);
-
+            setMessages(prev => [...prev.filter(m => !m.isThinking), { role: 'assistant', content: `Here's alternative #${regenerationCount + 2}:`, showPreview: true, previewContent: data.refinedContent }]);
+            setSuggestedChanges(data.refinedContent); setLatestContent(data.refinedContent); setRegenerationCount(prev => prev + 1);
         } catch (error) {
-            console.error('Retry error:', error);
             toast.error("Failed to generate alternative");
             setMessages(prev => prev.filter(m => !m.isThinking));
-        } finally {
-            setIsProcessing(false);
-        }
+        } finally { setIsProcessing(false); }
     };
 
-    if (!isOpen) return null;
+    if (!isOpen || typeof document === 'undefined') return null;
 
-    // Use portal to render at document body - fixes positioning issues with parent transforms
-    if (typeof document === 'undefined') return null;
+    const showFieldPanel = chatStep === 1;
+    const hasSelectedFields = selectedFields.size > 0;
 
+    // ── Render ────────────────────────────────────────────────────────────────
     return createPortal(
         <AnimatePresence>
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center px-4 py-6"
+                className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center px-3 py-4"
                 onClick={onClose}
             >
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                    initial={{ opacity: 0, scale: 0.96, y: 16 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] w-full max-w-7xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl shadow-black/50"
+                    exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                    transition={{ type: 'spring', damping: 26, stiffness: 360 }}
+                    className="bg-[#080C10] rounded-2xl border border-[#1E2A34] w-full max-w-7xl flex flex-col overflow-hidden shadow-2xl shadow-black/60"
+                    style={{ height: 'min(92vh, 820px)' }}
                     onClick={e => e.stopPropagation()}
                 >
-                    {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b border-[#2a2a2d]">
+                    {/* ── Header ──────────────────────────────────────────── */}
+                    <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#1E2A34] flex-shrink-0">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan/20 to-purple-500/20 flex items-center justify-center">
-                                <MessageSquare className="w-5 h-5 text-cyan" />
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan/20 to-purple-500/20 border border-cyan/20 flex items-center justify-center">
+                                <SlidersHorizontal className="w-4 h-4 text-cyan" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-white">Improve: {sectionTitle}</h3>
-                                <p className="text-xs text-gray-500">
-                                    {regenerationCount}/{MAX_REGENERATIONS} refinements used
-                                </p>
+                                <h3 className="font-semibold text-white text-sm leading-tight">{sectionTitle}</h3>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    {/* Step breadcrumb */}
+                                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${chatStep === 1 ? 'bg-cyan/20 text-cyan' : 'bg-[#1E2A34] text-gray-500'}`}>1 Select</span>
+                                    <ChevronRight className="w-2.5 h-2.5 text-gray-700" />
+                                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${chatStep === 2 ? 'bg-cyan/20 text-cyan' : chatStep > 2 ? 'bg-[#1E2A34] text-gray-500' : 'bg-[#1E2A34] text-gray-700'}`}>2 Feedback</span>
+                                    <ChevronRight className="w-2.5 h-2.5 text-gray-700" />
+                                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${chatStep === 3 ? 'bg-cyan/20 text-cyan' : chatStep > 3 ? 'bg-[#1E2A34] text-gray-500' : 'bg-[#1E2A34] text-gray-700'}`}>3 Review</span>
+                                </div>
                             </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-[#2a2a2d] rounded-lg transition-colors"
-                        >
-                            <X className="w-5 h-5 text-gray-400" />
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-600 hidden sm:inline">
+                                {regenerationCount}/{MAX_REGENERATIONS} refinements
+                            </span>
+                            <button onClick={onClose} className="p-1.5 hover:bg-[#1E2A34] rounded-lg transition-colors cursor-pointer">
+                                <X className="w-4 h-4 text-gray-400" />
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Content Preview Collapsible (Fix for Bug 1a) */}
-                    {latestContent && selectedSubSection && (
-                        <div className="border-b border-[#2a2a2d] bg-[#161618]">
-                            <button
-                                onClick={() => setShowContentPreview(!showContentPreview)}
-                                className="w-full px-4 py-2 flex items-center justify-between text-xs font-medium text-gray-400 hover:text-white hover:bg-[#2a2a2d] transition-colors"
-                            >
-                                <span className="flex items-center gap-2">
-                                    <FileImage className="w-3.5 h-3.5" />
-                                    Current Content Preview
-                                </span>
-                                {showContentPreview ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                            <AnimatePresence>
-                                {showContentPreview && (
+                    {/* ── Body ────────────────────────────────────────────── */}
+                    <div className="flex flex-1 min-h-0 overflow-hidden">
+
+                        {/* ── Left: Field selector panel ─────────────────── */}
+                        <AnimatePresence initial={false}>
+                            {showFieldPanel && (
+                                <motion.div
+                                    initial={{ width: 0, opacity: 0 }}
+                                    animate={{ width: 300, opacity: 1 }}
+                                    exit={{ width: 0, opacity: 0 }}
+                                    transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                                    className="border-r border-[#1E2A34] flex-shrink-0 overflow-hidden flex flex-col bg-[#05080B]"
+                                >
+                                    <div className="px-4 py-3 border-b border-[#1E2A34] flex-shrink-0">
+                                        <div className="flex items-center gap-2">
+                                            <LayoutList className="w-3.5 h-3.5 text-cyan" />
+                                            <span className="text-xs font-semibold text-gray-300 uppercase tracking-wide">Fields</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-h-0 overflow-y-auto">
+                                        <FieldSelectorPanel
+                                            sectionId={sectionId}
+                                            currentContent={currentContent}
+                                            selectedFields={selectedFields}
+                                            onToggleField={handleToggleField}
+                                            onToggleGroup={handleToggleGroup}
+                                            funnelSubPage={funnelSubPage}
+                                            onSetFunnelSubPage={(p) => { setFunnelSubPage(p); setSelectedFields(new Set()); }}
+                                            onSelectAll={handleSelectAll}
+                                            onClearAll={handleClearAll}
+                                        />
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* ── Right: Chat panel ──────────────────────────── */}
+                        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+
+                            {/* Selected fields summary bar (step 2+) */}
+                            {chatStep >= 2 && selectedSubSection && (
+                                <div className="px-4 py-2 bg-[#0A1018] border-b border-[#1E2A34] flex-shrink-0 flex items-center gap-2 flex-wrap">
+                                    <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Refining:</span>
+                                    {selectedFields.size > 1
+                                        ? [...selectedFields].map(fid => {
+                                            const fieldPool = isFunnelCopy ? (FUNNEL_SUBPAGE_FIELDS[funnelSubPage] || []) : (SECTION_OPTIONS[sectionId] || []);
+                                            const opt = fieldPool.find(o => o.id === fid);
+                                            const label = opt?.label || fid;
+                                            return (
+                                                <span key={fid} className="text-[10px] px-2 py-0.5 rounded-full bg-cyan/10 border border-cyan/25 text-cyan font-medium">
+                                                    {label}
+                                                </span>
+                                            );
+                                        })
+                                        : <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan/10 border border-cyan/25 text-cyan font-medium">
+                                            {(SECTION_OPTIONS[sectionId] || []).find(o => o.id === selectedSubSection)?.label || selectedSubSection}
+                                          </span>
+                                    }
+                                </div>
+                            )}
+
+                            {/* Chat messages */}
+                            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                                {messages.map((msg, idx) => (
                                     <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        animate={{ height: 'auto', opacity: 1 }}
-                                        exit={{ height: 0, opacity: 0 }}
-                                        className="overflow-hidden"
+                                        key={idx}
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: Math.min(idx * 0.05, 0.3) }}
+                                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                                     >
-                                        <div className="p-4 bg-[#0e0e0f] max-h-40 overflow-y-auto border-b border-[#2a2a2d]">
-                                            <ContentPreviewRenderer
-                                                content={selectedSubSection === 'all'
-                                                    ? latestContent
-                                                    : { [selectedSubSection]: latestContent[selectedSubSection] || latestContent }
-                                                }
-                                                className="text-gray-500"
-                                                sectionId={sectionId}
-                                                basePath={selectedSubSection && selectedSubSection !== 'all'
-                                                    ? selectedSubSection.split('.')[0]
-                                                    : ''}
-                                            />
+                                        <div className={`rounded-2xl px-4 py-3 max-w-[90%] ${
+                                            msg.role === 'user'
+                                                ? 'bg-cyan text-black font-medium'
+                                                : msg.isError
+                                                    ? 'bg-red-950/40 border border-red-500/30 text-white'
+                                                    : 'bg-[#0D1217] border border-[#1E2A34] text-white'
+                                        }`}>
+                                            {msg.isThinking ? (
+                                                <div className="flex items-center gap-2">
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                    <span className="text-sm">{msg.content}</span>
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                            )}
+
+                                            {/* Blueprint step picker */}
+                                            {msg.showBlueprintStepPicker && (() => {
+                                                const blueprint = Array.isArray(currentContent?.sevenStepBlueprint) ? currentContent.sevenStepBlueprint : [];
+                                                const steps = Array.from({ length: 7 }, (_, i) => ({ index: i, stepName: blueprint[i]?.stepName || `Step ${i + 1}` }));
+                                                return (
+                                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                        {steps.map(({ index, stepName }) => (
+                                                            <button key={index} onClick={() => handleBlueprintStepSelect(index)}
+                                                                className="flex items-center gap-3 px-3 py-2.5 bg-[#0A1018] hover:bg-[#111820] border border-[#1E2A34] hover:border-cyan/40 rounded-xl text-left transition-all group cursor-pointer">
+                                                                <span className="w-7 h-7 rounded-full bg-cyan/10 border border-cyan/30 flex items-center justify-center text-xs font-bold text-cyan flex-shrink-0 group-hover:bg-cyan/20">
+                                                                    {index + 1}
+                                                                </span>
+                                                                <span className="text-sm text-gray-300 group-hover:text-white leading-tight">{stepName}</span>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {/* Child field options */}
+                                            {msg.showChildFieldOptions && msg.parentField && (
+                                                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    {Object.entries(getChildFieldOptions(sectionId, msg.parentField)).map(([group, fields]) => (
+                                                        <div key={group} className="space-y-1.5">
+                                                            <div className="text-[10px] font-bold text-cyan uppercase tracking-wide px-2">{group}</div>
+                                                            {fields.map(field => (
+                                                                <button key={field.id} onClick={() => handleChildFieldSelect(field.id)}
+                                                                    className="w-full text-left px-3 py-2 bg-[#0A1018] hover:bg-[#111820] border border-[#1E2A34] hover:border-cyan/40 text-gray-300 rounded-lg text-sm transition-all flex items-center gap-2 cursor-pointer">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-cyan flex-shrink-0" />
+                                                                    <span>{field.label}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Before/After preview — filtered diff */}
+                                            {(() => {
+                                                const shouldShow = (msg.showPreview && msg.previewContent) || msg.metadata?.validatedContent;
+                                                const content = msg.previewContent || msg.metadata?.validatedContent;
+                                                if (!shouldShow || idx !== messages.length - 1) return null;
+                                                return (
+                                                    <div className="mt-4 space-y-3">
+                                                        <div className="flex items-center gap-2 pb-2 border-b border-[#1E2A34]">
+                                                            <CheckCircle className="w-4 h-4 text-cyan" />
+                                                            <span className="text-sm font-semibold text-white">Changes Preview</span>
+                                                            <span className="text-xs text-gray-500 ml-auto">
+                                                                {highlightMap && !highlightMap.has('__all__')
+                                                                    ? `${highlightMap.size} field${highlightMap.size !== 1 ? 's' : ''} changed`
+                                                                    : 'All fields updated'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="max-h-[400px] overflow-y-auto pr-1">
+                                                            <FilteredDiffPanel
+                                                                before={originalContent || currentContent}
+                                                                after={content}
+                                                                highlightMap={highlightMap}
+                                                                sectionId={sectionId}
+                                                                selectedFields={selectedFields}
+                                                                funnelSubPage={funnelSubPage}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {/* Retry button */}
+                                            {msg.showRetry && (
+                                                <button
+                                                    onClick={() => {
+                                                        const last = messages.filter(m => m.role === 'user').pop();
+                                                        if (last) { setInputText(last.content); setTimeout(handleSendFeedback, 100); }
+                                                    }}
+                                                    className="mt-3 px-4 py-2 bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 text-cyan rounded-lg text-xs font-medium transition-all flex items-center gap-2 cursor-pointer"
+                                                >
+                                                    <RefreshCw className="w-3.5 h-3.5" /> Try Again
+                                                </button>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                ))}
+
+                                {/* Streaming message */}
+                                {streamingMessage && (
+                                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
+                                        <div className="rounded-2xl px-4 py-3 bg-[#0D1217] border border-[#1E2A34] text-white max-w-[90%]">
+                                            {streamingMessage.isStreaming && !streamingMessage.metadata?.validatedContent ? (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex gap-1">
+                                                            {[0, 150, 300].map(d => (
+                                                                <span key={d} className="w-1.5 h-1.5 bg-cyan rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
+                                                            ))}
+                                                        </div>
+                                                        <span className="text-sm text-gray-400">Generating refined content…</span>
+                                                    </div>
+                                                    {streamingMessage.content && streamingMessage.content.length > 50 && (
+                                                        <div className="p-3 bg-[#05080B] rounded-xl border border-[#1E2A34] max-h-40 overflow-y-auto">
+                                                            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono">
+                                                                {streamingMessage.content.substring(0, 400)}{streamingMessage.content.length > 400 && '…'}
+                                                                <span className="inline-block w-1.5 h-3.5 bg-cyan animate-pulse ml-0.5 align-middle" />
+                                                            </pre>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : null}
+                                            {streamingMessage.metadata?.validatedContent && (
+                                                <div className="space-y-2">
+                                                    <p className="text-sm text-cyan font-medium flex items-center gap-2">
+                                                        <CheckCircle className="w-4 h-4" /> Content generated successfully
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                     </motion.div>
                                 )}
-                            </AnimatePresence>
-                        </div>
-                    )}
 
-                    {/* Chat Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {messages.map((msg, idx) => (
-                            <motion.div
-                                key={idx}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.1 }}
-                                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                            >
-                                <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user'
-                                    ? 'bg-cyan text-black'
-                                    : 'bg-[#2a2a2d] text-white'
-                                    }`}>
-                                    {msg.isThinking ? (
-                                        <div className="flex items-center gap-2">
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                            <span>{msg.content}</span>
-                                        </div>
-                                    ) : (
-                                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                    )}
-
-                                    {/* Sub-section options */}
-                                    {msg.showOptions && (
-                                        <div className="mt-3 space-y-2">
-                                            {subSectionOptions.map((option) => (
-                                                <button
-                                                    key={option.id}
-                                                    onClick={() => handleSubSectionSelect(option)}
-                                                    className="w-full text-left px-3 py-2 bg-[#1b1b1d] hover:bg-[#0e0e0f] rounded-lg text-sm text-gray-300 transition-colors"
-                                                >
-                                                    {option.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* Child field options (hierarchical selection) */}
-                                    {msg.showChildFieldOptions && msg.parentField && (
-                                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {Object.entries(getChildFieldOptions(sectionId, msg.parentField)).map(([group, fields]) => (
-                                                <div key={group} className="space-y-2">
-                                                    <div className="text-xs font-bold text-cyan uppercase tracking-wide px-2">
-                                                        {group}
-                                                    </div>
-                                                    {fields.map(field => (
-                                                        <button
-                                                            key={field.id}
-                                                            onClick={() => handleChildFieldSelect(field.id)}
-                                                            className="w-full text-left px-3 py-2 bg-[#1b1b1d] hover:bg-[#0e0e0f] text-gray-300 rounded-lg text-sm transition-all flex items-center gap-2"
-                                                        >
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-cyan flex-shrink-0" />
-                                                            <span>{field.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* 7-Step Blueprint step picker */}
-                                    {msg.showBlueprintStepPicker && (() => {
-                                        const blueprint = Array.isArray(currentContent?.sevenStepBlueprint)
-                                            ? currentContent.sevenStepBlueprint
-                                            : [];
-                                        // Build 7 slots — fill from data, fallback to generic label
-                                        const steps = Array.from({ length: 7 }, (_, i) => ({
-                                            index: i,
-                                            stepName: blueprint[i]?.stepName || `Step ${i + 1}`
-                                        }));
-                                        return (
-                                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                {steps.map(({ index, stepName }) => (
-                                                    <button
-                                                        key={index}
-                                                        onClick={() => handleBlueprintStepSelect(index)}
-                                                        className="flex items-center gap-3 px-3 py-2.5 bg-[#1b1b1d] hover:bg-[#111113] border border-[#2a2a2d] hover:border-cyan/40 rounded-xl text-left transition-all group"
-                                                    >
-                                                        <span className="w-7 h-7 rounded-full bg-cyan/10 border border-cyan/30 flex items-center justify-center text-xs font-bold text-cyan flex-shrink-0 group-hover:bg-cyan/20 transition-colors">
-                                                            {index + 1}
-                                                        </span>
-                                                        <span className="text-sm text-gray-300 group-hover:text-white transition-colors leading-tight">
-                                                            {stepName}
-                                                        </span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        );
-                                    })()}
-
-                                    {/* Preview content */}
-                                    {(() => {
-                                        const shouldShowPreview = (msg.showPreview && msg.previewContent) || msg.metadata?.validatedContent;
-                                        const contentToFormat = msg.previewContent || msg.metadata?.validatedContent;
-
-                                        if (shouldShowPreview && idx === messages.length - 1) {
-                                            console.log('[FeedbackChat] Rendering preview for last message:', {
-                                                msgIndex: idx,
-                                                hasShowPreview: !!msg.showPreview,
-                                                hasPreviewContent: !!msg.previewContent,
-                                                hasMetadataContent: !!msg.metadata?.validatedContent,
-                                                hasPreviewContent: !!msg.previewContent,
-                                                hasMetadataContent: !!msg.metadata?.validatedContent,
-                                                contentKeys: Object.keys(contentToFormat || {}),
-                                                role: msg.role
-                                            });
-                                        }
-
-                                        return shouldShowPreview ? (
-                                            <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d]">
-                                                {/* BEFORE Panel */}
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2 pb-2 border-b border-[#2a2a2d]">
-                                                        <div className="px-2 py-1 bg-red-500/20 border border-red-500/50 rounded text-xs font-bold text-red-400">
-                                                            BEFORE
-                                                        </div>
-                                                        <span className="text-xs text-gray-500">Original Content</span>
-                                                    </div>
-                                                    <div className="max-h-80 overflow-y-auto p-2">
-                                                        <ContentPreviewRenderer
-                                                            content={originalContent || currentContent}
-                                                            className="text-gray-400"
-                                                            sectionId={sectionId}
-                                                            basePath={selectedSubSection && selectedSubSection !== 'all'
-                                                                ? selectedSubSection.split('.')[0]
-                                                                : ''}
-                                                        />
-                                                    </div>
-                                                </div>
-
-                                                {/* AFTER Panel */}
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2 pb-2 border-b border-[#2a2a2d]">
-                                                        <div className="px-2 py-1 bg-cyan/20 border border-cyan/50 rounded text-xs font-bold text-cyan">
-                                                            AFTER
-                                                        </div>
-                                                        <span className="text-xs text-gray-500">AI-Refined Content</span>
-                                                    </div>
-                                                    <div className="max-h-80 overflow-y-auto p-2">
-                                                        <ContentPreviewRenderer
-                                                            content={contentToFormat}
-                                                            className="text-gray-300"
-                                                            highlightMap={highlightMap}
-                                                            sectionId={sectionId}
-                                                            basePath={selectedSubSection && selectedSubSection !== 'all'
-                                                                ? selectedSubSection.split('.')[0]
-                                                                : ''}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : null;
-                                    })()}
-                                </div>
-                            </motion.div>
-                        ))}
-
-                        {/* Streaming Message */}
-                        {streamingMessage && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="flex justify-start"
-                            >
-                                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] text-white">
-                                    {/* While streaming: Show loading indicator with live content preview */}
-                                    {streamingMessage.isStreaming && !streamingMessage.metadata?.validatedContent ? (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="flex gap-1">
-                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                                                    <span className="w-2 h-2 bg-cyan rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                                                </div>
-                                                <span className="text-sm text-gray-400">Generating your refined content...</span>
-                                            </div>
-                                            {/* Show live streaming content */}
-                                            {streamingMessage.content && streamingMessage.content.length > 50 && (
-                                                <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-48 overflow-y-auto">
-                                                    <pre className="text-xs text-gray-500 whitespace-pre-wrap font-mono">
-                                                        {streamingMessage.content.substring(0, 500)}
-                                                        {streamingMessage.content.length > 500 && '...'}
-                                                        <span className="inline-block w-2 h-3 bg-cyan animate-pulse ml-1">|</span>
-                                                    </pre>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : null}
-
-                                    {/* After streaming completes: Show formatted content ONLY */}
-                                    {streamingMessage.metadata?.validatedContent && (
-                                        <div className="space-y-3">
-                                            <p className="text-sm text-cyan font-medium">✓ Content generated successfully</p>
-                                            <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-96 overflow-y-auto">
-                                                <ContentPreviewRenderer
-                                                    content={streamingMessage.metadata.validatedContent}
-                                                    className="text-gray-300 leading-relaxed"
-                                                    sectionId={sectionId}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {/* Partial Content Recovery Dialog */}
-                        {partialError && partialContent && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="flex justify-start"
-                            >
-                                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#2a2a2d] border-2 border-yellow-500/30">
-                                    <div className="space-y-3">
-                                        <div className="flex items-start gap-2">
-                                            <AlertCircle className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" />
-                                            <div className="flex-1">
+                                {/* Partial error recovery */}
+                                {partialError && partialContent && (
+                                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-start">
+                                        <div className="rounded-2xl px-4 py-3 bg-[#1a1000] border border-yellow-500/30 max-w-[90%]">
+                                            <div className="flex items-start gap-2 mb-3">
+                                                <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
                                                 <p className="text-sm font-medium text-yellow-500">
-                                                    {partialError.reason === 'timeout'
-                                                        ? 'Generation Timed Out'
-                                                        : 'Generation Failed'}
-                                                </p>
-                                                <p className="text-xs text-gray-400 mt-1">
-                                                    Received {partialContent.length} characters before {partialError.reason}.
+                                                    {partialError.reason === 'timeout' ? 'Generation Timed Out' : 'Generation Failed'}
                                                 </p>
                                             </div>
+                                            <p className="text-xs text-gray-400 mb-3">Received {partialContent.length} characters before {partialError.reason}.</p>
+                                            <div className="flex flex-col gap-2">
+                                                {partialError.canRetry && (
+                                                    <button onClick={() => { setPartialContent(null); setPartialError(null); const last = messages.filter(m => m.role === 'user').pop(); if (last) { setInputText(last.content); setTimeout(handleSendFeedback, 100); } }}
+                                                        className="w-full py-2 px-4 bg-cyan hover:bg-cyan/90 text-black rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer">
+                                                        <RefreshCw className="w-4 h-4" /> Retry
+                                                    </button>
+                                                )}
+                                                {partialError.canDiscard && (
+                                                    <button onClick={() => { setPartialContent(null); setPartialError(null); setMessages(prev => [...prev, { role: 'assistant', content: 'Discarded. You can try again with different feedback.' }]); }}
+                                                        className="w-full py-2 px-4 bg-[#1E2A34] text-gray-400 rounded-lg text-sm font-medium flex items-center justify-center gap-2 cursor-pointer">
+                                                        <X className="w-4 h-4" /> Discard
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
+                                    </motion.div>
+                                )}
 
-                                        {/* Partial Content Preview */}
-                                        <div className="p-3 bg-[#0e0e0f] rounded-xl border border-[#3a3a3d] max-h-32 overflow-y-auto">
-                                            <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono">
-                                                {partialContent.substring(0, 500)}
-                                                {partialContent.length > 500 && '...'}
-                                            </pre>
-                                        </div>
+                                <div ref={messagesEndRef} />
+                            </div>
 
-                                        {/* Recovery Action Buttons */}
-                                        <div className="flex flex-col gap-2 pt-2">
-                                            {partialError.canRetry && (
-                                                <button
-                                                    onClick={() => {
-                                                        console.log('[FeedbackChat] Retry from scratch clicked');
-                                                        setPartialContent(null);
-                                                        setPartialError(null);
-                                                        // Re-send the last user message
-                                                        const lastUserMessage = messages.filter(m => m.role === 'user').pop();
-                                                        if (lastUserMessage) {
-                                                            setInputText(lastUserMessage.content);
-                                                            setTimeout(() => handleSendFeedback(), 100);
-                                                        }
-                                                    }}
-                                                    className="w-full py-2.5 px-4 bg-cyan hover:bg-cyan/90 text-black rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
-                                                >
-                                                    <RefreshCw className="w-4 h-4" />
-                                                    Retry from Scratch
-                                                </button>
-                                            )}
+                            {/* ── Step 1: Proceed button ───────────────────── */}
+                            {chatStep === 1 && (
+                                <div className="flex-shrink-0 p-4 border-t border-[#1E2A34] bg-[#05080B]">
+                                    <button
+                                        onClick={handleProceedWithFields}
+                                        disabled={!hasSelectedFields || (isFunnelCopy && !funnelSubPage)}
+                                        className="w-full py-2.5 px-5 bg-cyan hover:bg-cyan/90 disabled:bg-[#1E2A34] disabled:text-gray-600 text-black rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                                    >
+                                        {hasSelectedFields ? (
+                                            <>
+                                                <ChevronRight className="w-4 h-4" />
+                                                Continue with {selectedFields.size} field{selectedFields.size !== 1 ? 's' : ''}
+                                            </>
+                                        ) : (
+                                            <>Select fields from the panel to continue</>
+                                        )}
+                                    </button>
+                                </div>
+                            )}
 
-                                            {partialError.canSave && (
-                                                <button
-                                                    onClick={async () => {
-                                                        console.log('[FeedbackChat] Save partial clicked');
-                                                        try {
-                                                            // Try to parse and save partial content
-                                                            const parsed = JSON.parse(partialContent);
-                                                            setSuggestedChanges(parsed);
-                                                            setChatStep(3);
-                                                            setPartialContent(null);
-                                                            setPartialError(null);
-                                                            setMessages(prev => [...prev, {
-                                                                role: 'assistant',
-                                                                content: '✓ Partial content parsed successfully. Review below:',
-                                                                showPreview: true,
-                                                                previewContent: parsed
-                                                            }]);
-                                                        } catch (error) {
-                                                            console.error('[FeedbackChat] Failed to parse partial content:', error);
-                                                            setMessages(prev => [...prev, {
-                                                                role: 'assistant',
-                                                                content: `❌ Cannot save: Partial content is not valid JSON.\n\nError: ${error.message}\n\nPlease retry or discard.`
-                                                            }]);
-                                                        }
-                                                    }}
-                                                    className="w-full py-2.5 px-4 bg-[#3a3a3d] hover:bg-[#4a4a4d] text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all"
-                                                >
-                                                    <Save className="w-4 h-4" />
-                                                    Save Partial Content
-                                                </button>
-                                            )}
-
-                                            {partialError.canDiscard && (
-                                                <button
-                                                    onClick={() => {
-                                                        console.log('[FeedbackChat] Discard clicked');
-                                                        setPartialContent(null);
-                                                        setPartialError(null);
-                                                        setMessages(prev => [...prev, {
-                                                            role: 'assistant',
-                                                            content: 'Partial content discarded. You can try again with different feedback or close this dialog.'
-                                                        }]);
-                                                    }}
-                                                    className="w-full py-2.5 px-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] text-gray-400 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-all border border-[#2a2a2d]"
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                    Discard
-                                                </button>
-                                            )}
-                                        </div>
+                            {/* ── Step 3: Save / Try again ─────────────────── */}
+                            {chatStep === 3 && suggestedChanges && (
+                                <div className="flex-shrink-0 p-4 border-t border-[#1E2A34] bg-[#05080B]">
+                                    <div className="flex gap-3">
+                                        <button onClick={handleSaveChanges}
+                                            className="flex-1 py-2.5 px-5 bg-cyan hover:bg-cyan/90 text-black rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-cyan/10">
+                                            <Save className="w-4 h-4" /> Save Changes
+                                        </button>
+                                        <button onClick={handleTryAgain}
+                                            disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
+                                            className="flex-1 py-2.5 px-5 bg-[#0D1217] hover:bg-[#111820] border border-[#1E2A34] text-gray-300 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                                            <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} /> Try Again
+                                        </button>
                                     </div>
                                 </div>
-                            </motion.div>
-                        )}
+                            )}
 
-                        <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* Actions for Preview Step */}
-                    {(() => {
-                        const shouldShowActions = chatStep === 3 && suggestedChanges;
-
-                        // Log button visibility for debugging
-                        console.log('[FeedbackChat] Action buttons state:', {
-                            chatStep,
-                            hasSuggestedChanges: !!suggestedChanges,
-                            shouldShowActions,
-                            suggestedChangesKeys: Object.keys(suggestedChanges || {})
-                        });
-
-
-                        // Dependency Review Step (Step 4)
-                        if (chatStep === 4 && dependencyImpact) {
-                            return (
-                                <div className="p-4 border-t border-[#2a2a2d] space-y-3">
-                                    {/* Dependency checkboxes */}
-                                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                                        {dependencyImpact.affectedSections.map((dep) => (
-                                            <label
-                                                key={dep.sectionId}
-                                                className="flex items-start gap-3 p-3 bg-[#0e0e0f] rounded-lg cursor-pointer hover:bg-[#1a1a1d] transition-colors"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedDependencies.includes(dep.sectionId)}
+                            {/* ── Step 4: Dependency review ────────────────── */}
+                            {chatStep === 4 && dependencyImpact && (
+                                <div className="flex-shrink-0 p-4 border-t border-[#1E2A34] bg-[#05080B] space-y-3">
+                                    <p className="text-xs text-gray-400">Select sections to regenerate for consistency:</p>
+                                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                                        {dependencyImpact.affectedSections.map(dep => (
+                                            <label key={dep.sectionId} className="flex items-start gap-3 p-3 bg-[#0D1217] rounded-lg cursor-pointer hover:bg-[#111820] transition-colors border border-[#1E2A34]">
+                                                <input type="checkbox" checked={selectedDependencies.includes(dep.sectionId)}
                                                     onChange={() => toggleDependencySection(dep.sectionId)}
-                                                    className="mt-1 w-4 h-4 rounded border-gray-600 text-cyan-500 focus:ring-cyan-500 bg-[#0e0e0f]"
-                                                />
-                                                <div className="flex-1">
-                                                    <span className="text-white text-sm font-medium">{dep.sectionName}</span>
+                                                    className="mt-0.5 w-4 h-4 rounded border-gray-600 accent-cyan" />
+                                                <div>
+                                                    <span className="text-sm text-white font-medium">{dep.sectionName}</span>
                                                     <p className="text-xs text-gray-500 mt-0.5">{dep.reason}</p>
                                                 </div>
                                             </label>
                                         ))}
                                     </div>
-
-                                    {/* Action buttons */}
                                     <div className="flex gap-3">
-                                        <button
-                                            onClick={handleRegenerateDependencies}
-                                            disabled={isDependencyProcessing || selectedDependencies.length === 0}
-                                            className="flex-1 py-2 px-4 btn-approve rounded-xl flex items-center justify-center gap-2 text-sm shadow-lg shadow-cyan/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {isDependencyProcessing ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <RefreshCw className="w-4 h-4" />
-                                            )}
+                                        <button onClick={handleRegenerateDependencies} disabled={isDependencyProcessing || selectedDependencies.length === 0}
+                                            className="flex-1 py-2.5 px-4 bg-cyan hover:bg-cyan/90 text-black rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer">
+                                            {isDependencyProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                                             Regenerate {selectedDependencies.length > 0 ? `(${selectedDependencies.length})` : ''}
                                         </button>
-                                        <button
-                                            onClick={() => { commitSave(); onClose(); }}
-                                            disabled={isDependencyProcessing}
-                                            className="py-2 px-4 bg-[#2a2a2d] text-gray-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50"
-                                        >
+                                        <button onClick={() => { commitSave(); onClose(); }} disabled={isDependencyProcessing}
+                                            className="py-2.5 px-4 bg-[#0D1217] border border-[#1E2A34] text-gray-300 rounded-xl text-sm font-medium hover:bg-[#111820] disabled:opacity-40 cursor-pointer">
                                             Save Only
                                         </button>
                                     </div>
                                 </div>
-                            );
-                        }
+                            )}
 
-                        return shouldShowActions ? (
-                            <div className="p-4 border-t border-[#2a2a2d]">
-                                {/* Action Buttons - Side by Side */}
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={handleSaveChanges}
-                                        className="flex-1 py-2 px-4 btn-approve rounded-xl flex items-center justify-center gap-2 text-sm shadow-lg shadow-cyan/10"
-                                    >
-                                        <Save className="w-4 h-4" />
-                                        Save Changes
-                                    </button>
-                                    <button
-                                        onClick={handleTryAgain}
-                                        disabled={isProcessing || regenerationCount >= MAX_REGENERATIONS}
-                                        className="flex-1 py-2 px-4 bg-[#2a2a2d] text-gray-300 rounded-lg text-sm font-medium flex items-center justify-center gap-2 hover:bg-[#3a3a3d] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} />
-                                        Try Again
-                                    </button>
+                            {/* ── Input (step 2+) ──────────────────────────── */}
+                            {chatStep >= 2 && chatStep < 4 && (
+                                <div className="flex-shrink-0 p-4 border-t border-[#1E2A34] bg-[#05080B]">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={inputText}
+                                            onChange={e => setInputText(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && !isProcessing && !isStreaming && handleSendFeedback()}
+                                            placeholder={chatStep === 3 ? "Ask for further changes…" : "Describe what you'd like to change…"}
+                                            disabled={isProcessing || isStreaming}
+                                            className="flex-1 px-4 py-2.5 bg-[#0D1217] border border-[#1E2A34] focus:border-cyan/50 rounded-xl text-sm text-white placeholder-gray-600 outline-none transition-colors disabled:opacity-50"
+                                            autoFocus
+                                        />
+                                        <button
+                                            onClick={handleSendFeedback}
+                                            disabled={!inputText.trim() || isProcessing || isStreaming}
+                                            className="px-4 py-2.5 bg-cyan hover:bg-cyan/90 disabled:bg-[#1E2A34] disabled:text-gray-600 text-black rounded-xl transition-all disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
+                                        >
+                                            {isProcessing || isStreaming
+                                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                : <Send className="w-4 h-4" />}
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        ) : null;
-                    })()}
-
-
-                    {/* Input for Feedback Step - Always visible after Step 1 */}
-                    {(chatStep >= 2) && (
-                        <div className="p-4 border-t border-[#2a2a2d] bg-[#1b1b1d]">
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && !isProcessing && !isStreaming && handleSendFeedback()}
-                                    placeholder={chatStep === 3 ? "Ask for more changes..." : "Describe what you'd like to change..."}
-                                    disabled={isProcessing || isStreaming}
-                                    className="flex-1 px-4 py-3 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors disabled:opacity-50"
-                                />
-                                <button
-                                    onClick={handleSendFeedback}
-                                    disabled={!inputText.trim() || isProcessing || isStreaming}
-                                    className="px-4 py-3 btn-approve rounded-xl flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {isProcessing || isStreaming ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <Send className="w-5 h-5" />
-                                    )}
-                                </button>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
-                                <Lightbulb className="w-3 h-3" />
-                                {isStreaming ? 'AI is generating your response...' : (
-                                    chatStep === 3
-                                        ? 'Tip: You can continue chatting to further refine the content.'
-                                        : 'Tip: Be specific about what to change and how'
-                                )}
-                            </p>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </motion.div>
             </motion.div>
         </AnimatePresence>,

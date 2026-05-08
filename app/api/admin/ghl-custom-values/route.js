@@ -188,6 +188,96 @@ async function createGHLValue(locationId, accessToken, ghlKey) {
     }
 }
 
+async function createMissingSlotKeys({ targetUserId, locationId, accessToken, slotIndex }) {
+    const slotKeys = getSlotKeys(slotIndex);
+
+    // Check which keys already exist in our DB (for retry/backfill support).
+    const { data: existingRows, error: existingRowsError } = await supabaseAdmin
+        .from('ghl_slot_custom_value_ids')
+        .select('ghl_key')
+        .eq('user_id', targetUserId)
+        .eq('location_id', locationId)
+        .eq('slot_index', slotIndex);
+
+    if (existingRowsError) {
+        return {
+            slot_index: slotIndex,
+            total: slotKeys.length,
+            created: 0,
+            skipped: 0,
+            failed: slotKeys.length,
+            failedKeys: [],
+            error: `Could not read existing slot keys: ${existingRowsError.message}`,
+        };
+    }
+
+    const existingSet = new Set((existingRows || []).map(r => r.ghl_key));
+    const keysToCreate = slotKeys.filter(k => !existingSet.has(k.ghlKey));
+
+    const created = [];
+    const failed = [];
+    const toInsert = [];
+
+    for (const keyEntry of keysToCreate) {
+        await new Promise(r => setTimeout(r, 100)); // 100ms rate-limit delay
+
+        let result = await createGHLValue(
+            locationId,
+            accessToken,
+            keyEntry.ghlKey
+        );
+
+        // 429 back-off.
+        if (!(result.success && result.id) && (result.error?.includes('429') || result.body?.includes('429'))) {
+            await new Promise(r => setTimeout(r, 2000));
+            result = await createGHLValue(
+                locationId,
+                accessToken,
+                keyEntry.ghlKey
+            );
+        }
+
+        if (result.success && result.id) {
+            created.push(keyEntry.ghlKey);
+            toInsert.push({
+                user_id: targetUserId,
+                location_id: locationId,
+                slot_index: slotIndex,
+                ghl_key: keyEntry.ghlKey,
+                ghl_id: result.id,
+                section: keyEntry.section,
+            });
+        } else {
+            failed.push({ key: keyEntry.ghlKey, error: result.error });
+        }
+    }
+
+    if (toInsert.length > 0) {
+        const { error: upsertErr } = await supabaseAdmin
+            .from('ghl_slot_custom_value_ids')
+            .upsert(toInsert, { onConflict: 'user_id,location_id,slot_index,ghl_key' });
+        if (upsertErr) {
+            return {
+                slot_index: slotIndex,
+                created: created.length,
+                skipped: existingSet.size,
+                failed: failed.length,
+                failedKeys: failed,
+                error: `GHL values created but DB save failed: ${upsertErr.message}`,
+            };
+        }
+    }
+
+    return {
+        slot_index: slotIndex,
+        total: slotKeys.length,
+        created: created.length,
+        skipped: existingSet.size,
+        failed: failed.length,
+        failedKeys: failed,
+    };
+}
+
 // GET /api/admin/ghl-custom-values?userId=xxx   (user mode)
 // GET /api/admin/ghl-custom-values?locationId=xxx  (direct location mode)
 export async function GET(req) {
@@ -273,7 +363,7 @@ export async function POST(req) {
         if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
         const body = await req.json();
-        const { action, userId: rawTargetUserId, location_id: directLocationId, slot_index: rawSlot } = body;
+        const { action, userId: rawTargetUserId, location_id: directLocationId, slot_index: rawSlot, slot_indices: rawSlots } = body;
 
         if (!rawTargetUserId && !directLocationId) {
             return NextResponse.json({ error: 'userId or location_id required' }, { status: 400 });
@@ -301,7 +391,7 @@ export async function POST(req) {
                 if (!subaccount?.location_id) {
                     return NextResponse.json({ error: 'No GHL subaccount found for user' }, { status: 404 });
                 }
-                syncLocationId = createLocationId;
+                syncLocationId = subaccount.location_id;
             }
 
             const tokenResult = await getLocationToken(syncLocationId);
@@ -425,17 +515,158 @@ export async function POST(req) {
             return NextResponse.json({ slot_index: slotIndex, keys: enriched });
         }
 
+        // ── list_values ───────────────────────────────────────────────────────
+        if (action === 'list_values') {
+            let listLocationId = trimmedLocationId;
+            if (!isDirect) {
+                const { data: subaccount } = await supabaseAdmin
+                    .from('ghl_subaccounts')
+                    .select('location_id')
+                    .eq('user_id', targetUserId)
+                    .single();
+                if (!subaccount?.location_id) {
+                    return NextResponse.json({ error: 'No GHL subaccount found for user' }, { status: 404 });
+                }
+                listLocationId = subaccount.location_id;
+            }
+            const { data: rows, error: listErr } = await supabaseAdmin
+                .from('ghl_slot_custom_value_ids')
+                .select('slot_index, ghl_key, ghl_id, section')
+                .eq('user_id', targetUserId)
+                .eq('location_id', listLocationId)
+                .order('slot_index')
+                .order('ghl_key');
+            if (listErr) return NextResponse.json({ error: listErr.message }, { status: 500 });
+            return NextResponse.json({ values: rows || [], location_id: listLocationId });
+        }
+
+        // ── push_value ────────────────────────────────────────────────────────
+        if (action === 'push_value') {
+            const { ghl_id, ghl_key, value = '' } = body;
+            if (!ghl_id || !ghl_key) {
+                return NextResponse.json({ error: 'ghl_id and ghl_key are required' }, { status: 400 });
+            }
+            let pvLocationId = trimmedLocationId;
+            if (!isDirect) {
+                const { data: subaccount } = await supabaseAdmin
+                    .from('ghl_subaccounts')
+                    .select('location_id')
+                    .eq('user_id', targetUserId)
+                    .single();
+                if (!subaccount?.location_id) {
+                    return NextResponse.json({ error: 'No GHL subaccount found' }, { status: 404 });
+                }
+                pvLocationId = subaccount.location_id;
+            }
+            const pvToken = await getLocationToken(pvLocationId);
+            if (!pvToken.success) {
+                return NextResponse.json({ error: pvToken.error }, { status: 502 });
+            }
+            const pvRes = await fetch(
+                `https://services.leadconnectorhq.com/locations/${pvLocationId}/customValues/${ghl_id}`,
+                {
+                    method: 'PUT',
+                    headers: {
+                        Authorization: `Bearer ${pvToken.access_token}`,
+                        'Content-Type': 'application/json',
+                        Version: GHL_VERSION,
+                    },
+                    body: JSON.stringify({ name: ghl_key, value }),
+                }
+            );
+            if (!pvRes.ok) {
+                const pvText = await pvRes.text().catch(() => '');
+                return NextResponse.json({ error: `GHL API error (${pvRes.status})`, detail: pvText.slice(0, 200) }, { status: 502 });
+            }
+            return NextResponse.json({ success: true, ghl_key, value });
+        }
+
+        // ── push_default_colors ───────────────────────────────────────────────
+        if (action === 'push_default_colors') {
+            const { primary, secondary, tertiary } = body;
+            if (!primary || !secondary || !tertiary) {
+                return NextResponse.json({ error: 'primary, secondary, and tertiary are required' }, { status: 400 });
+            }
+            let pdcLocationId = trimmedLocationId;
+            if (!isDirect) {
+                const { data: subaccount } = await supabaseAdmin
+                    .from('ghl_subaccounts')
+                    .select('location_id')
+                    .eq('user_id', targetUserId)
+                    .single();
+                if (!subaccount?.location_id) {
+                    return NextResponse.json({ error: 'No GHL subaccount found' }, { status: 404 });
+                }
+                pdcLocationId = subaccount.location_id;
+            }
+            const pdcToken = await getLocationToken(pdcLocationId);
+            if (!pdcToken.success) {
+                return NextResponse.json({ error: pdcToken.error }, { status: 502 });
+            }
+            const { data: colorRows, error: colorDbErr } = await supabaseAdmin
+                .from('ghl_slot_custom_value_ids')
+                .select('slot_index, ghl_key, ghl_id')
+                .eq('user_id', targetUserId)
+                .eq('location_id', pdcLocationId)
+                .eq('section', 'colors');
+            if (colorDbErr) return NextResponse.json({ error: colorDbErr.message }, { status: 500 });
+            if (!colorRows?.length) {
+                return NextResponse.json({ error: 'No color custom values found. Create or sync slots first.' }, { status: 404 });
+            }
+            const colorMap = { primary_color: primary, secondary_color: secondary, tertiary_color: tertiary };
+            let updated = 0, failed = 0;
+            const errors = [];
+            for (const row of colorRows) {
+                const base = Object.keys(colorMap).find(k => row.ghl_key === k || row.ghl_key.endsWith('_' + k));
+                if (!base) continue;
+                await new Promise(r => setTimeout(r, 50));
+                const cr = await fetch(
+                    `https://services.leadconnectorhq.com/locations/${pdcLocationId}/customValues/${row.ghl_id}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            Authorization: `Bearer ${pdcToken.access_token}`,
+                            'Content-Type': 'application/json',
+                            Version: GHL_VERSION,
+                        },
+                        body: JSON.stringify({ name: row.ghl_key, value: colorMap[base] }),
+                    }
+                );
+                if (cr.ok) { updated++; }
+                else {
+                    failed++;
+                    const t = await cr.text().catch(() => '');
+                    errors.push({ key: row.ghl_key, error: `HTTP ${cr.status}`, detail: t.slice(0, 100) });
+                }
+            }
+            return NextResponse.json({
+                success: failed === 0,
+                updated,
+                failed,
+                errors,
+                total: colorRows.length,
+                colors: { primary, secondary, tertiary },
+            });
+        }
+
         // ── create_slot ──────────────────────────────────────────────────────
-        if (action !== 'create_slot') {
-            return NextResponse.json({ error: 'action must be create_slot or export_slot' }, { status: 400 });
+        if (action !== 'create_slot' && action !== 'create_all_slots') {
+            return NextResponse.json({ error: 'action must be one of: create_slot, create_all_slots, sync_slot, export_slot, list_values, push_value, push_default_colors' }, { status: 400 });
         }
 
-        const slotIndex = Number(rawSlot);
-        if (!Number.isInteger(slotIndex) || slotIndex < 3 || slotIndex > 12) {
-            return NextResponse.json({ error: 'slot_index must be an integer 3–12' }, { status: 400 });
+        const slotIndices = action === 'create_all_slots'
+            ? (Array.isArray(rawSlots) && rawSlots.length > 0 ? rawSlots.map(Number) : [4, 5, 6, 7, 8, 9, 10, 11, 12])
+            : [Number(rawSlot)];
+
+        if (slotIndices.some(slotIndex => !Number.isInteger(slotIndex) || slotIndex < 3 || slotIndex > 12)) {
+            return NextResponse.json({ error: 'slot indices must be integers 3–12' }, { status: 400 });
         }
 
-        let createLocationId = directLocationId;
+        if (action === 'create_all_slots' && slotIndices.includes(3)) {
+            return NextResponse.json({ error: 'create_all_slots only backfills provisioned slots 4–12; slot 3 is the reference slot' }, { status: 400 });
+        }
+
+        let createLocationId = trimmedLocationId;
         if (!isDirect) {
             const { data: subaccount } = await supabaseAdmin
                 .from('ghl_subaccounts')
@@ -445,7 +676,7 @@ export async function POST(req) {
             if (!subaccount?.location_id) {
                 return NextResponse.json({ error: 'No GHL subaccount found for user' }, { status: 404 });
             }
-            createLocationId = createLocationId;
+            createLocationId = subaccount.location_id;
         }
 
         const tokenResult = await getLocationToken(createLocationId);
@@ -453,94 +684,62 @@ export async function POST(req) {
             return NextResponse.json({ error: tokenResult.error }, { status: 502 });
         }
 
-        const slotKeys = getSlotKeys(slotIndex);
+        if (action === 'create_all_slots') {
+            const slotResults = [];
+            for (const slotIndex of slotIndices) {
+                slotResults.push(await createMissingSlotKeys({
+                    targetUserId,
+                    locationId: createLocationId,
+                    accessToken: tokenResult.access_token,
+                    slotIndex,
+                }));
+            }
 
-        // Check which keys already exist in our DB (for retry support)
-        const { data: existingRows } = await supabaseAdmin
-            .from('ghl_slot_custom_value_ids')
-            .select('ghl_key')
-            .eq('user_id', targetUserId)
-            .eq('location_id', createLocationId)
-            .eq('slot_index', slotIndex);
+            const errorResults = slotResults.filter(result => result.error);
+            if (errorResults.length > 0) {
+                return NextResponse.json({
+                    error: 'One or more slots failed while backfilling missing keys',
+                    created: slotResults.reduce((sum, result) => sum + result.created, 0),
+                    skipped: slotResults.reduce((sum, result) => sum + result.skipped, 0),
+                    failed: slotResults.reduce((sum, result) => sum + result.failed, 0),
+                    slots: slotResults,
+                }, { status: 500 });
+            }
 
-        const existingSet = new Set((existingRows || []).map(r => r.ghl_key));
-        const keysToCreate = slotKeys.filter(k => !existingSet.has(k.ghlKey));
-
-        if (keysToCreate.length === 0) {
             return NextResponse.json({
-                created: 0, skipped: slotKeys.length, failed: 0,
+                created: slotResults.reduce((sum, result) => sum + result.created, 0),
+                skipped: slotResults.reduce((sum, result) => sum + result.skipped, 0),
+                failed: slotResults.reduce((sum, result) => sum + result.failed, 0),
+                slots: slotResults,
+            });
+        }
+
+        const slotResult = await createMissingSlotKeys({
+            targetUserId,
+            locationId: createLocationId,
+            accessToken: tokenResult.access_token,
+            slotIndex: slotIndices[0],
+        });
+
+        if (slotResult.created === 0 && slotResult.failed === 0) {
+            return NextResponse.json({
+                created: 0, skipped: slotResult.skipped, failed: 0,
                 message: 'All keys already exist',
             }, { status: 409 });
         }
 
-        const created = [];
-        const failed = [];
-        const toInsert = [];
-
-        for (const keyEntry of keysToCreate) {
-            await new Promise(r => setTimeout(r, 100)); // 100ms rate-limit delay
-
-            const result = await createGHLValue(
-                createLocationId,
-                tokenResult.access_token,
-                keyEntry.ghlKey
-            );
-
-            if (result.success && result.id) {
-                created.push(keyEntry.ghlKey);
-                toInsert.push({
-                    user_id: targetUserId,
-                    location_id: createLocationId,
-                    slot_index: slotIndex,
-                    ghl_key: keyEntry.ghlKey,
-                    ghl_id: result.id,
-                    section: keyEntry.section,
-                });
-            } else {
-                // 429 back-off
-                if (result.error?.includes('429') || result.body?.includes('429')) {
-                    await new Promise(r => setTimeout(r, 2000));
-                    const retry = await createGHLValue(
-                        createLocationId,
-                        tokenResult.access_token,
-                        keyEntry.ghlKey
-                    );
-                    if (retry.success && retry.id) {
-                        created.push(keyEntry.ghlKey);
-                        toInsert.push({
-                            user_id: targetUserId,
-                            location_id: createLocationId,
-                            slot_index: slotIndex,
-                            ghl_key: keyEntry.ghlKey,
-                            ghl_id: retry.id,
-                            section: keyEntry.section,
-                        });
-                        continue;
-                    }
-                }
-                failed.push({ key: keyEntry.ghlKey, error: result.error });
-            }
-        }
-
-        if (toInsert.length > 0) {
-            const { error: upsertErr } = await supabaseAdmin
-                .from('ghl_slot_custom_value_ids')
-                .upsert(toInsert, { onConflict: 'user_id,location_id,slot_index,ghl_key' });
-            if (upsertErr) {
-                console.error('[ghl-custom-values] upsert error:', upsertErr.message);
-                return NextResponse.json({
-                    error: `GHL values created but DB save failed: ${upsertErr.message}`,
-                    created_in_ghl: created.length,
-                    db_error: upsertErr.message,
-                }, { status: 500 });
-            }
+        if (slotResult.error) {
+            return NextResponse.json({
+                error: slotResult.error,
+                created_in_ghl: slotResult.created,
+            }, { status: 500 });
         }
 
         return NextResponse.json({
-            created: created.length,
-            skipped: existingSet.size,
-            failed: failed.length,
-            failedKeys: failed,
+            created: slotResult.created,
+            skipped: slotResult.skipped,
+            failed: slotResult.failed,
+            failedKeys: slotResult.failedKeys,
         });
     } catch (err) {
         console.error('[ghl-custom-values POST]', err);

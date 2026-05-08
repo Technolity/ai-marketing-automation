@@ -1,47 +1,35 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   Rocket,
   AlertTriangle,
   CheckCircle,
-  Loader2,
+  Lock,
   ArrowRight,
   RotateCcw,
 } from 'lucide-react';
 import SlotCard from './SlotCard';
-
-// ─── Plan → allowed slots ───────────────────────────────────────────────────
-const PLAN_SLOTS = {
-  starter: [3],
-  growth: [3, 4, 5],
-  scale: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-};
-
-// All possible slots across every plan (displayed so users can see what they're missing)
-const ALL_SLOTS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-
-// ─── State machine stages ────────────────────────────────────────────────────
-// idle → selecting → confirming → pushing → done | error
-// (idle is when isOpen=false; selecting is the first visible state)
+import { buildSlotDisplayOptions } from '@/lib/ghl/slotDisplay';
 
 /**
  * SlotSelectorModal
  *
- * Props:
- *   isOpen          boolean
- *   onClose         fn()
- *   funnelId        string
- *   userPlan        'starter' | 'growth' | 'scale'
- *   availableSlots  number[]  — slot indices that have 'active' status (admin-provisioned)
- *                              Defaults to [3] when not provided.
- *   onSuccess       fn(slotIndex)
+ * Stage machine: selecting → locking → deploying → done | error
  *
- * API contract (POST /api/ghl/deploy-workflow):
- *   body: { funnelId, slot_index }
- *   response: { success, message, summary: { updated, notFound, failed }, duration, updatedKeys, notFoundKeys }
+ * Props:
+ *   isOpen             boolean
+ *   onClose            fn()
+ *   funnelId           string
+ *   userPlan           'starter' | 'growth' | 'scale'
+ *   availableSlots     number[]      — admin-provisioned slots (active status)
+ *   takenSlots         number[]      — slots locked by OTHER funnels
+ *   currentAssignment  number|null   — slot already locked to THIS funnel
+ *   slotOptions        array         — full slot display model from available-slots API
+ *   onAssign           fn(slotIndex) — called after slot is assigned (Assign Only)
+ *   onSuccess          fn(slotIndex) — called after full deploy completes
  */
 export default function SlotSelectorModal({
   isOpen,
@@ -49,66 +37,160 @@ export default function SlotSelectorModal({
   funnelId,
   userPlan = 'starter',
   availableSlots,
+  takenSlots = [],
+  currentAssignment = null,
+  initialSlot = null,
+  slotOptions,
+  onAssign,
   onSuccess,
 }) {
   const resolvedAvailableSlots = availableSlots ?? [3];
-  const planSlots = PLAN_SLOTS[userPlan] ?? [3];
+  const displaySlots = slotOptions?.length
+    ? slotOptions
+    : buildSlotDisplayOptions({
+        planTier: userPlan,
+        allowedSlots: resolvedAvailableSlots,
+        assignableSlots: resolvedAvailableSlots,
+        takenSlots,
+        currentAssignment,
+      });
+  const selectableSlots = displaySlots.filter((slot) => slot.isSelectable);
+  const isStarterSingleSlot = userPlan === 'starter' && selectableSlots.length === 1 && selectableSlots[0]?.slotIndex === 3;
 
-  // ─── Local state ──────────────────────────────────────────────────────────
-  const [stage, setStage] = useState('selecting'); // selecting | confirming | pushing | done | error
-  const [selectedSlot, setSelectedSlot] = useState(null);
-  const [deployResult, setDeployResult] = useState(null); // API response on success
+  // When already assigned, start at locking (deploy confirmation). Otherwise selecting.
+  const initialStage = currentAssignment !== null ? 'locking' : 'selecting';
+
+  const [stage, setStage] = useState(initialStage);
+  const [selectedSlot, setSelectedSlot] = useState(
+    currentAssignment !== null ? currentAssignment : (initialSlot ?? null)
+  );
+  const [deployResult, setDeployResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
 
-  // ─── Derived ──────────────────────────────────────────────────────────────
-  const isStarterSingleSlot = userPlan === 'starter' && planSlots.length === 1;
+  // Sync when modal opens or currentAssignment changes
+  useEffect(() => {
+    if (isOpen) {
+      if (currentAssignment !== null) {
+        setSelectedSlot(currentAssignment);
+        setStage('locking');
+      } else {
+        setStage('selecting');
+        setSelectedSlot(initialSlot ?? null);
+      }
+      setDeployResult(null);
+      setErrorMessage('');
+      setIsAssigning(false);
+    }
+  }, [isOpen, currentAssignment, initialSlot]);
+
+  // Starter plan: auto-select slot 3 on mount when no assignment yet
+  useEffect(() => {
+    if (isOpen && isStarterSingleSlot && currentAssignment === null) {
+      setSelectedSlot(3);
+    }
+  }, [isOpen, isStarterSingleSlot, currentAssignment]);
+
   const selectedPrefix = selectedSlot !== null
     ? String(selectedSlot).padStart(2, '0') + '_'
     : null;
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
+
   const handleClose = useCallback(() => {
-    if (stage === 'pushing') return; // prevent close during push
+    if (stage === 'deploying') return;
     onClose?.();
-    // Reset after animation completes
     setTimeout(() => {
-      setStage('selecting');
-      setSelectedSlot(null);
+      if (currentAssignment !== null) {
+        setStage('locking');
+        setSelectedSlot(currentAssignment);
+      } else {
+        setStage('selecting');
+        setSelectedSlot(null);
+      }
       setDeployResult(null);
       setErrorMessage('');
+      setIsAssigning(false);
     }, 300);
-  }, [stage, onClose]);
+  }, [stage, onClose, currentAssignment]);
 
   const handleSelectSlot = useCallback((slotIndex) => {
+    const slot = displaySlots.find((option) => option.slotIndex === slotIndex);
+    if (slot && !slot.isSelectable) return;
     setSelectedSlot(slotIndex);
-  }, []);
+  }, [displaySlots]);
 
-  const handleProceedToConfirm = useCallback(() => {
+  const handleProceedToLock = useCallback(() => {
     if (selectedSlot === null) return;
-    setStage('confirming');
+    setStage('locking');
   }, [selectedSlot]);
 
-  // Starter plan: skip selection, go straight to confirm with slot 3
-  const handleStarterConfirm = useCallback(() => {
+  const handleStarterProceed = useCallback(() => {
     setSelectedSlot(3);
-    setStage('confirming');
+    setStage('locking');
   }, []);
 
-  const handleCancelConfirm = useCallback(() => {
+  const handleBackToSelecting = useCallback(() => {
     setStage('selecting');
   }, []);
 
-  const handleDeploy = useCallback(async () => {
-    if (!funnelId || selectedSlot === null) return;
+  const handleRetry = useCallback(() => {
+    setStage(currentAssignment !== null ? 'locking' : 'confirming_deploy');
+    setErrorMessage('');
+  }, [currentAssignment]);
 
-    setStage('pushing');
+  // POST assign slot then optionally deploy
+  const handleAssignSlot = useCallback(async (andDeploy = false) => {
+    if (!funnelId || selectedSlot === null) return;
+    setIsAssigning(true);
+    setErrorMessage('');
+
+    try {
+      const assignRes = await fetch('/api/ghl/funnel-slot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funnel_id: funnelId, slot_index: selectedSlot }),
+      });
+
+      const assignData = await assignRes.json();
+
+      if (!assignRes.ok) {
+        setErrorMessage(assignData?.error || `Server error (${assignRes.status})`);
+        setStage('error');
+        setIsAssigning(false);
+        return;
+      }
+
+      if (!andDeploy) {
+        onAssign?.(selectedSlot);
+        setIsAssigning(false);
+        handleClose();
+        return;
+      }
+
+      // Proceed to deploy
+      setIsAssigning(false);
+      await runDeploy();
+    } catch (err) {
+      setErrorMessage(err.message || 'Network error — please try again.');
+      setStage('error');
+      setIsAssigning(false);
+    }
+  }, [funnelId, selectedSlot, onAssign, handleClose]);
+
+  // Deploy to the selected (or already-assigned) slot
+  const runDeploy = useCallback(async () => {
+    const slot = selectedSlot;
+    if (!funnelId || slot === null) return;
+
+    setStage('deploying');
     setErrorMessage('');
 
     try {
       const res = await fetch('/api/ghl/deploy-workflow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ funnelId, slot_index: selectedSlot }),
+        body: JSON.stringify({ funnelId, slot_index: slot }),
       });
 
       const data = await res.json();
@@ -127,25 +209,45 @@ export default function SlotSelectorModal({
 
       setDeployResult(data);
       setStage('done');
-      onSuccess?.(selectedSlot);
+      onSuccess?.(slot);
     } catch (err) {
       setErrorMessage(err.message || 'Network error — please try again.');
       setStage('error');
     }
   }, [funnelId, selectedSlot, onSuccess]);
 
-  const handleRetry = useCallback(() => {
-    setStage('confirming');
-    setErrorMessage('');
-  }, []);
+  // When already assigned — deploy directly without re-assigning
+  const handleDeployExisting = useCallback(async () => {
+    await runDeploy();
+  }, [runDeploy]);
 
-  // ─── Render helpers ───────────────────────────────────────────────────────
+  // ─── Stage label for header subtitle ─────────────────────────────────────
+  const stageLabel = {
+    selecting: 'Choose which funnel slot to deploy to',
+    locking: currentAssignment !== null
+      ? 'Deploy to your locked slot'
+      : 'Confirm slot assignment',
+    confirming_deploy: 'Confirm deployment',
+    deploying: null,
+    done: null,
+    error: null,
+  };
 
-  // Determine which slots to show in the grid.
-  // Show all slots known to the plan; grey out ones not yet provisioned by admin.
-  const displaySlots = ALL_SLOTS.filter((s) => planSlots.includes(s));
+  const stageSubtitleColor = {
+    selecting: 'text-[#B2C0CD]',
+    locking: 'text-[#B2C0CD]',
+    confirming_deploy: 'text-[#B2C0CD]',
+    deploying: 'text-cyan',
+    done: 'text-emerald-400',
+    error: 'text-red-400',
+  };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  const subtitleText =
+    stage === 'deploying' ? 'Deploying…' :
+    stage === 'done' ? 'Deployment complete' :
+    stage === 'error' ? 'Deployment failed' :
+    stageLabel[stage] ?? '';
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -169,37 +271,21 @@ export default function SlotSelectorModal({
             {/* ── Header ── */}
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#1E2A34]">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan/20 to-blue-500/20 rounded-xl flex items-center justify-center">
+                <div className="w-10 h-10 bg-[#0D1F25] border border-[#1E2A34] rounded-xl flex items-center justify-center">
                   <Rocket className="w-5 h-5 text-cyan" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-[#F4F8FB]">Push to GHL Builder</h2>
-                  {stage === 'selecting' && (
-                    <p className="text-xs text-[#B2C0CD] mt-0.5">
-                      Choose which funnel slot to deploy to
-                    </p>
-                  )}
-                  {stage === 'confirming' && (
-                    <p className="text-xs text-[#B2C0CD] mt-0.5">
-                      Confirm deployment details
-                    </p>
-                  )}
-                  {stage === 'pushing' && (
-                    <p className="text-xs text-cyan mt-0.5">Deploying…</p>
-                  )}
-                  {stage === 'done' && (
-                    <p className="text-xs text-emerald-400 mt-0.5">Deployment complete</p>
-                  )}
-                  {stage === 'error' && (
-                    <p className="text-xs text-red-400 mt-0.5">Deployment failed</p>
-                  )}
+                  <h2 className="text-lg font-bold text-[#F4F8FB]">Deploy Funnel Slot</h2>
+                  <p className={`text-xs mt-0.5 ${stageSubtitleColor[stage] ?? 'text-[#B2C0CD]'}`}>
+                    {subtitleText}
+                  </p>
                 </div>
               </div>
 
-              {stage !== 'pushing' && (
+              {stage !== 'deploying' && (
                 <button
                   onClick={handleClose}
-                  className="p-2 hover:bg-[#1E2A34] rounded-lg transition-colors text-[#B2C0CD] hover:text-white"
+                  className="p-2 hover:bg-[#1E2A34] rounded-lg transition-colors text-[#B2C0CD] hover:text-white cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -213,10 +299,9 @@ export default function SlotSelectorModal({
               {stage === 'selecting' && (
                 <>
                   {isStarterSingleSlot ? (
-                    /* Starter: single slot — no grid needed */
                     <div className="space-y-4">
                       <p className="text-sm text-[#B2C0CD]">
-                        Your plan includes Slot 3. Click below to deploy your vault content.
+                        Your plan includes Slot 3. Click below to proceed.
                       </p>
                       <SlotCard
                         slotIndex={3}
@@ -225,35 +310,36 @@ export default function SlotSelectorModal({
                         onClick={() => {}}
                       />
                       <button
-                        onClick={handleStarterConfirm}
-                        className="w-full py-3 px-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2"
+                        onClick={handleStarterProceed}
+                        className="w-full py-3 px-4 bg-[#16C7E7] hover:bg-[#12b3d0] rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2 cursor-pointer"
                       >
                         Continue
                         <ArrowRight className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
-                    /* Growth / Scale: slot grid */
                     <div className="space-y-4">
                       <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                        {displaySlots.map((s) => {
-                          const isProvisioned = resolvedAvailableSlots.includes(s);
+                        {displaySlots.map((slot) => {
                           return (
                             <SlotCard
-                              key={s}
-                              slotIndex={s}
-                              isSelected={selectedSlot === s}
-                              isDisabled={!isProvisioned}
-                              onClick={() => handleSelectSlot(s)}
+                              key={slot.slotIndex}
+                              slotIndex={slot.slotIndex}
+                              isSelected={selectedSlot === slot.slotIndex}
+                              isDisabled={!slot.isSelectable && !slot.isTakenByOther}
+                              disabledLabel={slot.disabledLabel}
+                              isTakenByOther={slot.isTakenByOther}
+                              isAssignedToThis={slot.isCurrentAssignment}
+                              onClick={() => handleSelectSlot(slot.slotIndex)}
                             />
                           );
                         })}
                       </div>
 
                       <button
-                        onClick={handleProceedToConfirm}
+                        onClick={handleProceedToLock}
                         disabled={selectedSlot === null}
-                        className="w-full py-3 px-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="w-full py-3 px-4 bg-[#16C7E7] hover:bg-[#12b3d0] rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       >
                         Continue
                         <ArrowRight className="w-4 h-4" />
@@ -263,9 +349,11 @@ export default function SlotSelectorModal({
                 </>
               )}
 
-              {/* ── CONFIRMING stage ── */}
-              {stage === 'confirming' && selectedSlot !== null && (
+              {/* ── LOCKING stage (new assignment confirm) ── */}
+              {stage === 'locking' && currentAssignment === null && selectedSlot !== null && (
                 <div className="space-y-5">
+                  <p className="text-sm font-semibold text-[#F4F8FB]">Confirm Slot Assignment</p>
+
                   {/* Summary */}
                   <div className="bg-[#121920] border border-[#1E2A34] rounded-xl p-4 space-y-3">
                     <div className="flex items-center justify-between">
@@ -277,43 +365,112 @@ export default function SlotSelectorModal({
                       <span className="text-sm font-mono text-cyan">{selectedPrefix}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-[#B2C0CD]">Funnel</span>
+                      <span className="text-sm text-[#B2C0CD]">Funnel ID</span>
                       <span className="text-xs text-[#B2C0CD] font-mono truncate max-w-[160px]">{funnelId}</span>
                     </div>
                   </div>
 
-                  {/* Warning */}
+                  {/* Permanent warning */}
                   <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
                     <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                     <p className="text-xs text-amber-300 leading-relaxed">
-                      This will overwrite all existing custom values for Slot {selectedSlot} in your
-                      GHL sub-account. The action cannot be undone.
+                      <span className="font-bold">Permanent assignment.</span> Slot {selectedSlot} will be locked to this funnel. To change it, you must delete this funnel. This action cannot be undone.
                     </p>
                   </div>
 
                   {/* Actions */}
                   <div className="flex gap-3">
                     <button
-                      onClick={handleCancelConfirm}
-                      className="flex-1 py-3 px-4 bg-[#1E2A34] hover:bg-[#253340] rounded-xl font-medium text-[#B2C0CD] hover:text-white transition-colors"
+                      onClick={handleBackToSelecting}
+                      disabled={isAssigning}
+                      className="flex-1 py-3 px-4 bg-[#1E2A34] hover:bg-[#253340] rounded-xl font-medium text-[#B2C0CD] hover:text-white transition-colors disabled:opacity-40 cursor-pointer"
                     >
                       Back
                     </button>
                     <button
-                      onClick={handleDeploy}
-                      className="flex-1 py-3 px-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2"
+                      onClick={() => handleAssignSlot(false)}
+                      disabled={isAssigning}
+                      className="flex-1 py-3 px-4 bg-[#1E2A34] hover:bg-[#253340] border border-cyan/30 rounded-xl font-medium text-cyan hover:text-white transition-colors disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      Deploy
+                      <Lock className="w-4 h-4" />
+                      {isAssigning ? 'Assigning…' : 'Assign Only'}
+                    </button>
+                    <button
+                      onClick={() => handleAssignSlot(true)}
+                      disabled={isAssigning}
+                      className="flex-1 py-3 px-4 bg-[#16C7E7] hover:bg-[#12b3d0] rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2 disabled:opacity-40 cursor-pointer"
+                    >
+                      {isAssigning ? 'Working…' : 'Assign & Deploy'}
+                      {!isAssigning && <ArrowRight className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── LOCKING stage (already assigned — deploy confirm) ── */}
+              {stage === 'locking' && currentAssignment !== null && (
+                <div className="space-y-5">
+                  {/* Locked assignment banner */}
+                  <div className="flex items-center gap-3 bg-cyan/5 border border-cyan rounded-xl p-4">
+                    <Lock className="w-5 h-5 text-cyan flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-cyan">
+                        Slot {currentAssignment} is locked to this funnel
+                      </p>
+                      <p className="text-xs text-[#B2C0CD] mt-0.5 font-mono">
+                        Prefix: {String(currentAssignment).padStart(2, '0')}_
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-[#121920] border border-[#1E2A34] rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#B2C0CD]">Deploying to</span>
+                      <span className="text-sm font-bold text-[#F4F8FB]">Slot {currentAssignment}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#B2C0CD]">Key prefix</span>
+                      <span className="text-sm font-mono text-cyan">
+                        {String(currentAssignment).padStart(2, '0')}_
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-[#B2C0CD]">Funnel ID</span>
+                      <span className="text-xs text-[#B2C0CD] font-mono truncate max-w-[160px]">{funnelId}</span>
+                    </div>
+                  </div>
+
+                  {/* Overwrite warning */}
+                  <div className="flex items-start gap-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-300 leading-relaxed">
+                      This will overwrite all existing slot values for Slot {currentAssignment} in your connected sub-account. The action cannot be undone.
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleClose}
+                      className="flex-1 py-3 px-4 bg-[#1E2A34] hover:bg-[#253340] rounded-xl font-medium text-[#B2C0CD] hover:text-white transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDeployExisting}
+                      className="flex-1 py-3 px-4 bg-[#16C7E7] hover:bg-[#12b3d0] rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      Deploy to Slot {currentAssignment}
                       <ArrowRight className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* ── PUSHING stage ── */}
-              {stage === 'pushing' && (
+              {/* ── DEPLOYING stage ── */}
+              {stage === 'deploying' && (
                 <div className="py-8 flex flex-col items-center gap-5">
-                  {/* Spinner ring */}
                   <div className="relative w-16 h-16">
                     <motion.div
                       animate={{ rotate: 360 }}
@@ -330,17 +487,16 @@ export default function SlotSelectorModal({
                       Deploying to Slot {selectedSlot}
                     </p>
                     <p className="text-xs text-[#B2C0CD]">
-                      Pushing vault content to GHL custom values…
+                      Pushing vault content to your connected account…
                     </p>
                     <p className="text-[10px] text-[#4a5a6a] mt-2">
                       This typically takes 30–90 seconds. Do not close this window.
                     </p>
                   </div>
 
-                  {/* Animated progress bar (indeterminate) */}
                   <div className="w-full h-1.5 bg-[#1E2A34] rounded-full overflow-hidden">
                     <motion.div
-                      className="h-full w-1/3 bg-gradient-to-r from-cyan to-blue-600 rounded-full"
+                      className="h-full w-1/3 bg-[#16C7E7] rounded-full"
                       animate={{ x: ['0%', '300%', '0%'] }}
                       transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                     />
@@ -351,7 +507,6 @@ export default function SlotSelectorModal({
               {/* ── DONE stage ── */}
               {stage === 'done' && deployResult && (
                 <div className="space-y-5">
-                  {/* Success banner */}
                   <div className="flex flex-col items-center gap-3 py-4">
                     <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
                       <CheckCircle className="w-7 h-7 text-emerald-400" />
@@ -368,38 +523,23 @@ export default function SlotSelectorModal({
                     </div>
                   </div>
 
-                  {/* Stats */}
                   {deployResult.summary && (
                     <div className="grid grid-cols-3 gap-3">
-                      <StatPill
-                        label="Updated"
-                        value={deployResult.summary.updated ?? 0}
-                        color="text-cyan"
-                      />
-                      <StatPill
-                        label="Not found"
-                        value={deployResult.summary.notFound ?? 0}
-                        color="text-amber-400"
-                      />
-                      <StatPill
-                        label="Failed"
-                        value={deployResult.summary.failed ?? 0}
-                        color="text-red-400"
-                      />
+                      <StatPill label="Updated" value={deployResult.summary.updated ?? 0} color="text-cyan" />
+                      <StatPill label="Not found" value={deployResult.summary.notFound ?? 0} color="text-amber-400" />
+                      <StatPill label="Failed" value={deployResult.summary.failed ?? 0} color="text-red-400" />
                     </div>
                   )}
 
-                  {/* Not-found hint */}
                   {deployResult.notFoundKeys?.length > 0 && (
                     <p className="text-[11px] text-[#4a5a6a] leading-relaxed">
-                      {deployResult.notFoundKeys.length} key(s) were not found in your GHL
-                      sub-account. Run the admin bulk-create step to provision missing placeholders.
+                      {deployResult.notFoundKeys.length} key(s) were not found in your connected account. Run the admin slot provisioning step to create the missing placeholders.
                     </p>
                   )}
 
                   <button
                     onClick={handleClose}
-                    className="w-full py-3 px-4 bg-[#1E2A34] hover:bg-[#253340] rounded-xl font-medium text-[#F4F8FB] transition-colors"
+                    className="w-full py-3 px-4 bg-[#1E2A34] hover:bg-[#253340] rounded-xl font-medium text-[#F4F8FB] transition-colors cursor-pointer"
                   >
                     Close
                   </button>
@@ -426,13 +566,13 @@ export default function SlotSelectorModal({
                   <div className="flex gap-3">
                     <button
                       onClick={handleClose}
-                      className="flex-1 py-3 px-4 bg-[#1E2A34] hover:bg-[#253340] rounded-xl font-medium text-[#B2C0CD] hover:text-white transition-colors"
+                      className="flex-1 py-3 px-4 bg-[#1E2A34] hover:bg-[#253340] rounded-xl font-medium text-[#B2C0CD] hover:text-white transition-colors cursor-pointer"
                     >
                       Close
                     </button>
                     <button
                       onClick={handleRetry}
-                      className="flex-1 py-3 px-4 bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2"
+                      className="flex-1 py-3 px-4 bg-[#16C7E7] hover:bg-[#12b3d0] rounded-xl font-bold text-black transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <RotateCcw className="w-4 h-4" />
                       Retry
@@ -440,6 +580,7 @@ export default function SlotSelectorModal({
                   </div>
                 </div>
               )}
+
             </div>
           </motion.div>
         </motion.div>
@@ -448,7 +589,7 @@ export default function SlotSelectorModal({
   );
 }
 
-// ─── Internal helper ─────────────────────────────────────────────────────────
+// ─── Internal helper ──────────────────────────────────────────────────────────
 
 function StatPill({ label, value, color }) {
   return (

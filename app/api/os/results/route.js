@@ -80,13 +80,25 @@ export async function GET(req) {
             });
         }
 
-        // Fetch funnel details
+        // Fetch funnel details (schedule_link fetched separately — column added via migration)
         const { data: funnel } = await supabaseAdmin
             .from('user_funnels')
             .select('id, funnel_name, vault_generated, phase1_approved, phase2_unlocked, selected_funnel_type, deployed_at')
             .eq('id', targetFunnelId)
             .eq('user_id', targetUserId)
             .single();
+
+        // schedule_link lives in a separate column added by a later migration — fetch defensively
+        let scheduleLink = null;
+        try {
+            const { data: slRow } = await supabaseAdmin
+                .from('user_funnels')
+                .select('schedule_link')
+                .eq('id', targetFunnelId)
+                .eq('user_id', targetUserId)
+                .single();
+            scheduleLink = slRow?.schedule_link ?? null;
+        } catch (_) { /* migration not yet applied — column absent, ignore */ }
 
         // Fetch all current vault content for this funnel
         const { data: vaultContent, error: vaultError } = await supabaseAdmin
@@ -150,7 +162,8 @@ export async function GET(req) {
                 phase2_unlocked: funnel.phase2_unlocked,
                 selected_funnel_type: funnel.selected_funnel_type,
                 has_funnel_choice: !!funnel.selected_funnel_type,
-                deployed_at: funnel.deployed_at
+                deployed_at: funnel.deployed_at,
+                schedule_link: scheduleLink
             } : null,
             data: aggregatedData
         });

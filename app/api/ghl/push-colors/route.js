@@ -15,6 +15,7 @@ import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { addStoredSlotIdsToExistingMap, resolveSlotForFunnel, transformKey } from '@/lib/ghl/slotHelper';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 60 seconds timeout
@@ -38,6 +39,9 @@ export async function POST(req) {
         if (!funnelId) {
             return Response.json({ error: 'funnelId is required' }, { status: 400 });
         }
+
+        // Resolve slot assignment for this funnel
+        const { slotIndex, slotPrefix, basePrefix } = await resolveSlotForFunnel(funnelId, supabaseAdmin);
 
         console.log('[PushColors] ========== START ==========');
         console.log('[PushColors] Starting push for target user', targetUserId, '(Auth: ' + userId + ')');
@@ -87,6 +91,13 @@ export async function POST(req) {
 
         // Build enhanced lookup map with 11-level matching
         const existingMap = buildExistingMap(existingValues);
+        const storedSlotIdCount = await addStoredSlotIdsToExistingMap(existingMap, {
+            userId: targetUserId,
+            locationId,
+            slotIndex,
+            supabaseClient: supabaseAdmin,
+        });
+        console.log('[PushColors] Stored slot IDs loaded:', storedSlotIdCount);
 
         // Get brand colors from vault_content_fields
         const { data: colorField } = await supabaseAdmin
@@ -122,9 +133,9 @@ export async function POST(req) {
         // SIMPLIFIED: Only 3 universal color custom values
         // GHL uses these colors across ALL pages via CSS variables
         const colorMappings = {
-            'primary_color': primary,
-            'secondary_color': secondary,
-            'tertiary_color': tertiary,
+            [transformKey('primary_color', slotPrefix, basePrefix)]: primary,
+            [transformKey('secondary_color', slotPrefix, basePrefix)]: secondary,
+            [transformKey('tertiary_color', slotPrefix, basePrefix)]: tertiary,
         };
 
         const customValues = [];

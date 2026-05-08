@@ -13,6 +13,7 @@ import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { toEmbedUrl } from '@/lib/utils/videoUrl';
+import { addStoredSlotIdsToExistingMap, resolveSlotForFunnel, transformKey } from '@/lib/ghl/slotHelper';
 
 // Video vault field IDs that need YouTube watch→embed conversion
 const VIDEO_FIELDS = new Set(['main_vsl', 'vsl_video', 'thankyou_video', 'testimonial_video']);
@@ -25,8 +26,11 @@ export const maxDuration = 60; // 60 seconds timeout
 const DEFAULT_MEDIA_VALUES = {
     logo: 'https://res.cloudinary.com/df3br07tk/image/upload/v1769618595/ai-marketing-uploads/1769618595666_TMB_Logo.png.png',
     profile_photo: 'https://homebusinessmag.com/wp-content/uploads/2019/09/IMG_2881-R1-1.jpg',
+    bio_author: 'https://homebusinessmag.com/wp-content/uploads/2019/09/IMG_2881-R1-1.jpg',
     banner_image: 'https://res.cloudinary.com/df3br07tk/image/upload/v1769624666/ai-marketing-uploads/1769624666701_TedOS_Frame_1__2_.png.png',
+    product_mockup: 'https://res.cloudinary.com/df3br07tk/image/upload/v1769624666/ai-marketing-uploads/1769624666701_TedOS_Frame_1__2_.png.png',
     vsl_video: '', // No default for video
+    main_vsl: '', // No default for video
     thankyou_video: '', // No default for video
     testimonial_review_1_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
     testimonial_review_2_image: 'https://e7.pngegg.com/pngimages/226/870/png-clipart-computer-icons-user-profile-others-rectangle-logo.png',
@@ -53,6 +57,9 @@ export async function POST(req) {
         if (!funnelId) {
             return Response.json({ error: 'funnelId is required' }, { status: 400 });
         }
+
+        // Resolve slot assignment for this funnel
+        const { slotIndex, slotPrefix, basePrefix } = await resolveSlotForFunnel(funnelId, supabaseAdmin);
 
         console.log('[PushMedia] ========== START ==========');
         console.log('[PushMedia] Starting push for target user', targetUserId, '(Auth: ' + userId + ')');
@@ -105,6 +112,13 @@ export async function POST(req) {
 
         // Build enhanced lookup map with 11-level matching
         const existingMap = buildExistingMap(existingValues);
+        const storedSlotIdCount = await addStoredSlotIdsToExistingMap(existingMap, {
+            userId: targetUserId,
+            locationId,
+            slotIndex,
+            supabaseClient: supabaseAdmin,
+        });
+        console.log('[PushMedia] Stored slot IDs loaded:', storedSlotIdCount);
 
         // Get media content from vault_content_fields
         const { data: mediaFields } = await supabaseAdmin
@@ -137,13 +151,21 @@ export async function POST(req) {
             console.log('[PushMedia] No media fields in vault - using ALL defaults');
         }
 
-        // Build custom values using MEDIA_MAP (flat structure)
+        const mediaMap = {
+            ...MEDIA_MAP,
+            bio_author: '03_vsl_bio_image',
+            product_mockup: '03_optin_mockup_image',
+            main_vsl: '03_vsl_video_link',
+        };
+
+        // Build custom values using current vault media field names plus legacy aliases
         const customValues = [];
         const notFoundKeys = [];
         let unchangedCount = 0;
 
         console.log('[PushMedia] Mapping media fields to GHL custom values...');
-        for (const [vaultFieldId, ghlKey] of Object.entries(MEDIA_MAP)) {
+        for (const [vaultFieldId, rawGhlKey] of Object.entries(mediaMap)) {
+            const ghlKey = transformKey(rawGhlKey, slotPrefix, basePrefix);
             const mediaUrl = mediaContent[vaultFieldId];
 
             if (mediaUrl && mediaUrl.trim()) {

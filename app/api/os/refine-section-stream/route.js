@@ -633,6 +633,20 @@ INSTRUCTIONS:
         mergedKeys: Object.keys(mergedResult)
     });
 
+    // Replace [BOOKING_LINK] with saved schedule_link so refined content has the real URL
+    const _savedLink = intakeData?._savedScheduleLink;
+    let finalResult = mergedResult;
+    if (_savedLink && ['emails', 'sms', 'appointmentReminders'].includes(sectionId)) {
+        const _BOOKING_RE = /\[BOOKING_LINK\]|\{\{custom_values\.schedule_link\}\}/g;
+        function _subNode(n) {
+            if (typeof n === 'string') return n.replace(_BOOKING_RE, _savedLink);
+            if (Array.isArray(n)) return n.map(_subNode);
+            if (n && typeof n === 'object') { const o = {}; for (const [k, v] of Object.entries(n)) o[k] = _subNode(v); return o; }
+            return n;
+        }
+        finalResult = _subNode(mergedResult);
+    }
+
     // Save merged result to vault_content + vault_content_fields so content is preserved
     // even if the SSE connection drops before the 'validated' event reaches the browser.
     // Mirrors how generate-stream handles all chunked sections (emails, sms, scripts).
@@ -650,7 +664,7 @@ INSTRUCTIONS:
                 await supabaseAdmin
                     .from('vault_content')
                     .update({
-                        content: mergedResult,
+                        content: finalResult,
                         status: 'generated',
                         updated_at: new Date().toISOString()
                     })
@@ -661,7 +675,7 @@ INSTRUCTIONS:
                     funnel_id: sessionId,
                     user_id: targetUserId,
                     section_id: sectionId,
-                    content: mergedResult,
+                    content: finalResult,
                     status: 'generated',
                     is_current_version: true,
                     version: 1
@@ -669,7 +683,7 @@ INSTRUCTIONS:
                 console.log('[ParallelRefinement] Inserted vault_content for', sectionId);
             }
 
-            await populateVaultFields(sessionId, sectionId, mergedResult, targetUserId, { forceOverwrite: true });
+            await populateVaultFields(sessionId, sectionId, finalResult, targetUserId, { forceOverwrite: true });
             console.log('[ParallelRefinement] Saved merged result to DB for', sectionId);
         } catch (dbError) {
             console.error('[ParallelRefinement] DB save failed (non-fatal):', dbError.message);
@@ -711,12 +725,14 @@ export async function POST(req) {
     const {
         sectionId,
         subSection,
-        parentSection, // NEW: Parent field ID for hierarchical selections (e.g., "optinPage" when subSection is "optinPage.headline_text")
-        messageHistory = [], // NEW: Full conversation context
+        parentSection,
+        messageHistory = [],
         currentContent,
         sessionId,
-        stepIndex,          // NEW: Index (0-6) of the specific 7-Step Blueprint step being refined
-        blueprintContext    // NEW: Full 7-step array for AI awareness
+        stepIndex,
+        blueprintContext,
+        targetFields,   // array of specific field IDs the user selected (for funnelCopy sub-page)
+        funnelSubPage,  // which funnelCopy sub-page: optinPage / salesPage / calendarPage / thankYouPage
     } = body;
 
     let validatedFunnel = null;
@@ -872,11 +888,12 @@ export async function POST(req) {
             let companyName = null;
             try {
                 let userProfile = null;
-                const { data: byIdProfile } = await supabaseAdmin
-                    .from('user_profiles')
-                    .select('business_name, full_name')
-                    .eq('id', targetUserId)
-                    .maybeSingle();
+                const [{ data: byIdProfile }, { data: funnelProfile }] = await Promise.all([
+                    supabaseAdmin.from('user_profiles').select('business_name, full_name').eq('id', targetUserId).maybeSingle(),
+                    sessionId
+                        ? supabaseAdmin.from('user_funnels').select('schedule_link').eq('id', sessionId).eq('user_id', targetUserId).maybeSingle()
+                        : Promise.resolve({ data: null }),
+                ]);
 
                 userProfile = byIdProfile;
 
@@ -889,6 +906,11 @@ export async function POST(req) {
                 if (userProfile?.full_name) {
                     intakeData.fullName = userProfile.full_name;
                     console.log('[RefineStream] Found Full Name for bio:', userProfile.full_name);
+                }
+
+                // Per-funnel schedule_link for post-generation substitution
+                if (funnelProfile?.schedule_link) {
+                    intakeData._savedScheduleLink = funnelProfile.schedule_link;
                 }
             } catch (profileError) {
                 console.log('[RefineStream] No profile data found in user_profiles:', profileError.message);
@@ -1027,15 +1049,17 @@ export async function POST(req) {
             const { systemPrompt, userPrompt } = await buildConversationalPrompt({
                 sectionId,
                 subSection,
-                parentSection, // Pass parent field context for hierarchical selections
-                messageHistory: messageHistory.slice(-10), // Last 10 messages for context
+                parentSection,
+                messageHistory: messageHistory.slice(-10),
                 currentContent,
                 intakeData: refinementContext,
-                leadMagnetTitle, // Pass the Lead Magnet title for dependencies
-                companyName, // Pass company name from user_profiles
-                brandColors, // Intentionally null (colors not used for funnel copy refinement)
-                stepIndex,          // Pass blueprint step index
-                blueprintContext    // Pass full blueprint array for AI awareness
+                leadMagnetTitle,
+                companyName,
+                brandColors,
+                stepIndex,
+                blueprintContext,
+                targetFields,   // pass through for funnelCopy field targeting
+                funnelSubPage,  // pass through for funnelCopy sub-page context
             });
 
             // COMPREHENSIVE LOGGING: Prompt generation
@@ -1680,7 +1704,7 @@ async function parseAndValidate(fullText, sectionId, subSection) {
  * Build conversational prompt from message history with FULL PROJECT CONTEXT
  * Uses the full context prompts system to give AI complete knowledge of original generation
  */
-async function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle, companyName, brandColors, stepIndex, blueprintContext }) {
+async function buildConversationalPrompt({ sectionId, subSection, parentSection, messageHistory, currentContent, intakeData, leadMagnetTitle, companyName, brandColors, stepIndex, blueprintContext, targetFields, funnelSubPage }) {
     const currentContentStr = typeof currentContent === 'string'
         ? currentContent
         : JSON.stringify(currentContent, null, 2);
@@ -1971,6 +1995,20 @@ Return ONLY this exact structure — a single object containing sevenStepBluepri
 - NO placeholders or [insert] text`;
     }
 
+    // Funnel-copy targeted field context
+    const hasTargetFields = Array.isArray(targetFields) && targetFields.length > 0;
+    const isFunnelSubPageRefinement = sectionId === 'funnelCopy' && funnelSubPage && hasTargetFields && !isBlueprintStepRefinement;
+
+    const targetedFieldsContext = isFunnelSubPageRefinement ? `
+
+🎯 TARGETED FIELD REFINEMENT — READ THIS CAREFULLY:
+You are refining ONLY these specific fields on the "${funnelSubPage}" page:
+${targetFields.map(f => `  • ${f}`).join('\n')}
+
+ALL OTHER FIELDS in "${funnelSubPage}" must be copied VERBATIM from the current content above.
+DO NOT change, rephrase, or "improve" any field not listed above — not even slightly.
+` : '';
+
     // Build enhanced user prompt
     const userPrompt = `CURRENT CONTENT (${sectionId}${subSection ? ` - ${subSection}` : ''}):
 ${currentContentStr}
@@ -1978,6 +2016,7 @@ ${businessContext}
 ${conversationContext}
 ${hierarchicalContext}
 ${blueprintStepContext}
+${targetedFieldsContext}
 
 LATEST USER REQUEST:
 ${latestUserMessage}
@@ -1992,11 +2031,13 @@ INSTRUCTIONS:
 6. DO NOT wrap in markdown code blocks
 7. ${isBlueprintStepRefinement
             ? `You are refining ONLY Step ${stepIndex + 1} of the 7-Step Blueprint. Return: {"sevenStepBlueprint": [<updated_step_object>]} with exactly 1 item in the array.`
-            : isSubSection
-                ? isHierarchical
-                    ? `Update ONLY the "${childFieldId}" field within "${parentSection}". Return the child field value directly as: {"${childFieldId}": <updated_content>}`
-                    : `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
-                : `Update the entire section. Return the complete section matching the exact schema structure.`}
+            : isFunnelSubPageRefinement
+                ? `Update ONLY these fields: ${targetFields.join(', ')}. Return the COMPLETE "${funnelSubPage}" structure with ALL fields — copy unchanged fields verbatim, only rewrite the listed ones. Return: {"${funnelSubPage}": {... ALL fields ...}}`
+                : isSubSection
+                    ? isHierarchical
+                        ? `Update ONLY the "${childFieldId}" field within "${parentSection}". Return the child field value directly as: {"${childFieldId}": <updated_content>}`
+                        : `Update ONLY the "${subSection}" field. Return: {"${subSection}": <updated_content>}`
+                    : `Update the entire section. Return the complete section matching the exact schema structure.`}
 
 CRITICAL SCHEMA RULES:
 - Match exact array lengths (if schema says 3 items, output exactly 3)
