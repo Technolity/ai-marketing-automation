@@ -10,6 +10,10 @@ import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { toEmbedUrl } from '@/lib/utils/videoUrl';
+import { KEY_TEMPLATE } from '@/lib/ghl/slots';
+import { buildSlotDeployCustomValues, extractSmsMessage } from '@/lib/ghl/slotDeployMapper';
+
+const TOTAL_SLOT_KEYS = KEY_TEMPLATE.length;
 
 export const dynamic = 'force_dynamic';
 export const maxDuration = 300; // Increased to 5 minutes to prevent timeout (current deployment takes ~74s)
@@ -195,7 +199,7 @@ const SMS_KEY_MAP = {
     'sms5': 'optin_sms_5',
     'sms6': 'optin_sms_6',
     'sms7a': 'optin_sms_7',
-    'sms7b': 'optin_sms_8_evening',
+    'sms7b': 'optin_sms_7_evening',
 
     // Day 8 (Closing Day 1)
     'sms8a': 'optin_sms_8_morning',
@@ -486,7 +490,59 @@ export async function POST(req) {
             return NextResponse.json({ error: 'funnelId required' }, { status: 400 });
         }
 
+        // slot_index = GHL prefix number (3–12). Slot 3 is the base slot (03_ already in codebase).
+        // Slots 4–12 are additional funnel slots created by admin.
+        // Tier limits (by slot count): starter=1 (slot 3 only), growth=3 (03–05), scale=10 (03–12), admin=unlimited
+        const slotIndexRaw = body.slot_index ?? body.slotIndex ?? null;
+        let slotIndex = 3;
+        // Auto-resolve slot from funnel assignment if not explicitly provided
+        if (slotIndexRaw === null) {
+            const { data: assignment } = await supabaseAdmin
+                .from('funnel_slot_assignments')
+                .select('slot_index')
+                .eq('funnel_id', funnelId)
+                .single();
+            if (assignment?.slot_index) {
+                slotIndex = assignment.slot_index;
+                log(`[Deploy] Auto-resolved slot ${slotIndex} from funnel assignment`);
+            }
+        }
+        if (slotIndexRaw !== null) {
+            slotIndex = Number(slotIndexRaw);
+            if (!Number.isInteger(slotIndex) || slotIndex < 3 || slotIndex > 12) {
+                return NextResponse.json({ error: 'slot_index must be an integer 3–12' }, { status: 400 });
+            }
+            // Starter=1 slot (max 3), Growth=3 slots (max 5), Scale=10 slots (max 12), admin=unlimited
+            const TIER_SLOT_LIMITS = { starter: 1, growth: 3, scale: 10, admin: 10 };
+            const [{ data: authProfile }, { data: targetProfile }] = await Promise.all([
+                supabaseAdmin
+                    .from('user_profiles')
+                    .select('subscription_tier, is_admin')
+                    .eq('id', userId)
+                    .maybeSingle(),
+                supabaseAdmin
+                    .from('user_profiles')
+                    .select('subscription_tier, is_admin')
+                    .eq('id', targetUserId)
+                    .maybeSingle(),
+            ]);
+            const authTier = authProfile?.subscription_tier || 'starter';
+            const targetTier = targetProfile?.subscription_tier || 'starter';
+            const isTargetAdmin = authProfile?.is_admin || targetProfile?.is_admin || authTier === 'admin' || targetTier === 'admin';
+            const tier = isTargetAdmin ? 'admin' : targetTier;
+            const limit = TIER_SLOT_LIMITS[tier] ?? 1;
+            // Admins bypass tier slot limits
+            if (!isTargetAdmin && slotIndex > 2 + limit) {
+                return NextResponse.json({ error: `Your plan allows up to ${limit} slot(s). Upgrade to access more.` }, { status: 403 });
+            }
+        }
+        const slotPrefix = String(slotIndex).padStart(2, '0') + '_';
+        const p = slotPrefix;
+        // Base keys (emails, SMS, etc.) have no prefix on the default slot 3; all other slots prepend slot prefix
+        const basePrefix = slotIndex === 3 ? '' : slotPrefix;
+
         log(`[Deploy] ========== STARTING DEPLOY ==========`);
+        log(`[Deploy] Slot index: ${slotIndex} (prefix: "${p}"`);
         log(`[Deploy] Funnel ID: ${funnelId}`);
         log(`[Deploy] Auth User ID: ${userId}`);
         log(`[Deploy] Target User ID: ${targetUserId}`);
@@ -506,14 +562,38 @@ export async function POST(req) {
         log(`[Deploy] Location ID: ${subaccount.location_id}`);
         log(`[Deploy] Snapshot ID: ${subaccount.snapshot_id || 'none'}`);
 
+        // Load stored GHL value IDs for this slot (ID fast-path)
+        const { data: storedIds } = await supabaseAdmin
+            .from('ghl_slot_custom_value_ids')
+            .select('ghl_key, ghl_id')
+            .eq('user_id', targetUserId)
+            .eq('location_id', subaccount.location_id)
+            .eq('slot_index', slotIndex);
+        const idMap = new Map((storedIds || []).map(r => [r.ghl_key, r.ghl_id]));
+        log(`[Deploy] Loaded ${idMap.size} stored IDs for slot ${slotIndex}`);
+
+        // Remap module-level page maps from '03_' values to current slot prefix
+        const dynMap = (map) => slotIndex === 3 ? map : Object.fromEntries(
+            Object.entries(map).map(([k, v]) => [k, v.replace(/^03_/, slotPrefix)])
+        );
+        const OPTIN_MAP = dynMap(OPTIN_PAGE_MAP);
+        const SALES_MAP = dynMap(SALES_PAGE_MAP);
+        const CALENDAR_MAP = dynMap(CALENDAR_PAGE_MAP);
+        const THANKYOU_MAP = dynMap(THANK_YOU_PAGE_MAP);
+
         // 2. Get OAuth token (use targetUserId for owner's token)
         const tokenResult = await getLocationToken(targetUserId, subaccount.location_id);
         if (!tokenResult.success) {
             return NextResponse.json({ error: tokenResult.error }, { status: 401 });
         }
 
-        // 3. Fetch existing values
-        const existingValues = await fetchExistingValues(subaccount.location_id, tokenResult.access_token);
+        // 3. Fetch existing values (skip when all slot IDs are cached)
+        let existingValues = [];
+        if (idMap.size >= TOTAL_SLOT_KEYS) {
+            log('[Deploy] All slot IDs cached — skipping fetchExistingValues');
+        } else {
+            existingValues = await fetchExistingValues(subaccount.location_id, tokenResult.access_token);
+        }
 
         // Build lookup map with multiple key formats
         const existingMap = new Map();
@@ -599,29 +679,12 @@ export async function POST(req) {
             .eq('user_id', targetUserId)
             .eq('is_current_version', true);
 
-        const vaultContent = {};
+        let vaultContent = {};
         (vaultSections || []).forEach(s => {
             vaultContent[s.section_id] = s.content;
         });
 
         log(`[Deploy] Vault sections loaded: ${Object.keys(vaultContent).join(', ')}`);
-
-        // Debug: Show structure of key sections
-        if (vaultContent.appointmentReminders) {
-            const ar = vaultContent.appointmentReminders?.appointmentReminders || vaultContent.appointmentReminders;
-            log(`[Deploy] appointmentReminders structure: ${JSON.stringify(Object.keys(ar || {}))}`);
-            if (ar?.smsReminders) {
-                log(`[Deploy] appointmentReminders.smsReminders keys: ${Object.keys(ar.smsReminders).join(', ')}`);
-            }
-        }
-        if (vaultContent.emails) {
-            const emails = vaultContent.emails?.emailSequence || vaultContent.emails;
-            log(`[Deploy] emails structure: ${Object.keys(emails || {}).join(', ')}`);
-        }
-        if (vaultContent.sms) {
-            const sms = vaultContent.sms?.smsSequence || vaultContent.sms;
-            log(`[Deploy] sms structure: ${Object.keys(sms || {}).join(', ')}`);
-        }
 
         // 4b. Fetch media fields from vault_content_fields (separate table for uploaded media)
         const { data: mediaFields } = await supabaseAdmin
@@ -642,6 +705,28 @@ export async function POST(req) {
 
         log(`[Deploy] Media fields from uploads: ${Object.keys(mediaFromFields).join(', ')} (${Object.keys(mediaFromFields).length} fields)`);
 
+        const { data: colorField } = await supabaseAdmin
+            .from('vault_content_fields')
+            .select('field_value')
+            .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
+            .eq('section_id', 'colors')
+            .eq('field_id', 'colorPalette')
+            .eq('is_current_version', true)
+            .maybeSingle();
+
+        let colorPaletteFromFields = null;
+        if (colorField?.field_value) {
+            try {
+                colorPaletteFromFields = typeof colorField.field_value === 'string'
+                    ? JSON.parse(colorField.field_value)
+                    : colorField.field_value;
+                log(`[Deploy] Color palette loaded from fields: ${Object.keys(colorPaletteFromFields || {}).join(', ')}`);
+            } catch (error) {
+                log(`[Deploy] ⚠ Failed to parse colorPalette field: ${error.message}`);
+            }
+        }
+
         // 5. Collect values to update (ONLY if existing key found)
         const results = { updated: 0, skipped: 0, notFound: 0, failed: 0 };
         const updatedKeys = [];
@@ -651,6 +736,9 @@ export async function POST(req) {
         // Helper to find existing value - tries MULTIPLE naming formats
         // GHL uses inconsistent naming: "03_vsl_bio_image" vs "03 VSL Bio Image" vs "03 VSL Sub-Headline Text"
         const findExisting = (ghlKey) => {
+            // 0. FAST PATH: direct lookup by stored ID (skips name-matching entirely)
+            if (idMap.has(ghlKey)) return { id: idMap.get(ghlKey), name: ghlKey, source: 'stored_id' };
+
             // 1. Exact match
             if (existingMap.has(ghlKey)) return existingMap.get(ghlKey);
 
@@ -740,7 +828,7 @@ export async function POST(req) {
         log(`[Deploy] optinPage fields: ${Object.keys(optinPage).join(', ')}`);
 
         for (const [vaultKey, value] of Object.entries(optinPage)) {
-            const ghlKey = OPTIN_PAGE_MAP[vaultKey];
+            const ghlKey = OPTIN_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -766,7 +854,7 @@ export async function POST(req) {
         log(`[Deploy] salesPage fields count: ${Object.keys(salesPage).length}`);
 
         for (const [vaultKey, value] of Object.entries(salesPage)) {
-            const ghlKey = SALES_PAGE_MAP[vaultKey];
+            const ghlKey = SALES_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -792,7 +880,7 @@ export async function POST(req) {
         log(`[Deploy] calendarPage fields: ${Object.keys(calendarPage).join(', ')}`);
 
         for (const [vaultKey, value] of Object.entries(calendarPage)) {
-            const ghlKey = CALENDAR_PAGE_MAP[vaultKey];
+            const ghlKey = CALENDAR_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -818,7 +906,7 @@ export async function POST(req) {
         log(`[Deploy] thankYouPage fields: ${Object.keys(thankYouPage).join(', ')}`);
 
         for (const [vaultKey, value] of Object.entries(thankYouPage)) {
-            const ghlKey = THANK_YOU_PAGE_MAP[vaultKey];
+            const ghlKey = THANKYOU_MAP[vaultKey];
             if (!ghlKey || !value) continue;
 
             const existing = findExisting(ghlKey);
@@ -856,7 +944,7 @@ export async function POST(req) {
 
             // Company Name
             if (userProfile.business_name) {
-                const companyNameKey = 'company_name';
+                const companyNameKey = basePrefix + 'company_name';
                 const existing = findExisting(companyNameKey);
                 if (existing) {
                     const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, companyNameKey, userProfile.business_name);
@@ -874,7 +962,7 @@ export async function POST(req) {
 
             // Company Email
             if (userProfile.email) {
-                const companyEmailKey = '03_company_email';
+                const companyEmailKey = `${p}company_email`;
                 const existing = findExisting(companyEmailKey);
                 if (existing) {
                     const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, companyEmailKey, userProfile.email);
@@ -893,13 +981,45 @@ export async function POST(req) {
             log('[Deploy] ⚠ No user profile found for Company Name/Email');
         }
 
+        // === NORMALIZED SLOT BACKFILL ===
+        // Keeps slots 04-12 aligned with the real vault shapes used by the editor.
+        const normalizedSlotValues = buildSlotDeployCustomValues({
+            vaultContent,
+            mediaFromFields,
+            userProfile,
+            colorPaletteFromFields,
+            defaultMediaValues: DEFAULT_MEDIA_VALUES,
+            slotIndex,
+        });
+        const normalizedSlotKeys = new Set(Object.keys(normalizedSlotValues));
+
+        log(`[Deploy] Processing normalized slot mappings: ${Object.keys(normalizedSlotValues).length} values`);
+        for (const [ghlKey, value] of Object.entries(normalizedSlotValues)) {
+            const existing = findExisting(ghlKey);
+            if (existing) {
+                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
+                if (result.success) {
+                    results.updated++;
+                    updatedKeys.push(ghlKey);
+                    log(`[Deploy] ✓ Updated normalized ${ghlKey}`);
+                } else {
+                    results.failed++;
+                    log(`[Deploy] ✗ Failed normalized ${ghlKey}`);
+                }
+            } else {
+                results.notFound++;
+                notFoundKeys.push(ghlKey);
+                log(`[Deploy] ⚠ Normalized key not found: ${ghlKey}`);
+            }
+        }
+
         // === PROCESS COLORS (3 UNIVERSAL KEYS) ===
         log('[Deploy] Processing colors with 3 UNIVERSAL KEYS...');
         // Handle various storage locations for colors
-        const colorsData = vaultContent.colors || vaultContent.colorPalette || {};
-        const palette = colorsData.colorPalette || colorsData; // Handle nesting
+        const colorsData = colorPaletteFromFields || vaultContent.colors || vaultContent.colorPalette || null;
+        const palette = colorsData?.colorPalette || colorsData; // Handle nesting
 
-        if (palette) {
+        if (palette && typeof palette === 'object' && Object.keys(palette).length > 0) {
             log(`[Deploy] Color palette found: ${JSON.stringify(palette)}`);
 
             // Extract core colors (handle object with .hex or direct string)
@@ -913,13 +1033,14 @@ export async function POST(req) {
 
             // 3 Universal Color Keys (these exist in GHL)
             const universalColorMap = {
-                'primary_color': primary,
-                'secondary_color': secondary,
-                'tertiary_color': tertiary
+                [basePrefix + 'primary_color']: primary,
+                [basePrefix + 'secondary_color']: secondary,
+                [basePrefix + 'tertiary_color']: tertiary
             };
 
             for (const [ghlKey, hexVal] of Object.entries(universalColorMap)) {
                 if (!hexVal) continue;
+                if (normalizedSlotKeys.has(ghlKey)) continue;
 
                 const existing = findExisting(ghlKey);
                 if (existing) {
@@ -967,39 +1088,40 @@ export async function POST(req) {
         // Strict Mapping Definition - using ACTUAL vault field names
         // Vault fields: logo, bio_author, product_mockup, main_vsl, thankyou_video
         const strictMediaMap = {
-            // Logo (universal)
-            'logo_image': combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
+            // Logo — slot-prefixed (04_logo_image for slot 4, etc.; '' for slot 3 = 'logo_image')
+            [basePrefix + 'logo_image']: combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
 
-            // Bio/Author Photo -> 03 VSL Bio Image
-            '03_vsl_bio_image': combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
+            // Bio/Author Photo
+            [`${p}vsl_bio_image`]: combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
 
-            // Product Mockup -> 03 Optin Mockup Image  
-            '03_optin_mockup_image': combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
+            // Product Mockup
+            [`${p}optin_mockup_image`]: combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
 
-            // VSL Video -> 03 VSL Video Link (convert YouTube watch URLs to embed format)
-            '03_vsl_video_link': toEmbedUrl(combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video),
+            // VSL Video (convert YouTube watch URLs to embed format)
+            [`${p}vsl_video_link`]: toEmbedUrl(combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video),
 
-            // Thank You Video -> 03 Thank You Page Video Link (convert YouTube watch URLs to embed format)
-            '03_thankyou_page_video_link': toEmbedUrl(combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video),
+            // Thank You Video (convert YouTube watch URLs to embed format)
+            [`${p}thankyou_page_video_link`]: toEmbedUrl(combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video),
 
             // Testimonials (from defaults or user uploads)
-            '03_vsl_testimonial_review_1_image': combinedMedia.testimonial_review_1_image || combinedMedia.testimonial1Photo || combinedMedia.testimonial_1_photo,
-            '03_vsl_testimonial_review_2_image': combinedMedia.testimonial_review_2_image || combinedMedia.testimonial2Photo || combinedMedia.testimonial_2_photo,
-            '03_vsl_testimonial_review_3_image': combinedMedia.testimonial_review_3_image || combinedMedia.testimonial3Photo || combinedMedia.testimonial_3_photo,
-            '03_vsl_testimonial_review_4_image': combinedMedia.testimonial_review_4_image || combinedMedia.testimonial4Photo || combinedMedia.testimonial_4_photo
+            [`${p}vsl_testimonial_review_1_image`]: combinedMedia.testimonial_review_1_image || combinedMedia.testimonial1Photo || combinedMedia.testimonial_1_photo,
+            [`${p}vsl_testimonial_review_2_image`]: combinedMedia.testimonial_review_2_image || combinedMedia.testimonial2Photo || combinedMedia.testimonial_2_photo,
+            [`${p}vsl_testimonial_review_3_image`]: combinedMedia.testimonial_review_3_image || combinedMedia.testimonial3Photo || combinedMedia.testimonial_3_photo,
+            [`${p}vsl_testimonial_review_4_image`]: combinedMedia.testimonial_review_4_image || combinedMedia.testimonial4Photo || combinedMedia.testimonial_4_photo
         };
 
         // Log each media field attempt for debugging
         log(`[Deploy] Media mapping attempts:`);
-        log(`[Deploy]   logo: ${strictMediaMap['logo_image'] ? '✓' : '✗'}`);
-        log(`[Deploy]   bio_author: ${strictMediaMap['03_vsl_bio_image'] ? '✓' : '✗'}`);
-        log(`[Deploy]   product_mockup: ${strictMediaMap['03_optin_mockup_image'] ? '✓' : '✗'}`);
-        log(`[Deploy]   main_vsl: ${strictMediaMap['03_vsl_video_link'] ? '✓' : '✗'}`);
-        log(`[Deploy]   thankyou_video: ${strictMediaMap['03_thankyou_page_video_link'] ? '✓' : '✗'}`);
+        log(`[Deploy]   logo: ${strictMediaMap[basePrefix + 'logo_image'] ? '✓' : '✗'}`);
+        log(`[Deploy]   bio_author: ${strictMediaMap[`${p}vsl_bio_image`] ? '✓' : '✗'}`);
+        log(`[Deploy]   product_mockup: ${strictMediaMap[`${p}optin_mockup_image`] ? '✓' : '✗'}`);
+        log(`[Deploy]   main_vsl: ${strictMediaMap[`${p}vsl_video_link`] ? '✓' : '✗'}`);
+        log(`[Deploy]   thankyou_video: ${strictMediaMap[`${p}thankyou_page_video_link`] ? '✓' : '✗'}`);
 
 
         for (const [ghlKey, val] of Object.entries(strictMediaMap)) {
             if (!val) continue;
+            if (normalizedSlotKeys.has(ghlKey)) continue;
 
             const existing = findExisting(ghlKey);
             if (existing) {
@@ -1018,12 +1140,11 @@ export async function POST(req) {
             }
         }
 
-        // Company Name (Universal)
-        // Check multiple possible sources for company name
+        // Company Name from funnelCopy content
         const companyName = fcContent.company_name || optinPage.company_name || vaultContent.company_name;
 
         if (companyName) {
-            const ghlKey = 'company_name'; // Specific key
+            const ghlKey = basePrefix + 'company_name';
             const existing = findExisting(ghlKey);
             if (existing) {
                 const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, companyName);
@@ -1038,363 +1159,7 @@ export async function POST(req) {
         }
 
         // Note: Legacy bookingPage fields removed - not in new 03_* structure
-
-        // === PROCESS EMAILS ===
-        log('[Deploy] Processing emails...');
-        const emails = vaultContent.emails || {};
-        const emailSequence = emails.emailSequence || emails; // Access nested emailSequence
-        log(`[Deploy] Email sequence keys: ${Object.keys(emailSequence).join(', ')}`);
-
-        // Map email1 -> optin_email_subject_1, email2 -> optin_email_subject_2, etc.
-        for (let i = 1; i <= 15; i++) {
-            const emailContent = emailSequence[`email${i}`] || {};
-
-            // Subject line
-            const subjectKey = i === 1 ? 'free_gift_email_subject' : `optin_email_subject_${i - 1}`;
-            if (emailContent.subject) {
-                const existing = findExisting(subjectKey);
-                if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, subjectKey, emailContent.subject);
-                    if (result.success) {
-                        results.updated++;
-                        updatedKeys.push(subjectKey);
-                    } else {
-                        results.failed++;
-                    }
-                } else {
-                    results.notFound++;
-                    notFoundKeys.push(subjectKey);
-                }
-            }
-
-            // Preview/Preheader (handle both 'preview' and 'previewText' field names)
-            const preheaderKey = i === 1 ? null : `optin_email_preheader_${i - 1}`;
-            const previewValue = emailContent.preview || emailContent.previewText || emailContent.preheader;
-            if (preheaderKey && previewValue) {
-                const existing = findExisting(preheaderKey);
-                if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, preheaderKey, previewValue);
-                    if (result.success) {
-                        results.updated++;
-                        updatedKeys.push(preheaderKey);
-                    } else {
-                        results.failed++;
-                    }
-                } else {
-                    results.notFound++;
-                    notFoundKeys.push(preheaderKey);
-                }
-            }
-
-            // Body
-            const bodyKey = i === 1 ? 'free_gift_email_body' : `optin_email_body_${i - 1}`;
-            if (emailContent.body) {
-                const existing = findExisting(bodyKey);
-                if (existing) {
-                    const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, bodyKey, emailContent.body);
-                    if (result.success) {
-                        results.updated++;
-                        updatedKeys.push(bodyKey);
-                    } else {
-                        results.failed++;
-                    }
-                } else {
-                    results.notFound++;
-                    notFoundKeys.push(bodyKey);
-                }
-            }
-        }
-
-        log(`[Deploy] Emails done, running total: ${results.updated}`);
-        // === PROCESS SMS ===
-        log('[Deploy] Processing SMS...');
-        const smsData = vaultContent.sms || {};
-        const smsSequence = smsData.smsSequence || smsData; // Access nested smsSequence
-        log(`[Deploy] SMS sequence keys: ${Object.keys(smsSequence).join(', ')}`);
-
-        // SMS mapping - vault has: sms1-6, sms7a, sms7b, smsNoShow1, smsNoShow2
-        // GHL has: optin_sms_1-14
-        const smsVaultToGHL = {
-            'sms1': 'optin_sms_1',      // Day 1 - Welcome
-            'sms2': 'optin_sms_2',      // Day 2 - Value Nudge
-            'sms3': 'optin_sms_3',      // Day 3 - Quick Tip
-            'sms4': 'optin_sms_4',      // Day 4 - Social Proof
-            'sms5': 'optin_sms_5',      // Day 5 - Booking Reminder
-            'sms6': 'optin_sms_6',      // Day 6 - Final Value
-            'sms7a': 'optin_sms_7',     // Day 7 Morning - Last Chance A
-            'sms7b': 'optin_sms_9',     // Day 7 Evening - Last Chance B (use slot 9 to avoid overwrite)
-            // No-show SMS - these should NOT go to optin SMS, they go to appointment reminders
-            // But since we don't have separate appointment reminder SMS in vault, skip them here
-            // They will be handled in appointment reminders section
-        };
-
-        for (const [vaultKey, ghlKey] of Object.entries(smsVaultToGHL)) {
-            const smsContent = smsSequence[vaultKey];
-
-            // Extract message text (handle both string and object formats)
-            let value = null;
-            if (typeof smsContent === 'string') {
-                value = smsContent;
-            } else if (smsContent && typeof smsContent === 'object') {
-                value = smsContent.message || smsContent.body || smsContent.text;
-            }
-
-            if (!value) {
-                log(`[Deploy] No SMS content for ${vaultKey}`);
-                continue;
-            }
-
-            const existing = findExisting(ghlKey);
-            if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, value);
-                if (result.success) {
-                    results.updated++;
-                    updatedKeys.push(ghlKey);
-                    log(`[Deploy] ✓ Updated ${vaultKey} → ${ghlKey}`);
-                } else {
-                    results.failed++;
-                    log(`[Deploy] ✗ Failed to update ${vaultKey} → ${ghlKey}`);
-                }
-            } else {
-                results.notFound++;
-                notFoundKeys.push(ghlKey);
-                log(`[Deploy] ⚠ GHL key not found: ${ghlKey} (for ${vaultKey})`);
-            }
-        }
-
-        log(`[Deploy] SMS done, running total: ${results.updated}`);
-
-        // === PROCESS APPOINTMENT REMINDERS ===
-        log('[Deploy] Processing appointment reminders...');
-        const appointmentReminders = vaultContent.appointmentReminders?.appointmentReminders || vaultContent.appointmentReminders || {};
-        log(`[Deploy] Appointment reminder keys: ${Object.keys(appointmentReminders).join(', ')}`);
-        log(`[Deploy] appointmentReminders full structure: ${JSON.stringify(appointmentReminders, null, 2).substring(0, 500)}`);
-
-        // Appointment reminder emails can be stored in TWO formats:
-        // Format 1: Array (emails[0], emails[1], ...)
-        // Format 2: Named fields (confirmationEmail, reminder48Hours, ...)
-        const emailsArray = appointmentReminders.emails || [];
-        const hasArrayFormat = Array.isArray(emailsArray) && emailsArray.length > 0;
-        log(`[Deploy] Email format detected: ${hasArrayFormat ? 'ARRAY' : 'NAMED FIELDS'}`);
-
-        // Array index to GHL key mapping (Format 1)
-        const emailArrayToGHL = [
-            { subject: 'email_subject_when_call_booked', preheader: 'email_preheader_when_call_booked', body: 'email_body_when_call_booked', label: 'When Call Booked' },
-            { subject: 'email_subject_48_hour_before_call_time', preheader: 'email_preheader_48_hour_before_call_time', body: 'email_body_48_hour_before_call_time', label: '48 Hours Before' },
-            { subject: 'email_subject_24_hour_before_call_time', preheader: 'email_preheader_24_hour_before_call_time', body: 'email_body_24_hour_before_call_time', label: '24 Hours Before' },
-            { subject: 'email_subject_1_hour_before_call_time', preheader: 'email_preheader_1_hour_before_call_time', body: 'email_body_1_hour_before_call_time', label: '1 Hour Before' },
-            { subject: 'email_subject_10_min_before_call_time', preheader: 'email_preheader_10_min_before_call_time', body: 'email_body_10_min_before_call_time', label: '10 Minutes Before' },
-            { subject: 'email_subject_at_call_time', preheader: 'email_preheader_at_call_time', body: 'email_body_at_call_time', label: 'At Call Time' },
-        ];
-
-        // Named field to GHL key mapping (Format 2)
-        const emailFieldsToGHL = {
-            'confirmationEmail': emailArrayToGHL[0],
-            'reminder48Hours': emailArrayToGHL[1],
-            'reminder24Hours': emailArrayToGHL[2],
-            'reminder1Hour': emailArrayToGHL[3],
-            'reminder10Minutes': emailArrayToGHL[4],
-            'startingNow': emailArrayToGHL[5],
-            'noShowFollowUp': emailArrayToGHL[4], // Fallback to 10 min before
-        };
-
-        // Process emails based on format
-        if (hasArrayFormat) {
-            log(`[Deploy] Processing ${emailsArray.length} appointment emails from array...`);
-            for (let i = 0; i < emailsArray.length && i < emailArrayToGHL.length; i++) {
-                const email = emailsArray[i];
-                const ghlMapping = emailArrayToGHL[i];
-
-                if (!email || typeof email !== 'object') {
-                    log(`[Deploy] ⚠ emails[${i}] (${ghlMapping.label}) is empty`);
-                    continue;
-                }
-
-                log(`[Deploy] Processing emails[${i}] (${ghlMapping.label})... (has subject: ${!!email.subject}, has body: ${!!email.body}, has preheader: ${!!(email.preheader || email.previewText || email.preview)})`);
-
-                // Push subject
-                if (email.subject) {
-                    const existing = findExisting(ghlMapping.subject);
-                    if (existing) {
-                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.subject, email.subject);
-                        if (result.success) {
-                            results.updated++;
-                            updatedKeys.push(ghlMapping.subject);
-                            log(`[Deploy] ✓ Updated emails[${i}].subject → ${ghlMapping.subject}`);
-                        } else {
-                            results.failed++;
-                            log(`[Deploy] ✗ Failed to update emails[${i}].subject`);
-                        }
-                    } else {
-                        results.notFound++;
-                        notFoundKeys.push(ghlMapping.subject);
-                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.subject}`);
-                    }
-                }
-
-                // Push preheader (handle both 'preheader', 'previewText', and 'preview' field names)
-                const preheaderValue = email.preheader || email.previewText || email.preview;
-                if (preheaderValue && ghlMapping.preheader) {
-                    const existing = findExisting(ghlMapping.preheader);
-                    if (existing) {
-                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.preheader, preheaderValue);
-                        if (result.success) {
-                            results.updated++;
-                            updatedKeys.push(ghlMapping.preheader);
-                            log(`[Deploy] ✓ Updated emails[${i}].preheader → ${ghlMapping.preheader}`);
-                        } else {
-                            results.failed++;
-                            log(`[Deploy] ✗ Failed to update emails[${i}].preheader`);
-                        }
-                    } else {
-                        results.notFound++;
-                        notFoundKeys.push(ghlMapping.preheader);
-                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.preheader}`);
-                    }
-                }
-
-                // Push body
-                if (email.body) {
-                    const existing = findExisting(ghlMapping.body);
-                    if (existing) {
-                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.body, email.body);
-                        if (result.success) {
-                            results.updated++;
-                            updatedKeys.push(ghlMapping.body);
-                            log(`[Deploy] ✓ Updated emails[${i}].body → ${ghlMapping.body}`);
-                        } else {
-                            results.failed++;
-                            log(`[Deploy] ✗ Failed to update emails[${i}].body`);
-                        }
-                    } else {
-                        results.notFound++;
-                        notFoundKeys.push(ghlMapping.body);
-                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.body}`);
-                    }
-                }
-            }
-        } else {
-            // Format 2: Named fields (confirmationEmail, reminder48Hours, etc.)
-            log(`[Deploy] Processing appointment emails from named fields...`);
-            for (const [vaultField, ghlMapping] of Object.entries(emailFieldsToGHL)) {
-                const email = appointmentReminders[vaultField];
-                if (!email || typeof email !== 'object') {
-                    log(`[Deploy] ⚠ No data found for ${vaultField} (value: ${JSON.stringify(email)})`);
-                    continue;
-                }
-
-                log(`[Deploy] Processing ${vaultField}... (has subject: ${!!email.subject}, has body: ${!!email.body}, has preheader: ${!!(email.preheader || email.previewText || email.preview)})`);
-
-                // Push subject
-                if (email.subject) {
-                    const existing = findExisting(ghlMapping.subject);
-                    if (existing) {
-                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.subject, email.subject);
-                        if (result.success) {
-                            results.updated++;
-                            updatedKeys.push(ghlMapping.subject);
-                            log(`[Deploy] ✓ Updated ${vaultField}.subject → ${ghlMapping.subject}`);
-                        } else {
-                            results.failed++;
-                            log(`[Deploy] ✗ Failed to update ${vaultField}.subject`);
-                        }
-                    } else {
-                        results.notFound++;
-                        notFoundKeys.push(ghlMapping.subject);
-                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.subject}`);
-                    }
-                }
-
-                // Push preheader
-                const preheaderValue = email.preheader || email.previewText || email.preview;
-                if (preheaderValue && ghlMapping.preheader) {
-                    const existing = findExisting(ghlMapping.preheader);
-                    if (existing) {
-                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.preheader, preheaderValue);
-                        if (result.success) {
-                            results.updated++;
-                            updatedKeys.push(ghlMapping.preheader);
-                            log(`[Deploy] ✓ Updated ${vaultField}.preheader → ${ghlMapping.preheader}`);
-                        } else {
-                            results.failed++;
-                            log(`[Deploy] ✗ Failed to update ${vaultField}.preheader`);
-                        }
-                    } else {
-                        results.notFound++;
-                        notFoundKeys.push(ghlMapping.preheader);
-                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.preheader}`);
-                    }
-                }
-
-                // Push body
-                if (email.body) {
-                    const existing = findExisting(ghlMapping.body);
-                    if (existing) {
-                        const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlMapping.body, email.body);
-                        if (result.success) {
-                            results.updated++;
-                            updatedKeys.push(ghlMapping.body);
-                            log(`[Deploy] ✓ Updated ${vaultField}.body → ${ghlMapping.body}`);
-                        } else {
-                            results.failed++;
-                            log(`[Deploy] ✗ Failed to update ${vaultField}.body`);
-                        }
-                    } else {
-                        results.notFound++;
-                        notFoundKeys.push(ghlMapping.body);
-                        log(`[Deploy] ⚠ GHL key not found: ${ghlMapping.body}`);
-                    }
-                }
-            }
-        }
-
-        // Appointment reminder SMS: smsReminders object with reminder1Day, reminder1Hour, reminderNow, etc.
-        const smsReminders = appointmentReminders.smsReminders || {};
-        log(`[Deploy] SMS Reminders keys: ${Object.keys(smsReminders).join(', ')}`);
-        log(`[Deploy] SMS Reminders sample: ${JSON.stringify(smsReminders, null, 2).substring(0, 300)}`);
-
-        const smsReminderToGHL = {
-            'reminderBooked': 'sms_when_call_booked',
-            'reminder48Hour': 'sms_48_hour_before_call_time',
-            'reminder1Day': 'sms_24_hour_before_call_time',
-            'reminder1Hour': 'sms_1_hour_before_call_time',
-            'reminder10Min': 'sms_10_min_before_call_time',
-            'reminderNow': 'sms_at_call_time',
-        };
-
-        for (const [vaultKey, ghlKey] of Object.entries(smsReminderToGHL)) {
-            const value = smsReminders[vaultKey];
-            if (!value) {
-                log(`[Deploy] ⚠ No SMS data for ${vaultKey} → ${ghlKey}`);
-                continue;
-            }
-
-            // Safely convert value to string and log
-            const stringValue = typeof value === 'string' ? value : String(value);
-            log(`[Deploy] Found SMS: ${vaultKey} → ${ghlKey} (${stringValue.length} chars)`);
-
-            const existing = findExisting(ghlKey);
-            if (existing) {
-                const result = await updateValue(subaccount.location_id, tokenResult.access_token, existing.id, ghlKey, stringValue);
-                if (result.success) {
-                    results.updated++;
-                    updatedKeys.push(ghlKey);
-                    log(`[Deploy] ✓ Updated SMS: ${vaultKey} → ${ghlKey}`);
-                } else {
-                    results.failed++;
-                    log(`[Deploy] ✗ Failed to update SMS: ${vaultKey} → ${ghlKey}`);
-                }
-            } else {
-                results.notFound++;
-                notFoundKeys.push(ghlKey);
-                log(`[Deploy] ⚠ GHL key not found: ${ghlKey} (for ${vaultKey})`);
-            }
-        }
-
-        log(`[Deploy] Appointment reminders done, running total: ${results.updated}`);
-
-        // Note: Colors and Media are already processed above (lines 677-789)
-        // No duplicate processing needed here
+        // Note: Emails, SMS, and appointment reminders are now pushed via /api/ghl/push-campaigns (Phase 3)
 
         const duration = Math.round((Date.now() - startTime) / 1000);
         log(`[Deploy] ========== DEPLOY COMPLETE ==========`);

@@ -95,8 +95,9 @@ export async function GET(req) {
 
         // Define phases by section ID (source of truth)
         const PHASE_1_SECTION_IDS = ['idealClient', 'message', 'story', 'offer'];
-        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'emails', 'sms', 'appointmentReminders', 'media', 'funnelCopy', 'colors'];
-        const PHASE_3_SECTION_IDS = ['setterScript', 'salesScripts'];
+        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'funnelCopy', 'media', 'colors'];
+        const PHASE_3_SECTION_IDS = ['emails', 'sms', 'appointmentReminders']; // campaigns
+        const PHASE_4_SECTION_IDS = ['setterScript', 'salesScripts']; // scripts
 
         // Filter by section ID, not stored phase value (which may be incorrect)
         const businessCoreApprovals = [...new Set(
@@ -111,34 +112,41 @@ export async function GET(req) {
                 .map(s => s.section_id)
         )];
 
-        const scriptsApprovals = [...new Set(
+        const campaignsApprovals = [...new Set(
             approvedSections
                 .filter(s => PHASE_3_SECTION_IDS.includes(s.section_id))
+                .map(s => s.section_id)
+        )];
+
+        const scriptsApprovals = [...new Set(
+            approvedSections
+                .filter(s => PHASE_4_SECTION_IDS.includes(s.section_id))
                 .map(s => s.section_id)
         )];
 
         // Calculate phase completion
         const phase1Complete = businessCoreApprovals.length >= PHASE_1_SECTION_IDS.length;
         const phase2Complete = funnelAssetsApprovals.length >= PHASE_2_SECTION_IDS.length;
-        const phase3Complete = scriptsApprovals.length >= PHASE_3_SECTION_IDS.length;
+        const phase3Complete = campaignsApprovals.length >= PHASE_3_SECTION_IDS.length;
+        const phase4Complete = scriptsApprovals.length >= PHASE_4_SECTION_IDS.length;
 
         console.log('[Approvals API] Returning:', {
             phase1Count: businessCoreApprovals.length,
             phase2Count: funnelAssetsApprovals.length,
-            phase3Count: scriptsApprovals.length,
+            phase3Count: campaignsApprovals.length,
+            phase4Count: scriptsApprovals.length,
             rawCount: approvedSections.length,
-            phase1: businessCoreApprovals,
-            phase2: funnelAssetsApprovals,
-            phase3: scriptsApprovals
         });
 
         return NextResponse.json({
             businessCoreApprovals,
             funnelAssetsApprovals,
+            campaignsApprovals,
             scriptsApprovals,
             phase1Complete,
             phase2Complete,
             phase3Complete,
+            phase4Complete,
             funnelApproved: funnel?.phase2_unlocked || false
         });
 
@@ -170,7 +178,7 @@ export async function POST(req) {
         console.log(`[Approvals API] Saving approvals for target user ${targetUserId} (Auth: ${userId})`);
 
         const body = await req.json();
-        const { sessionId: funnelId, businessCoreApprovals, funnelAssetsApprovals, scriptsApprovals, funnelApproved, resetSections } = body;
+        const { sessionId: funnelId, businessCoreApprovals, funnelAssetsApprovals, campaignsApprovals, scriptsApprovals, funnelApproved, resetSections } = body;
 
         if (!funnelId) {
             return NextResponse.json({ error: 'Missing funnel ID' }, { status: 400 });
@@ -213,7 +221,7 @@ export async function POST(req) {
 
         // Update status in vault_content for specified sections
         // SECURITY FIX: Added is_current_version filter to only update current versions
-        const allApproved = [...(businessCoreApprovals || []), ...(funnelAssetsApprovals || []), ...(scriptsApprovals || [])];
+        const allApproved = [...(businessCoreApprovals || []), ...(funnelAssetsApprovals || []), ...(campaignsApprovals || []), ...(scriptsApprovals || [])];
 
         // Ensure approved sections have a vault_content row (needed for manual sections like media)
         if (allApproved.length > 0) {
@@ -252,9 +260,10 @@ export async function POST(req) {
 
         // Define all possible sections
         const PHASE_1_SECTION_IDS = ['idealClient', 'message', 'story', 'offer'];
-        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'emails', 'sms', 'appointmentReminders', 'media', 'funnelCopy', 'colors'];
-        const PHASE_3_SECTION_IDS = ['setterScript', 'salesScripts'];
-        const allSections = [...PHASE_1_SECTION_IDS, ...PHASE_2_SECTION_IDS, ...PHASE_3_SECTION_IDS];
+        const PHASE_2_SECTION_IDS = ['leadMagnet', 'vsl', 'bio', 'facebookAds', 'funnelCopy', 'media', 'colors'];
+        const PHASE_3_SECTION_IDS = ['emails', 'sms', 'appointmentReminders']; // campaigns
+        const PHASE_4_SECTION_IDS = ['setterScript', 'salesScripts']; // scripts
+        const allSections = [...PHASE_1_SECTION_IDS, ...PHASE_2_SECTION_IDS, ...PHASE_3_SECTION_IDS, ...PHASE_4_SECTION_IDS];
 
         // RACE CONDITION FIX: Fetch sections currently in 'generating' status.
         // These are being actively regenerated by regenerate-dependent and MUST NOT

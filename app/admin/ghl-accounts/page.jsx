@@ -133,6 +133,7 @@ export default function AdminGHLAccounts() {
     const [linkLocationId, setLinkLocationId] = useState('');
     const [isLinkingLocation, setIsLinkingLocation] = useState(false);
 
+
     const fetchAccounts = useCallback(async () => {
         if (!session) return;
         setLoading(true);
@@ -613,6 +614,8 @@ export default function AdminGHLAccounts() {
 
                     return (
                         <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+
+                            {/* Retry Subaccount button */}
                             {canRetry && (
                                 <ActionBtn onClick={() => handleRetry(row.original.id)} disabled={isRetrying === row.original.id} title="Create Sub-Account" color={T.cyan}>
                                     <RotateCcw style={{ width: 14, height: 14, animation: isRetrying === row.original.id ? "spin 1s linear infinite" : "none" }} />
@@ -1171,6 +1174,8 @@ export default function AdminGHLAccounts() {
                     </div>
                 </div>
             )}
+
+
         </AdminLayout>
     );
 }

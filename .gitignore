@@ -66,6 +66,6 @@ screenshots/
 .auth-state.json
 
 .mcp.json
-.mcp.json
-
 tmp
+.swarm
+.shannon

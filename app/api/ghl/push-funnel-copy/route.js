@@ -13,6 +13,7 @@ import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { addStoredSlotIdsToExistingMap, resolveSlotForFunnel, transformKey } from '@/lib/ghl/slotHelper';
 
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,9 @@ export async function POST(req) {
         if (!funnelId) {
             return Response.json({ error: 'funnelId is required' }, { status: 400 });
         }
+
+        // Resolve slot assignment for this funnel
+        const { slotIndex, slotPrefix, basePrefix } = await resolveSlotForFunnel(funnelId, supabaseAdmin);
 
         console.log(`[PushFunnelCopy] Starting push for target user ${targetUserId} (Auth: ${userId})`);
 
@@ -67,6 +71,13 @@ export async function POST(req) {
         // Build map for quick lookup using shared utility (returns {id, name} objects)
         // This uses the enhanced 11-level key matching from ghlKeyMatcher.js
         const existingMap = buildExistingMap(existingValues);
+        const storedSlotIdCount = await addStoredSlotIdsToExistingMap(existingMap, {
+            userId: targetUserId,
+            locationId,
+            slotIndex,
+            supabaseClient: supabaseAdmin,
+        });
+        console.log('[PushFunnelCopy] Stored slot IDs loaded:', storedSlotIdCount);
 
         console.log(`[PushFunnelCopy] Found ${existingValues.length} existing custom values`);
 
@@ -147,7 +158,7 @@ export async function POST(req) {
 
         // Push company_name
         if (companyName) {
-            const companyNameKey = UNIVERSAL_MAP.company_name; // 'company_name'
+            const companyNameKey = transformKey(UNIVERSAL_MAP.company_name, slotPrefix, basePrefix); // 'company_name'
             const match = findExistingId(existingMap, companyNameKey);
             customValues.push({
                 key: companyNameKey,
@@ -161,7 +172,7 @@ export async function POST(req) {
 
         // Push company_email
         if (companyEmail) {
-            const companyEmailKey = UNIVERSAL_MAP.company_email; // '03_company_email'
+            const companyEmailKey = transformKey(UNIVERSAL_MAP.company_email, slotPrefix, basePrefix); // '03_company_email'
             const match = findExistingId(existingMap, companyEmailKey);
             customValues.push({
                 key: companyEmailKey,
@@ -191,7 +202,8 @@ export async function POST(req) {
             }
 
             let pageMapped = 0;
-            for (const [field, ghlKey] of Object.entries(fieldMap)) {
+            for (const [field, rawGhlKey] of Object.entries(fieldMap)) {
+                const ghlKey = transformKey(rawGhlKey, slotPrefix, basePrefix);
                 let rawValue = pageContent[field];
 
                 // Force Title Case for Hero Headline

@@ -13,6 +13,7 @@ import { polishTextContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { addStoredSlotIdsToExistingMap, resolveSlotForFunnel, transformKey } from '@/lib/ghl/slotHelper';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // 5 minutes for email processing with batching
@@ -91,6 +92,17 @@ export async function POST(req) {
             return Response.json({ error: 'funnelId is required' }, { status: 400 });
         }
 
+        // Resolve slot assignment for this funnel
+        const { slotIndex, slotPrefix, basePrefix } = await resolveSlotForFunnel(funnelId, supabaseAdmin);
+
+        // Fetch user's hardcoded booking URL (replaces {{custom_values.schedule_link}})
+        const { data: profileData } = await supabaseAdmin
+            .from('user_profiles')
+            .select('schedule_link')
+            .eq('id', targetUserId)
+            .maybeSingle();
+        const scheduleLink = profileData?.schedule_link || null;
+
         console.log(`[PushEmails] Starting push for target user ${targetUserId} (Auth: ${userId})`);
 
         // Get target user's location ID (owner if team member)
@@ -119,6 +131,13 @@ export async function POST(req) {
 
         // Build enhanced lookup map with 11-level matching
         const existingMap = buildExistingMap(existingValues);
+        const storedSlotIdCount = await addStoredSlotIdsToExistingMap(existingMap, {
+            userId: targetUserId,
+            locationId,
+            slotIndex,
+            supabaseClient: supabaseAdmin,
+        });
+        console.log('[PushEmails] Stored slot IDs loaded:', storedSlotIdCount);
 
         // Get email content from vault_content_fields (use targetUserId for owner's vault)
         const { data: fields, error: fieldsError } = await supabaseAdmin
@@ -155,35 +174,41 @@ export async function POST(req) {
         // Based on extracted_values.txt GHL naming convention
         const VAULT_TO_GHL_MAP = {
             // Days 1-7 (single emails)
-            email1: { subject: 'optin_email_subject_1', preheader: 'optin_email_preheader_1', body: 'optin_email_body_1' },
-            email2: { subject: 'optin_email_subject_2', preheader: 'optin_email_preheader_2', body: 'optin_email_body_2' },
-            email3: { subject: 'optin_email_subject_3', preheader: 'optin_email_preheader_3', body: 'optin_email_body_3' },
-            email4: { subject: 'optin_email_subject_4', preheader: 'optin_email_preheader_4', body: 'optin_email_body_4' },
-            email5: { subject: 'optin_email_subject_5', preheader: 'optin_email_preheader_5', body: 'optin_email_body_5' },
-            email6: { subject: 'optin_email_subject_6', preheader: 'optin_email_preheader_6', body: 'optin_email_body_6' },
-            email7: { subject: 'optin_email_subject_7', preheader: 'optin_email_preheader_7', body: 'optin_email_body_7' },
+            email1: { subject: transformKey('optin_email_subject_1', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_1', slotPrefix, basePrefix), body: transformKey('optin_email_body_1', slotPrefix, basePrefix) },
+            email2: { subject: transformKey('optin_email_subject_2', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_2', slotPrefix, basePrefix), body: transformKey('optin_email_body_2', slotPrefix, basePrefix) },
+            email3: { subject: transformKey('optin_email_subject_3', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_3', slotPrefix, basePrefix), body: transformKey('optin_email_body_3', slotPrefix, basePrefix) },
+            email4: { subject: transformKey('optin_email_subject_4', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_4', slotPrefix, basePrefix), body: transformKey('optin_email_body_4', slotPrefix, basePrefix) },
+            email5: { subject: transformKey('optin_email_subject_5', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_5', slotPrefix, basePrefix), body: transformKey('optin_email_body_5', slotPrefix, basePrefix) },
+            email6: { subject: transformKey('optin_email_subject_6', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_6', slotPrefix, basePrefix), body: transformKey('optin_email_body_6', slotPrefix, basePrefix) },
+            email7: { subject: transformKey('optin_email_subject_7', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_7', slotPrefix, basePrefix), body: transformKey('optin_email_body_7', slotPrefix, basePrefix) },
+            // Legacy Day 8 single-email keys still exist in GHL; use the morning close as the canonical fallback.
+            email8: { subject: transformKey('optin_email_subject_8', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_8', slotPrefix, basePrefix), body: transformKey('optin_email_body_8', slotPrefix, basePrefix) },
             // Day 8 (3 emails: morning, afternoon, evening)
-            email8a: { subject: 'optin_email_subject_8_morning', preheader: 'optin_email_preheader_8_morning', body: 'optin_email_body_8_morning' },
-            email8b: { subject: 'optin_email_subject_8_afternoon', preheader: 'optin_email_preheader_8_afternoon', body: 'optin_email_body_8_afternoon' },
-            email8c: { subject: 'optin_email_subject_8_evening', preheader: 'optin_email_preheader_8_evening', body: 'optin_email_body_8_evening' },
+            email8a: { subject: transformKey('optin_email_subject_8_morning', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_8_morning', slotPrefix, basePrefix), body: transformKey('optin_email_body_8_morning', slotPrefix, basePrefix) },
+            email8b: { subject: transformKey('optin_email_subject_8_afternoon', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_8_afternoon', slotPrefix, basePrefix), body: transformKey('optin_email_body_8_afternoon', slotPrefix, basePrefix) },
+            email8c: { subject: transformKey('optin_email_subject_8_evening', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_8_evening', slotPrefix, basePrefix), body: transformKey('optin_email_body_8_evening', slotPrefix, basePrefix) },
             // Days 9-14 (single emails)
-            email9: { subject: 'optin_email_subject_9', preheader: 'optin_email_preheader_9', body: 'optin_email_body_9' },
-            email10: { subject: 'optin_email_subject_10', preheader: 'optin_email_preheader_10', body: 'optin_email_body_10' },
-            email11: { subject: 'optin_email_subject_11', preheader: 'optin_email_preheader_11', body: 'optin_email_body_11' },
-            email12: { subject: 'optin_email_subject_12', preheader: 'optin_email_preheader_12', body: 'optin_email_body_12' },
-            email13: { subject: 'optin_email_subject_13', preheader: 'optin_email_preheader_13', body: 'optin_email_body_13' },
-            email14: { subject: 'optin_email_subject_14', preheader: 'optin_email_preheader_14', body: 'optin_email_body_14' },
+            email9: { subject: transformKey('optin_email_subject_9', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_9', slotPrefix, basePrefix), body: transformKey('optin_email_body_9', slotPrefix, basePrefix) },
+            email10: { subject: transformKey('optin_email_subject_10', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_10', slotPrefix, basePrefix), body: transformKey('optin_email_body_10', slotPrefix, basePrefix) },
+            email11: { subject: transformKey('optin_email_subject_11', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_11', slotPrefix, basePrefix), body: transformKey('optin_email_body_11', slotPrefix, basePrefix) },
+            email12: { subject: transformKey('optin_email_subject_12', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_12', slotPrefix, basePrefix), body: transformKey('optin_email_body_12', slotPrefix, basePrefix) },
+            email13: { subject: transformKey('optin_email_subject_13', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_13', slotPrefix, basePrefix), body: transformKey('optin_email_body_13', slotPrefix, basePrefix) },
+            email14: { subject: transformKey('optin_email_subject_14', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_14', slotPrefix, basePrefix), body: transformKey('optin_email_body_14', slotPrefix, basePrefix) },
             // Day 15 (3 emails: morning, afternoon, evening)
-            email15a: { subject: 'optin_email_subject_15_morning', preheader: 'optin_email_preheader_15_morning', body: 'optin_email_body_15_morning' },
-            email15b: { subject: 'optin_email_subject_15_afternoon', preheader: 'optin_email_preheader_15_afternoon', body: 'optin_email_body_15_afternoon' },
-            email15c: { subject: 'optin_email_subject_15_evening', preheader: 'optin_email_preheader_15_evening', body: 'optin_email_body_15_evening' },
+            email15a: { subject: transformKey('optin_email_subject_15_morning', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_15_morning', slotPrefix, basePrefix), body: transformKey('optin_email_body_15_morning', slotPrefix, basePrefix) },
+            email15b: { subject: transformKey('optin_email_subject_15_afternoon', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_15_afternoon', slotPrefix, basePrefix), body: transformKey('optin_email_body_15_afternoon', slotPrefix, basePrefix) },
+            email15c: { subject: transformKey('optin_email_subject_15_evening', slotPrefix, basePrefix), preheader: transformKey('optin_email_preheader_15_evening', slotPrefix, basePrefix), body: transformKey('optin_email_body_15_evening', slotPrefix, basePrefix) },
         };
 
         // Build items to push WITHOUT polishing first (for batch processing)
         const itemsToPush = [];
+        const deployEmailSequence = {
+            ...emailSequence,
+            email8: emailSequence.email8 || emailSequence.day8 || emailSequence.email8a,
+        };
 
         for (const [vaultKey, ghlKeys] of Object.entries(VAULT_TO_GHL_MAP)) {
-            const emailContent = emailSequence[vaultKey];
+            const emailContent = deployEmailSequence[vaultKey];
             if (!emailContent) {
                 console.log(`[PushEmails] No content for ${vaultKey}`);
                 continue;
@@ -259,7 +284,7 @@ export async function POST(req) {
                         }
 
                         // Polish content (AI call)
-                        const polished = await polishTextContent(item.raw, item.polishType);
+                        const polished = await polishTextContent(item.raw, item.polishType, scheduleLink);
 
                         // Skip if polished value matches what's already in GHL
                         if (item.match?.value !== undefined &&

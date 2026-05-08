@@ -5,6 +5,7 @@ import { mapToVSLFunnel, validateVSLMapping } from '@/lib/ghl/vslFunnelMapper';
 import { generateFunnelImages } from '@/lib/ghl/funnelImageGenerator';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
+import { resolveSlotForFunnel, transformKey } from '@/lib/ghl/slotHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -196,8 +197,13 @@ export async function POST(req) {
         }
 
         // Step 3: Map content to custom values (including videos)
-        const customValues = mapToVSLFunnel(session, images, videoUrls);
-        console.log('[PushVSL] Mapped', Object.keys(customValues).length, 'custom values');
+        const rawCustomValues = mapToVSLFunnel(session, images, videoUrls);
+        const { slotPrefix, basePrefix } = await resolveSlotForFunnel(funnelId, supabaseAdmin);
+        // Re-key all entries to the correct slot prefix
+        const customValues = Object.fromEntries(
+            Object.entries(rawCustomValues).map(([k, v]) => [transformKey(k, slotPrefix, basePrefix), v])
+        );
+        console.log('[PushVSL] Mapped', Object.keys(customValues).length, 'custom values (slot prefix:', slotPrefix, ')');
 
         // Step 4: Validate mapping
         const validation = validateVSLMapping(customValues);
