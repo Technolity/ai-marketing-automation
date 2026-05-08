@@ -615,6 +615,8 @@ export default function VaultPage() {
     const [ghlAccessToken, setGhlAccessToken] = useState('');
     const [isDeploying, setIsDeploying] = useState(false);
     const [deploymentComplete, setDeploymentComplete] = useState(false);
+    const [campaignsPushed, setCampaignsPushed] = useState(false);
+    const [isPushingCampaigns, setIsPushingCampaigns] = useState(false);
     const [ghlConnected, setGhlConnected] = useState(false);
     const [checkingGhlConnection, setCheckingGhlConnection] = useState(false);
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -936,6 +938,11 @@ export default function VaultPage() {
                 setApprovedPhase2(phase2Deduped);
                 setApprovedPhase3(phase3Deduped);
                 setApprovedPhase4(phase4Deduped);
+
+                // Restore campaigns-pushed state for this funnel
+                if (localStorage.getItem(`vault_campaigns_pushed_${activeSessionId}`) === 'true') {
+                    setCampaignsPushed(true);
+                }
 
                 // Keep local storage in sync
                 const approvals = {
@@ -1768,6 +1775,7 @@ export default function VaultPage() {
     const handlePushCampaigns = async () => {
         const funnelId = dataSource?.id || searchParams.get('funnel_id');
         if (!funnelId) { toast.error('No funnel ID found'); return; }
+        setIsPushingCampaigns(true);
         const toastId = toast.loading('Pushing campaigns to Builder...');
         try {
             const res = await fetchWithAuth('/api/ghl/push-campaigns', {
@@ -1778,12 +1786,16 @@ export default function VaultPage() {
             const data = await res.json();
             if (res.ok && data.success) {
                 toast.success(`Campaigns pushed! ${data.summary?.updated || 0} values updated.`, { id: toastId });
+                setCampaignsPushed(true);
+                localStorage.setItem(`vault_campaigns_pushed_${funnelId}`, 'true');
             } else {
                 toast.error(data.error || 'Failed to push campaigns', { id: toastId });
             }
         } catch (err) {
             console.error('[Vault] Push campaigns failed:', err);
             toast.error('Failed to push campaigns to Builder.', { id: toastId });
+        } finally {
+            setIsPushingCampaigns(false);
         }
     };
 
@@ -4020,7 +4032,7 @@ export default function VaultPage() {
                                         funnelId={dataSource?.id || searchParams.get('funnel_id')}
                                         initialUrl={scheduleLink}
                                         onSaved={(url) => setScheduleLink(url)}
-                                        saveOnly={!(deploymentComplete || dataSource?.deployed_at)}
+                                        saveOnly={true}
                                     />
                                 </div>
 
@@ -4038,36 +4050,62 @@ export default function VaultPage() {
                                     })}
                                 </div>
 
-                                {/* Push to Campaign Builder */}
-                                {(deploymentComplete || dataSource?.deployed_at) && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-cyan/20 text-center shadow-2xl shadow-cyan/5"
+                                {/* Push Campaigns to Builder — always visible in Phase 3 */}
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="mt-8 p-8 rounded-3xl bg-gradient-to-br from-[#1c1c1e] to-[#131314] border border-cyan/20 text-center shadow-2xl shadow-cyan/5"
+                                >
+                                    <div className="w-12 h-12 bg-cyan/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan/20">
+                                        <Rocket className="w-5 h-5 text-cyan" />
+                                    </div>
+                                    <h3 className="text-lg font-bold mb-1.5">
+                                        {campaignsPushed ? 'Campaigns Pushed' : 'Ready to Push Campaigns'}
+                                    </h3>
+                                    <p className="text-[#B2C0CD] text-sm mb-5 max-w-xs mx-auto">
+                                        {campaignsPushed
+                                            ? 'Your emails, SMS, and reminders are live in the Campaign Builder.'
+                                            : 'Approve your content above, then push your emails, SMS, and reminders to the Campaign Builder.'}
+                                    </p>
+                                    <button
+                                        onClick={handlePushCampaigns}
+                                        disabled={isPushingCampaigns || campaignsPushed}
+                                        className={`w-full max-w-xs mx-auto px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all mb-6 ${
+                                            campaignsPushed
+                                                ? 'bg-[#1E2A34] text-[#4a5a6a] cursor-not-allowed'
+                                                : isPushingCampaigns
+                                                    ? 'bg-[#16C7E7]/60 text-[#05080B] cursor-not-allowed'
+                                                    : 'bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] cursor-pointer'
+                                        }`}
                                     >
-                                        <div className="w-12 h-12 bg-cyan/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-cyan/20">
-                                            <Mail className="w-5 h-5 text-cyan" />
-                                        </div>
-                                        <h3 className="text-lg font-bold mb-1.5">Push Campaigns to Builder</h3>
-                                        <p className="text-[#B2C0CD] text-sm mb-5 max-w-xs mx-auto">
-                                            Send your approved email, SMS, and reminder sequences to your Campaign Builder.
-                                        </p>
-                                        <button
-                                            onClick={handlePushCampaigns}
-                                            className="w-full max-w-xs mx-auto px-6 py-3 bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer mb-4"
-                                        >
-                                            <Mail className="w-4 h-4" />
-                                            Push to Campaign Builder
-                                        </button>
-                                        <button
-                                            onClick={() => setActiveTab('scripts')}
-                                            className="text-sm text-[#4a5a6a] hover:text-[#B2C0CD] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                                        >
-                                            Continue to Phase 4
-                                            <ArrowRight className="w-3.5 h-3.5" />
-                                        </button>
-                                    </motion.div>
-                                )}
+                                        {isPushingCampaigns ? (
+                                            <>
+                                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                                </svg>
+                                                Pushing...
+                                            </>
+                                        ) : campaignsPushed ? (
+                                            <>
+                                                <CheckCircle className="w-4 h-4" />
+                                                Pushed to Builder
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Rocket className="w-4 h-4" />
+                                                Push to Campaign Builder
+                                            </>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveTab('scripts')}
+                                        className="text-sm text-[#4a5a6a] hover:text-[#B2C0CD] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                        Continue to Phase 4
+                                        <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+                                </motion.div>
                             </motion.div>
                         ) : (
                             <motion.div

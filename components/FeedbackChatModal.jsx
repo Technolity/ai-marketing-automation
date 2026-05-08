@@ -971,7 +971,9 @@ export default function FeedbackChatModal({
             const raw = currentContent?.funnelCopy ?? currentContent;
             setOriginalContent(raw?.[funnelSubPage] ?? null);
         } else {
-            setOriginalContent(subSec === 'all' ? currentContent : (currentContent?.[subSec] ?? currentContent));
+            // Always store the full section so FilteredDiffPanel can do object-level diff.
+            // Single-field responses arrive as bare primitives from the API; wrapping happens at render time.
+            setOriginalContent(currentContent);
         }
 
         const fieldList = fieldLabels.length > 0
@@ -1314,6 +1316,12 @@ export default function FeedbackChatModal({
                                     <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${chatStep === 2 ? 'bg-cyan/20 text-cyan' : chatStep > 2 ? 'bg-[#1E2A34] text-gray-500' : 'bg-[#1E2A34] text-gray-700'}`}>2 Feedback</span>
                                     <ChevronRight className="w-2.5 h-2.5 text-gray-700" />
                                     <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${chatStep === 3 ? 'bg-cyan/20 text-cyan' : chatStep > 3 ? 'bg-[#1E2A34] text-gray-500' : 'bg-[#1E2A34] text-gray-700'}`}>3 Review</span>
+                                    {chatStep === 4 && (
+                                        <>
+                                            <ChevronRight className="w-2.5 h-2.5 text-gray-700" />
+                                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">4 Dependencies</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1470,7 +1478,14 @@ export default function FeedbackChatModal({
                                                         <div className="max-h-[400px] overflow-y-auto pr-1">
                                                             <FilteredDiffPanel
                                                                 before={originalContent || currentContent}
-                                                                after={content}
+                                                                after={
+                                                                    // API extracts bare primitive values for single-field sub-sections.
+                                                                    // Wrap them so FilteredDiffPanel can do object-level comparison.
+                                                                    selectedSubSection && selectedSubSection !== 'all' && !isFunnelCopy &&
+                                                                    content !== null && content !== undefined && typeof content !== 'object'
+                                                                        ? { [selectedSubSection]: content }
+                                                                        : content
+                                                                }
                                                                 highlightMap={highlightMap}
                                                                 sectionId={sectionId}
                                                                 selectedFields={selectedFields}

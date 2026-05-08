@@ -65,7 +65,7 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { schedule_link: scheduleLink, funnel_id: funnelId } = body;
+    const { schedule_link: scheduleLink, funnel_id: funnelId, save_only: saveOnly } = body;
 
     if (!scheduleLink || typeof scheduleLink !== 'string' || !scheduleLink.startsWith('http')) {
         return NextResponse.json({ error: 'Valid schedule_link URL is required' }, { status: 400 });
@@ -165,7 +165,11 @@ export async function POST(req) {
         }
     }
 
-    // ── 4. Push sections to GHL one-by-one with rate-limit delay ─────────────
+    // ── 4. Push sections to GHL — skip when saveOnly=true (push-campaigns handles it) ──
+    if (saveOnly) {
+        return NextResponse.json({ success: true, updated_fields: updatedFieldCount, ghl_pushed: [], save_only: true });
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const pushed = [];
     const pushErrors = [];

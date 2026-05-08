@@ -39,7 +39,7 @@ export default function ScheduleLinkCard({ funnelId, initialUrl = '', onSaved, s
             const res = await fetchWithAuth('/api/ghl/update-schedule-link', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ schedule_link: url, funnel_id: funnelId }),
+                body: JSON.stringify({ schedule_link: url, funnel_id: funnelId, save_only: saveOnly }),
             });
 
             const data = await res.json();
