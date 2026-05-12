@@ -641,6 +641,7 @@ export default function VaultPage() {
     const [slotDropdownOpen, setSlotDropdownOpen] = useState(false);
     const slotDropdownRef = useRef(null);
     const [funnelSlotAssignment, setFunnelSlotAssignment] = useState(null); // { slot_index, assigned_at } | null
+    const [pendingDeployAfterSlot, setPendingDeployAfterSlot] = useState(false);
     const [slotTakenSlots, setSlotTakenSlots] = useState([]);
     const [scheduleLink, setScheduleLink] = useState('');
     const [slotDisplayOptions, setSlotDisplayOptions] = useState(
@@ -1850,6 +1851,38 @@ export default function VaultPage() {
     const handlePickSlot = (slotIndex) => {
         setSlotDropdownOpen(false);
         setSlotModalInitial(slotIndex);
+        setShowSlotModal(true);
+    };
+
+    // Open slot modal then deploy — used by "Build Your Funnel" in the complete vault view
+    const handleOpenSlotThenDeploy = async () => {
+        const funnelId = dataSource?.id || searchParams.get('funnel_id');
+        try {
+            const url = funnelId ? `/api/ghl/available-slots?funnel_id=${funnelId}` : '/api/ghl/available-slots';
+            const res = await fetchWithAuth(url);
+            if (res.ok) {
+                const data = await res.json();
+                setSlotModalPlan(data.plan_tier || 'starter');
+                setSlotModalAvailable(data.available_for_assignment || data.allowed_slots || [3]);
+                setSlotTakenSlots(data.taken_slots || []);
+                setSlotDisplayOptions(buildSlotDisplayOptions({
+                    planTier: data.plan_tier || 'starter',
+                    allowedSlots: data.allowed_slots,
+                    assignableSlots: data.available_for_assignment,
+                    takenSlots: data.taken_slots || [],
+                    provisionedSlots: data.provisioned_slots,
+                    currentAssignment: data.current_assignment,
+                    isAdmin: data.is_admin,
+                }));
+                if (data.current_assignment != null) {
+                    setFunnelSlotAssignment(prev => prev ?? { slot_index: data.current_assignment, assigned_at: null });
+                }
+            }
+        } catch (err) {
+            console.error('[SlotModal] fetch failed:', err);
+        }
+        setPendingDeployAfterSlot(true);
+        setSlotModalInitial(null);
         setShowSlotModal(true);
     };
 
@@ -3110,8 +3143,11 @@ export default function VaultPage() {
                                     if (deploymentComplete || dataSource?.deployed_at) {
                                         console.log('[Vault] Funnel already deployed, showing info');
                                         toast.info('Your funnel is already deployed! Use "Push to Builder" buttons to update individual sections.');
+                                    } else if (!funnelSlotAssignment) {
+                                        console.log('[Vault] Build Your Funnel clicked - no slot assigned, opening slot selector first');
+                                        handleOpenSlotThenDeploy();
                                     } else {
-                                        console.log('[Vault] Build Your Funnel clicked - opening deploy modal');
+                                        console.log('[Vault] Build Your Funnel clicked - slot assigned, opening deploy modal');
                                         handleOpenDeployModal();
                                     }
                                 }}
@@ -4257,7 +4293,7 @@ export default function VaultPage() {
                 {/* Slot Selector Modal — push vault content to a specific slot (04–12) */}
                 <SlotSelectorModal
                     isOpen={showSlotModal}
-                    onClose={() => { setShowSlotModal(false); setSlotModalInitial(null); }}
+                    onClose={() => { setShowSlotModal(false); setSlotModalInitial(null); setPendingDeployAfterSlot(false); }}
                     funnelId={dataSource?.id || searchParams.get('funnel_id')}
                     userPlan={slotModalPlan}
                     availableSlots={slotModalAvailable}
@@ -4269,12 +4305,19 @@ export default function VaultPage() {
                         setFunnelSlotAssignment({ slot_index: slotIndex, assigned_at: new Date().toISOString() });
                         setShowSlotModal(false);
                         setSlotModalInitial(null);
-                        toast.success(`Slot ${slotIndex} assigned to this funnel`);
+                        if (pendingDeployAfterSlot) {
+                            setPendingDeployAfterSlot(false);
+                            toast.success(`Slot ${slotIndex} assigned — opening deployment`);
+                            handleOpenDeployModal();
+                        } else {
+                            toast.success(`Slot ${slotIndex} assigned to this funnel`);
+                        }
                     }}
                     onSuccess={(slotIndex) => {
                         setFunnelSlotAssignment({ slot_index: slotIndex, assigned_at: new Date().toISOString() });
                         setShowSlotModal(false);
                         setSlotModalInitial(null);
+                        setPendingDeployAfterSlot(false);
                         toast.success(`Funnel deployed to slot ${slotIndex}`);
                     }}
                 />
