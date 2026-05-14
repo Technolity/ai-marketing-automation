@@ -278,14 +278,41 @@ function getFieldLabel(sectionId, fieldId) {
 }
 
 // ─── Helper: extract current content snippet for a field ─────────────────────
+// Normalize a key for fuzzy matching: lowercase + strip digits
+// Handles mismatches like top3Challenges (field ID) ↔ topChallenges (JSON key)
+function normalizeKey(s) { return s.toLowerCase().replace(/\d+/g, ''); }
+
+// Fuzzy lookup: exact match first, then normalized key match
+function fuzzyGet(obj, fieldId) {
+    if (!obj || typeof obj !== 'object') return undefined;
+    if (obj[fieldId] !== undefined && obj[fieldId] !== null) return obj[fieldId];
+    const norm = normalizeKey(fieldId);
+    for (const [k, v] of Object.entries(obj)) {
+        if (!k.startsWith('_') && normalizeKey(k) === norm && v !== undefined && v !== null) return v;
+    }
+    return undefined;
+}
+
 function extractContentValue(currentContent, fieldId, funnelSubPage) {
     if (!currentContent) return null;
     try {
         if (funnelSubPage) {
             const pageData = currentContent?.[funnelSubPage] ?? currentContent?.funnelCopy?.[funnelSubPage];
-            return pageData?.[fieldId] ?? null;
+            return fuzzyGet(pageData, fieldId) ?? null;
         }
-        return currentContent[fieldId] ?? null;
+        // Direct / fuzzy lookup at top level
+        const direct = fuzzyGet(currentContent, fieldId);
+        if (direct !== undefined) return direct;
+        // Auto-unwrap one level of section wrappers (e.g. idealClientSnapshot, signatureOffer)
+        for (const key of Object.keys(currentContent)) {
+            if (key.startsWith('_')) continue;
+            const nested = currentContent[key];
+            if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+                const found = fuzzyGet(nested, fieldId);
+                if (found !== undefined) return found;
+            }
+        }
+        return null;
     } catch { return null; }
 }
 
@@ -495,32 +522,56 @@ function FilteredDiffPanel({ before, after, highlightMap, sectionId, selectedFie
     const beforeParsed = deepParseJSON(before);
     const afterParsed = deepParseJSON(after);
 
-    // Normalise funnelCopy wrapper
-    const normBefore = (sectionId === 'funnelCopy' && beforeParsed?.funnelCopy) ? beforeParsed.funnelCopy : beforeParsed;
-    const normAfter = (sectionId === 'funnelCopy' && afterParsed?.funnelCopy) ? afterParsed.funnelCopy : afterParsed;
+    // Helper: auto-unwrap one level when content has a single wrapper key (e.g. idealClientSnapshot)
+    // Skips unwrap if a selected field is already present at the top level.
+    const autoUnwrap = (raw) => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+        const firstSelected = selectedFields && selectedFields.size > 0 ? [...selectedFields][0] : null;
+        if (firstSelected && raw[firstSelected] !== undefined) return raw; // already at right level
+        const keys = Object.keys(raw).filter(k => !k.startsWith('_'));
+        if (keys.length === 1) {
+            const inner = raw[keys[0]];
+            if (inner && typeof inner === 'object' && !Array.isArray(inner) && Object.keys(inner).length > 1) {
+                return inner;
+            }
+        }
+        return raw;
+    };
+
+    // Normalise funnelCopy wrapper then auto-unwrap section wrappers
+    const normBefore = autoUnwrap((sectionId === 'funnelCopy' && beforeParsed?.funnelCopy) ? beforeParsed.funnelCopy : beforeParsed);
+    const normAfter  = autoUnwrap((sectionId === 'funnelCopy' && afterParsed?.funnelCopy)  ? afterParsed.funnelCopy  : afterParsed);
 
     // Determine which fields to show
     const fieldsToShow = useMemo(() => {
         if (!normAfter || typeof normAfter !== 'object') return [];
 
+        // When specific fields were targeted, restrict diff to those fields only
+        const targeted = selectedFields && selectedFields.size > 0 ? [...selectedFields] : null;
+
         if (highlightMap?.has('__all__')) {
-            // Show all top-level fields that have content
-            return Object.keys(normAfter).filter(k => !k.startsWith('_'));
+            return targeted ?? Object.keys(normAfter).filter(k => !k.startsWith('_'));
         }
+
+        // fuzzyInObj: fieldKey (e.g. top3Challenges) matches if exact or normalized key exists in obj
+        const fuzzyInObj = (obj, fieldKey) => {
+            if (!obj) return false;
+            if (fieldKey in obj) return true;
+            const norm = normalizeKey(fieldKey);
+            return Object.keys(obj).some(k => !k.startsWith('_') && normalizeKey(k) === norm);
+        };
 
         if (highlightMap && highlightMap.size > 0) {
-            // Only show top-level keys that appear in highlightMap
             const topLevelChanged = new Set();
             for (const path of highlightMap) {
-                const top = path.split('.')[0];
-                topLevelChanged.add(top);
+                topLevelChanged.add(path.split('.')[0]);
             }
-            return [...topLevelChanged].filter(k => k in normAfter);
+            const changed = [...topLevelChanged].filter(k => fuzzyInObj(normAfter, k));
+            return targeted ? changed.filter(k => targeted.includes(k)) : changed;
         }
 
-        // Fall back to showing all
-        return Object.keys(normAfter).filter(k => !k.startsWith('_'));
-    }, [normAfter, highlightMap]);
+        return targeted ?? Object.keys(normAfter).filter(k => !k.startsWith('_'));
+    }, [normAfter, highlightMap, selectedFields]);
 
     if (!fieldsToShow.length) {
         return (
@@ -590,8 +641,8 @@ function FilteredDiffPanel({ before, after, highlightMap, sectionId, selectedFie
     return (
         <div className="space-y-4">
             {fieldsToShow.map(fieldKey => {
-                const beforeVal = normBefore?.[fieldKey];
-                const afterVal = normAfter?.[fieldKey];
+                const beforeVal = fuzzyGet(normBefore, fieldKey);
+                const afterVal  = fuzzyGet(normAfter,  fieldKey);
                 const isChanged = JSON.stringify(beforeVal) !== JSON.stringify(afterVal);
 
                 return (
@@ -814,6 +865,88 @@ function FieldSelectorPanel({
                                     </motion.div>
                                 )}
                             </AnimatePresence>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ─── FieldValueDisplay ─────────────────────────────────────────────────────────────────────────────────
+function FieldValueDisplay({ value }) {
+    if (value === null || value === undefined) return <span className="text-xs text-gray-600 italic">No content</span>;
+    const parsed = deepParseJSON(value);
+    if (typeof parsed === 'string') {
+        if (isHtmlContent(parsed)) {
+            return <div className="prose prose-invert prose-xs max-w-none text-xs leading-relaxed" dangerouslySetInnerHTML={{ __html: parsed }} />;
+        }
+        return <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{parsed}</p>;
+    }
+    if (Array.isArray(parsed)) {
+        return (
+            <ol className="space-y-1 list-decimal list-inside">
+                {parsed.map((item, i) => (
+                    <li key={i} className="text-xs text-gray-300 leading-relaxed">
+                        {typeof item === 'object' ? formatForDisplay(item) : String(item)}
+                    </li>
+                ))}
+            </ol>
+        );
+    }
+    if (typeof parsed === 'object') {
+        return (
+            <div className="space-y-1.5">
+                {Object.entries(parsed).filter(([k]) => !k.startsWith('_')).map(([k, v]) => (
+                    <div key={k} className="text-xs">
+                        <span className="text-gray-500 font-medium capitalize">
+                            {k.replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ').trim()}:
+                        </span>{' '}
+                        <span className="text-gray-300">
+                            {typeof v === 'string' ? v : typeof v === 'object' ? formatForDisplay(v) : String(v)}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return <span className="text-xs text-gray-300">{String(parsed)}</span>;
+}
+
+// ─── SelectedFieldsPreview ────────────────────────────────────────────────────────────────────────────
+function SelectedFieldsPreview({ sectionId, selectedFields, currentContent, funnelSubPage, isFunnelCopy }) {
+    if (!selectedFields || selectedFields.size === 0) return null;
+
+    const fieldDefs = isFunnelCopy
+        ? (funnelSubPage ? FUNNEL_SUBPAGE_FIELDS[funnelSubPage] || [] : [])
+        : (SECTION_OPTIONS[sectionId] || []);
+
+    const selected = fieldDefs.filter(f => selectedFields.has(f.id));
+    if (selected.length === 0) return null;
+
+    return (
+        <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold px-1">
+                <Layers className="w-3 h-3 text-cyan/60" />
+                <span>Current Content — {selected.length} field{selected.length !== 1 ? 's' : ''} selected</span>
+            </div>
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1 scrollbar-thin">
+                {selected.map(field => {
+                    const value = extractContentValue(
+                        currentContent,
+                        field.id,
+                        isFunnelCopy ? funnelSubPage : null
+                    );
+                    return (
+                        <div key={field.id} className="bg-[#080C10] border border-[#1E2A34] rounded-xl overflow-hidden">
+                            <div className="px-3 py-2 bg-[#0A1018] border-b border-[#1E2A34] flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-cyan flex-shrink-0" />
+                                <span className="text-[11px] font-semibold text-cyan">{field.label}</span>
+                                <span className="text-[10px] text-gray-600 ml-auto">{field.group}</span>
+                            </div>
+                            <div className="p-3 max-h-40 overflow-y-auto scrollbar-thin">
+                                <FieldValueDisplay value={value} />
+                            </div>
                         </div>
                     );
                 })}
@@ -1479,10 +1612,12 @@ export default function FeedbackChatModal({
                                                             <FilteredDiffPanel
                                                                 before={originalContent || currentContent}
                                                                 after={
-                                                                    // API extracts bare primitive values for single-field sub-sections.
-                                                                    // Wrap them so FilteredDiffPanel can do object-level comparison.
+                                                                    // API extracts bare values for single-field sub-sections (may be
+                                                                    // primitive OR object). Always wrap so FilteredDiffPanel can do
+                                                                    // object-level comparison -- remove typeof guard so object fields
+                                                                    // like bestIdealClient are wrapped correctly.
                                                                     selectedSubSection && selectedSubSection !== 'all' && !isFunnelCopy &&
-                                                                    content !== null && content !== undefined && typeof content !== 'object'
+                                                                    content !== null && content !== undefined
                                                                         ? { [selectedSubSection]: content }
                                                                         : content
                                                                 }
@@ -1572,6 +1707,25 @@ export default function FeedbackChatModal({
                                                     </button>
                                                 )}
                                             </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* Selected field content preview — step 1 only */}
+                                {chatStep === 1 && selectedFields.size > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="flex justify-start w-full"
+                                    >
+                                        <div className="w-full max-w-[92%] rounded-2xl px-4 py-3 bg-[#0D1217] border border-[#1E2A34]">
+                                            <SelectedFieldsPreview
+                                                sectionId={sectionId}
+                                                selectedFields={selectedFields}
+                                                currentContent={currentContent}
+                                                funnelSubPage={funnelSubPage}
+                                                isFunnelCopy={isFunnelCopy}
+                                            />
                                         </div>
                                     </motion.div>
                                 )}
