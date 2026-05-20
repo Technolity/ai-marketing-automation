@@ -26,8 +26,8 @@ export default function Home() {
         {/* 5. Pricing — 3-tier monthly/yearly */}
         <PricingSection />
 
-        {/* 6. Testimonials — 3D carousel */}
-        <TestimonialsSection />
+        {/* 6. Testimonials — hidden for now */}
+        {/* <TestimonialsSection /> */}
 
         {/* 7. CTA — perspective grid floor */}
         <CTASection />

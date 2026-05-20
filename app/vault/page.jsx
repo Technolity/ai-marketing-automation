@@ -32,7 +32,6 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { createLogger } from '@/lib/logger';
 import { applyFreeGiftReplacement } from "@/lib/vault/freeGiftReplacer";
 import { flattenAIResponseToFields } from '@/lib/vault/feedbackUtils';
-import { buildSlotDisplayOptions } from '@/lib/ghl/slotDisplay';
 
 // Initialize logger
 const logger = createLogger('VaultPage');
@@ -75,9 +74,9 @@ import PhaseWarningBanner from "@/components/vault/PhaseWarningBanner";
 import ActionModal from "@/components/vault/ActionModal";
 import EmergencyHelpButton from "@/components/vault/EmergencyHelpButton";
 import DeployedFunnelCard from "@/components/vault/DeployedFunnelCard";
-import SlotSelectorModal from "@/components/ghl/SlotSelectorModal";
 import SlotAssignmentBadge from "@/components/ghl/SlotAssignmentBadge";
 import ScheduleLinkCard from "@/components/vault/ScheduleLinkCard";
+import LaunchBuilderButton from "@/components/LaunchBuilderButton";
 
 // Map section IDs to granular field components (all 13 sections)
 const GRANULAR_FIELD_COMPONENTS = {
@@ -624,6 +623,8 @@ export default function VaultPage() {
     const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
     const [regeneratingSection, setRegeneratingSection] = useState(null);
     const [refreshTriggers, setRefreshTriggers] = useState({}); // { [sectionId]: timestamp }
+    const generationStartTimes = useRef({}); // { [sectionId]: timestamp } — when section entered 'generating'
+    const [slowSections, setSlowSections] = useState(new Set()); // sections generating > 3 min
     const [isSettingUpAccount, setIsSettingUpAccount] = useState(false);
     const [accountSetupError, setAccountSetupError] = useState(null);
     const [accountSetupSuccess, setAccountSetupSuccess] = useState(false);
@@ -633,20 +634,14 @@ export default function VaultPage() {
     const [deploymentStep, setDeploymentStep] = useState(0); // 0 = not started, 1-3 = in progress
     const [emailSentOnDeploy, setEmailSentOnDeploy] = useState(false);
 
-    // Slot selector state
-    const [showSlotModal, setShowSlotModal] = useState(false);
-    const [slotModalPlan, setSlotModalPlan] = useState('starter');
-    const [slotModalAvailable, setSlotModalAvailable] = useState([3]);
-    const [slotModalInitial, setSlotModalInitial] = useState(null);
-    const [slotDropdownOpen, setSlotDropdownOpen] = useState(false);
-    const slotDropdownRef = useRef(null);
+    // Phase 3 builder setup step
+    const [builderSetupDone, setBuilderSetupDone] = useState(false);
+    const [calendarEmbedCode, setCalendarEmbedCode] = useState('');
+    const [calendarEmbedSaved, setCalendarEmbedSaved] = useState(false);
+    const [isPushingCalendarEmbed, setIsPushingCalendarEmbed] = useState(false);
+
     const [funnelSlotAssignment, setFunnelSlotAssignment] = useState(null); // { slot_index, assigned_at } | null
-    const [pendingDeployAfterSlot, setPendingDeployAfterSlot] = useState(false);
-    const [slotTakenSlots, setSlotTakenSlots] = useState([]);
     const [scheduleLink, setScheduleLink] = useState('');
-    const [slotDisplayOptions, setSlotDisplayOptions] = useState(
-        buildSlotDisplayOptions({ planTier: 'starter', allowedSlots: [3], assignableSlots: [3] })
-    );
 
     // Ref to track completed job IDs we've already processed (prevents duplicate refreshes)
     const previouslyCompletedJobsRef = useRef(new Set());
@@ -834,21 +829,7 @@ export default function VaultPage() {
                                 const assignment = slotData.current_assignment != null
                                     ? { slot_index: slotData.current_assignment, assigned_at: null }
                                     : null;
-                                setFunnelSlotAssignment(
-                                    assignment
-                                );
-                                setSlotModalPlan(slotData.plan_tier || 'starter');
-                                setSlotModalAvailable(slotData.available_for_assignment || [3]);
-                                setSlotTakenSlots(slotData.taken_slots || []);
-                                setSlotDisplayOptions(buildSlotDisplayOptions({
-                                    planTier: slotData.plan_tier || 'starter',
-                                    allowedSlots: slotData.allowed_slots,
-                                    assignableSlots: slotData.available_for_assignment,
-                                    takenSlots: slotData.taken_slots || [],
-                                    provisionedSlots: slotData.provisioned_slots,
-                                    currentAssignment: slotData.current_assignment,
-                                    isAdmin: slotData.is_admin,
-                                }));
+                                setFunnelSlotAssignment(assignment);
                             }
                             // Booking URL is per-funnel, comes from result.source
                             setScheduleLink(result.source?.schedule_link || '');
@@ -944,6 +925,10 @@ export default function VaultPage() {
                 if (localStorage.getItem(`vault_campaigns_pushed_${activeSessionId}`) === 'true') {
                     setCampaignsPushed(true);
                 }
+                // Restore Phase 3 builder setup state
+                if (localStorage.getItem(`phase3_builder_done_${activeSessionId}`) === 'true') {
+                    setBuilderSetupDone(true);
+                }
 
                 // Keep local storage in sync
                 const approvals = {
@@ -1012,6 +997,22 @@ export default function VaultPage() {
         window.addEventListener('funnelCopyGenerated', handleFunnelCopyGenerated);
         return () => window.removeEventListener('funnelCopyGenerated', handleFunnelCopyGenerated);
     }, [searchParams, session, loadApprovals]);
+
+    // Track sections that have been generating > 3 minutes — show "Refresh Section" button only then
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const now = Date.now();
+            const newSlow = new Set();
+            Object.entries(generationStartTimes.current).forEach(([sectionId, startTime]) => {
+                if (now - startTime >= 180_000) newSlow.add(sectionId);
+            });
+            setSlowSections(prev => {
+                if (prev.size === newSlow.size && [...newSlow].every(id => prev.has(id))) return prev;
+                return newSlow;
+            });
+        }, 30_000);
+        return () => clearInterval(interval);
+    }, []);
 
     // Listen for regeneration events from FeedbackChatModal to show spinners immediately
     useEffect(() => {
@@ -1800,90 +1801,57 @@ export default function VaultPage() {
         }
     };
 
-    // Toggle slot dropdown — always re-fetch available slots on open to get fresh data
-    const handleToggleSlotDropdown = async () => {
-        if (slotDropdownOpen) {
-            setSlotDropdownOpen(false);
-            return;
-        }
+    const handlePushCalendarEmbed = async () => {
         const funnelId = dataSource?.id || searchParams.get('funnel_id');
+        if (!funnelId) { toast.error('No funnel ID found'); return; }
+        if (!calendarEmbedCode.trim()) { toast.error('Please paste your calendar embed code first'); return; }
+        setIsPushingCalendarEmbed(true);
+        const toastId = toast.loading('Saving calendar embed code...');
         try {
-            const url = funnelId ? `/api/ghl/available-slots?funnel_id=${funnelId}` : '/api/ghl/available-slots';
-            const res = await fetchWithAuth(url);
-            if (res.ok) {
-                const data = await res.json();
-                setSlotModalPlan(data.plan_tier || 'starter');
-                setSlotModalAvailable(data.available_for_assignment || data.allowed_slots || [3]);
-                setSlotTakenSlots(data.taken_slots || []);
-                setSlotDisplayOptions(buildSlotDisplayOptions({
-                    planTier: data.plan_tier || 'starter',
-                    allowedSlots: data.allowed_slots,
-                    assignableSlots: data.available_for_assignment,
-                    takenSlots: data.taken_slots || [],
-                    provisionedSlots: data.provisioned_slots,
-                    currentAssignment: data.current_assignment,
-                    isAdmin: data.is_admin,
-                }));
-                if (data.current_assignment != null) {
-                    setFunnelSlotAssignment(prev => prev ?? { slot_index: data.current_assignment, assigned_at: null });
-                }
+            const res = await fetchWithAuth('/api/ghl/push-calendar-embed', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ funnel_id: funnelId, embed_code: calendarEmbedCode.trim() }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success('Calendar embed code saved!', { id: toastId });
+                setCalendarEmbedSaved(true);
+            } else {
+                toast.error(data.error || 'Failed to save embed code', { id: toastId });
             }
         } catch (err) {
-            console.error('[SlotDropdown] fetch failed:', err);
+            console.error('[Vault] Push calendar embed failed:', err);
+            toast.error('Failed to save calendar embed code.', { id: toastId });
+        } finally {
+            setIsPushingCalendarEmbed(false);
         }
-        setSlotDropdownOpen(true);
     };
 
-    // Close slot dropdown on outside click
-    useEffect(() => {
-        function handleOutsideClick(e) {
-            if (slotDropdownRef.current && !slotDropdownRef.current.contains(e.target)) {
-                setSlotDropdownOpen(false);
-            }
-        }
-        if (slotDropdownOpen) {
-            document.addEventListener('mousedown', handleOutsideClick);
-        }
-        return () => document.removeEventListener('mousedown', handleOutsideClick);
-    }, [slotDropdownOpen]);
-
-    // Pick a slot from the dropdown → open confirm modal
-    const handlePickSlot = (slotIndex) => {
-        setSlotDropdownOpen(false);
-        setSlotModalInitial(slotIndex);
-        setShowSlotModal(true);
-    };
-
-    // Open slot modal then deploy — used by "Build Your Funnel" in the complete vault view
-    const handleOpenSlotThenDeploy = async () => {
+    // Auto-assign lowest available slot then open deploy modal
+    const handleAutoAssignAndDeploy = async () => {
         const funnelId = dataSource?.id || searchParams.get('funnel_id');
+        if (!funnelId) { toast.error('No funnel ID found'); return; }
         try {
-            const url = funnelId ? `/api/ghl/available-slots?funnel_id=${funnelId}` : '/api/ghl/available-slots';
-            const res = await fetchWithAuth(url);
-            if (res.ok) {
+            if (!funnelSlotAssignment) {
+                const res = await fetchWithAuth(`/api/ghl/available-slots?funnel_id=${funnelId}`);
+                if (!res.ok) { toast.error('Failed to check available slots'); return; }
                 const data = await res.json();
-                setSlotModalPlan(data.plan_tier || 'starter');
-                setSlotModalAvailable(data.available_for_assignment || data.allowed_slots || [3]);
-                setSlotTakenSlots(data.taken_slots || []);
-                setSlotDisplayOptions(buildSlotDisplayOptions({
-                    planTier: data.plan_tier || 'starter',
-                    allowedSlots: data.allowed_slots,
-                    assignableSlots: data.available_for_assignment,
-                    takenSlots: data.taken_slots || [],
-                    provisionedSlots: data.provisioned_slots,
-                    currentAssignment: data.current_assignment,
-                    isAdmin: data.is_admin,
-                }));
-                if (data.current_assignment != null) {
-                    setFunnelSlotAssignment(prev => prev ?? { slot_index: data.current_assignment, assigned_at: null });
-                }
+                const lowestAvailable = [...(data.available_for_assignment || [])].sort((a, b) => a - b)[0];
+                if (!lowestAvailable) { toast.error('No available slots. Please upgrade your plan.'); return; }
+                const assignRes = await fetchWithAuth('/api/ghl/funnel-slot', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ funnel_id: funnelId, slot_index: lowestAvailable }),
+                });
+                if (!assignRes.ok) { toast.error('Failed to assign funnel slot'); return; }
+                setFunnelSlotAssignment({ slot_index: lowestAvailable, assigned_at: new Date().toISOString() });
             }
+            handleOpenDeployModal();
         } catch (err) {
-            console.error('[SlotModal] fetch failed:', err);
+            console.error('[AutoAssign] error:', err);
+            toast.error('Something went wrong. Please try again.');
         }
-        setPendingDeployAfterSlot(true);
-        setSlotModalInitial(null);
-        setShowSlotModal(true);
     };
 
     // Handle GHL Deployment (Pabbly Workflow) with step visualization
@@ -3143,12 +3111,8 @@ export default function VaultPage() {
                                     if (deploymentComplete || dataSource?.deployed_at) {
                                         console.log('[Vault] Funnel already deployed, showing info');
                                         toast.info('Your funnel is already deployed! Use "Push to Builder" buttons to update individual sections.');
-                                    } else if (!funnelSlotAssignment) {
-                                        console.log('[Vault] Build Your Funnel clicked - no slot assigned, opening slot selector first');
-                                        handleOpenSlotThenDeploy();
                                     } else {
-                                        console.log('[Vault] Build Your Funnel clicked - slot assigned, opening deploy modal');
-                                        handleOpenDeployModal();
+                                        handleAutoAssignAndDeploy();
                                     }
                                 }}
                                 disabled={isDeploying || deploymentComplete || !!dataSource?.deployed_at}
@@ -3213,7 +3177,7 @@ export default function VaultPage() {
                         {/* Show deployed funnel card if funnel has been deployed */}
                         {dataSource?.deployed_at && (
                             <div className="mb-4">
-                                <DeployedFunnelCard />
+                                <DeployedFunnelCard slotIndex={funnelSlotAssignment?.slot_index} />
                             </div>
                         )}
 
@@ -3501,29 +3465,38 @@ export default function VaultPage() {
                         </div>
                     )}
 
-                    {/* Stuck Section Recovery - Show retry button for generating status */}
-                    {status === 'generating' && (
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs text-gray-500 hidden sm:inline">Generating...</span>
-                            <button
-                                onClick={() => {
-                                    const numericKey = section.numericKey;
-                                    if (numericKey) {
-                                        handleRegenerateSection(section.id, numericKey);
-                                    } else {
-                                        toast.error('Cannot retry this section');
-                                    }
-                                }}
-                                disabled={regeneratingSection === section.id}
-                                className="px-2 py-1.5 sm:px-3 sm:py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-2 transition-all disabled:opacity-50"
-                                title="Taking too long? Click to retry"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${regeneratingSection === section.id ? 'animate-spin' : ''}`} />
-                                <span className="hidden sm:inline">Stuck? Retry</span>
-                                <span className="sm:hidden">Retry</span>
-                            </button>
-                        </div>
-                    )}
+                    {/* Section recovery — only shown after 3 minutes of generating */}
+                    {status === 'generating' && (() => {
+                        // Record start time the first time we see this section generating
+                        if (!generationStartTimes.current[section.id]) {
+                            generationStartTimes.current[section.id] = Date.now();
+                        }
+                        return slowSections.has(section.id) ? (
+                            <div className="flex items-center gap-3">
+                                <span className="text-xs text-gray-500 hidden sm:inline">Taking longer than usual...</span>
+                                <button
+                                    onClick={() => {
+                                        const numericKey = section.numericKey;
+                                        if (numericKey) {
+                                            delete generationStartTimes.current[section.id];
+                                            setSlowSections(prev => { const next = new Set(prev); next.delete(section.id); return next; });
+                                            handleRegenerateSection(section.id, numericKey);
+                                        } else {
+                                            toast.error('Cannot refresh this section');
+                                        }
+                                    }}
+                                    disabled={regeneratingSection === section.id}
+                                    className="px-2 py-1.5 sm:px-3 sm:py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/30 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-2 transition-all disabled:opacity-50"
+                                    title="This section is taking longer than usual — click to refresh"
+                                >
+                                    <RefreshCw className={`w-4 h-4 ${regeneratingSection === section.id ? 'animate-spin' : ''}`} />
+                                    <span>Refresh Section</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <span className="text-xs text-gray-500">Generating...</span>
+                        );
+                    })()}
 
 
 
@@ -3927,95 +3900,21 @@ export default function VaultPage() {
                                                                     slotIndex={funnelSlotAssignment.slot_index}
                                                                     assignedAt={funnelSlotAssignment.assigned_at}
                                                                     funnelId={dataSource?.id || searchParams.get('funnel_id')}
-                                                                    onRedeploy={() => {
-                                                                        setSlotModalInitial(funnelSlotAssignment.slot_index);
-                                                                        setShowSlotModal(true);
-                                                                    }}
+                                                                    onRedeploy={handleOpenDeployModal}
                                                                     isDeploying={isDeploying}
                                                                 />
                                                             ) : (
-                                                                <div className="relative" ref={slotDropdownRef}>
-                                                                    <button
-                                                                        onClick={handleToggleSlotDropdown}
-                                                                        disabled={isDeploying}
-                                                                        className="w-full px-4 py-2.5 bg-[#0D1217] hover:bg-[#121920] text-[#F4F8FB] rounded-xl font-medium text-sm flex items-center justify-between border border-[#1E2A34] hover:border-[#2a3a44] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                                                    >
-                                                                        <span className="flex items-center gap-2 text-[#B2C0CD]">
-                                                                            <Layers className="w-4 h-4" />
-                                                                            Assign Funnel Slot
-                                                                        </span>
-                                                                        <ChevronDown className={`w-3.5 h-3.5 text-[#4a5a6a] transition-transform ${slotDropdownOpen ? 'rotate-180' : ''}`} />
-                                                                    </button>
-                                                                    {slotDropdownOpen && (
-                                                                        <div className="absolute z-50 left-0 top-full mt-1.5 w-full bg-[#0D1217] border border-[#1E2A34] rounded-xl shadow-2xl overflow-hidden"
-                                                                             style={{ maxHeight: '280px', overflowY: 'auto' }}>
-                                                                            <p className="px-3 pt-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a]">
-                                                                                Funnel slots
-                                                                            </p>
-                                                                            {slotDisplayOptions.map((slot) => {
-                                                                                const isLocked = !slot.isSelectable;
-                                                                                return (
-                                                                                    <button
-                                                                                        key={slot.slotIndex}
-                                                                                        onClick={() => !isLocked && handlePickSlot(slot.slotIndex)}
-                                                                                        disabled={isLocked}
-                                                                                        title={slot.disabledLabel || `Assign Slot ${slot.slotIndex}`}
-                                                                                        className={[
-                                                                                            "w-full flex items-center gap-3 px-3 py-2.5 transition-colors text-left",
-                                                                                            isLocked
-                                                                                                ? "opacity-55 cursor-not-allowed"
-                                                                                                : "hover:bg-[#121920] cursor-pointer",
-                                                                                        ].join(" ")}
-                                                                                    >
-                                                                                        <span className={[
-                                                                                            "w-7 h-7 rounded-md flex items-center justify-center font-bold text-xs shrink-0",
-                                                                                            isLocked
-                                                                                                ? "bg-[#151c23] text-[#4a5a6a]"
-                                                                                                : "bg-[#1E2A34] text-[#F4F8FB]",
-                                                                                        ].join(" ")}>
-                                                                                            {String(slot.slotIndex).padStart(2,'0')}
-                                                                                        </span>
-                                                                                        <div className="min-w-0 flex-1">
-                                                                                            <p className={[
-                                                                                                "text-sm font-medium",
-                                                                                                isLocked ? "text-[#6d7a86]" : "text-[#F4F8FB]",
-                                                                                            ].join(" ")}>
-                                                                                                Slot {slot.slotIndex}
-                                                                                            </p>
-                                                                                            <p className={[
-                                                                                                "text-[10px] font-mono",
-                                                                                                isLocked ? "text-[#3a4a5a]" : "text-[#4a5a6a]",
-                                                                                            ].join(" ")}>
-                                                                                                {slot.prefix}
-                                                                                            </p>
-                                                                                        </div>
-                                                                                        {isLocked ? (
-                                                                                            <div className="flex items-center gap-1 text-[10px] text-[#6d7a86] shrink-0">
-                                                                                                <Lock className="w-3 h-3" />
-                                                                                                {slot.lockReason === 'upgrade' ? 'Upgrade' : 'Locked'}
-                                                                                            </div>
-                                                                                        ) : (
-                                                                                            <CheckCircle className="w-3.5 h-3.5 text-cyan shrink-0" />
-                                                                                        )}
-                                                                                    </button>
-                                                                                );
-                                                                            })}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
+                                                                <button
+                                                                    onClick={handleAutoAssignAndDeploy}
+                                                                    disabled={isDeploying}
+                                                                    className="w-full px-4 py-2.5 bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                                                                >
+                                                                    <Rocket className="w-4 h-4" />
+                                                                    Deploy Funnel
+                                                                </button>
                                                             )}
                                                         </div>
 
-                                                        {/* Skip to Phase 3 (Campaigns) */}
-                                                        <div className="mt-5 pt-4 border-t border-[#1E2A34] text-center">
-                                                            <button
-                                                                onClick={() => setActiveTab('campaigns')}
-                                                                className="text-sm text-[#4a5a6a] hover:text-[#B2C0CD] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                                                            >
-                                                                Skip to Phase 3
-                                                                <ArrowRight className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        </div>
                                                     </>
                                                 )}
                                             </motion.div>
@@ -4052,41 +3951,139 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                {/* Schedule Link Card — appears FIRST so user can paste booking URL
-                                    before reviewing sections. Saving hardcodes the URL into all
-                                    emails, SMS, and appointment reminders in the DB immediately. */}
+                                {/* Step 1 — Builder Setup */}
                                 <div className="p-5 bg-[#131314] rounded-2xl border border-cyan/20">
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan">
-                                            Step 1 — Paste your booking link
+                                            Step 1 — Builder Setup
                                         </span>
                                     </div>
-                                    <p className="text-xs text-[#B2C0CD] mb-3">
-                                        Add your calendar URL first. It will be embedded into all emails, SMS, and reminders so your content is ready to approve.
-                                    </p>
-                                    <ScheduleLinkCard
-                                        funnelId={dataSource?.id || searchParams.get('funnel_id')}
-                                        initialUrl={scheduleLink}
-                                        onSaved={(url) => setScheduleLink(url)}
-                                        saveOnly={true}
-                                    />
+                                    {builderSetupDone ? (
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
+                                            <span className="text-sm text-green-400 font-medium">Builder setup complete</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="text-xs text-[#B2C0CD] mb-4">
+                                                You&apos;re done with your funnel page copy! Now set up your builder account — configure your domain, calendar, and other settings before continuing.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                <a
+                                                    href="/docs/builder-guide"
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="px-4 py-2 rounded-lg text-sm font-semibold border border-[#1E2A34] text-[#B2C0CD] hover:border-cyan/40 hover:text-cyan transition-all"
+                                                >
+                                                    Get Guide
+                                                </a>
+                                                <LaunchBuilderButton />
+                                                <button
+                                                    onClick={() => {
+                                                        const funnelId = dataSource?.id || searchParams.get('funnel_id');
+                                                        if (funnelId) localStorage.setItem(`phase3_builder_done_${funnelId}`, 'true');
+                                                        setBuilderSetupDone(true);
+                                                    }}
+                                                    className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] transition-all"
+                                                >
+                                                    I&apos;m Done, Continue
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
 
-                                {/* Step 2 label */}
-                                <div className="px-1 pt-2">
-                                    <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a]">
-                                        Step 2 — Review &amp; approve your campaign content
-                                    </span>
-                                </div>
+                                {/* Step 2 — Calendar Embed (visible after builder setup) */}
+                                {builderSetupDone && (
+                                    <div className="p-5 bg-[#131314] rounded-2xl border border-cyan/20">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan">
+                                                Step 2 — Calendar Embed Code
+                                            </span>
+                                        </div>
+                                        {calendarEmbedSaved ? (
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
+                                                <span className="text-sm text-green-400 font-medium">Calendar embed code saved</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <p className="text-xs text-[#B2C0CD] mb-1">
+                                                    Paste your calendar embed code below. Use the embed code from your builder calendar.{' '}
+                                                    <a href="#" className="text-cyan hover:underline">Here&apos;s the guide</a>
+                                                </p>
+                                                <textarea
+                                                    value={calendarEmbedCode}
+                                                    onChange={(e) => setCalendarEmbedCode(e.target.value)}
+                                                    placeholder="Paste your calendar embed code here..."
+                                                    rows={4}
+                                                    className="w-full mt-3 px-3 py-2 bg-[#0D1217] border border-[#1E2A34] rounded-lg text-sm text-[#F4F8FB] placeholder-[#4a5a6a] font-mono resize-none focus:outline-none focus:border-cyan/40 transition-colors"
+                                                />
+                                                <button
+                                                    onClick={handlePushCalendarEmbed}
+                                                    disabled={isPushingCalendarEmbed || !calendarEmbedCode.trim()}
+                                                    className={`mt-3 px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all ${
+                                                        isPushingCalendarEmbed || !calendarEmbedCode.trim()
+                                                            ? 'bg-[#16C7E7]/40 text-[#05080B]/60 cursor-not-allowed'
+                                                            : 'bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] cursor-pointer'
+                                                    }`}
+                                                >
+                                                    {isPushingCalendarEmbed ? (
+                                                        <>
+                                                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                                                            </svg>
+                                                            Saving...
+                                                        </>
+                                                    ) : (
+                                                        'Add Calendar Code'
+                                                    )}
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
 
-                                <div className="grid gap-3">
-                                    {PHASE_3_SECTIONS.map((section, index) => {
-                                        const status = getSectionStatus(section.id, 3, approvedPhase3, index);
-                                        return renderSection(section, status, index, 3);
-                                    })}
-                                </div>
+                                {/* Step 3 — Schedule Link */}
+                                {builderSetupDone && (
+                                    <div className="p-5 bg-[#131314] rounded-2xl border border-cyan/20">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan">
+                                                Step 3 — Paste your booking link
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-[#B2C0CD] mb-3">
+                                            Add your calendar URL. It will be embedded into all emails, SMS, and reminders so your content is ready to approve.
+                                        </p>
+                                        <ScheduleLinkCard
+                                            funnelId={dataSource?.id || searchParams.get('funnel_id')}
+                                            initialUrl={scheduleLink}
+                                            onSaved={(url) => setScheduleLink(url)}
+                                            saveOnly={true}
+                                        />
+                                    </div>
+                                )}
 
-                                {/* Push Campaigns to Builder — always visible in Phase 3 */}
+                                {/* Step 4 — Review & approve */}
+                                {builderSetupDone && (
+                                    <>
+                                        <div className="px-1 pt-2">
+                                            <span className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a]">
+                                                Step 4 — Review &amp; approve your campaign content
+                                            </span>
+                                        </div>
+
+                                        <div className="grid gap-3">
+                                            {PHASE_3_SECTIONS.map((section, index) => {
+                                                const status = getSectionStatus(section.id, 3, approvedPhase3, index);
+                                                return renderSection(section, status, index, 3);
+                                            })}
+                                        </div>
+                                    </>
+                                )}
+
+                                {/* Push Campaigns to Builder */}
                                 <motion.div
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
@@ -4106,7 +4103,7 @@ export default function VaultPage() {
                                     <button
                                         onClick={handlePushCampaigns}
                                         disabled={isPushingCampaigns || campaignsPushed}
-                                        className={`w-full max-w-xs mx-auto px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all mb-6 ${
+                                        className={`w-full max-w-xs mx-auto px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all mb-4 ${
                                             campaignsPushed
                                                 ? 'bg-[#1E2A34] text-[#4a5a6a] cursor-not-allowed'
                                                 : isPushingCampaigns
@@ -4136,10 +4133,10 @@ export default function VaultPage() {
                                     </button>
                                     <button
                                         onClick={() => setActiveTab('scripts')}
-                                        className="text-sm text-[#4a5a6a] hover:text-[#B2C0CD] transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                                        className="w-full max-w-xs mx-auto px-6 py-3 rounded-xl font-semibold text-sm border border-[#1E2A34] text-[#B2C0CD] hover:border-cyan/40 hover:text-cyan transition-all flex items-center justify-center gap-2"
                                     >
                                         Continue to Phase 4
-                                        <ArrowRight className="w-3.5 h-3.5" />
+                                        <ArrowRight className="w-4 h-4" />
                                     </button>
                                 </motion.div>
                             </motion.div>
@@ -4290,37 +4287,6 @@ export default function VaultPage() {
                     )}
                 </ActionModal>
 
-                {/* Slot Selector Modal — push vault content to a specific slot (04–12) */}
-                <SlotSelectorModal
-                    isOpen={showSlotModal}
-                    onClose={() => { setShowSlotModal(false); setSlotModalInitial(null); setPendingDeployAfterSlot(false); }}
-                    funnelId={dataSource?.id || searchParams.get('funnel_id')}
-                    userPlan={slotModalPlan}
-                    availableSlots={slotModalAvailable}
-                    takenSlots={slotTakenSlots}
-                    currentAssignment={funnelSlotAssignment?.slot_index ?? null}
-                    initialSlot={slotModalInitial}
-                    slotOptions={slotDisplayOptions}
-                    onAssign={(slotIndex) => {
-                        setFunnelSlotAssignment({ slot_index: slotIndex, assigned_at: new Date().toISOString() });
-                        setShowSlotModal(false);
-                        setSlotModalInitial(null);
-                        if (pendingDeployAfterSlot) {
-                            setPendingDeployAfterSlot(false);
-                            toast.success(`Slot ${slotIndex} assigned — opening deployment`);
-                            handleOpenDeployModal();
-                        } else {
-                            toast.success(`Slot ${slotIndex} assigned to this funnel`);
-                        }
-                    }}
-                    onSuccess={(slotIndex) => {
-                        setFunnelSlotAssignment({ slot_index: slotIndex, assigned_at: new Date().toISOString() });
-                        setShowSlotModal(false);
-                        setSlotModalInitial(null);
-                        setPendingDeployAfterSlot(false);
-                        toast.success(`Funnel deployed to slot ${slotIndex}`);
-                    }}
-                />
             </div>
 
             <FeedbackChatModal

@@ -43,7 +43,7 @@ export default function CTASection() {
           </h2>
 
           <p className="font-poppins font-normal text-[#94A3B8] text-lg mb-12 max-w-xl mx-auto leading-relaxed">
-            Get the full TedOS experience. Zero setup. Answer 20 questions.
+            Get the full TedOS experience. Answer 20 questions.
             Walk away with a complete, deployed marketing system.
           </p>
 
@@ -69,7 +69,7 @@ export default function CTASection() {
           </div>
 
           <p className="mt-5 text-xs text-[#4B5563] uppercase tracking-wider font-poppins">
-            Zero setup • Answer 20 questions • Launch in minutes
+            Answer 20 questions • Launch in minutes
           </p>
         </motion.div>
 

@@ -334,6 +334,11 @@ export default function FunnelCopyFields({ funnelId, onUnapprove, isApproved, re
         // Clone to allow UI-specific modifications without affecting source
         let subfields = [...pageFieldDef.field_metadata.subfields];
 
+        // Calendar embed code is handled in Phase 3 — remove it from funnel copy view
+        if (pageFieldDef.field_id === 'calendarPage') {
+            subfields = subfields.filter(f => f.field_id !== 'calendar_embedded_code');
+        }
+
         // CUSTOM UI TRANSFORMATION FOR OPTIN PAGE (User Request)
         if (pageFieldDef.field_id === 'optinPage') {
             // 1. Rename 'Sub-Headline' to 'Audience Callout'
@@ -452,8 +457,24 @@ export default function FunnelCopyFields({ funnelId, onUnapprove, isApproved, re
                     <div className="py-4">
                         {activeTab === 'optin' && renderPageSubfields(optinPage)}
                         {activeTab === 'sales' && renderPageSubfields(salesPage)}
-                        {activeTab === 'calendar' && renderPageSubfields(calendarPage)}
-                        {activeTab === 'thankyou' && renderPageSubfields(thankYouPage)}
+                        {activeTab === 'calendar' && (
+                            <div className="space-y-4">
+                                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg text-xs text-[#B2C0CD]" style={{ background: 'rgba(22,199,231,0.06)', border: '1px solid rgba(22,199,231,0.2)' }}>
+                                    <span className="shrink-0 text-cyan mt-0.5">ℹ</span>
+                                    <span>Calendar embed code is configured in the <strong className="text-cyan">Campaigns phase (Phase 3)</strong>. Page URLs here are used as embed URLs in your builder.</span>
+                                </div>
+                                {renderPageSubfields(calendarPage)}
+                            </div>
+                        )}
+                        {activeTab === 'thankyou' && (
+                            <div className="space-y-4">
+                                <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg text-xs text-[#B2C0CD]" style={{ background: 'rgba(22,199,231,0.06)', border: '1px solid rgba(22,199,231,0.2)' }}>
+                                    <span className="shrink-0 text-cyan mt-0.5">ℹ</span>
+                                    <span>These page URLs are used as embed URLs in your builder.</span>
+                                </div>
+                                {renderPageSubfields(thankYouPage)}
+                            </div>
+                        )}
 
                     </div>
                 )}

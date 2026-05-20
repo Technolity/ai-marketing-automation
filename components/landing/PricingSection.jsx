@@ -6,89 +6,77 @@ import { SectionLabel } from "./SectionLabel";
 
 const PLANS = [
   {
-    name     : "Starter",
-    price_m  : "$297",
-    price_y  : "$255",       // $3,057 / 12
-    total_y  : "$3,057",
-    savings_y: "Save $507/yr",
-    desc     : "For solopreneurs launching their first system.",
-    features : [
+    name: "Starter",
+    price_m: "$297",
+    price_y: "$267",
+    total_y: "$3,057",
+    desc: "For solopreneurs launching their first system.",
+    features: [
       "1 Business Build",
       "VSL Script Generator",
-      "Email Sequence (5 emails)",
+      "Email Sequence",
       "Facebook Ad Copy",
       "Basic CRM Setup",
-      "Builder Integration",
       "Email Support",
     ],
-    cta     : "Get Started",
+    cta: "Get Started",
     featured: false,
     links: {
-      standard_m  : "https://link.fastpaydirect.com/payment-link/69a8a2a47fba054fe45f8385",
-      standard_y  : "https://link.fastpaydirect.com/payment-link/69a9b20298578f54d2119e3b",
+      standard_m: "https://link.fastpaydirect.com/payment-link/69a8a2a47fba054fe45f8385",
       activation_m: "https://link.fastpaydirect.com/payment-link/69a74df58a96f7d2c3c90883",
+      standard_y: "https://link.fastpaydirect.com/payment-link/69a9b20298578f54d2119e3b",
       activation_y: "https://link.fastpaydirect.com/payment-link/69b2d4a492346e17038ac377",
     },
   },
   {
-    name     : "Growth",
-    price_m  : "$497",
-    price_y  : "$447",       // $5,367 / 12
-    total_y  : "$5,367",
-    savings_y: "Save $597/yr",
-    desc     : "The full TedOS experience — everything built and deployed.",
-    features : [
-      "5 Business Builds / mo",
-      "Full Funnel Suite (VSL, Emails, SMS, Ads)",
-      "Appointment Scripts + Setter Training",
-      "Sales Scripts + Objection Handling",
-      "Full CRM Automation",
-      "Priority AI Queue",
-      "Priority Support",
-      "White-label Output",
+    name: "Growth",
+    price_m: "$497",
+    price_y: "$447",
+    total_y: "$5,367",
+    desc: "The full TedOS experience — everything built and deployed.",
+    features: [
+      "All Starter plan features included",
+      "3 Business Builds",
+      "Up to 3 team members in workspace",
+      "Weekly Group Call Support",
     ],
-    cta     : "Start Today",
+    cta: "Start Today",
     featured: true,
     links: {
-      standard_m  : "https://link.fastpaydirect.com/payment-link/69a9b3c6fc564f53604bb9c0",
-      standard_y  : "https://link.fastpaydirect.com/payment-link/69a9b3ed2211b7aee402c42b",
+      standard_m: "https://link.fastpaydirect.com/payment-link/69a9b3c6fc564f53604bb9c0",
       activation_m: "https://link.fastpaydirect.com/payment-link/69af10d71e612111857be218",
+      standard_y: "https://link.fastpaydirect.com/payment-link/69a9b3ed2211b7aee402c42b",
       activation_y: "https://link.fastpaydirect.com/payment-link/69b03e4b0518ccea430b8689",
     },
   },
   {
-    name     : "Scale",
-    price_m  : "$997",
-    price_y  : "$897",       // $10,767 / 12
-    total_y  : "$10,767",
-    savings_y: "Save $1,197/yr",
-    desc     : "For agencies building for multiple clients at scale.",
-    features : [
-      "Unlimited Business Builds",
+    name: "Scale",
+    price_m: "$997",
+    price_y: "$897",
+    total_y: "$10,767",
+    desc: "For agencies building for multiple clients at scale.",
+    features: [
       "All Growth features included",
-      "Team Seats (up to 10)",
-      "Client Dashboard Access",
-      "Bulk Export + White-label",
-      "API Access",
-      "Dedicated Account Manager",
+      "Unlimited Business Builds",
+      "Up to 10 team members in workspace",
     ],
-    cta     : "Contact Sales",
+    cta: "Contact Sales",
     featured: false,
     links: {
-      standard_m  : "https://link.fastpaydirect.com/payment-link/69a9b3d470f9d56b9a26d150",
-      standard_y  : "https://link.fastpaydirect.com/payment-link/69a9b3dd2211b7922b02c41d",
+      standard_m: "https://link.fastpaydirect.com/payment-link/69a9b3d470f9d56b9a26d150",
       activation_m: "https://link.fastpaydirect.com/payment-link/69b025c984b2d75a9a65881f",
+      standard_y: "https://link.fastpaydirect.com/payment-link/69a9b3dd2211b7922b02c41d",
       activation_y: "https://link.fastpaydirect.com/payment-link/69b2d4f98e8f54b631536b69",
     },
   },
 ];
 
 const container = { hidden: {}, visible: { transition: { staggerChildren: 0.12 } } };
-const cardAnim  = { hidden: { opacity: 0, y: 32 }, visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] } } };
+const cardAnim = { hidden: { opacity: 0, y: 32 }, visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 export default function PricingSection() {
-  const [yearly,     setYearly]     = useState(false);
   const [activation, setActivation] = useState(false);
+  const [yearly, setYearly] = useState(false);
 
   return (
     <section
@@ -118,8 +106,37 @@ export default function PricingSection() {
             Every plan includes the full AI build. Add activation for a hands-on setup by our team.
           </p>
 
+          {/* Billing period toggle */}
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div
+              className="inline-flex items-center gap-1 p-1 rounded-full"
+              style={{ background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.2)" }}
+            >
+              <button
+                onClick={() => setYearly(false)}
+                className="px-5 py-2 rounded-full text-sm font-poppins font-semibold transition-all duration-200 cursor-pointer"
+                style={!yearly ? { background: "#00E5FF", color: "#00031C" } : { color: "#94A3B8" }}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setYearly(true)}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-poppins font-semibold transition-all duration-200 cursor-pointer"
+                style={yearly ? { background: "#00E5FF", color: "#00031C" } : { color: "#94A3B8" }}
+              >
+                Yearly
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: "rgba(0,229,255,0.15)", color: "#fefefeff" }}
+                >
+                  ~10% off
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Plan type toggle */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-5">
+          <div className="flex items-center justify-center mb-5">
             <div
               className="inline-flex items-center gap-1 p-1 rounded-full"
               style={{ background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.2)" }}
@@ -143,27 +160,6 @@ export default function PricingSection() {
                 With Activation
               </button>
             </div>
-
-            {/* Billing toggle */}
-            <div
-              className="inline-flex items-center gap-1 p-1 rounded-full"
-              style={{ background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.2)" }}
-            >
-              <button
-                onClick={() => setYearly(false)}
-                className="px-5 py-2 rounded-full text-sm font-poppins font-semibold transition-all duration-200 cursor-pointer"
-                style={!yearly ? { background: "#00E5FF", color: "#00031C" } : { color: "#94A3B8" }}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setYearly(true)}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-poppins font-semibold transition-all duration-200 cursor-pointer"
-                style={yearly ? { background: "#00E5FF", color: "#00031C" } : { color: "#94A3B8" }}
-              >
-                Annual <span className="text-[10px] opacity-75">save ~10%</span>
-              </button>
-            </div>
           </div>
 
           {/* Activation description */}
@@ -176,7 +172,7 @@ export default function PricingSection() {
               style={{ background: "rgba(125,211,252,0.08)", border: "1px solid rgba(125,211,252,0.25)", color: "#7DD3FC" }}
             >
               <Zap className="w-3 h-3 shrink-0" />
-              Our team personally sets up your entire TedOS system — zero tech effort on your end.
+              Our team personally sets up your entire TedOS system — no coding effort on your end.
             </motion.div>
           )}
         </motion.div>
@@ -196,10 +192,10 @@ export default function PricingSection() {
             >
               {plan.featured ? (
                 <div className="p-px rounded-2xl" style={{ background: "linear-gradient(135deg, rgba(0,229,255,0.6), rgba(0,229,255,0.2), rgba(0,229,255,0.6))" }}>
-                  <PlanCard plan={plan} yearly={yearly} activation={activation} isInner />
+                  <PlanCard plan={plan} activation={activation} yearly={yearly} isInner />
                 </div>
               ) : (
-                <PlanCard plan={plan} yearly={yearly} activation={activation} />
+                <PlanCard plan={plan} activation={activation} yearly={yearly} />
               )}
             </motion.div>
           ))}
@@ -209,25 +205,25 @@ export default function PricingSection() {
   );
 }
 
-function PlanCard({ plan, yearly, activation, isInner = false }) {
+function PlanCard({ plan, activation, yearly, isInner = false }) {
   const price = yearly ? plan.price_y : plan.price_m;
-  const href  = activation
-    ? (yearly ? plan.links.activation_y : plan.links.activation_m)
-    : (yearly ? plan.links.standard_y   : plan.links.standard_m);
+  const href = yearly
+    ? (activation ? plan.links.activation_y : plan.links.standard_y)
+    : (activation ? plan.links.activation_m : plan.links.standard_m);
 
   const cardStyle = isInner
     ? {
-        background  : "linear-gradient(160deg, rgba(0,229,255,0.12) 0%, rgba(0,229,255,0.04) 50%, rgba(8,145,178,0.10) 100%)",
-        border      : "1px solid rgba(0,229,255,0.3)",
-        borderRadius: "calc(1rem - 1px)",
-        boxShadow   : "rgba(0,229,255,0.15) 0px 0px 50px 0px, rgba(0,229,255,0.06) 0px 0px 120px 0px inset",
-      }
+      background: "linear-gradient(160deg, rgba(0,229,255,0.12) 0%, rgba(0,229,255,0.04) 50%, rgba(8,145,178,0.10) 100%)",
+      border: "1px solid rgba(0,229,255,0.3)",
+      borderRadius: "calc(1rem - 1px)",
+      boxShadow: "rgba(0,229,255,0.15) 0px 0px 50px 0px, rgba(0,229,255,0.06) 0px 0px 120px 0px inset",
+    }
     : {
-        background  : "#020D1F",
-        border      : "1px solid rgba(0,229,255,0.12)",
-        borderRadius: "1rem",
-        boxShadow   : "rgba(0,229,255,0.06) 0px 0px 32px 0px",
-      };
+      background: "#020D1F",
+      border: "1px solid rgba(0,229,255,0.12)",
+      borderRadius: "1rem",
+      boxShadow: "rgba(0,229,255,0.06) 0px 0px 32px 0px",
+    };
 
   return (
     <div className="p-8" style={cardStyle}>
@@ -264,13 +260,11 @@ function PlanCard({ plan, yearly, activation, isInner = false }) {
           <span className="font-poppins font-medium text-5xl text-[#F4F7FF] tabular-nums leading-none">{price}</span>
           <span className="text-[#94A3B8] font-poppins text-sm mb-1">/ mo</span>
         </div>
-        {yearly ? (
-          <p className="text-[#00E5FF]/60 font-poppins text-xs mt-2">
-            Billed as {plan.total_y}/yr · <span className="text-emerald-400/80">{plan.savings_y}</span>
-          </p>
-        ) : (
-          <p className="text-[#4B5563] font-poppins text-xs mt-2">
-            or {plan.total_y}/yr · billed annually
+
+        {/* Yearly billing total */}
+        {yearly && (
+          <p className="text-[#4a5a6a] font-poppins text-xs mt-1">
+            {plan.total_y} billed annually
           </p>
         )}
 

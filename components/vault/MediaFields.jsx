@@ -36,6 +36,25 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
     const predefinedFields = getFieldsForSection(sectionId);
     const previousApprovalRef = useRef(false);
 
+    const [testimonialSubheadlines, setTestimonialSubheadlines] = useState({});
+
+    // Fetch testimonial subheadlines from funnelCopy section to show as descriptions on image fields
+    useEffect(() => {
+        if (!funnelId) return;
+        fetchWithAuth(`/api/os/vault-fields?funnel_id=${funnelId}&section_id=funnelCopy`)
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data?.fields) return;
+                const map = {};
+                for (const f of data.fields) {
+                    const m = f.field_id.match(/^(?:salesPage\.)?testimonial_review_(\d+)_subheadline_with_name$/);
+                    if (m) map[`testimonial_review_${m[1]}_image`] = f.field_value;
+                }
+                setTestimonialSubheadlines(map);
+            })
+            .catch(() => {});
+    }, [funnelId]);
+
     // AI Free Gift Image generator state
     const [aiPanelOpen, setAiPanelOpen] = useState(false);
     const [aiStylePrompt, setAiStylePrompt] = useState('');
@@ -386,7 +405,13 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                 <div className="flex items-start justify-between mb-4">
                     <div>
                         <h4 className="text-white font-semibold text-lg">{fieldDef.field_label}</h4>
-                        <p className="text-gray-500 text-sm mt-1">{fieldDef.field_metadata?.hint}</p>
+                        {testimonialSubheadlines[fieldDef.field_id] ? (
+                            <p className="text-[#B2C0CD] text-sm mt-1 italic">{testimonialSubheadlines[fieldDef.field_id]}</p>
+                        ) : /^testimonial_review_\d+_image$/.test(fieldDef.field_id) ? (
+                            <p className="text-[#4a5a6a] text-sm mt-1">Upload this client&apos;s testimonial photo</p>
+                        ) : (
+                            <p className="text-gray-500 text-sm mt-1">{fieldDef.field_metadata?.hint}</p>
+                        )}
 
                         {/* Display guidelines if available */}
                         {fieldDef.field_metadata?.guidelines && (
@@ -486,11 +511,11 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                         <div>
                             <div className="flex items-center gap-2 mb-2">
                                 <LinkIcon className="w-4 h-4 text-gray-500" />
-                                <span className="text-gray-400 text-sm">{isImage ? 'Or paste image URL' : 'Paste video URL'}</span>
+                                <span className="text-gray-400 text-sm">{isImage ? 'Or paste image URL' : 'Paste video embed URL'}</span>
                             </div>
                             <input
                                 type="text"
-                                placeholder={isVideo ? 'https://youtube.com/watch?v=... or https://vimeo.com/...' : 'https://example.com/image.jpg'}
+                                placeholder={isVideo ? 'https://www.youtube.com/embed/... or https://player.vimeo.com/video/...' : 'https://example.com/image.jpg'}
                                 className="w-full bg-surface border border-subtle rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan/50 focus:border-cyan transition-colors"
                                 onBlur={(e) => {
                                     const url = e.target.value.trim();

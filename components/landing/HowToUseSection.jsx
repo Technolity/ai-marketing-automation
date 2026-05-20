@@ -103,7 +103,7 @@ export default function HowToUseSection() {
           transition={{ duration: 0.8, delay: 0.5 }}
           className="text-center text-[#4B5563] text-sm font-poppins mt-12 uppercase tracking-widest"
         >
-          Total time: Under 60 minutes &nbsp;•&nbsp; Zero technical knowledge required
+          Total time: Under 60 minutes &nbsp;•&nbsp; No coding knowledge required
         </motion.p>
       </div>
     </section>
