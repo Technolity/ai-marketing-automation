@@ -22,7 +22,7 @@ export default function SlotAssignmentBadge({
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
 
-  const prefix = String(slotIndex).padStart(2, '0') + '_';
+  const funnelNumber = slotIndex - 2;
 
   const formattedDate = assignedAt
     ? new Date(assignedAt).toLocaleDateString('en-US', {
@@ -34,13 +34,12 @@ export default function SlotAssignmentBadge({
 
   return (
     <div className="bg-[#0D1217] border border-[#1E2A34] rounded-xl px-4 py-3 flex items-center gap-4 flex-wrap">
-      {/* Left: lock icon + slot label + prefix + locked pill */}
+      {/* Left: lock icon + funnel label + locked pill */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <Lock className="w-4 h-4 text-cyan flex-shrink-0" />
         <span className="font-bold text-white text-sm">
-          Slot {String(slotIndex).padStart(2, '0')}
+          Funnel {funnelNumber}
         </span>
-        <span className="font-mono text-cyan text-xs">{prefix}</span>
         <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan/10 border border-cyan text-cyan">
           Locked
         </span>

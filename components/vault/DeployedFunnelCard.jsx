@@ -12,7 +12,7 @@ import LaunchBuilderButton from '@/components/LaunchBuilderButton';
 
 export default function DeployedFunnelCard({ slotIndex }) {
     const funnelNumber = slotIndex ? slotIndex - 2 : null;
-    const funnelLabel = slotIndex ? `Funnel-${String(slotIndex).padStart(2, '0')}` : 'Funnel';
+    const funnelLabel = funnelNumber ? `Funnel ${funnelNumber}` : 'Funnel';
     const [showInstructions, setShowInstructions] = useState(false);
 
     return (
@@ -26,7 +26,7 @@ export default function DeployedFunnelCard({ slotIndex }) {
                         </div>
                         <div>
                             <h3 className="text-xl font-bold text-green-400 flex items-center gap-2">
-                                Funnel Live
+                                {funnelNumber ? `Funnel ${funnelNumber} — Live` : 'Funnel Live'}
                                 <button
                                     onClick={() => setShowInstructions(true)}
                                     className="text-gray-400 hover:text-white transition-colors"

@@ -3893,7 +3893,7 @@ export default function VaultPage() {
                                                                 <div className="border-t border-[#1E2A34] mb-5" />
                                                                 <div className="text-left space-y-3">
                                                                     <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a] mb-3">
-                                                                        Slot assignment
+                                                                        Funnel {funnelSlotAssignment.slot_index - 2} assigned
                                                                     </p>
                                                                     <SlotAssignmentBadge
                                                                         slotIndex={funnelSlotAssignment.slot_index}
@@ -4261,7 +4261,7 @@ export default function VaultPage() {
                                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-3"
                                     style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)' }}>
                                     <span className="text-[#00E5FF] text-xs font-bold uppercase tracking-widest">
-                                        Funnel {funnelSlotAssignment.slot_index}
+                                        Funnel {funnelSlotAssignment.slot_index - 2}
                                     </span>
                                 </div>
                             )}
