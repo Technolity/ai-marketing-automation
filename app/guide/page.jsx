@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight, ExternalLink } from "lucide-react";
+import React, { useState } from "react";
+import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight, ExternalLink, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
-// Guide configuration - easily extensible
 const GUIDES = [
     {
         id: "how-to-login",
@@ -14,7 +14,7 @@ const GUIDES = [
     },
     {
         id: "getting-started",
-        title: "Getting Started!",
+        title: "Getting Started",
         description: "Your first steps with the platform",
         pdfPath: "/guide-2.pdf",
         icon: Rocket,
@@ -28,7 +28,7 @@ const GUIDES = [
     },
     {
         id: "tedos-domain",
-        title: "TedOS Domain",
+        title: "Domain Setup",
         description: "Domain setup and configuration guide",
         pdfPath: "/TedOS_Domains.pdf",
         icon: Globe,
@@ -38,93 +38,97 @@ const GUIDES = [
 export default function GuidePage() {
     const [activeGuide, setActiveGuide] = useState(GUIDES[0]);
 
-    useEffect(() => {
-        console.log(`[GuidePage] Component mounted. Active guide: ${activeGuide.title}`);
-    }, [activeGuide?.title]);
-
-    useEffect(() => {
-        console.log(`[GuidePage] Switched to guide: ${activeGuide.title} (${activeGuide.pdfPath})`);
-
-        // Check if the PDF file exists
-        fetch(activeGuide.pdfPath, { method: 'HEAD' })
-            .then(res => {
-                if (res.ok) {
-                    console.log(`[GuidePage] PDF file found: ${activeGuide.pdfPath}`);
-                } else {
-                    console.error(`[GuidePage] PDF file not found: ${activeGuide.pdfPath} (status: ${res.status})`);
-                }
-            })
-            .catch(err => {
-                console.error(`[GuidePage] Error checking PDF file:`, err);
-            });
-    }, [activeGuide]);
-
-    const handleGuideSelect = (guide) => {
-        console.log(`[GuidePage] User selected guide: ${guide.title}`);
-        setActiveGuide(guide);
-    };
-
     return (
-        <div className="min-h-screen bg-dark pt-4 sm:pt-8 px-4 sm:px-6 pb-12 flex flex-col">
-            <div className="max-w-7xl mx-auto w-full h-full flex-1 flex flex-col gap-6">
+        <div className="min-h-screen font-poppins" style={{ background: "#00031C", color: "#F4F7FF" }}>
 
-                {/* Header */}
-                <div className="flex justify-between items-center border-b border-white/10 pb-6">
-                    <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                            Implementation Guide
+            {/* Header */}
+            <header className="sticky top-0 z-50 border-b backdrop-blur-md"
+                style={{ background: "rgba(0,3,28,0.85)", borderColor: "rgba(255,255,255,0.05)" }}>
+                <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Link href="/dashboard"
+                            className="p-2 rounded-lg transition-colors text-[#94A3B8] hover:text-white"
+                            style={{ background: "rgba(255,255,255,0)" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,0)"}
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                        </Link>
+                        <h1 className="text-base font-semibold flex items-center gap-2 text-[#F4F7FF]">
+                            <BookOpen className="w-4 h-4 text-[#00E5FF]" />
+                            Implementation Guides
                         </h1>
-                        <p className="text-gray-400 mt-2">
-                            Follow these step-by-step guides to set up your automation.
-                        </p>
                     </div>
+                    <a
+                        href="https://docs.google.com/document/d/1-BDkFocpe3M5zvcar2usO_On3hZ0P3DhoXhbq1hi-1k/edit?tab=t.pj3ujvxwo1qp"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm transition-colors text-[#00E5FF] hover:text-white"
+                    >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Latest version
+                    </a>
+                </div>
+            </header>
+
+            <div className="max-w-7xl mx-auto px-6 py-10 flex flex-col gap-8">
+
+                {/* Page title */}
+                <div className="space-y-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#00E5FF]">Resources</span>
+                    <h2 className="text-3xl sm:text-4xl font-semibold text-[#F4F7FF] leading-tight">
+                        Setup Guides
+                    </h2>
+                    <p className="text-[#94A3B8] text-base max-w-xl">
+                        Step-by-step guides to get your TedOS system live. Select a guide from the list to view or download.
+                    </p>
                 </div>
 
-                {/* Main Content - Sidebar + PDF Viewer */}
-                <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-[500px] lg:min-h-[800px]">
+                {/* Main layout */}
+                <div className="flex flex-col lg:flex-row gap-6 min-h-[700px]">
 
                     {/* Sidebar */}
-                    <div className="w-full lg:w-80 lg:flex-shrink-0 bg-[#0e0e0f] rounded-xl border border-white/10 p-4 flex flex-col gap-2">
-                        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 px-3">
+                    <div className="w-full lg:w-72 lg:flex-shrink-0 flex flex-col gap-2 rounded-2xl p-4"
+                        style={{ background: "#020D1F", border: "1px solid rgba(0,229,255,0.08)" }}>
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a] px-3 mb-1">
                             Guides
-                        </h3>
+                        </p>
                         {GUIDES.map((guide) => {
                             const Icon = guide.icon;
                             const isActive = activeGuide.id === guide.id;
-
                             return (
                                 <button
                                     key={guide.id}
-                                    onClick={() => handleGuideSelect(guide)}
-                                    className={`
-                    w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all duration-300
-                    ${isActive
-                                            ? 'bg-cyan/10 border border-cyan/30 text-white'
-                                            : 'hover:bg-white/5 border border-transparent text-gray-400 hover:text-white'
-                                        }
-                  `}
+                                    onClick={() => setActiveGuide(guide)}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all duration-200 cursor-pointer"
+                                    style={isActive
+                                        ? { background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.25)", color: "#F4F7FF" }
+                                        : { border: "1px solid transparent", color: "#94A3B8" }
+                                    }
+                                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.03)"; }}
+                                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                                 >
-                                    <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-cyan' : ''}`} />
+                                    <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-[#00E5FF]" : ""}`} />
                                     <div className="flex-1 min-w-0">
-                                        <p className={`font-medium truncate ${isActive ? 'text-white' : ''}`}>
+                                        <p className={`text-sm font-medium truncate ${isActive ? "text-[#F4F7FF]" : ""}`}>
                                             {guide.title}
                                         </p>
-                                        <p className="text-xs text-gray-500 truncate">
-                                            {guide.description}
-                                        </p>
+                                        <p className="text-xs text-[#4a5a6a] truncate mt-0.5">{guide.description}</p>
                                     </div>
-                                    {isActive && <ChevronRight className="w-4 h-4 text-cyan flex-shrink-0" />}
+                                    {isActive && <ChevronRight className="w-4 h-4 text-[#00E5FF] flex-shrink-0" />}
                                 </button>
                             );
                         })}
 
-                        {/* Download Button in Sidebar */}
-                        <div className="mt-auto pt-4 border-t border-white/10">
+                        {/* Download */}
+                        <div className="mt-auto pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                             <a
                                 href={activeGuide.pdfPath}
                                 download={`${activeGuide.title.replace(/\s+/g, '_')}.pdf`}
-                                className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/20 rounded-lg transition-all duration-300 font-medium"
-                                onClick={() => console.log(`[GuidePage] Download clicked for: ${activeGuide.title}`)}
+                                className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200"
+                                style={{ background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.25)", color: "#00E5FF" }}
+                                onMouseEnter={e => e.currentTarget.style.background = "rgba(0,229,255,0.15)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "rgba(0,229,255,0.08)"}
                             >
                                 <Download className="w-4 h-4" />
                                 Download PDF
@@ -133,23 +137,28 @@ export default function GuidePage() {
                     </div>
 
                     {/* PDF Viewer */}
-                    <div className="flex-1 min-h-[400px] lg:min-h-0 bg-[#0e0e0f] rounded-xl border border-white/10 overflow-hidden shadow-2xl relative flex flex-col">
-                        {/* PDF Title Bar */}
-                        <div className="px-6 py-4 border-b border-white/10 flex items-center gap-3">
-                            {React.createElement(activeGuide.icon, { className: "w-5 h-5 text-cyan" })}
-                            <h2 className="text-lg font-semibold text-white">{activeGuide.title}</h2>
+                    <div className="flex-1 min-h-[500px] lg:min-h-0 rounded-2xl overflow-hidden flex flex-col"
+                        style={{ background: "#020D1F", border: "1px solid rgba(0,229,255,0.08)" }}>
+
+                        {/* Title bar */}
+                        <div className="px-6 py-4 flex items-center gap-3 flex-shrink-0"
+                            style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                            {React.createElement(activeGuide.icon, { className: "w-4 h-4 text-[#00E5FF]" })}
+                            <span className="text-sm font-semibold text-[#F4F7FF]">{activeGuide.title}</span>
                             <a
-                                href="https://docs.google.com/document/d/1-BDkFocpe3M5zvcar2usO_On3hZ0P3DhoXhbq1hi-1k/edit?tab=t.pj3ujvxwo1qp"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="ml-auto flex items-center gap-1.5 text-sm text-cyan hover:text-white border border-cyan/30 hover:border-cyan/60 bg-cyan/5 hover:bg-cyan/15 px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap"
+                                href={activeGuide.pdfPath}
+                                download={`${activeGuide.title.replace(/\s+/g, '_')}.pdf`}
+                                className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                                style={{ background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.2)", color: "#00E5FF" }}
+                                onMouseEnter={e => e.currentTarget.style.background = "rgba(0,229,255,0.15)"}
+                                onMouseLeave={e => e.currentTarget.style.background = "rgba(0,229,255,0.08)"}
                             >
-                                <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
-                                Get the latest version
+                                <Download className="w-3 h-3" />
+                                Download
                             </a>
                         </div>
 
-                        {/* PDF Content */}
+                        {/* PDF */}
                         <div className="flex-1 relative">
                             <object
                                 key={activeGuide.id}
@@ -157,21 +166,16 @@ export default function GuidePage() {
                                 type="application/pdf"
                                 className="w-full h-full absolute inset-0 border-0"
                             >
-                                <embed
-                                    src={`${activeGuide.pdfPath}#view=FitH`}
-                                    type="application/pdf"
-                                    className="w-full h-full"
-                                />
-                                {/* Fallback if browser can't embed PDF */}
-                                <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400">
-                                    <p>Your browser cannot display this PDF inline.</p>
+                                <div className="flex flex-col items-center justify-center h-full gap-5 text-[#94A3B8]">
+                                    <p className="text-sm">Your browser cannot display this PDF inline.</p>
                                     <a
                                         href={activeGuide.pdfPath}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-4 py-2 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/20 rounded-lg transition-all"
+                                        download={`${activeGuide.title.replace(/\s+/g, '_')}.pdf`}
+                                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold transition-all"
+                                        style={{ background: "#00E5FF", color: "#00031C" }}
                                     >
-                                        Open PDF in new tab
+                                        <Download className="w-4 h-4" />
+                                        Download to view
                                     </a>
                                 </div>
                             </object>

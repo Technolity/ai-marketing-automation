@@ -3961,7 +3961,7 @@ export default function VaultPage() {
                                             </p>
                                             <div className="flex flex-wrap gap-2">
                                                 <a
-                                                    href="/docs/builder-guide"
+                                                    href="/guide"
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="px-4 py-2 rounded-lg text-sm font-semibold border border-[#1E2A34] text-[#B2C0CD] hover:border-cyan/40 hover:text-cyan transition-all"
