@@ -4257,6 +4257,14 @@ export default function VaultPage() {
                             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
                                 <CheckCircle className="w-10 h-10 text-green-500" />
                             </div>
+                            {funnelSlotAssignment?.slot_index != null && (
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full mb-3"
+                                    style={{ background: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.25)' }}>
+                                    <span className="text-[#00E5FF] text-xs font-bold uppercase tracking-widest">
+                                        Funnel {funnelSlotAssignment.slot_index}
+                                    </span>
+                                </div>
+                            )}
                             <p className="text-gray-400 text-sm">
                                 Your content is now live in Builder.
                             </p>
