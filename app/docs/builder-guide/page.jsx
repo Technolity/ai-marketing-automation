@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, BookOpen, CheckCircle, ExternalLink, Globe, Calendar, ChevronRight, ArrowRight } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle, ExternalLink, Globe, Calendar, ChevronRight, ArrowRight, FileDown } from 'lucide-react';
 import Link from 'next/link';
 
 const Step = ({ number, title, children }) => (
@@ -97,6 +97,25 @@ export default function BuilderGuidePage() {
                 <p className="text-xs text-[#94A3B8]">Copy the embed URL for your booking calendar to paste into TedOS.</p>
               </div>
             </div>
+          </div>
+
+          {/* Domain Setup PDF Download */}
+          <div className="flex items-center justify-between p-4 rounded-xl bg-[#0D1217] border border-[#1E2A34] gap-4">
+            <div className="flex items-center gap-3">
+              <FileDown className="w-5 h-5 text-[#00E5FF] shrink-0" />
+              <div>
+                <p className="font-semibold text-white text-sm">Domain Setup PDF Guide</p>
+                <p className="text-xs text-[#94A3B8] mt-0.5">Step-by-step visual walkthrough for connecting your domain</p>
+              </div>
+            </div>
+            <a
+              href="/Domain%20setup.pdf"
+              download="Domain Setup Guide.pdf"
+              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] hover:bg-[#00E5FF]/20 transition-colors"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              Download
+            </a>
           </div>
 
           {/* Step 1: Domain */}
