@@ -3993,9 +3993,17 @@ export default function VaultPage() {
                                             </span>
                                         </div>
                                         {calendarEmbedSaved ? (
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
-                                                <span className="text-sm text-green-400 font-medium">Calendar embed code saved</span>
+                                            <div className="flex items-center justify-between mt-1">
+                                                <div className="flex items-center gap-2">
+                                                    <CheckCircle className="w-4 h-4 text-green-400 shrink-0" />
+                                                    <span className="text-sm text-green-400 font-medium">Calendar embed code saved</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setCalendarEmbedSaved(false)}
+                                                    className="text-xs text-[#B2C0CD] hover:text-cyan underline transition-colors cursor-pointer"
+                                                >
+                                                    Edit
+                                                </button>
                                             </div>
                                         ) : (
                                             <>
