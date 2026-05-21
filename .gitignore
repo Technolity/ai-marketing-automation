@@ -39,8 +39,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# documentation
-docs/
+# documentation (only root-level /docs, not app/docs)
+/docs/
 *.md
 !README.md
 
