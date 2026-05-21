@@ -105,7 +105,7 @@ export default function BuilderGuidePage() {
               <FileDown className="w-5 h-5 text-[#00E5FF] shrink-0" />
               <div>
                 <p className="font-semibold text-white text-sm">Domain Setup PDF Guide</p>
-                <p className="text-xs text-[#94A3B8] mt-0.5">Step-by-step visual walkthrough for connecting your domain</p>
+                <p className="text-xs text-[#94A3B8] mt-0.5">To get the full guide with screenshots, download the PDF guide.</p>
               </div>
             </div>
             <a
