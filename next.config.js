@@ -3,6 +3,13 @@ const nextConfig = {
     // Enable React Strict Mode for better development experience
     reactStrictMode: true,
 
+    async redirects() {
+        return [
+            { source: '/docs/builder-guide', destination: '/guide', permanent: false },
+            { source: '/docs/:path*', destination: '/guide', permanent: false },
+        ];
+    },
+
     // Optimize images
     images: {
         domains: ['rbmvbnxmzbbzfofokezv.supabase.co'],

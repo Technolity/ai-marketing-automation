@@ -109,8 +109,8 @@ export default function BuilderGuidePage() {
               </div>
             </div>
             <a
-              href="/Domain%20setup.pdf"
-              download="Domain Setup Guide.pdf"
+              href="/TedOS_Domains.pdf"
+              download="TedOS Domain Setup Guide.pdf"
               className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] hover:bg-[#00E5FF]/20 transition-colors"
             >
               <FileDown className="w-3.5 h-3.5" />
