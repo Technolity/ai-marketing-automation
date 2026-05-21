@@ -3946,7 +3946,7 @@ export default function VaultPage() {
                                 <div className="p-5 bg-[#131314] rounded-2xl border border-cyan/20">
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan">
-                                            Step 1 — Builder Setup
+                                            Step 1 — Setup your Domain in the Builder
                                         </span>
                                     </div>
                                     {builderSetupDone ? (
@@ -3957,11 +3957,11 @@ export default function VaultPage() {
                                     ) : (
                                         <>
                                             <p className="text-xs text-[#B2C0CD] mb-4">
-                                                You&apos;re done with your funnel page copy! Now set up your builder account — configure your domain, calendar, and other settings before continuing.
+                                                You&apos;re done with your funnel page copy! Now set up your domain in the builder — configure your domain, calendar, and other settings before continuing.
                                             </p>
                                             <div className="flex flex-wrap gap-2">
                                                 <a
-                                                    href="/docs/builder-guide"
+                                                    href="/Domain%20setup.pdf"
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="px-4 py-2 rounded-lg text-sm font-semibold border border-[#1E2A34] text-[#B2C0CD] hover:border-cyan/40 hover:text-cyan transition-all"
@@ -4046,9 +4046,7 @@ export default function VaultPage() {
                                         </div>
                                         <p className="text-xs text-[#B2C0CD] mb-3">
                                             Now we will get the link that will be used in your email campaigns when leads are directed to book a call with you.{' '}
-                                            <a href="/docs/builder-guide" target="_blank" rel="noopener noreferrer" className="text-cyan hover:underline">
-                                                Here is the guide for this step
-                                            </a>
+                                            <span className="text-[#4a5a6a] italic">Guide coming soon</span>
                                         </p>
                                         <ScheduleLinkCard
                                             funnelId={dataSource?.id || searchParams.get('funnel_id')}
