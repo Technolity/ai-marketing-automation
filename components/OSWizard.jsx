@@ -1802,7 +1802,7 @@ export default function OSWizard({ mode = 'dashboard', startAtStepOne = false, f
                                         value={sessionName}
                                         onChange={(e) => setSessionName(e.target.value)}
                                         placeholder="e.g., Fitness Coach Marketing Plan"
-                                        className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan mb-6"
+                                        className="w-full bg-surface border border-subtle rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan/50 focus:border-cyan mb-6 transition-colors"
                                     />
 
                                     <div className="flex gap-3">

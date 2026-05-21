@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: 'class',
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -7,13 +8,63 @@ module.exports = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        poppins: ['var(--font-poppins)', 'sans-serif'],
+        sans   : ['var(--font-sans)',    'sans-serif'],
+      },
       colors: {
-        dark: '#0a0a0b', // Deep rich black
-        grayDark: '#161618', // Slightly lighter for cards
-        richBlack: '#050505',
-        charcoal: '#121214',
-        // Premium Electric Cyan - ONLY color accent
-        cyan: '#00E5FF', // Electric cyan - premium futuristic
+        // ── Brand tokens ──
+        dark: '#0a0a0b',       // App background (keep for dashboard etc.)
+        navy: '#00031C',       // Landing page background (deep navy)
+        'navy-card': '#020D1F', // Landing card background
+        grayDark: '#161618',   // Card/panel background
+        richBlack: '#050505',  // Deepest background
+        charcoal: '#121214',   // Elevated background
+        surface: '#0e0e0f',    // Primary surface — form inputs, panels
+        elevated: '#1b1b1d',   // Slightly raised surface — tooltips, dropdowns
+        subtle: '#2a2a2d',     // Border / divider color (dense contexts)
+        subtleAlt: '#3a3a3d',  // Border / divider color (editor/expanded contexts)
+        overlay: '#151517',    // Floating element background
+        cyan: '#00E5FF',       // Electric cyan — sole color accent
+
+        // ── shadcn/ui semantic tokens (CSS variable bridge) ──
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        card: {
+          DEFAULT: 'var(--card)',
+          foreground: 'var(--card-foreground)',
+        },
+        popover: {
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
+        },
+        primary: {
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
+        },
+        secondary: {
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
+        },
+        muted: {
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
+        accent: {
+          DEFAULT: 'var(--accent)',
+          foreground: 'var(--accent-foreground)',
+        },
+        destructive: {
+          DEFAULT: 'var(--destructive)',
+        },
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
       },
       boxShadow: {
         'glow': '0 0 15px rgba(0, 229, 255, 0.3)', // Cyan glow

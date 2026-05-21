@@ -10,7 +10,9 @@ import { useState } from 'react';
 import { CheckCircle, Info, X } from 'lucide-react';
 import LaunchBuilderButton from '@/components/LaunchBuilderButton';
 
-export default function DeployedFunnelCard() {
+export default function DeployedFunnelCard({ slotIndex }) {
+    const funnelNumber = slotIndex ? slotIndex - 2 : null;
+    const funnelLabel = funnelNumber ? `Funnel ${funnelNumber}` : 'Funnel';
     const [showInstructions, setShowInstructions] = useState(false);
 
     return (
@@ -24,7 +26,7 @@ export default function DeployedFunnelCard() {
                         </div>
                         <div>
                             <h3 className="text-xl font-bold text-green-400 flex items-center gap-2">
-                                Funnel Live
+                                {funnelNumber ? `Funnel ${funnelNumber} — Live` : 'Funnel Live'}
                                 <button
                                     onClick={() => setShowInstructions(true)}
                                     className="text-gray-400 hover:text-white transition-colors"
@@ -87,7 +89,7 @@ export default function DeployedFunnelCard() {
                                     <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 font-bold text-xs">
                                         3
                                     </span>
-                                    <span>Find and open <strong>Funnel-03</strong> from your sites list</span>
+                                    <span>Find and open <strong>{funnelLabel}</strong> from your sites list</span>
                                 </li>
                                 <li className="flex gap-3">
                                     <span className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 font-bold text-xs">

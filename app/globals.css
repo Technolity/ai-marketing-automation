@@ -357,7 +357,6 @@
 html {
   height: 100%;
   overflow-y: auto;
-  overflow-x: hidden;
   scroll-behavior: smooth;
   /* Modern browser scrollbar styling */
   scrollbar-width: thin;

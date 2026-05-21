@@ -2,11 +2,15 @@
 /node_modules
 /.pnp
 .pnp.js
+.agents
 .codex
-.claude
+.agent
+.vscode
+.claude-flow
 # testing
 /coverage
 .kiro
+/designs
 # next.js
 /.next/
 /out/
@@ -50,9 +54,18 @@ database/
 # claude context
 .claude/
 
+# graphify knowledge graph outputs
+graphify-out/
+.graphify_python
+
 # system files
 nul
 supabase/.temp/
 app/api/os/refine-section/implementation_plan.md.resolved
 screenshots/
 .auth-state.json
+
+.mcp.json
+tmp
+.swarm
+.shannon

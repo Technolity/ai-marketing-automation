@@ -1,6 +1,6 @@
 # 🧠 TedOS / AI Marketing Automation - Full Project Context
 
-> **Last Updated**: 2026-03-18
+> **Last Updated**: 2026-03-26
 > **Purpose**: Definitive technical guide for developers. Covers architecture, data flow, API inventory, and integration logic.
 
 ---
@@ -33,6 +33,57 @@
 *   **Targeted Section Refresh**: `refreshTriggers` is now a **per-section map** (`{ [sectionId]: timestamp }`). Only *changed* sections trigger their granular field components to refetch, preventing loaders and scroll jumps in unchanged sections.
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
+
+### Recent Modifications (2026-04-18)
+| File | Change |
+| :--- | :--- |
+| `components/admin/adminTheme.js` | **New (Design System)**: Created a single source of truth for admin panel UI tokens including colors (`_T.card`, `_T.panel`, `_T.cyan`, etc.), spacing, borders, radii, and text styles. |
+| `components/admin/AdminLayout.jsx` | **UI Enhancement**: Refactored the global admin layout container, sidebar, and header to implement the new dark-mode tokens and structured responsive wrapping. |
+| `app/admin/overview/page.jsx` | **Feature (Overview Redesign)**: Completely rebuilt the admin overview page to match the ADMINPAGE.pen specifications. Implemented new hero, metrics grid, responsive Recharts components, and detailed analytics rows. Connected all visualizations to the existing `api/admin/stats` endpoint. |
+| `app/admin/**/*.jsx` | **Refactoring (Theme Propagation)**: Migrated all 15 admin pages (`users`, `funnels`, `subscriptions`, `ghl-accounts`, `announcements`, `knowledge-base`, `settings`, `billing`, `feedback`, etc.) to import and utilize the shared `adminTheme.js` tokens instead of hard-coded hex colors or local `T` objects. Ensured all root containers enforce responsive wrapping. |
+
+### Recent Modifications (2026-04-21)
+| File | Change |
+| :--- | :--- |
+| `components/AppSidebar.jsx` | **UI Enhancement**: Replaced the simple text representation of engine counts with a new interactive UI component that displays the engine statistics and provides a direct, conditional link to the Funnel Builder. Added API fetch logic for `hasDeployedFunnel` and `builderLocationId` to construct `builderUrl`. |
+| `contexts/AuthContext.jsx` | **Bug Fix (Auth Loop)**: Added forced sign-out when `/api/users/sync` returns a `401 Unauthorized`. This prevents an infinite redirect loop when the user's browser has a stale Clerk session token but the backend Clerk API keys have been rotated. |
+
+### Recent Modifications (2026-04-25)
+| File | Change |
+| :--- | :--- |
+| `lib/integrations/ghl.js` | **Feature (Bulk Create)**: Added `bulkCreateCustomValues(locationId, customValues)` — a new exported function that creates/updates custom values directly by GHL location ID (bypassing userId lookup). Returns detailed per-key results with GHL-assigned IDs, action type, and error info. Uses existing batching pattern (10 concurrent, 300ms delay). |
+| `app/api/admin/ghl-custom-values/bulk-create/route.js` | **New (API Route)**: Admin-protected POST endpoint for bulk-creating GHL custom values. Validates admin auth, calls `bulkCreateCustomValues`, and persists successful results to the new `ghl_custom_values_log` table with GHL IDs for record-keeping. Supports `maxDuration: 120` for large batches. |
+| `app/admin/ghl-custom-values/page.jsx` | **New (Admin Page)**: Full admin UI for bulk GHL custom value management. Includes Visual Builder (dynamic key-value rows) and JSON Input tabs, a "Load Template" button for standard `03_` keys, push-to-GHL action, results table with GHL IDs, export/copy functionality, and session history. Uses shared `adminTheme.js` design tokens. |
+| `components/admin/AdminLayout.jsx` | **Nav Update**: Added "GHL Custom Values" entry to the admin sidebar navigation menu. |
+| `supabase/migrations/20260425001800_create_ghl_custom_values_log.sql` | **New (Migration)**: Creates `ghl_custom_values_log` table to persist every custom value pushed via the admin tool, including GHL-assigned IDs, action type, and admin user who triggered it. Uses composite unique constraint on `(location_id, custom_value_name)` for upsert support. |
+
+### Recent Modifications (2026-04-17)
+| File | Change |
+| :--- | :--- |
+| `app/api/os/generate-stream/route.js` | **Bug Fix (Founder Name)**: Added `user_profiles` fetch after `questionnaireData` is built. Injects `fullName` and `businessName` into `questionnaireData` before any section generation. This eliminates the "The Founder" fallback across ALL generated content (bio, funnelCopy, VSL appointment page). |
+| `app/api/os/regenerate-dependent/route.js` | **Bug Fix (Founder Name)**: Fixed profile query to use `targetUserId` (workspace owner) instead of `userId` (Clerk auth), and now also fetches `business_name`. Ensures correct name in admin/seat scenarios and propagates `fullName` + `businessName` to all regenerated sections. |
+| `app/api/os/refine-field/route.js` | **Bug Fix (Founder Name)**: Added `user_profiles` fetch after funnel ownership check. Injects founder name and business name into the system prompt via a `FOUNDER/BUSINESS INFO` block so the AI never outputs "The Founder" during field-level refinement. |
+| `lib/prompts/funnelCopyChunks.js` | **Bug Fix (Founder Name)**: Added `data.fullName` as first option in `founderName` resolution chain in `buildGlobalContext()`. **Bio Word Limit**: Tightened `bio_paragraph_text` in `chunk3_salesPart2` from "Max 300 words" to **STRICT MAX 120 WORDS, exactly 2 paragraphs** — with example structure and style guide to match the user's expected output format. |
+
+### Recent Modifications (2026-04-14)
+| File | Change |
+| :--- | :--- |
+| `lib/vault/fieldMapper.js` | **Bug Fix (Short VSL)**: Added `vslShort` mapping to `FIELD_MAPPINGS` to correctly extract and parse the 16 fields from the flat JSON output. |
+| `lib/vault/dependencyResolver.js` | **Bug Fix (Short VSL)**: Registered key 21 (`vslShort`) in `CONTENT_NAMES` and added its upstream dependencies (`idealClient`, `message`, `story`, `vsl`) to `SECTION_DEPENDENCIES`. |
+| `app/api/os/generate-stream/route.js` | **Enhancement**: Added explicit debug logging for key 21 (Short VSL) generation start. |
+| `app/api/admin/ghl-subaccounts/link/route.js` | **Bug Fix (GHL Link)**: Fixed `23505 duplicate key` crash on `location_id` unique constraint. When re-linking a location already held by another user, the route now: (1) deactivates any conflicting row from other users, (2) deletes the old physical row for that location_id, and (3) re-inserts with the new owner. Previously would return 500 on conflict. Also hotfixed Debra Shelton's row directly via SQL (`is_active = false → true` for location `nGGnFrvFOelEOy2kjFlo`). |
+| `app/api/admin/funnels/route.js` | **Feature (Undeploy)**: Added `undeploy` action to the admin funnels PUT handler. Sets `deployed_at = NULL` — clears the funnel's deployed state without touching approvals, so the user can trigger a full new deployment from the Vault. |
+| `app/admin/funnels/page.jsx` | **Feature (Undeploy UI)**: Added `CloudOff` icon import and an "Undeploy" action button in the funnels table. Button is conditionally shown only on `is_deployed` funnels (where `deployed_at` is set). Shows a confirmation dialog with a clear explanation before proceeding. Success toast message updated to reflect the action. |
+
+### Recent Modifications (2026-04-06)
+| File | Change |
+| :--- | :--- |
+| `components/SubscriptionLockedPage.jsx` | **UI Update**: Changed subscription renewal flow to direct users to app.tedos.ai/settings/billings instead of specific plan URLs, reflecting that renewals are managed externally from the app settings. |
+
+### Recent Modifications (2026-03-26)
+| File | Change |
+| :--- | :--- |
+| `components/vault/FieldEditor.jsx`, `lib/vault/fieldStructures.js` | **UI Enhancement**: Added dynamic `itemLabel` support for array items and changed "Item" to "Step" for the 7-Step Blueprint in the Signature Offer section. |
 
 ### Recent Modifications (2026-03-20)
 | File | Change |

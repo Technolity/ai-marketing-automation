@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
     Send, CheckCircle, Loader2, Cloud, Upload,
     Zap, Globe, Link2, FileText
@@ -32,6 +32,7 @@ export default function GHLPushAnimation({
     completedItems = [],
     onComplete
 }) {
+    const prefersReducedMotion = useReducedMotion();
     const [internalCompleted, setInternalCompleted] = useState([]);
     const [currentItemIndex, setCurrentItemIndex] = useState(0);
     const [progress, setProgress] = useState(0);
@@ -80,63 +81,63 @@ export default function GHLPushAnimation({
                 {/* Central Animation Core */}
                 <motion.div
                     className="relative w-32 h-32 md:w-40 md:h-40 mx-auto mb-10"
-                    initial={{ opacity: 0, scale: 0.8 }}
+                    initial={{ opacity: 0, scale: prefersReducedMotion ? 1 : 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={gentleSpring}
+                    transition={prefersReducedMotion ? { duration: 0.15 } : gentleSpring}
                 >
                     {/* Outer ring - slow pulse */}
                     <motion.div
-                        animate={{
+                        animate={prefersReducedMotion ? { opacity: 0.4 } : {
                             scale: [1, 1.05, 1],
                             opacity: [0.3, 0.5, 0.3]
                         }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                        transition={prefersReducedMotion ? {} : { duration: 3, repeat: Infinity, ease: "easeInOut" }}
                         className="absolute inset-0 border border-green-500/20 rounded-full"
                     />
 
                     {/* Middle ring - data flow effect */}
                     <motion.div
-                        animate={{ rotate: 360 }}
-                        transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+                        animate={prefersReducedMotion ? {} : { rotate: 360 }}
+                        transition={prefersReducedMotion ? {} : { duration: 15, repeat: Infinity, ease: "linear" }}
                         className="absolute inset-4 border border-emerald-500/30 rounded-full border-dashed"
                     />
 
                     {/* Inner ring - spinning upload indicator */}
                     <motion.div
-                        animate={{ rotate: -360 }}
-                        transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                        animate={prefersReducedMotion ? {} : { rotate: -360 }}
+                        transition={prefersReducedMotion ? {} : { duration: 4, repeat: Infinity, ease: "linear" }}
                         className="absolute inset-8 border-2 border-t-green-500 border-r-green-500/50 border-b-transparent border-l-transparent rounded-full"
                     />
 
                     {/* Center icon with glow */}
                     <div className="absolute inset-0 flex items-center justify-center">
                         <motion.div
-                            animate={{
+                            animate={prefersReducedMotion ? { opacity: 0.6 } : {
                                 scale: [1, 1.15, 1],
                                 opacity: [0.4, 0.8, 0.4]
                             }}
-                            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                            transition={prefersReducedMotion ? {} : { duration: 2, repeat: Infinity, ease: "easeInOut" }}
                             className="absolute w-16 h-16 bg-green-500/20 rounded-full blur-xl"
                         />
                         <motion.div
-                            animate={{ y: [0, -3, 0] }}
-                            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                            animate={prefersReducedMotion ? {} : { y: [0, -3, 0] }}
+                            transition={prefersReducedMotion ? {} : { duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                         >
                             <Send className="w-10 h-10 md:w-12 md:h-12 text-green-500 relative z-10 drop-shadow-[0_0_20px_rgba(34,197,94,0.6)]" />
                         </motion.div>
                     </div>
 
                     {/* Orbital elements */}
-                    <OrbitalIcon angle={0} icon={<Cloud className="w-3.5 h-3.5" />} color="text-green-500" delay={0} />
-                    <OrbitalIcon angle={120} icon={<Globe className="w-3.5 h-3.5" />} color="text-emerald-400" delay={0.3} />
-                    <OrbitalIcon angle={240} icon={<Link2 className="w-3.5 h-3.5" />} color="text-teal-400" delay={0.6} />
+                    <OrbitalIcon angle={0} icon={<Cloud className="w-3.5 h-3.5" />} color="text-green-500" delay={0} prefersReducedMotion={prefersReducedMotion} />
+                    <OrbitalIcon angle={120} icon={<Globe className="w-3.5 h-3.5" />} color="text-emerald-400" delay={0.3} prefersReducedMotion={prefersReducedMotion} />
+                    <OrbitalIcon angle={240} icon={<Link2 className="w-3.5 h-3.5" />} color="text-teal-400" delay={0.6} prefersReducedMotion={prefersReducedMotion} />
                 </motion.div>
 
                 {/* Headline */}
                 <motion.div
-                    initial={{ y: 20, opacity: 0 }}
+                    initial={{ y: prefersReducedMotion ? 0 : 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    transition={{ ...gentleSpring, delay: 0.2 }}
+                    transition={prefersReducedMotion ? { duration: 0.15 } : { ...gentleSpring, delay: 0.2 }}
                     className="space-y-3 mb-10"
                 >
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white tracking-tight">
@@ -238,11 +239,11 @@ export default function GHLPushAnimation({
     );
 }
 
-function OrbitalIcon({ angle, icon, color, delay }) {
+function OrbitalIcon({ angle, icon, color, delay, prefersReducedMotion }) {
     return (
         <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 12, repeat: Infinity, ease: "linear", delay }}
+            animate={prefersReducedMotion ? {} : { rotate: 360 }}
+            transition={prefersReducedMotion ? {} : { duration: 12, repeat: Infinity, ease: "linear", delay }}
             className="absolute inset-0"
         >
             <div

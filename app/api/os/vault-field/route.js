@@ -5,6 +5,7 @@ import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { performFieldAtomicUpdate } from '@/lib/vault/atomicUpdater';
 import { isAtomicField } from '@/lib/vault/dependencyGraph';
 import { reconcileFromFields } from '@/lib/vault/reconcileVault';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 
 
 /**
@@ -243,6 +244,14 @@ export async function PATCH(req) {
         });
     }
 
+    const { workspaceId, error: wsError } = await resolveWorkspace(userId);
+    if (wsError) {
+        return new Response(JSON.stringify({ error: wsError }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+
     let body;
     try {
         body = await req.json();
@@ -289,12 +298,12 @@ export async function PATCH(req) {
     });
 
     try {
-        // Verify funnel ownership
+        // Verify funnel ownership (check against workspace owner's user_id)
         const { data: funnel, error: funnelError } = await supabaseAdmin
             .from('user_funnels')
             .select('id')
             .eq('id', funnel_id)
-            .eq('user_id', userId)
+            .eq('user_id', workspaceId)
             .single();
 
         if (funnelError || !funnel) {
@@ -466,7 +475,7 @@ export async function PATCH(req) {
 
         const rpcArgs = {
             p_funnel_id: funnel_id,
-            p_user_id: userId,
+            p_user_id: workspaceId,
             p_section_id: section_id,
             p_field_id: actualFieldId,
             p_field_value: typeof serializedValue === 'string' ? serializedValue : JSON.stringify(serializedValue),

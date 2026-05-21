@@ -123,12 +123,12 @@ export default function EditableField({
     return (
         <div className="group relative mb-4">
             {/* Label */}
-            <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-300">
+            <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wider text-gray-400">
                     {label}
                 </label>
                 {maxLength && (
-                    <span className={`text-xs ${isOverLimit ? 'text-red-400' : 'text-gray-500'}`}>
+                    <span className={`text-xs tabular-nums ${isOverLimit ? 'text-red-400' : 'text-gray-600'}`}>
                         {charCount} / {maxLength}
                     </span>
                 )}
@@ -144,7 +144,7 @@ export default function EditableField({
                                 value={currentValue}
                                 onChange={(e) => setCurrentValue(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                className="w-full px-4 py-3 bg-[#1b1b1d] border-2 border-cyan rounded-lg text-white resize-none focus:outline-none focus:border-cyan/70"
+                                className="w-full px-4 py-3 bg-elevated border-2 border-cyan rounded-lg text-white resize-none focus:outline-none focus:ring-2 focus:ring-cyan/50 focus:border-cyan"
                                 rows={Math.min(Math.max(3, currentValue?.split('\n').length || 3), 15)}
                                 disabled={isSaving}
                             />
@@ -155,7 +155,7 @@ export default function EditableField({
                                 value={currentValue}
                                 onChange={(e) => setCurrentValue(e.target.value)}
                                 onKeyDown={handleKeyDown}
-                                className="w-full px-4 py-3 bg-[#1b1b1d] border-2 border-cyan rounded-lg text-white focus:outline-none focus:border-cyan/70"
+                                className="w-full px-4 py-3 bg-elevated border-2 border-cyan rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan/50 focus:border-cyan"
                                 disabled={isSaving}
                             />
                         )}
@@ -165,7 +165,7 @@ export default function EditableField({
                             <button
                                 onClick={handleSave}
                                 disabled={isSaving || isOverLimit}
-                                className="px-4 py-2 bg-cyan hover:bg-cyan/90 disabled:bg-gray-700 disabled:cursor-not-allowed text-black rounded-lg font-medium flex items-center gap-2"
+                                className="px-4 py-2 bg-cyan hover:bg-cyan/90 disabled:bg-gray-700 disabled:cursor-not-allowed text-black rounded-lg font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-cyan/50"
                             >
                                 {isSaving ? (
                                     <>
@@ -182,7 +182,7 @@ export default function EditableField({
                             <button
                                 onClick={handleCancel}
                                 disabled={isSaving}
-                                className="px-4 py-2 bg-[#2a2a2d] hover:bg-[#3a3a3d] disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-2"
+                                className="px-4 py-2 bg-subtle hover:bg-subtleAlt disabled:opacity-50 text-white rounded-lg font-medium flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-white/20"
                             >
                                 <X className="w-4 h-4" />
                                 Cancel
@@ -197,11 +197,11 @@ export default function EditableField({
                 ) : (
                     <div
                         onClick={() => setIsEditing(true)}
-                        className="px-4 py-3 bg-[#1b1b1d] border border-[#2a2a2d] group-hover:border-cyan/50 rounded-lg cursor-text transition-colors relative"
+                        className="px-4 py-3 bg-elevated border border-subtle group-hover:border-cyan/50 rounded-lg cursor-text transition-colors relative"
                     >
                         {/* Display Value */}
                         <div className="text-white whitespace-pre-wrap pr-24">
-                            {currentValue || <span className="text-gray-500 italic">Click to add content</span>}
+                            {currentValue || <span className="text-gray-600 italic text-sm">Click to add content…</span>}
                         </div>
 
                         {/* Hover Actions */}
@@ -211,7 +211,7 @@ export default function EditableField({
                                     e.stopPropagation();
                                     handleAIRefine();
                                 }}
-                                className="p-2 bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 rounded-lg transition-all"
+                                className="p-2 bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-cyan/50"
                                 title="AI Refine"
                             >
                                 <Sparkles className="w-4 h-4 text-black" />
@@ -221,7 +221,7 @@ export default function EditableField({
                                     e.stopPropagation();
                                     setIsEditing(true);
                                 }}
-                                className="p-2 bg-[#2a2a2d] hover:bg-[#3a3a3d] rounded-lg transition-all"
+                                className="p-2 bg-subtle hover:bg-subtleAlt rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-cyan/50"
                                 title="Edit"
                             >
                                 <Edit3 className="w-4 h-4 text-cyan" />

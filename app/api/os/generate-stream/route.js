@@ -634,6 +634,29 @@ export async function POST(req) {
         });
     }
 
+    // INJECT USER PROFILE: Fetch full_name and business_name from user_profiles
+    // This ensures bio and funnel copy prompts receive the real founder name
+    // instead of falling back to 'The Founder'
+    try {
+        const { data: userProfile } = await supabaseAdmin
+            .from('user_profiles')
+            .select('full_name, business_name')
+            .eq('id', targetUserId)
+            .maybeSingle();
+
+        if (userProfile?.full_name) {
+            questionnaireData.fullName = userProfile.full_name;
+            console.log(`[STREAM] Injected fullName from user_profiles: "${userProfile.full_name}"`);
+        }
+        if (userProfile?.business_name && !questionnaireData.businessName) {
+            questionnaireData.businessName = userProfile.business_name;
+            console.log(`[STREAM] Injected businessName from user_profiles: "${userProfile.business_name}"`);
+        }
+    } catch (profileErr) {
+        console.warn('[STREAM] Failed to fetch user_profiles for name injection:', profileErr.message);
+        // Non-fatal — generation continues, prompts use available fallbacks
+    }
+
     // Create SSE stream
     const encoder = new TextEncoder();
     const stream = new TransformStream();

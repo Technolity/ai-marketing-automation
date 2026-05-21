@@ -65,6 +65,9 @@ export default function ApprovalWatcher({ funnelId, userId }) {
 
   useEffect(() => {
     const checkApprovals = async () => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!funnelId || !uuidRegex.test(funnelId)) return;
+
       try {
         // Fetch approval status from vault
         const res = await fetch(`/api/os/approvals?session_id=${funnelId}`);

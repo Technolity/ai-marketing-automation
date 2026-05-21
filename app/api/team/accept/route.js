@@ -117,9 +117,14 @@ export async function POST(request) {
         }
 
         // Update owner's seat count
+        const { data: ownerProfile } = await supabase
+            .from('user_profiles')
+            .select('current_seat_count')
+            .eq('id', seat.owner_user_id)
+            .single();
         await supabase
             .from('user_profiles')
-            .update({ current_seat_count: supabase.raw('current_seat_count + 1') })
+            .update({ current_seat_count: (ownerProfile?.current_seat_count || 0) + 1 })
             .eq('id', seat.owner_user_id);
 
         return NextResponse.json({

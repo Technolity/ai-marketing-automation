@@ -75,7 +75,7 @@ function ClerkAuthProvider({ children }) {
             });
 
             const syncData = await syncRes.json();
-            if (syncData.success) {
+            if (syncRes.ok && syncData.success) {
                 console.log('[AuthContext] User synced successfully:', syncData.message);
 
                 // Set role and workspace from sync response
@@ -102,7 +102,13 @@ function ClerkAuthProvider({ children }) {
                     }
                 }
             } else {
-                console.error('[AuthContext] User sync failed:', syncData.error);
+                console.error('[AuthContext] User sync failed:', syncData.error || syncRes.statusText);
+                if (syncRes.status === 401) {
+                    console.log('[AuthContext] Session invalid (401). Forcing sign out...');
+                    await clerkSignOut();
+                    window.location.href = '/auth/login';
+                    return; // Stop further checks
+                }
             }
 
             // Then check admin status

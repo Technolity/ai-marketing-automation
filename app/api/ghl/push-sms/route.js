@@ -13,6 +13,8 @@ import { polishSMSContent } from '@/lib/ghl/contentPolisher';
 import { getLocationToken } from '@/lib/ghl/tokenHelper';
 import { buildExistingMap, findExistingId, fetchExistingCustomValues, normalizeForComparison } from '@/lib/ghl/ghlKeyMatcher';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { addStoredSlotIdsToExistingMap, resolveSlotForFunnel, transformKey } from '@/lib/ghl/slotHelper';
+import { extractSmsMessage } from '@/lib/ghl/slotDeployMapper';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120; // 2 minutes for SMS processing with batching
@@ -85,6 +87,17 @@ export async function POST(req) {
             return Response.json({ error: 'funnelId is required' }, { status: 400 });
         }
 
+        // Resolve slot assignment for this funnel
+        const { slotIndex, slotPrefix, basePrefix } = await resolveSlotForFunnel(funnelId, supabaseAdmin);
+
+        // Fetch user's hardcoded booking URL (replaces {{custom_values.schedule_link}})
+        const { data: profileData } = await supabaseAdmin
+            .from('user_profiles')
+            .select('schedule_link')
+            .eq('id', targetUserId)
+            .maybeSingle();
+        const scheduleLink = profileData?.schedule_link || null;
+
         console.log(`[PushSMS] Starting push for target user ${targetUserId} (Auth: ${userId})`);
 
         // Get target user's location ID (owner if team member)
@@ -113,6 +126,13 @@ export async function POST(req) {
 
         // Build enhanced lookup map with 11-level matching
         const existingMap = buildExistingMap(existingValues);
+        const storedSlotIdCount = await addStoredSlotIdsToExistingMap(existingMap, {
+            userId: targetUserId,
+            locationId,
+            slotIndex,
+            supabaseClient: supabaseAdmin,
+        });
+        console.log('[PushSMS] Stored slot IDs loaded:', storedSlotIdCount);
 
         // Get SMS content from vault_content_fields (use targetUserId for owner's vault)
         const { data: fields, error: fieldsError } = await supabaseAdmin
@@ -142,54 +162,71 @@ export async function POST(req) {
         }
 
         // Get the smsSequence object (may be nested or flat)
-        const smsSequence = content.smsSequence || content;
-        console.log('[PushSMS] SMS content keys:', Object.keys(smsSequence).filter(k => k.startsWith('sms')));
+        const smsSequenceFromFields = content.smsSequence || content;
+
+        const { data: vaultSection } = await supabaseAdmin
+            .from('vault_content')
+            .select('content')
+            .eq('funnel_id', funnelId)
+            .eq('user_id', targetUserId)
+            .eq('section_id', 'sms')
+            .eq('is_current_version', true)
+            .maybeSingle();
+
+        const smsContentFromSection = vaultSection?.content?.smsSequence
+            || vaultSection?.content?.sms
+            || vaultSection?.content
+            || {};
+
+        console.log('[PushSMS] SMS content keys:', Object.keys({
+            ...smsContentFromSection,
+            ...smsSequenceFromFields,
+        }).filter(k => k.startsWith('sms')));
 
         // DIRECT MAPPING: Vault SMS keys → GHL custom value keys
         // Based on extracted_values.txt GHL naming convention
         // Vault generates 10 SMS; we map them to GHL's first 7 days
         const VAULT_TO_GHL_MAP = {
             // Days 1-7
-            sms1: 'optin_sms_1',
-            sms2: 'optin_sms_2',
-            sms3: 'optin_sms_3',
-            sms4: 'optin_sms_4',
-            sms5: 'optin_sms_5',
-            sms6: 'optin_sms_6',
-            sms7a: 'optin_sms_7',
-            sms7b: 'optin_sms_8_evening',  // Historic mapping kept for compatibility
+            sms1: transformKey('optin_sms_1', slotPrefix, basePrefix),
+            sms2: transformKey('optin_sms_2', slotPrefix, basePrefix),
+            sms3: transformKey('optin_sms_3', slotPrefix, basePrefix),
+            sms4: transformKey('optin_sms_4', slotPrefix, basePrefix),
+            sms5: transformKey('optin_sms_5', slotPrefix, basePrefix),
+            sms6: transformKey('optin_sms_6', slotPrefix, basePrefix),
+            sms7a: transformKey('optin_sms_7', slotPrefix, basePrefix),
+            sms7b: transformKey('optin_sms_7_evening', slotPrefix, basePrefix),
 
             // Day 8 (Closing Day 1)
-            sms8a: 'optin_sms_8_morning',
-            sms8b: 'optin_sms_8_afternoon',
-            sms8c: 'optin_sms_8_evening',
+            sms8a: transformKey('optin_sms_8_morning', slotPrefix, basePrefix),
+            sms8b: transformKey('optin_sms_8_afternoon', slotPrefix, basePrefix),
+            sms8c: transformKey('optin_sms_8_evening', slotPrefix, basePrefix),
 
             // Days 9-14
-            sms9: 'optin_sms_9',
-            sms10: 'optin_sms_10',
-            sms11: 'optin_sms_11',
-            sms12: 'optin_sms_12',
-            sms13: 'optin_sms_13',
-            sms14: 'optin_sms_14',
+            sms9: transformKey('optin_sms_9', slotPrefix, basePrefix),
+            sms10: transformKey('optin_sms_10', slotPrefix, basePrefix),
+            sms11: transformKey('optin_sms_11', slotPrefix, basePrefix),
+            sms12: transformKey('optin_sms_12', slotPrefix, basePrefix),
+            sms13: transformKey('optin_sms_13', slotPrefix, basePrefix),
+            sms14: transformKey('optin_sms_14', slotPrefix, basePrefix),
 
             // Day 15 (Final Closing Day)
-            sms15a: 'optin_sms_15_morning',
-            sms15b: 'optin_sms_15_afternoon',
-            sms15c: 'optin_sms_15_evening'
+            sms15a: transformKey('optin_sms_15_morning', slotPrefix, basePrefix),
+            sms15b: transformKey('optin_sms_15_afternoon', slotPrefix, basePrefix),
+            sms15c: transformKey('optin_sms_15_evening', slotPrefix, basePrefix)
         };
 
         // Build items to push WITHOUT polishing first (for batch processing)
         const itemsToPush = [];
 
         for (const [vaultKey, ghlKey] of Object.entries(VAULT_TO_GHL_MAP)) {
-            const smsContent = smsSequence[vaultKey];
+            const smsContent = extractSmsMessage(smsSequenceFromFields[vaultKey])
+                ? smsSequenceFromFields[vaultKey]
+                : smsContentFromSection[vaultKey];
             if (!smsContent) continue;
 
             // Extract SMS text from various formats
-            let smsText = smsContent;
-            if (typeof smsContent === 'object') {
-                smsText = smsContent.message || smsContent.body || smsContent.text || JSON.stringify(smsContent);
-            }
+            const smsText = extractSmsMessage(smsContent);
 
             // Validate SMS content
             if (!validateSMSContent(smsText)) {
@@ -235,7 +272,7 @@ export async function POST(req) {
                         }
 
                         // Polish SMS content (AI call)
-                        const polished = await polishSMSContent(item.raw);
+                        const polished = await polishSMSContent(item.raw, scheduleLink);
                         const smsValue = polished.message || polished;
 
                         // Skip if polished value matches what's already in GHL

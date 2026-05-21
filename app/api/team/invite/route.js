@@ -268,9 +268,15 @@ export async function DELETE(request) {
 
         // Decrement owner's seat count only if this seat was active
         if (seat?.status === 'active') {
+            const { data: ownerProfile } = await supabase
+                .from('user_profiles')
+                .select('current_seat_count')
+                .eq('id', userId)
+                .single();
+            const newCount = Math.max((ownerProfile?.current_seat_count || 1) - 1, 0);
             await supabase
                 .from('user_profiles')
-                .update({ current_seat_count: supabase.raw('GREATEST(current_seat_count - 1, 0)') })
+                .update({ current_seat_count: newCount })
                 .eq('id', userId);
         }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight } from "lucide-react";
+import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight, ExternalLink } from "lucide-react";
 
 // Guide configuration - easily extensible
 const GUIDES = [
@@ -30,7 +30,7 @@ const GUIDES = [
         id: "tedos-domain",
         title: "TedOS Domain",
         description: "Domain setup and configuration guide",
-        pdfPath: "/TedOS-Domain.pdf",
+        pdfPath: "/TedOS_Domains.pdf",
         icon: Globe,
     },
 ];
@@ -65,7 +65,7 @@ export default function GuidePage() {
     };
 
     return (
-        <div className="min-h-screen bg-dark pt-24 px-6 pb-12 flex flex-col">
+        <div className="min-h-screen bg-dark pt-4 sm:pt-8 px-4 sm:px-6 pb-12 flex flex-col">
             <div className="max-w-7xl mx-auto w-full h-full flex-1 flex flex-col gap-6">
 
                 {/* Header */}
@@ -81,10 +81,10 @@ export default function GuidePage() {
                 </div>
 
                 {/* Main Content - Sidebar + PDF Viewer */}
-                <div className="flex-1 flex gap-6 min-h-[800px]">
+                <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-[500px] lg:min-h-[800px]">
 
                     {/* Sidebar */}
-                    <div className="w-80 flex-shrink-0 bg-[#0e0e0f] rounded-xl border border-white/10 p-4 flex flex-col gap-2">
+                    <div className="w-full lg:w-80 lg:flex-shrink-0 bg-[#0e0e0f] rounded-xl border border-white/10 p-4 flex flex-col gap-2">
                         <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2 px-3">
                             Guides
                         </h3>
@@ -133,21 +133,48 @@ export default function GuidePage() {
                     </div>
 
                     {/* PDF Viewer */}
-                    <div className="flex-1 bg-[#0e0e0f] rounded-xl border border-white/10 overflow-hidden shadow-2xl relative flex flex-col">
+                    <div className="flex-1 min-h-[400px] lg:min-h-0 bg-[#0e0e0f] rounded-xl border border-white/10 overflow-hidden shadow-2xl relative flex flex-col">
                         {/* PDF Title Bar */}
                         <div className="px-6 py-4 border-b border-white/10 flex items-center gap-3">
                             {React.createElement(activeGuide.icon, { className: "w-5 h-5 text-cyan" })}
                             <h2 className="text-lg font-semibold text-white">{activeGuide.title}</h2>
+                            <a
+                                href="https://docs.google.com/document/d/1-BDkFocpe3M5zvcar2usO_On3hZ0P3DhoXhbq1hi-1k/edit?tab=t.pj3ujvxwo1qp"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="ml-auto flex items-center gap-1.5 text-sm text-cyan hover:text-white border border-cyan/30 hover:border-cyan/60 bg-cyan/5 hover:bg-cyan/15 px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap"
+                            >
+                                <ExternalLink className="w-3.5 h-3.5 flex-shrink-0" />
+                                Get the latest version
+                            </a>
                         </div>
 
                         {/* PDF Content */}
                         <div className="flex-1 relative">
-                            <iframe
+                            <object
                                 key={activeGuide.id}
-                                src={activeGuide.pdfPath}
+                                data={`${activeGuide.pdfPath}#view=FitH&toolbar=1`}
+                                type="application/pdf"
                                 className="w-full h-full absolute inset-0 border-0"
-                                title={activeGuide.title}
-                            />
+                            >
+                                <embed
+                                    src={`${activeGuide.pdfPath}#view=FitH`}
+                                    type="application/pdf"
+                                    className="w-full h-full"
+                                />
+                                {/* Fallback if browser can't embed PDF */}
+                                <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-400">
+                                    <p>Your browser cannot display this PDF inline.</p>
+                                    <a
+                                        href={activeGuide.pdfPath}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-4 py-2 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/20 rounded-lg transition-all"
+                                    >
+                                        Open PDF in new tab
+                                    </a>
+                                </div>
+                            </object>
                         </div>
                     </div>
 

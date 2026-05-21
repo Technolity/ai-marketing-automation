@@ -1,0 +1,81 @@
+# Daily Leads Feature — Implementation Plan
+
+This document outlines the technical architecture, UI/UX placement, API design, error handling logic, and the exact files to be updated for the "Daily Leads Simple Version".
+
+## 1. Mapped Codebase Files
+
+### New Files to Create:
+- `migrations/032_daily_leads.sql` - Database schema (Tables: `daily_posts`, `smart_links`, `post_generations_quota`, storage: `daily-post-images`).
+- `app/api/daily-leads/generate/route.js` - Main AI generation backend edge function.
+- `app/api/smart-links/create/route.js` - Endpoint to shorten URLs and generate hashes.
+- `app/l/[hash]/route.js` - Public redirection and click-tracking API route.
+- `app/dashboard/daily-leads/page.jsx` - The main Daily Leads dashboard page.
+- `components/dashboard/daily-leads/GeneratorView.jsx` - The split-pane AI generator UI component.
+- `components/dashboard/daily-leads/TopMetrics.jsx` - The summary statistics bar.
+- `components/dashboard/daily-leads/HistoryList.jsx` - The past posts table.
+
+### Existing Files to Modify:
+- [store/full_project_context.md.resolved](file:///c:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/store/full_project_context.md.resolved) - Update with new tables and API routes once finalized.
+- `components/Sidebar.jsx` (or the equivalent Dashboard navigation component) - To add the link to `/dashboard/daily-leads`.
+
+---
+
+## 2. Database & Schema Updates
+We will create three new tables in Supabase via a migration:
+
+1. **`daily_posts`**
+   - Columns: `id` (UUID), `user_id` (UUID), `image_url` (TEXT), `caption` (TEXT), `post_date` (DATE), `status` (TEXT: 'draft' | 'posted'), `smart_link_id` (UUID, nullable).
+2. **`post_generations_quota`**
+   - Tracks the 10x per day refine limit.
+   - Columns: `user_id` (UUID), [date](file:///c:/Users/Waris%20Rawa/Desktop/ai-marketing-automation/lib/integrations/ghl.js#628-670) (DATE), `generation_count` (INT, default 0).
+3. **`smart_links`**
+   - Tracks clicks on outbound links.
+   - Columns: `id` (UUID), `user_id` (UUID), `post_id` (UUID, nullable), `short_hash` (TEXT, unique), `destination_url` (TEXT), `clicks` (INT, default 0).
+
+## 3. API Routes & Logic
+
+### A. Generation Engine (`POST /api/daily-leads/generate`)
+1. **Validation & Quota:** Check if the user has hit their 10 edits/day limit. If yes, return a `429 Too Many Requests` error.
+2. **Context Retrieval:** Fetch the user's approved **"Free Gift"** copy context (`leadMagnetTitle` / `freeGiftName`) from their Vault.
+3. **AI Image Generation:** Use OpenAI DALL-E 3 with a highly customized prompt based on their niche and Free Gift context to generate a high-converting image.
+4. **AI Caption Generation:** Use an LLM to write an engaging social caption ending with the specific CTA: *"Comment GUIDE and I'll send it."* (We will make "GUIDE" a dynamic variable).
+5. **Storage:** Download the generated image buffer and re-upload it to our Supabase `daily-post-images` bucket for permanent retention.
+6. **Save:** Insert the record into `daily_posts` and increment their quota counter.
+
+### B. SmartLink Creation (`POST /api/smart-links/create`)
+- Accepts a `destination_url` (e.g., their Free Gift Funnel URL).
+- Generates a unique 6-8 character hash, saves to DB, returns the shortened URL.
+
+### C. SmartLink Redirect (`GET /app/l/[hash]/route.js`)
+- Public route. Looks up the hash in the DB.
+- Increments the `clicks` counter atomically and performs a `302 Found` redirect to the destination URL.
+
+## 4. UI/UX Component Placement
+
+**Location:** A new primary navigation item in the user dashboard sidebar: **"Daily Leads"** (`/dashboard/daily-leads`).
+
+### The Dashboard Layout
+1. **Top Metrics Bar:**
+   - 📊 **Posts Generated:** Total count.
+   - ✅ **Posts Published:** Total marked as posted.
+   - 🖱️ **Total Clicks:** Aggregated clicks from their SmartLinks.
+2. **Main Generation Interface:**
+   - **Generation Area:**
+     - Left side: Displays their current active "Free Gift" offer context so they know what the AI is building around.
+     - Right side: The Output Box. If empty, a big **"Generate Today's Post"** button.
+     - Once generated, it displays the Image and a textarea for the Caption.
+3. **Refine & Edit:**
+   - A **"Refine Post"** button next to the result, showing remaining quota: *(8/10 refinements left today)*.
+4. **Push-Button Workflow Actions:**
+   - 📥 **Download Image:** Triggers a browser download of the image file.
+   - 📋 **Copy Caption & Link:** Generates the SmartLink and copies the CTA + caption to the clipboard.
+   - ✔️ **Mark as Posted:** Updates the status to 'posted' in the database and moves the post to the History below.
+
+### The History List
+- A table or grid below the main generator showing past posts.
+- Thumbnail of the image, snippet of the caption, date posted, and **live click counts** for that specific post's SmartLink.
+
+## 5. Error Handling & Edge Cases
+- **Strict Quota Enforcement:** Backend rejects requests over the 10/day limit to prevent API abuse.
+- **Missing Vault Context:** UI displays empty state with CTA to complete Vault Free Gift configuration.
+- **AI Outages:** If Image Gen succeeds but Text Gen fails, the system will keep the successful asset and *refund* that quota attempt so the user isn't penalized for server issues.

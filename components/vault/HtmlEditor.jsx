@@ -62,7 +62,7 @@ export default function HtmlEditor({ value, onChange, onBlur, placeholder, disab
                     type="button"
                     onClick={handleModeToggle}
                     disabled={disabled}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-[#1a1a1d] border border-[#3a3a3d] rounded-lg text-gray-400 hover:text-white hover:border-cyan transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-elevated border border-subtleAlt rounded-lg text-gray-400 hover:text-white hover:border-cyan transition-colors focus:outline-none focus:ring-2 focus:ring-cyan/50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {mode === 'visual' ? (
                         <>
@@ -85,7 +85,7 @@ export default function HtmlEditor({ value, onChange, onBlur, placeholder, disab
                     contentEditable={!disabled}
                     onInput={handleContentEditableInput}
                     onBlur={onBlur}
-                    className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan focus:outline-none overflow-y-auto prose prose-invert max-w-none"
+                    className="w-full px-4 py-3 bg-elevated border border-subtleAlt rounded-xl text-white placeholder-gray-500 transition-colors focus:border-cyan focus:ring-2 focus:ring-cyan/50 focus:outline-none overflow-y-auto prose prose-invert max-w-none"
                     style={{
                         minHeight: '12rem',
                         maxHeight: '24rem',
@@ -105,7 +105,7 @@ export default function HtmlEditor({ value, onChange, onBlur, placeholder, disab
                     placeholder={placeholder}
                     maxLength={maxLength}
                     disabled={disabled}
-                    className="w-full px-4 py-3 bg-[#18181b] border border-[#3a3a3d] rounded-xl text-white placeholder-gray-500 font-mono text-sm resize-none transition-colors focus:border-cyan focus:ring-1 focus:ring-cyan overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-3 bg-elevated border border-subtleAlt rounded-xl text-white placeholder-gray-500 font-mono text-sm resize-none transition-colors focus:border-cyan focus:ring-2 focus:ring-cyan/50 focus:outline-none overflow-y-auto disabled:opacity-60 disabled:cursor-not-allowed"
                     style={{ minHeight: '12rem', maxHeight: '24rem', height: 'auto' }}
                 />
             )}

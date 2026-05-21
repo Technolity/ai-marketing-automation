@@ -74,6 +74,24 @@ export async function POST(req) {
                     return;
                 }
 
+                // Fetch user profile for bio/funnelCopy fields so AI uses real founder name
+                let founderName = null;
+                let businessNameFromProfile = null;
+                try {
+                    const { data: profile } = await supabaseAdmin
+                        .from('user_profiles')
+                        .select('full_name, business_name')
+                        .eq('id', userId)
+                        .maybeSingle();
+                    founderName = profile?.full_name || null;
+                    businessNameFromProfile = profile?.business_name || null;
+                    if (founderName) {
+                        console.log(`[RefineField] Fetched founder name from profile: "${founderName}"`);
+                    }
+                } catch (profileErr) {
+                    console.warn('[RefineField] Profile fetch failed (non-fatal):', profileErr.message);
+                }
+
                 // Build conversation context
                 let conversationContext = '';
                 if (messageHistory && messageHistory.length > 0) {
@@ -84,14 +102,19 @@ export async function POST(req) {
                 }
 
                 // Create prompt for field-level refinement
-                const systemPrompt = `You are an expert marketing copywriter. Your task is to refine a specific piece of content based on user feedback.
+                const founderContext = founderName
+                    ? `\n\nFOUNDER/BUSINESS INFO (use this — never say "The Founder"):\n• Founder Name: ${founderName}${businessNameFromProfile ? `\n• Business: ${businessNameFromProfile}` : ''}`
+                    : '';
+
+                const systemPrompt = `You are an expert marketing copywriter. Your task is to refine a specific piece of content based on user feedback.${founderContext}
 
 RULES:
 1. Return ONLY the refined text - no explanations, no JSON, no markdown
 2. Keep the same general meaning but apply the requested changes
 3. Maintain the appropriate length (unless asked to change it)
 4. Be creative but stay on brand
-5. If the current text is empty, create new content based on the field type and feedback`;
+5. If the current text is empty, create new content based on the field type and feedback
+6. NEVER use "The Founder" as a name — always use the actual founder name if provided above`;
 
                 const userPrompt = `Field: ${fieldLabel}
 Section: ${sectionId}

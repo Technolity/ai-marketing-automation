@@ -224,15 +224,15 @@ export async function POST(req) {
             }, { status: 404 });
         }
 
-        // Fetch full_name from user_profiles for bio generation
-        const { data: profileRow } = await supabaseAdmin
-            .from('user_profiles')
-            .select('full_name')
-            .eq('id', targetUserId)
-            .maybeSingle();
+        // Fetch full_name from user_profiles and per-funnel schedule_link from user_funnels
+        const [{ data: profileRow }, { data: funnelRow }] = await Promise.all([
+            supabaseAdmin.from('user_profiles').select('full_name').eq('id', targetUserId).maybeSingle(),
+            supabaseAdmin.from('user_funnels').select('schedule_link').eq('id', resolvedSessionId).eq('user_id', targetUserId).maybeSingle(),
+        ]);
         if (profileRow?.full_name) {
             enrichedData.fullName = profileRow.full_name;
         }
+        const savedScheduleLink = funnelRow?.schedule_link || null;
 
         console.log(`[Regenerate] Generating ${promptConfig.name} (Key: ${key})...`);
 
@@ -452,6 +452,25 @@ export async function POST(req) {
                 });
             });
             parsedContent = parseJsonSafe(rawContent, { throwOnError: true });
+        }
+
+        // Replace [BOOKING_LINK] placeholder with the user's saved schedule link
+        // Applies to emails (8), sms (19), appointmentReminders (16) so users never
+        // have to re-enter the link after regenerating these sections.
+        const BOOKING_SECTIONS = new Set([8, 16, 19]);
+        if (savedScheduleLink && BOOKING_SECTIONS.has(key)) {
+            const BOOKING_RE = /\[BOOKING_LINK\]|\{\{custom_values\.schedule_link\}\}/g;
+            function _subDeep(node) {
+                if (typeof node === 'string') return node.replace(BOOKING_RE, savedScheduleLink);
+                if (Array.isArray(node)) return node.map(_subDeep);
+                if (node && typeof node === 'object') {
+                    const out = {};
+                    for (const [k, v] of Object.entries(node)) out[k] = _subDeep(v);
+                    return out;
+                }
+                return node;
+            }
+            parsedContent = _subDeep(parsedContent);
         }
 
         // Save to database
