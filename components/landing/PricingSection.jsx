@@ -75,7 +75,6 @@ const container = { hidden: {}, visible: { transition: { staggerChildren: 0.12 }
 const cardAnim = { hidden: { opacity: 0, y: 32 }, visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 export default function PricingSection() {
-  const [activation, setActivation] = useState(false);
   const [yearly, setYearly] = useState(false);
 
   return (
@@ -135,46 +134,17 @@ export default function PricingSection() {
             </div>
           </div>
 
-          {/* Plan type toggle */}
-          <div className="flex items-center justify-center mb-5">
-            <div
-              className="inline-flex items-center gap-1 p-1 rounded-full"
-              style={{ background: "rgba(0,229,255,0.06)", border: "1px solid rgba(0,229,255,0.2)" }}
-            >
-              <button
-                onClick={() => setActivation(false)}
-                className="px-5 py-2 rounded-full text-sm font-poppins font-semibold transition-all duration-200 cursor-pointer"
-                style={!activation ? { background: "#00E5FF", color: "#00031C" } : { color: "#94A3B8" }}
-              >
-                Standard
-              </button>
-              <button
-                onClick={() => setActivation(true)}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-poppins font-semibold transition-all duration-200 cursor-pointer"
-                style={activation
-                  ? { background: "#7DD3FC", color: "#00031C" }
-                  : { color: "#94A3B8" }
-                }
-              >
-                <Zap className="w-3.5 h-3.5" />
-                With Activation
-              </button>
-            </div>
-          </div>
-
-          {/* Activation description */}
-          {activation && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-poppins text-xs"
-              style={{ background: "rgba(125,211,252,0.08)", border: "1px solid rgba(125,211,252,0.25)", color: "#7DD3FC" }}
-            >
-              <Zap className="w-3 h-3 shrink-0" />
-              Our team personally sets up your entire TedOS system — no coding effort on your end.
-            </motion.div>
-          )}
+          {/* Activation description — always shown */}
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full font-poppins text-xs"
+            style={{ background: "rgba(125,211,252,0.08)", border: "1px solid rgba(125,211,252,0.25)", color: "#7DD3FC" }}
+          >
+            <Zap className="w-3 h-3 shrink-0" />
+            Our team personally sets up your entire TedOS system — no coding effort on your end.
+          </motion.div>
         </motion.div>
 
         <motion.div
@@ -192,10 +162,10 @@ export default function PricingSection() {
             >
               {plan.featured ? (
                 <div className="p-px rounded-2xl" style={{ background: "linear-gradient(135deg, rgba(0,229,255,0.6), rgba(0,229,255,0.2), rgba(0,229,255,0.6))" }}>
-                  <PlanCard plan={plan} activation={activation} yearly={yearly} isInner />
+                  <PlanCard plan={plan} yearly={yearly} isInner />
                 </div>
               ) : (
-                <PlanCard plan={plan} activation={activation} yearly={yearly} />
+                <PlanCard plan={plan} yearly={yearly} />
               )}
             </motion.div>
           ))}
@@ -205,11 +175,9 @@ export default function PricingSection() {
   );
 }
 
-function PlanCard({ plan, activation, yearly, isInner = false }) {
+function PlanCard({ plan, yearly, isInner = false }) {
   const price = yearly ? plan.price_y : plan.price_m;
-  const href = yearly
-    ? (activation ? plan.links.activation_y : plan.links.standard_y)
-    : (activation ? plan.links.activation_m : plan.links.standard_m);
+  const href = yearly ? plan.links.activation_y : plan.links.activation_m;
 
   const cardStyle = isInner
     ? {
@@ -237,17 +205,15 @@ function PlanCard({ plan, activation, yearly, isInner = false }) {
       )}
 
       {/* Activation badge */}
-      {activation && (
-        <div className="flex justify-start mb-3">
-          <span
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-poppins text-[10px] font-bold uppercase tracking-wider"
-            style={{ background: "rgba(125,211,252,0.08)", border: "1px solid rgba(125,211,252,0.25)", color: "#7DD3FC" }}
-          >
-            <Zap className="w-2.5 h-2.5" />
-            Team Setup Included
-          </span>
-        </div>
-      )}
+      <div className="flex justify-start mb-3">
+        <span
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-poppins text-[10px] font-bold uppercase tracking-wider"
+          style={{ background: "rgba(125,211,252,0.08)", border: "1px solid rgba(125,211,252,0.25)", color: "#7DD3FC" }}
+        >
+          <Zap className="w-2.5 h-2.5" />
+          Team Setup Included
+        </span>
+      </div>
 
       <h3 className={`font-poppins font-medium text-lg mb-1 ${isInner ? "text-[#00E5FF]" : "text-[#F4F7FF]"}`}>
         {plan.name}
@@ -268,16 +234,14 @@ function PlanCard({ plan, activation, yearly, isInner = false }) {
           </p>
         )}
 
-        {/* Setup fee for activation plans */}
-        {activation && (
-          <div
-            className="flex items-center justify-between mt-3 px-3 py-2 rounded-lg"
-            style={{ background: "rgba(125,211,252,0.05)", border: "1px solid rgba(125,211,252,0.15)" }}
-          >
-            <span className="font-poppins text-[11px] text-[#94A3B8]">One-time setup fee</span>
-            <span className="font-poppins text-[11px] font-semibold text-[#7DD3FC] tabular-nums">+ $2,000</span>
-          </div>
-        )}
+        {/* Setup fee */}
+        <div
+          className="flex items-center justify-between mt-3 px-3 py-2 rounded-lg"
+          style={{ background: "rgba(125,211,252,0.05)", border: "1px solid rgba(125,211,252,0.15)" }}
+        >
+          <span className="font-poppins text-[11px] text-[#94A3B8]">One-time setup fee</span>
+          <span className="font-poppins text-[11px] font-semibold text-[#7DD3FC] tabular-nums">+ $2,000</span>
+        </div>
       </div>
 
       {/* CTA */}

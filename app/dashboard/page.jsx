@@ -84,6 +84,7 @@ const DASHBOARD_TABS = [
         description:
             "Generate social creative from vault strategy while keeping the current production-ready Daily Leads workflow intact.",
         eyebrow: "Organic Growth Engine",
+        beta: true,
     },
     {
         id: "vault-review",
@@ -118,7 +119,7 @@ function DashboardStatCard({ label, value, helper, icon: Icon, accent = "text-cy
     );
 }
 
-function SidebarNavButton({ active, icon: Icon, label, helper, onClick, href, collapsed = false }) {
+function SidebarNavButton({ active, icon: Icon, label, helper, onClick, href, collapsed = false, badge = null }) {
     const content = (
         <>
             <div
@@ -132,16 +133,23 @@ function SidebarNavButton({ active, icon: Icon, label, helper, onClick, href, co
                 <Icon className="h-3.5 w-3.5 shrink-0" />
             </div>
             {!collapsed && (
-                <div className="min-w-0">
-                    <span
-                        className={cn(
-                            GeistSans.className,
-                            "block truncate text-[13px]",
-                            active ? "font-semibold text-white" : "font-medium text-[#e8e8ec]"
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                        <span
+                            className={cn(
+                                GeistSans.className,
+                                "block truncate text-[13px]",
+                                active ? "font-semibold text-white" : "font-medium text-[#e8e8ec]"
+                            )}
+                        >
+                            {label}
+                        </span>
+                        {badge && (
+                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-cyan/10 border border-cyan/30 text-cyan">
+                                {badge}
+                            </span>
                         )}
-                    >
-                        {label}
-                    </span>
+                    </div>
                     {helper ? (
                         <span className="mt-0.5 block truncate text-[9px] uppercase tracking-[0.14em] text-[#6f7077]">
                             {helper}
@@ -534,6 +542,7 @@ export default function Dashboard() {
                             icon={tab.icon}
                             label={tab.label}
                             collapsed={collapsed}
+                            badge={tab.beta ? "BETA" : null}
                             onClick={() => { setActiveTab(tab.id); if (mobile) setIsMobileNavOpen(false); }}
                         />
                     ))}
@@ -968,7 +977,18 @@ export default function Dashboard() {
                                         exit={{ opacity: 0, y: -12 }}
                                         transition={{ duration: 0.24 }}
                                     >
-                                        <DailyLeadsPage />
+                                        <div className="relative">
+                                            <DailyLeadsPage />
+                                            {!isAdmin && (
+                                                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-[#00031C]/80 backdrop-blur-sm">
+                                                    <span className="mb-3 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-cyan/10 border border-cyan/30 text-cyan">
+                                                        Beta
+                                                    </span>
+                                                    <p className="text-white font-semibold text-lg">This feature is shipping soon</p>
+                                                    <p className="text-[#94A3B8] text-sm mt-1">Available to admins during beta</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </motion.div>
                                 ) : (
                                     <motion.div

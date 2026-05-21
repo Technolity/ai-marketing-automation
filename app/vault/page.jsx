@@ -3887,33 +3887,24 @@ export default function VaultPage() {
                                                             Deploy Funnel
                                                         </button>
 
-                                                        {/* Optional setup section */}
-                                                        <div className="border-t border-[#1E2A34] mb-5" />
-                                                        <div className="text-left space-y-3">
-                                                            <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a] mb-3">
-                                                                Before you deploy
-                                                            </p>
-
-                                                            {/* Slot assignment */}
-                                                            {funnelSlotAssignment ? (
-                                                                <SlotAssignmentBadge
-                                                                    slotIndex={funnelSlotAssignment.slot_index}
-                                                                    assignedAt={funnelSlotAssignment.assigned_at}
-                                                                    funnelId={dataSource?.id || searchParams.get('funnel_id')}
-                                                                    onRedeploy={handleOpenDeployModal}
-                                                                    isDeploying={isDeploying}
-                                                                />
-                                                            ) : (
-                                                                <button
-                                                                    onClick={handleAutoAssignAndDeploy}
-                                                                    disabled={isDeploying}
-                                                                    className="w-full px-4 py-2.5 bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                                                                >
-                                                                    <Rocket className="w-4 h-4" />
-                                                                    Deploy Funnel
-                                                                </button>
-                                                            )}
-                                                        </div>
+                                                        {/* Slot assignment (only shown when already assigned) */}
+                                                        {funnelSlotAssignment && (
+                                                            <>
+                                                                <div className="border-t border-[#1E2A34] mb-5" />
+                                                                <div className="text-left space-y-3">
+                                                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[#4a5a6a] mb-3">
+                                                                        Slot assignment
+                                                                    </p>
+                                                                    <SlotAssignmentBadge
+                                                                        slotIndex={funnelSlotAssignment.slot_index}
+                                                                        assignedAt={funnelSlotAssignment.assigned_at}
+                                                                        funnelId={dataSource?.id || searchParams.get('funnel_id')}
+                                                                        onRedeploy={handleOpenDeployModal}
+                                                                        isDeploying={isDeploying}
+                                                                    />
+                                                                </div>
+                                                            </>
+                                                        )}
 
                                                     </>
                                                 )}
@@ -4010,7 +4001,7 @@ export default function VaultPage() {
                                             <>
                                                 <p className="text-xs text-[#B2C0CD] mb-1">
                                                     Paste your calendar embed code below. Use the embed code from your builder calendar.{' '}
-                                                    <a href="#" className="text-cyan hover:underline">Here&apos;s the guide</a>
+                                                    <span className="text-[#4a5a6a] italic">Guide coming soon</span>
                                                 </p>
                                                 <textarea
                                                     value={calendarEmbedCode}
@@ -4054,7 +4045,10 @@ export default function VaultPage() {
                                             </span>
                                         </div>
                                         <p className="text-xs text-[#B2C0CD] mb-3">
-                                            Add your calendar URL. It will be embedded into all emails, SMS, and reminders so your content is ready to approve.
+                                            Now we will get the link that will be used in your email campaigns when leads are directed to book a call with you.{' '}
+                                            <a href="/docs/builder-guide" target="_blank" rel="noopener noreferrer" className="text-cyan hover:underline">
+                                                Here is the guide for this step
+                                            </a>
                                         </p>
                                         <ScheduleLinkCard
                                             funnelId={dataSource?.id || searchParams.get('funnel_id')}
@@ -4148,14 +4142,6 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                {/* Phase 4 Warning Banner */}
-                                <PhaseWarningBanner
-                                    type="warning"
-                                    title="Before Deploying Any Assets"
-                                    message="We encourage you to go through our guide and review all your approved content across all phases. This ensures everything is perfect before going live."
-                                    linkText="Open the Guide"
-                                    linkHref="/guide"
-                                />
 
                                 <div className="grid gap-3">
                                     {PHASE_4_SECTIONS.map((section, index) => {
@@ -4302,32 +4288,6 @@ export default function VaultPage() {
             {/* ApprovalWatcher: Monitors approvals and auto-triggers Funnel Copy generation */}
             <ApprovalWatcher funnelId={searchParams.get('funnel_id')} userId={session?.userId} />
 
-            {/* Phase 2 Instructions Modal */}
-            <ActionModal
-                isOpen={showPhase2Instructions}
-                onClose={handleDismissPhase2Instructions}
-                title="Welcome to Phase 2!"
-                subtitle="Marketing Assets"
-                icon={Rocket}
-                primaryAction={handleDismissPhase2Instructions}
-                primaryActionText="Got It, Let's Go!"
-            >
-                <div className="text-left py-4 space-y-4">
-                    <p className="text-gray-300 text-sm leading-relaxed">
-                        We strongly recommend <strong className="text-cyan">approving all content in Phase 1, 2 & 3</strong> before
-                        running your initial deployment via <strong className="text-white">"Build Your Funnel"</strong> at the end of Phase 2.
-                    </p>
-                    <div className="bg-[#1b1b1d] rounded-xl p-4 border border-white/[0.07] space-y-2">
-                        <p className="text-gray-400 text-xs">
-                            <strong className="text-cyan">💡 After your initial deployment:</strong>
-                        </p>
-                        <p className="text-gray-400 text-xs">
-                            Use the <span className="text-cyan font-semibold">"Push to Builder"</span> button on any section
-                            to update just that specific asset — without re-deploying your entire funnel.
-                        </p>
-                    </div>
-                </div>
-            </ActionModal>
 
             {/* Emergency Help Button - Always Visible */}
             <EmergencyHelpButton
