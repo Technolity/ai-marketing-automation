@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Download, BookOpen, Rocket, Settings, Globe, ChevronRight, ExternalLink, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const GUIDES = [
     {
@@ -36,7 +37,11 @@ const GUIDES = [
 ];
 
 export default function GuidePage() {
-    const [activeGuide, setActiveGuide] = useState(GUIDES[0]);
+    const searchParams = useSearchParams();
+    const [activeGuide, setActiveGuide] = useState(() => {
+        const id = searchParams?.get('guide');
+        return GUIDES.find(g => g.id === id) || GUIDES[0];
+    });
 
     return (
         <div className="min-h-screen font-poppins" style={{ background: "#00031C", color: "#F4F7FF" }}>
