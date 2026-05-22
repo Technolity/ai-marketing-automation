@@ -24,7 +24,8 @@ import {
     Video, Mail, Megaphone, Layout, Bell, Lightbulb,
     Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
     ChevronDown, ChevronUp, Save, Image as ImageIcon, Video as VideoIcon, Plus, Trash2 as TrashIcon, ExternalLink,
-    Upload, X, Info, FileImage, Rocket, AlertOctagon, Play, Palette, Layers
+    Upload, X, Info, FileImage, Rocket, AlertOctagon, Play, Palette, Layers,
+    Globe, Calendar, Link2
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
@@ -642,6 +643,8 @@ export default function VaultPage() {
 
     const [funnelSlotAssignment, setFunnelSlotAssignment] = useState(null); // { slot_index, assigned_at } | null
     const [scheduleLink, setScheduleLink] = useState('');
+    const [overrideVaultComplete, setOverrideVaultComplete] = useState(false);
+    const [expandedPhases, setExpandedPhases] = useState({ 1: true, 2: true, 3: true, 4: true });
 
     // Ref to track completed job IDs we've already processed (prevents duplicate refreshes)
     const previouslyCompletedJobsRef = useRef(new Set());
@@ -3092,120 +3095,277 @@ export default function VaultPage() {
         );
     }
 
+    const togglePhase = (phaseNum) => {
+        setExpandedPhases(prev => ({ ...prev, [phaseNum]: !prev[phaseNum] }));
+    };
+
     // Vault Complete View
-    if (isVaultComplete) {
+    if (isVaultComplete && !overrideVaultComplete) {
         return (
             <div className="min-h-screen bg-dark text-white p-4 sm:p-6 lg:p-8">
                 <div className="max-w-4xl mx-auto">
-                    <div className="text-center mb-10">
-                        <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-2xl shadow-green-500/30">
-                            <PartyPopper className="w-10 h-10 text-white" />
-                        </div>
-                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black mb-4">Your Complete Vault</h1>
-                        <p className="text-gray-400 mb-6">All your content is ready. Deploy to Builder or continue editing.</p>
 
-                        {/* Deploy to GHL Button */}
-                        <div className="flex gap-4 justify-center">
-                            <button
-                                onClick={() => {
-                                    if (deploymentComplete || dataSource?.deployed_at) {
-                                        console.log('[Vault] Funnel already deployed, showing info');
-                                        toast.info('Your funnel is already deployed! Use "Push to Builder" buttons to update individual sections.');
-                                    } else {
-                                        handleAutoAssignAndDeploy();
-                                    }
-                                }}
-                                disabled={isDeploying || deploymentComplete || !!dataSource?.deployed_at}
-                                className={`px-8 py-4 rounded-xl font-bold text-white shadow-lg transition-all flex items-center gap-2 ${(deploymentComplete || dataSource?.deployed_at)
-                                    ? 'bg-[#1b1b1d] text-gray-500 border border-white/[0.07] cursor-not-allowed opacity-70 hover:scale-100'
-                                    : 'bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 shadow-cyan/30 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
-                                    }`}
-                            >
-                                {isDeploying ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        Deploying...
-                                    </>
-                                ) : (deploymentComplete || dataSource?.deployed_at) ? (
-                                    <>
-                                        <CheckCircle className="w-5 h-5 text-green-500" />
-                                        Funnel Deployed
-                                    </>
-                                ) : (
-                                    <>
-                                        <Rocket className="w-5 h-5" />
-                                        Build Your Funnel
-                                    </>
-                                )}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    const funnelId = searchParams.get('funnel_id') || dataSource?.id;
-                                    const confirmed = window.confirm(
-                                        'Are you sure? Editing intake answers may change or overwrite generated content. Proceed carefully.'
-                                    );
-                                    if (!confirmed) return;
-                                    console.log('[Vault] Edit Intake Answers clicked - redirecting with edit_mode=true for funnel:', funnelId);
-                                    router.push(`/intake_form?funnel_id=${funnelId}&edit_mode=true`);
-                                }}
-                                className="px-8 py-4 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-xl font-medium text-white transition-all border border-white/[0.07] flex items-center gap-2"
-                            >
-                                <Edit3 className="w-5 h-5" />
-                                Edit Intake Answers
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Phase 1 */}
+                    {/* Header */}
                     <div className="mb-8">
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                            Phase 1
-                        </h2>
-                        <div className="grid gap-3">
-                            {PHASE_1_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 1))}
-                        </div>
+                        <h1 className="text-2xl sm:text-3xl font-black mb-2">Your Complete Vault</h1>
+                        <p className="text-[#B2C0CD]">All your content is approved and ready.</p>
                     </div>
 
-                    {/* Phase 2 */}
-                    <div>
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                            Phase 2
-                        </h2>
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-3 mb-8">
+                        <button
+                            onClick={() => {
+                                if (deploymentComplete || dataSource?.deployed_at) {
+                                    console.log('[Vault] Funnel already deployed, showing info');
+                                    toast.info('Your funnel is already deployed! Use "Push to Builder" buttons to update individual sections.');
+                                } else {
+                                    handleAutoAssignAndDeploy();
+                                }
+                            }}
+                            disabled={isDeploying || deploymentComplete || !!dataSource?.deployed_at}
+                            className={`px-6 py-3 rounded-xl font-bold text-white shadow-lg transition-all flex items-center gap-2 ${(deploymentComplete || dataSource?.deployed_at)
+                                ? 'bg-[#1b1b1d] text-gray-500 border border-white/[0.07] cursor-not-allowed opacity-70'
+                                : 'bg-gradient-to-r from-cyan to-blue-600 hover:from-cyan/90 hover:to-blue-700 shadow-cyan/30 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
+                                }`}
+                        >
+                            {isDeploying ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    Deploying...
+                                </>
+                            ) : (deploymentComplete || dataSource?.deployed_at) ? (
+                                <>
+                                    <CheckCircle className="w-5 h-5 text-green-500" />
+                                    Funnel Deployed
+                                </>
+                            ) : (
+                                <>
+                                    <Rocket className="w-5 h-5" />
+                                    Build Your Funnel
+                                </>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => {
+                                const funnelId = searchParams.get('funnel_id') || dataSource?.id;
+                                const confirmed = window.confirm(
+                                    'Are you sure? Editing intake answers may change or overwrite generated content. Proceed carefully.'
+                                );
+                                if (!confirmed) return;
+                                console.log('[Vault] Edit Intake Answers clicked - redirecting with edit_mode=true for funnel:', funnelId);
+                                router.push(`/intake_form?funnel_id=${funnelId}&edit_mode=true`);
+                            }}
+                            className="px-6 py-3 bg-[#1b1b1d] hover:bg-[#2a2a2d] rounded-xl font-medium text-white transition-all border border-white/[0.07] flex items-center gap-2"
+                        >
+                            <Edit3 className="w-5 h-5" />
+                            Edit Intake Answers
+                        </button>
+                    </div>
 
-                        {/* Show deployed funnel card if funnel has been deployed */}
-                        {dataSource?.deployed_at && (
-                            <div className="mb-4">
-                                <DeployedFunnelCard slotIndex={funnelSlotAssignment?.slot_index} />
+                    {/* Funnel Live Card — only shown when deployed */}
+                    {(deploymentComplete || dataSource?.deployed_at) && (
+                        <div className="mb-8 rounded-2xl border border-green-500/30 bg-green-500/5 p-1">
+                            <DeployedFunnelCard slotIndex={funnelSlotAssignment?.slot_index} />
+                        </div>
+                    )}
+
+                    {/* Phase 1 — Business Core */}
+                    <div className="mb-4 rounded-2xl border border-[#1E2A34] bg-[#0D1217] overflow-hidden">
+                        <button
+                            onClick={() => togglePhase(1)}
+                            className="w-full flex items-center justify-between px-5 py-4 border-b border-[#1E2A34] hover:bg-[#0D1217] transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                                <span className="font-bold text-[#F4F8FB]">Phase 1 — Business Core</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOverrideVaultComplete(true);
+                                        setActiveTab('dna');
+                                    }}
+                                    className="flex items-center gap-1.5 text-xs text-[#B2C0CD] hover:text-cyan transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1E2A34]"
+                                >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    Edit Phase
+                                </button>
+                                {expandedPhases[1] ? (
+                                    <ChevronDown className="w-4 h-4 text-[#B2C0CD]" />
+                                ) : (
+                                    <ChevronRight className="w-4 h-4 text-[#B2C0CD]" />
+                                )}
+                            </div>
+                        </button>
+                        {expandedPhases[1] && (
+                            <div className="p-4 grid gap-3">
+                                {PHASE_1_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 1))}
                             </div>
                         )}
-
-                        <div className="grid gap-3">
-                            {PHASE_2_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 2))}
-                        </div>
                     </div>
 
-                    {/* Phase 3 — Campaigns */}
-                    <div className="mb-8">
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                            Phase 3
-                        </h2>
-                        <div className="grid gap-3">
-                            {PHASE_3_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 3))}
-                        </div>
+                    {/* Phase 2 — Funnel Assets */}
+                    <div className="mb-4 rounded-2xl border border-[#1E2A34] bg-[#0D1217] overflow-hidden">
+                        <button
+                            onClick={() => togglePhase(2)}
+                            className="w-full flex items-center justify-between px-5 py-4 border-b border-[#1E2A34] hover:bg-[#0D1217] transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                                <span className="font-bold text-[#F4F8FB]">Phase 2 — Funnel Assets</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOverrideVaultComplete(true);
+                                        setActiveTab('assets');
+                                    }}
+                                    className="flex items-center gap-1.5 text-xs text-[#B2C0CD] hover:text-cyan transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1E2A34]"
+                                >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    Edit Phase
+                                </button>
+                                {expandedPhases[2] ? (
+                                    <ChevronDown className="w-4 h-4 text-[#B2C0CD]" />
+                                ) : (
+                                    <ChevronRight className="w-4 h-4 text-[#B2C0CD]" />
+                                )}
+                            </div>
+                        </button>
+                        {expandedPhases[2] && (
+                            <div className="p-4 grid gap-3">
+                                {PHASE_2_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 2))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Phase 3 — Campaigns & Setup */}
+                    <div className="mb-4 rounded-2xl border border-[#1E2A34] bg-[#0D1217] overflow-hidden">
+                        <button
+                            onClick={() => togglePhase(3)}
+                            className="w-full flex items-center justify-between px-5 py-4 border-b border-[#1E2A34] hover:bg-[#0D1217] transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                                <span className="font-bold text-[#F4F8FB]">Phase 3 — Campaigns & Setup</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOverrideVaultComplete(true);
+                                        setActiveTab('campaigns');
+                                    }}
+                                    className="flex items-center gap-1.5 text-xs text-[#B2C0CD] hover:text-cyan transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1E2A34]"
+                                >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    Edit Phase
+                                </button>
+                                {expandedPhases[3] ? (
+                                    <ChevronDown className="w-4 h-4 text-[#B2C0CD]" />
+                                ) : (
+                                    <ChevronRight className="w-4 h-4 text-[#B2C0CD]" />
+                                )}
+                            </div>
+                        </button>
+                        {expandedPhases[3] && (
+                            <div className="p-4 grid gap-3">
+                                {PHASE_3_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 3))}
+
+                                {/* Domain Setup */}
+                                <div className="flex items-center justify-between p-4 bg-[#131314] rounded-2xl border border-[#1E2A34]">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#1E2A34] flex items-center justify-center">
+                                            <Globe className="w-4 h-4 text-cyan" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-[#F4F8FB]">Domain Setup</p>
+                                            <p className="text-xs text-[#4a5a6a]">Your builder domain configuration</p>
+                                        </div>
+                                    </div>
+                                    <a href="/guide?guide=tedos-domain" target="_blank" rel="noopener noreferrer"
+                                        className="text-xs text-cyan hover:underline">View Guide</a>
+                                </div>
+
+                                {/* Calendar Embed Code */}
+                                <div className="flex items-center justify-between p-4 bg-[#131314] rounded-2xl border border-[#1E2A34]">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#1E2A34] flex items-center justify-center">
+                                            <Calendar className="w-4 h-4 text-cyan" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-[#F4F8FB]">Calendar Embed Code</p>
+                                            <p className="text-xs text-[#4a5a6a]">
+                                                {calendarEmbedSaved ? 'Embed code saved' : calendarEmbedCode ? 'Embed code entered' : 'Not yet added'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {(calendarEmbedSaved || calendarEmbedCode) && (
+                                        <span className="inline-flex items-center gap-1 text-xs text-green-400">
+                                            <CheckCircle className="w-3 h-3" /> Saved
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Booking / Schedule Link */}
+                                <div className="flex items-center justify-between p-4 bg-[#131314] rounded-2xl border border-[#1E2A34]">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-xl bg-[#1E2A34] flex items-center justify-center">
+                                            <Link2 className="w-4 h-4 text-cyan" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-semibold text-[#F4F8FB]">Booking / Schedule Link</p>
+                                            <p className="text-xs text-[#4a5a6a] truncate max-w-[200px]">
+                                                {scheduleLink || 'Not yet added'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {scheduleLink && (
+                                        <span className="inline-flex items-center gap-1 text-xs text-green-400">
+                                            <CheckCircle className="w-3 h-3" /> Saved
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Phase 4 — Scripts */}
-                    <div className="mb-8">
-                        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                            Phase 4
-                        </h2>
-                        <div className="grid gap-3">
-                            {PHASE_4_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 4))}
-                        </div>
+                    <div className="mb-8 rounded-2xl border border-[#1E2A34] bg-[#0D1217] overflow-hidden">
+                        <button
+                            onClick={() => togglePhase(4)}
+                            className="w-full flex items-center justify-between px-5 py-4 border-b border-[#1E2A34] hover:bg-[#0D1217] transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
+                                <span className="font-bold text-[#F4F8FB]">Phase 4 — Scripts</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOverrideVaultComplete(true);
+                                        setActiveTab('scripts');
+                                    }}
+                                    className="flex items-center gap-1.5 text-xs text-[#B2C0CD] hover:text-cyan transition-colors px-3 py-1.5 rounded-lg hover:bg-[#1E2A34]"
+                                >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    Edit Phase
+                                </button>
+                                {expandedPhases[4] ? (
+                                    <ChevronDown className="w-4 h-4 text-[#B2C0CD]" />
+                                ) : (
+                                    <ChevronRight className="w-4 h-4 text-[#B2C0CD]" />
+                                )}
+                            </div>
+                        </button>
+                        {expandedPhases[4] && (
+                            <div className="p-4 grid gap-3">
+                                {PHASE_4_SECTIONS.map((section, index) => renderSection(section, 'approved', index, 4))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -3639,6 +3799,18 @@ export default function VaultPage() {
     return (
         <div className="min-h-screen bg-dark text-white p-4 sm:p-6 lg:p-8">
             <div className="max-w-4xl mx-auto">
+
+                {/* Back to Complete Vault banner — shown when user entered via Edit Phase */}
+                {overrideVaultComplete && (
+                    <div className="px-0 pt-0 pb-4">
+                        <button
+                            onClick={() => setOverrideVaultComplete(false)}
+                            className="flex items-center gap-2 text-sm text-cyan hover:text-white transition-colors"
+                        >
+                            <ArrowLeft className="w-4 h-4" /> Back to Complete Vault
+                        </button>
+                    </div>
+                )}
 
                 {/* Navigation & Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-12">
