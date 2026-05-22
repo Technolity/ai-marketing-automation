@@ -3823,7 +3823,7 @@ export default function VaultPage() {
                                             return renderSection(section, status, index, 2);
                                         })}
 
-                                        {isPhase2Complete && (
+                                        {(isPhase2Complete || deploymentComplete || !!dataSource?.deployed_at) && (
                                             <motion.div
                                                 initial={{ opacity: 0, scale: 0.95 }}
                                                 animate={{ opacity: 1, scale: 1 }}
