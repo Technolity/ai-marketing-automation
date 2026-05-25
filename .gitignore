@@ -49,7 +49,6 @@ next-env.d.ts
 !README.md
 
 # database migrations (run manually in Supabase)
-database/
 
 # claude context
 .claude/
@@ -69,3 +68,28 @@ screenshots/
 tmp
 .swarm
 .shannon
+.gitignore
+database/UNIFIED_SCHEMA_FRESH_START.sql
+database/migrations/011_create_funnel_images_bucket.sql
+database/migrations/013_transcript_management.sql
+database/migrations/012_pgvector_setup.sql
+database/migrations/015_cleanup_duplicate_policies.sql
+database/migrations/014_comprehensive_security_rls.sql
+database/migrations/019_fix_ghl_credentials_for_clerk.sql
+database/migrations/016_ghl_custom_values.sql
+database/migrations/020_funnel_tracking.sql
+database/migrations/018_ghl_production_system.sql
+database/migrations/021_phase_approvals.sql
+database/migrations/028_expand_user_profiles.sql
+database/migrations/035_subscription_timestamps.sql
+database/migrations/033_admin_god_mode_policies.sql
+database/migrations/027_license_agreement.sql
+database/migrations/029_update_ghl_logs_schema.sql
+database/migrations/024_generated_images_table.sql
+database/migrations/026_ghl_retry_system.sql
+database/migrations/031_ghl_oauth_integration.sql
+database/migrations/022_fix_slide_results_for_clerk.sql
+database/migrations/023_add_slide_results_unique_constraint.sql
+database/migrations/025_theirdna_voice_model.sql
+database/migrations/020_ghl_push_logs.sql
+database/migrations/034_ghl_saas_provisioning.sql
