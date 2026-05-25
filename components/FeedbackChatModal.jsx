@@ -183,6 +183,12 @@ const SECTION_OPTIONS = {
         { id: 'socialMediaVersions', label: 'Social Media Versions', group: 'Social' },
         { id: 'personalTouch', label: 'Personal Touch', group: 'Social' },
     ],
+    colors: [
+        { id: 'primary', label: 'Primary Color', group: 'Color Palette' },
+        { id: 'secondary', label: 'Secondary Color', group: 'Color Palette' },
+        { id: 'tertiary', label: 'Tertiary / Accent Color', group: 'Color Palette' },
+        { id: 'reasoning', label: 'Color Palette Rationale', group: 'Color Palette' },
+    ],
     // funnelCopy uses sub-page drill-down (handled separately)
     default: []
 };
