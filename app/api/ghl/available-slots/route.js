@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { KEY_TEMPLATE } from '@/lib/ghl/slots';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,11 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const thisFunnelId = searchParams.get('funnel_id') || null;
 
-    // Get subscription tier + admin flag in one query
+    // Resolve workspace so team members use the owner's subaccount and slot assignments
+    const { workspaceId: targetUserId } = await resolveWorkspace(userId);
+    const effectiveUserId = targetUserId || userId;
+
+    // Get subscription tier + admin flag — use the auth user's profile for tier/admin checks
     const { data: profile } = await supabaseAdmin
         .from('user_profiles')
         .select('subscription_tier, is_admin')
@@ -36,11 +41,11 @@ export async function GET(req) {
         ? ALL_SLOT_INDICES
         : Array.from({ length: limit }, (_, i) => i + 3);
 
-    // Get their GHL location
+    // Get their GHL location (use effectiveUserId so team members see the owner's subaccount)
     const { data: subaccount } = await supabaseAdmin
         .from('ghl_subaccounts')
         .select('location_id')
-        .eq('user_id', userId)
+        .eq('user_id', effectiveUserId)
         .single();
 
     const locationId = subaccount?.location_id || null;
@@ -58,7 +63,7 @@ export async function GET(req) {
             supabaseAdmin
                 .from('ghl_slot_custom_value_ids')
                 .select('slot_index')
-                .eq('user_id', userId)
+                .eq('user_id', effectiveUserId)
                 .eq('location_id', locationId)
                 .gte('slot_index', 4),
             supabaseAdmin
@@ -93,7 +98,7 @@ export async function GET(req) {
         const { data: assignments } = await supabaseAdmin
             .from('funnel_slot_assignments')
             .select('funnel_id, slot_index')
-            .eq('user_id', userId)
+            .eq('user_id', effectiveUserId)
             .eq('location_id', locationId);
 
         if (assignments && assignments.length > 0) {

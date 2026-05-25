@@ -42,6 +42,7 @@ import {
     ArrowRightLeft,
     UserCheck,
     CloudOff,
+    Hash,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { T as _T } from "@/components/admin/adminTheme";
@@ -149,6 +150,13 @@ export default function AdminFunnels() {
     const [transferTargetUser, setTransferTargetUser] = useState(null);
     const [transferring, setTransferring] = useState(false);
     const transferSearchRef = useRef(null);
+
+    const [showSlotModal, setShowSlotModal] = useState(false);
+    const [slotFunnel, setSlotFunnel] = useState(null);
+    const [selectedSlot, setSelectedSlot] = useState(3);
+    const [assigningSlot, setAssigningSlot] = useState(false);
+    const [currentSlotAssignment, setCurrentSlotAssignment] = useState(null);
+    const [loadingSlotAssignment, setLoadingSlotAssignment] = useState(false);
 
     const fetchFunnels = useCallback(async () => {
         if (!session) return;
@@ -441,6 +449,66 @@ export default function AdminFunnels() {
         }
     }, [transferFunnel, transferTargetUser, fetchFunnels]);
 
+    const openSlotModal = useCallback(async (funnel) => {
+        setSlotFunnel(funnel);
+        setCurrentSlotAssignment(null);
+        setSelectedSlot(3);
+        setShowSlotModal(true);
+        setLoadingSlotAssignment(true);
+        try {
+            const res = await fetchWithAuth(`/api/admin/funnels/assign-slot?funnel_id=${funnel.id}`);
+            const data = await res.json();
+            if (data.assignment) {
+                setCurrentSlotAssignment(data.assignment);
+                setSelectedSlot(data.assignment.slot_index);
+            }
+        } catch (err) {
+            console.error('[AdminSlot] fetch error:', err);
+        } finally {
+            setLoadingSlotAssignment(false);
+        }
+    }, []);
+
+    const handleAssignSlot = useCallback(async () => {
+        if (!slotFunnel) return;
+        setAssigningSlot(true);
+        try {
+            const res = await fetchWithAuth('/api/admin/funnels/assign-slot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ funnel_id: slotFunnel.id, slot_index: selectedSlot }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to assign slot');
+            setToast({ message: `Slot ${selectedSlot} (Funnel ${selectedSlot - 2}) assigned to "${slotFunnel.funnel_name || 'Unnamed'}"`, type: 'success' });
+            setShowSlotModal(false);
+            setSlotFunnel(null);
+            fetchFunnels();
+        } catch (error) {
+            setToast({ message: `Slot assign failed: ${error.message}`, type: 'error' });
+        } finally {
+            setAssigningSlot(false);
+        }
+    }, [slotFunnel, selectedSlot, fetchFunnels]);
+
+    const handleReleaseSlot = useCallback(async () => {
+        if (!slotFunnel || !currentSlotAssignment) return;
+        if (!confirm(`Remove slot ${currentSlotAssignment.slot_index} assignment from "${slotFunnel.funnel_name || 'Unnamed'}"?`)) return;
+        setAssigningSlot(true);
+        try {
+            const res = await fetchWithAuth(`/api/admin/funnels/assign-slot?funnel_id=${slotFunnel.id}`, { method: 'DELETE' });
+            if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed'); }
+            setToast({ message: 'Slot assignment removed', type: 'success' });
+            setShowSlotModal(false);
+            setSlotFunnel(null);
+            fetchFunnels();
+        } catch (error) {
+            setToast({ message: `Release failed: ${error.message}`, type: 'error' });
+        } finally {
+            setAssigningSlot(false);
+        }
+    }, [slotFunnel, currentSlotAssignment, fetchFunnels]);
+
     const handleStartEdit = (item) => {
         setEditingItem(item.id);
         setEditValue(JSON.stringify(item.content, null, 2));
@@ -589,6 +657,40 @@ export default function AdminFunnels() {
                 },
             },
             {
+                id: "slot_assignment",
+                header: "Slot",
+                cell: ({ row }) => {
+                    const sa = row.original.slot_assignment;
+                    if (sa) {
+                        const funnelNum = sa.slot_index - 2;
+                        return (
+                            <button
+                                onClick={() => openSlotModal(row.original)}
+                                title="Click to change slot assignment"
+                                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 8, background: "rgba(167,139,250,0.12)", border: "1px solid rgba(167,139,250,0.3)", color: T.purple, fontWeight: 600, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(167,139,250,0.2)")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(167,139,250,0.12)")}
+                            >
+                                <Hash className="w-3 h-3" />
+                                F{funnelNum} · S{sa.slot_index}
+                            </button>
+                        );
+                    }
+                    return (
+                        <button
+                            onClick={() => openSlotModal(row.original)}
+                            title="No slot assigned — click to assign"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 8, background: "transparent", border: `1px dashed ${T.border}`, color: T.muted, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = T.purple; e.currentTarget.style.color = T.purple; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.muted; }}
+                        >
+                            <Hash className="w-3 h-3" />
+                            No slot
+                        </button>
+                    );
+                },
+            },
+            {
                 accessorKey: "created_at",
                 header: "Created",
                 cell: ({ row }) => (
@@ -611,6 +713,9 @@ export default function AdminFunnels() {
                         <ActionBtn title="Transfer funnel to another user" hoverColor="rgba(251,146,60,0.15)" onClick={() => openTransferModal(row.original)}>
                             <ArrowRightLeft className="w-4 h-4" style={{ color: T.secondary }} />
                         </ActionBtn>
+                        <ActionBtn title="Assign slot (controls which GHL funnel slot receives this funnel's content)" hoverColor="rgba(167,139,250,0.15)" onClick={() => openSlotModal(row.original)}>
+                            <Hash className="w-4 h-4" style={{ color: T.secondary }} />
+                        </ActionBtn>
                         <ActionBtn title="Reset to not started" hoverColor="rgba(96,165,250,0.15)" onClick={() => { if (confirm(`Reset funnel "${row.original.business_name || "Unnamed"}" to not started?`)) handleFunnelAction(row.original.id, "reset_status"); }}>
                             <RotateCcw className="w-4 h-4" style={{ color: T.secondary }} />
                         </ActionBtn>
@@ -631,7 +736,7 @@ export default function AdminFunnels() {
                 ),
             },
         ],
-        [handleFunnelAction, handleExport, exporting, openTransferModal]
+        [handleFunnelAction, handleExport, exporting, openTransferModal, openSlotModal]
     );
 
     const table = useReactTable({
@@ -1207,6 +1312,115 @@ export default function AdminFunnels() {
                                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", background: "linear-gradient(135deg, #f97316, #f59e0b)", color: "#05080B", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: (!transferTargetUser || transferring) ? 0.4 : 1 }}>
                                 {transferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
                                 {transferring ? "Transferring..." : "Confirm Transfer"}
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+            {/* Slot Assignment Modal */}
+            {showSlotModal && slotFunnel && (
+                <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        style={{ backgroundColor: T.cardBg, border: `1px solid ${T.border}`, borderRadius: 16, width: "100%", maxWidth: 420, overflow: "hidden", boxShadow: "0 24px 64px rgba(0,0,0,0.5)" }}
+                    >
+                        {/* Header */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px", borderBottom: `1px solid ${T.border}` }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <div style={{ padding: 8, backgroundColor: "rgba(167,139,250,0.1)", borderRadius: 10, border: "1px solid rgba(167,139,250,0.2)" }}>
+                                    <Hash className="w-4 h-4" style={{ color: T.purple }} />
+                                </div>
+                                <div>
+                                    <h3 style={{ color: T.primary, fontSize: 16, fontWeight: 700, margin: 0 }}>Assign Funnel Slot</h3>
+                                    <p style={{ color: T.muted, fontSize: 11, margin: "2px 0 0" }}>Controls which GHL slot receives this funnel&apos;s deployed content</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setShowSlotModal(false); setSlotFunnel(null); }}
+                                style={{ background: "transparent", border: "none", cursor: "pointer", padding: 6, borderRadius: 8 }}
+                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.surface)}
+                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+                                <X className="w-4 h-4" style={{ color: T.secondary }} />
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div style={{ padding: 24 }} className="space-y-5">
+                            {/* Funnel info */}
+                            <div style={{ padding: "12px 14px", backgroundColor: T.surface, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                                <p style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Funnel</p>
+                                <p style={{ fontSize: 13, fontWeight: 500, color: T.primary, margin: 0 }}>{slotFunnel.funnel_name || "Unnamed Funnel"}</p>
+                                <p style={{ fontSize: 11, color: T.muted, margin: "4px 0 0" }}>
+                                    Owner: <span style={{ color: T.secondary }}>{slotFunnel.user_profiles?.full_name || slotFunnel.user_profiles?.email || "Unknown"}</span>
+                                </p>
+                            </div>
+
+                            {/* Current assignment */}
+                            {loadingSlotAssignment ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.muted, fontSize: 13 }}>
+                                    <Loader2 className="w-4 h-4 animate-spin" /> Checking current assignment…
+                                </div>
+                            ) : currentSlotAssignment ? (
+                                <div style={{ padding: "10px 14px", backgroundColor: "rgba(22,199,231,0.06)", border: "1px solid rgba(22,199,231,0.2)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                    <div>
+                                        <p style={{ fontSize: 10, color: T.muted, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px" }}>Current Assignment</p>
+                                        <p style={{ fontSize: 13, fontWeight: 600, color: T.cyan, margin: 0 }}>
+                                            Slot {currentSlotAssignment.slot_index} — Funnel {currentSlotAssignment.slot_index - 2}
+                                        </p>
+                                    </div>
+                                    <button onClick={handleReleaseSlot} disabled={assigningSlot}
+                                        style={{ fontSize: 11, color: T.danger, background: "transparent", border: `1px solid rgba(248,113,113,0.3)`, borderRadius: 8, padding: "4px 10px", cursor: "pointer", opacity: assigningSlot ? 0.5 : 1 }}>
+                                        Remove
+                                    </button>
+                                </div>
+                            ) : (
+                                <p style={{ fontSize: 12, color: T.muted, fontStyle: "italic" }}>No slot currently assigned — content defaults to Slot 3 on deploy.</p>
+                            )}
+
+                            {/* Slot picker */}
+                            <div>
+                                <label style={{ fontSize: 11, color: T.secondary, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>
+                                    Assign Slot
+                                </label>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+                                    {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((slot) => (
+                                        <button key={slot} onClick={() => setSelectedSlot(slot)}
+                                            style={{
+                                                padding: "10px 4px",
+                                                borderRadius: 10,
+                                                border: selectedSlot === slot ? `1px solid ${T.purple}` : `1px solid ${T.border}`,
+                                                backgroundColor: selectedSlot === slot ? "rgba(167,139,250,0.15)" : T.surface,
+                                                color: selectedSlot === slot ? T.purple : T.secondary,
+                                                fontWeight: selectedSlot === slot ? 700 : 400,
+                                                fontSize: 12,
+                                                cursor: "pointer",
+                                                transition: "all 0.15s",
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                alignItems: "center",
+                                                gap: 2,
+                                            }}>
+                                            <span style={{ fontSize: 13, fontWeight: 700 }}>{slot}</span>
+                                            <span style={{ fontSize: 9, opacity: 0.6 }}>F{slot - 2}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                <p style={{ fontSize: 11, color: T.muted, marginTop: 8 }}>
+                                    Slot {selectedSlot} → <strong style={{ color: T.secondary }}>Funnel {selectedSlot - 2}</strong> in GHL (prefix <code style={{ color: T.cyan, fontSize: 10 }}>{String(selectedSlot).padStart(2, '0')}_</code>)
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10, padding: "16px 24px", borderTop: `1px solid ${T.border}` }}>
+                            <button onClick={() => { setShowSlotModal(false); setSlotFunnel(null); }}
+                                style={{ padding: "9px 14px", backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, color: T.secondary, fontSize: 13, cursor: "pointer" }}>
+                                Cancel
+                            </button>
+                            <button onClick={handleAssignSlot} disabled={assigningSlot}
+                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 18px", background: "linear-gradient(135deg, rgba(167,139,250,0.8), rgba(139,92,246,0.9))", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer", opacity: assigningSlot ? 0.5 : 1 }}>
+                                {assigningSlot ? <Loader2 className="w-4 h-4 animate-spin" /> : <Hash className="w-4 h-4" />}
+                                {assigningSlot ? "Assigning…" : `Assign Slot ${selectedSlot}`}
                             </button>
                         </div>
                     </motion.div>

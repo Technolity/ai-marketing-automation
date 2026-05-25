@@ -4051,7 +4051,7 @@ export default function VaultPage() {
 
                                                         {/* Primary CTA */}
                                                         <button
-                                                            onClick={handleOpenDeployModal}
+                                                            onClick={handleAutoAssignAndDeploy}
                                                             disabled={isDeploying}
                                                             className="w-full max-w-xs mx-auto px-6 py-3 bg-[#16C7E7] hover:bg-[#12b3d0] text-[#05080B] rounded-xl font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer mb-6"
                                                         >

@@ -95,6 +95,20 @@ export async function GET(req) {
             throw error;
         }
 
+        const funnelIds = (funnels || []).map(f => f.id);
+
+        // Batch-fetch slot assignments for all funnels in one query
+        const { data: slotAssignments } = funnelIds.length > 0
+            ? await supabase
+                .from('funnel_slot_assignments')
+                .select('funnel_id, slot_index, assigned_at')
+                .in('funnel_id', funnelIds)
+            : { data: [] };
+
+        const slotByFunnelId = new Map(
+            (slotAssignments || []).map(a => [a.funnel_id, a])
+        );
+
         // Get vault content for each funnel
         const funnelsWithVault = await Promise.all(
             (funnels || []).map(async (funnel) => {
@@ -128,7 +142,8 @@ export async function GET(req) {
                     vault_items: vaultContent || [],
                     approved_count: approvedCount,
                     progress_percent: progressPercent,
-                    is_deployed: isDeployed
+                    is_deployed: isDeployed,
+                    slot_assignment: slotByFunnelId.get(funnel.id) || null,
                 };
             })
         );
