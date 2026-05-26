@@ -39,6 +39,7 @@ import LivePerformancePanel from "@/components/dashboard/LivePerformancePanel";
 import VaultReviewPanel from "@/components/dashboard/VaultReviewPanel";
 import { cn } from "@/lib/utils";
 import BugReportModal from "@/components/BugReportModal";
+import PlanBadge from "@/components/PlanBadge";
 
 const TOTAL_APPROVAL_SECTIONS = 16;
 const TOTAL_SETUP_STEPS = 20;
@@ -555,6 +556,9 @@ export default function Dashboard() {
                         <div className="space-y-2.5">
                             <BugReportModal collapsed={true} />
                             <div className="flex justify-center">
+                                <PlanBadge />
+                            </div>
+                            <div className="flex justify-center">
                                 <div className="flex h-12 w-12 flex-col items-center justify-center rounded-[14px] border border-white/[0.08] bg-[#111214]">
                                     <span className={cn(displayFontClass, "text-sm font-semibold text-white")}>{businesses.length}</span>
                                     <span className="text-[9px] uppercase tracking-[0.12em] text-[#7d7d84]">/ {maxFunnels}</span>
@@ -583,6 +587,9 @@ export default function Dashboard() {
                     ) : (
                         <>
                             <BugReportModal />
+                            <div className="mt-3.5">
+                                <PlanBadge />
+                            </div>
                             <p className="mt-3.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#7d7d84]">Workspace</p>
                             <h3 className={cn(displayFontClass, "mt-2.5 truncate text-[16px] font-semibold tracking-[-0.02em] text-white")}>{workspaceDisplayName}</h3>
                             <p className="mt-1 truncate text-[12px] text-[#8b8b93]">{workspaceContextLabel}</p>
@@ -698,8 +705,7 @@ export default function Dashboard() {
                         return (
                             <div
                                 key={business.id}
-                                className="rounded-[24px] border border-white/[0.07] bg-[#111214] p-6 cursor-pointer hover:border-cyan/30 transition-colors"
-                                onClick={() => router.push(`/vault?funnel_id=${business.id}`)}
+                                className="rounded-[24px] border border-white/[0.07] bg-[#111214] p-6 hover:border-cyan/30 transition-colors"
                             >
                                 {/* Engine name */}
                                 {editingFunnelId === business.id ? (
@@ -758,15 +764,24 @@ export default function Dashboard() {
 
                                 {/* Primary action button */}
                                 {business.deployed_at ? (
-                                    <a
-                                        href={builderUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="mb-4 flex h-12 w-full items-center justify-center rounded-[14px] bg-emerald-600 text-base font-semibold text-white transition-colors hover:bg-emerald-500"
-                                    >
-                                        Open Builder ↗
-                                    </a>
+                                    <div className="mb-4 flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); router.push(`/vault?funnel_id=${business.id}`); }}
+                                            className="flex h-12 flex-1 items-center justify-center gap-2 rounded-[14px] border border-cyan/30 bg-cyan/10 text-base font-semibold text-cyan transition-colors hover:bg-cyan/20"
+                                        >
+                                            Open Vault
+                                        </button>
+                                        <a
+                                            href={builderUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-[14px] bg-emerald-600 text-base font-semibold text-white transition-colors hover:bg-emerald-500"
+                                        >
+                                            Open Builder ↗
+                                        </a>
+                                    </div>
                                 ) : business.vault_generated ? (
                                     <button
                                         type="button"
