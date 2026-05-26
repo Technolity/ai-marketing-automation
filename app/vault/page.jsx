@@ -2070,7 +2070,10 @@ export default function VaultPage() {
                 setDataSource({ type: 'loaded', name: data.session.session_name, id: data.session.id });
 
                 // Update URL to include the new session ID
-                const currentPhase = activeTab === 'assets' ? '2' : '1';
+                const currentPhase = activeTab === 'assets' ? '2'
+                    : activeTab === 'campaigns' ? '3'
+                    : activeTab === 'scripts' ? '4'
+                    : '1';
                 router.push(`/vault?session_id=${data.session.id}&phase=${currentPhase}`, { scroll: false });
             } else {
                 toast.error(data.error || "Failed to save session");
@@ -3557,6 +3560,10 @@ export default function VaultPage() {
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => {
+                                            // Unlock section for editing if currently approved
+                                            if (status === 'approved') {
+                                                handleUnapprove(section.id);
+                                            }
                                             if (section.id === 'vsl') {
                                                 setFeedbackSection({
                                                     id: activeVslTab === 'longForm' ? 'vsl' : 'vslShort',
@@ -3565,7 +3572,7 @@ export default function VaultPage() {
                                             } else {
                                                 setFeedbackSection(section);
                                             }
-                                            setFeedbackChatOpen(true); // Using Chat Modal
+                                            setFeedbackChatOpen(true);
                                         }}
                                         className="px-2 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-purple-600/20 to-pink-600/20 text-purple-300 hover:from-purple-600/30 hover:to-pink-600/30 border border-purple-500/30 rounded-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-transform hover:scale-105"
                                     >
