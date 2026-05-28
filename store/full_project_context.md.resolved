@@ -34,6 +34,11 @@
 *   **FieldEditor Memoization**: `FieldEditor.jsx` is wrapped with `React.memo()` using a custom `arePropsEqual` function that only triggers re-renders when `fieldDef.field_id`, `initialValue`, `sectionId`, `funnelId`, or `readOnly` actually change. This prevents the hundreds of unnecessary re-renders during polling.
 *   **FieldEditor Sync**: Skips state updates when the parsed value is identical to the current state, avoiding loader flashes.
 
+### Recent Modifications (2026-05-28)
+| File | Change |
+| :--- | :--- |
+| `components/landing/PricingSection.jsx` | **UI / Text Adjustment**: Updated the one-time setup fee text from `+$2,000` to `+$2,500` for all tiers/plans. |
+
 ### Recent Modifications (2026-04-18)
 | File | Change |
 | :--- | :--- |
