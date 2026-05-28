@@ -240,7 +240,7 @@ function PlanCard({ plan, yearly, isInner = false }) {
           style={{ background: "rgba(125,211,252,0.05)", border: "1px solid rgba(125,211,252,0.15)" }}
         >
           <span className="font-poppins text-[11px] text-[#94A3B8]">One-time setup fee</span>
-          <span className="font-poppins text-[11px] font-semibold text-[#7DD3FC] tabular-nums">+ $2,000</span>
+          <span className="font-poppins text-[11px] font-semibold text-[#7DD3FC] tabular-nums">+ $2,500</span>
         </div>
       </div>
 
