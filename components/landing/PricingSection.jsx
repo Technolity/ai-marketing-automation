@@ -10,6 +10,7 @@ const PLANS = [
     price_m: "$297",
     price_y: "$267",
     total_y: "$3,057",
+    setup_fee: "$2,500",
     desc: "For solopreneurs launching their first system.",
     features: [
       "1 Business Build",
@@ -33,6 +34,7 @@ const PLANS = [
     price_m: "$497",
     price_y: "$447",
     total_y: "$5,367",
+    setup_fee: "$5,000",
     desc: "The full TedOS experience — everything built and deployed.",
     features: [
       "All Starter plan features included",
@@ -44,9 +46,9 @@ const PLANS = [
     featured: true,
     links: {
       standard_m: "https://link.fastpaydirect.com/payment-link/69a9b3c6fc564f53604bb9c0",
-      activation_m: "https://link.fastpaydirect.com/payment-link/69af10d71e612111857be218",
+      activation_m: "https://link.fastpaydirect.com/payment-link/6a19ce04c3ea3a19f0bd9271",
       standard_y: "https://link.fastpaydirect.com/payment-link/69a9b3ed2211b7aee402c42b",
-      activation_y: "https://link.fastpaydirect.com/payment-link/69b03e4b0518ccea430b8689",
+      activation_y: "https://link.fastpaydirect.com/payment-link/6a19e93503b17c94f5713994",
     },
   },
   {
@@ -54,6 +56,7 @@ const PLANS = [
     price_m: "$997",
     price_y: "$897",
     total_y: "$10,767",
+    setup_fee: "$2,500",
     desc: "For agencies building for multiple clients at scale.",
     features: [
       "All Growth features included",
@@ -240,7 +243,7 @@ function PlanCard({ plan, yearly, isInner = false }) {
           style={{ background: "rgba(125,211,252,0.05)", border: "1px solid rgba(125,211,252,0.15)" }}
         >
           <span className="font-poppins text-[11px] text-[#94A3B8]">One-time setup fee</span>
-          <span className="font-poppins text-[11px] font-semibold text-[#7DD3FC] tabular-nums">+ $2,500</span>
+          <span className="font-poppins text-[11px] font-semibold text-[#7DD3FC] tabular-nums">+ {plan.setup_fee}</span>
         </div>
       </div>
 
