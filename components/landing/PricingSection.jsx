@@ -31,9 +31,9 @@ const PLANS = [
   },
   {
     name: "Growth",
-    price_m: "$497",
-    price_y: "$447",
-    total_y: "$5,367",
+    price_m: "$647",
+    price_y: "$627",
+    total_y: "$7,527",
     setup_fee: "$5,000",
     desc: "The full TedOS experience — everything built and deployed.",
     features: [
