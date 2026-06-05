@@ -99,7 +99,7 @@ export async function POST(req) {
         });
         console.log('[PushColors] Stored slot IDs loaded:', storedSlotIdCount);
 
-        // Get brand colors from vault_content_fields
+        // Get brand colors — primary source: vault_content_fields
         const { data: colorField } = await supabaseAdmin
             .from('vault_content_fields')
             .select('field_value')
@@ -110,14 +110,34 @@ export async function POST(req) {
             .eq('is_current_version', true)
             .maybeSingle();
 
-        if (!colorField?.field_value) {
-            return Response.json({ error: 'Brand colors not found. Generate colors first.' }, { status: 404 });
-        }
+        let palette;
 
-        // Parse color palette
-        const palette = typeof colorField.field_value === 'string'
-            ? JSON.parse(colorField.field_value)
-            : colorField.field_value;
+        if (colorField?.field_value) {
+            console.log('[PushColors] Reading colors from vault_content_fields');
+            palette = typeof colorField.field_value === 'string'
+                ? JSON.parse(colorField.field_value)
+                : colorField.field_value;
+        } else {
+            // Fallback: vault_content (written by every save, even when vault-section-save fails)
+            console.log('[PushColors] vault_content_fields empty — falling back to vault_content');
+            const { data: vaultRow } = await supabaseAdmin
+                .from('vault_content')
+                .select('content')
+                .eq('funnel_id', funnelId)
+                .eq('user_id', targetUserId)
+                .eq('section_id', 'colors')
+                .maybeSingle();
+
+            const fallbackPalette = vaultRow?.content?.colorPalette;
+            if (!fallbackPalette) {
+                console.error('[PushColors] No color data in either vault_content_fields or vault_content');
+                return Response.json({
+                    error: 'Brand colors not found. Open Phase 2, set your brand colors, and save before pushing.',
+                }, { status: 404 });
+            }
+            console.log('[PushColors] Colors loaded from vault_content fallback');
+            palette = fallbackPalette;
+        }
 
         // Extract hex colors
         const getHex = (val) => (val && typeof val === 'object' ? val.hex : val) || null;
