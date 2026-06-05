@@ -535,7 +535,7 @@ export default function AdminFunnels() {
             );
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Push failed');
-            setGhlPushResult({ type: 'success', message: data.message, summary: data.summary });
+            setGhlPushResult({ type: 'success', message: data.message, summary: data.summary, slotIndex: data.slotIndex });
             setToast({ message: data.message, type: 'success' });
         } catch (error) {
             setGhlPushResult({ type: 'error', message: error.message });
@@ -1023,7 +1023,8 @@ export default function AdminFunnels() {
                                     </span>
                                     {ghlPushResult.summary && (
                                         <span style={{ fontSize: 11, color: T.muted }}>
-                                            · {ghlPushResult.summary.created} created · {ghlPushResult.summary.updated} updated · {ghlPushResult.summary.skipped} skipped · {ghlPushResult.summary.failed} failed · {ghlPushResult.summary.duration}
+                                            · {ghlPushResult.summary.updated} updated · {ghlPushResult.summary.notFound ?? 0} not found · {ghlPushResult.summary.failed} failed · {ghlPushResult.summary.duration}
+                                            {ghlPushResult.slotIndex && <span style={{ marginLeft: 4 }}>· slot {ghlPushResult.slotIndex}</span>}
                                         </span>
                                     )}
                                 </div>
