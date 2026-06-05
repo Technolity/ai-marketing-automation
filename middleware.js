@@ -17,6 +17,7 @@ export default authMiddleware({
     "/api/oauth/callback",
     "/api/maintenance-status",
     "/api/cron(.*)",
+    "/api/email/ghl-welcome",  // Internal server-to-server call from ensure-subaccount
   ],
   ignoredRoutes: [
     "/((?!api|trpc))(_next.*|.+\\.[\\w]+$)",

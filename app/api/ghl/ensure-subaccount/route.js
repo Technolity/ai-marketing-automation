@@ -86,7 +86,11 @@ export async function POST(_req) {
                             console.log('[Ensure SubAccount Phase: Email] Sending welcome email...');
                             const emailResult = await sendGHLWelcomeEmail(profile.email, profile.first_name);
                             emailSent = !!emailResult;
-                            console.log('[Ensure SubAccount Phase: Email] Welcome email sent!');
+                            if (emailSent) {
+                                console.log('[Ensure SubAccount Phase: Email] Welcome email sent successfully');
+                            } else {
+                                console.warn('[Ensure SubAccount Phase: Email] Welcome email failed — GHL user still created, continuing');
+                            }
 
                             // Update database
                             await supabase
