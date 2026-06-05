@@ -33,8 +33,13 @@ export async function POST(req) {
     });
 
     if (error) {
-      console.error('[GHL Welcome Email] Error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('[GHL Welcome Email] Resend error:', error);
+      return NextResponse.json({ error: error.message || 'Email send failed' }, { status: 500 });
+    }
+
+    if (!data?.id) {
+      console.error('[GHL Welcome Email] Resend returned no data/id — email may not have sent');
+      return NextResponse.json({ error: 'Resend returned empty response' }, { status: 500 });
     }
 
     console.log('[GHL Welcome Email] Sent successfully:', data.id);
