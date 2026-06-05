@@ -118,10 +118,21 @@ export async function GET(req) {
     const engagement =
       totals.likes + totals.comments + totals.shares + totals.saves;
 
+    // Smart-link clicks from our own tracking — completes the reach → clicks funnel.
+    let smartLinkClicks = 0;
+    try {
+      const { data: links } = await supabaseAdmin
+        .from('smart_links')
+        .select('clicks')
+        .eq('user_id', workspaceId);
+      smartLinkClicks = (links || []).reduce((s, l) => s + (l.clicks || 0), 0);
+    } catch { /* non-fatal */ }
+
     return Response.json({
       success: true,
       connectedCount: accounts.length,
       totals: { ...totals, engagement },
+      smartLinkClicks,
       byPlatform,
       posts,
     });

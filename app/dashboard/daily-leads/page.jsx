@@ -267,6 +267,7 @@ export default function DailyLeadsPage() {
           loading={loadingData}
           onRefresh={loadData}
           onPostChanged={handlePostChanged}
+          analyticsPosts={analytics?.posts}
         />
       </div>
     </div>

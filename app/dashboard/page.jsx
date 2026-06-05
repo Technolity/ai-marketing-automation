@@ -31,6 +31,7 @@ import {
     PanelLeftOpen,
 } from "lucide-react";
 import DailyLeadsPage from "@/app/dashboard/daily-leads/page";
+import SocialAnalyticsPanel from "@/components/dashboard/analytics/SocialAnalyticsPanel";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserButton } from "@clerk/nextjs";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -85,6 +86,17 @@ const DASHBOARD_TABS = [
         description:
             "Generate social creative from vault strategy while keeping the current production-ready Daily Leads workflow intact.",
         eyebrow: "Organic Growth Engine",
+        beta: true,
+    },
+    {
+        id: "analytics",
+        label: "Analytics",
+        icon: BarChart3,
+        breadcrumb: "Home > Performance",
+        title: "Social Analytics",
+        description:
+            "Track impressions, engagement, and smart-link clicks across every social account you've connected.",
+        eyebrow: "Performance Insights",
         beta: true,
     },
     {
@@ -994,6 +1006,27 @@ export default function Dashboard() {
                                     >
                                         <div className="relative">
                                             <DailyLeadsPage />
+                                            {!isAdmin && (
+                                                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-[#00031C]/80 backdrop-blur-sm">
+                                                    <span className="mb-3 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-cyan/10 border border-cyan/30 text-cyan">
+                                                        Beta
+                                                    </span>
+                                                    <p className="text-white font-semibold text-lg">This feature is shipping soon</p>
+                                                    <p className="text-[#94A3B8] text-sm mt-1">Available to admins during beta</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                ) : activeTab === "analytics" ? (
+                                    <motion.div
+                                        key="analytics"
+                                        initial={{ opacity: 0, y: 12 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -12 }}
+                                        transition={{ duration: 0.24 }}
+                                    >
+                                        <div className="relative">
+                                            <SocialAnalyticsPanel />
                                             {!isAdmin && (
                                                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl bg-[#00031C]/80 backdrop-blur-sm">
                                                     <span className="mb-3 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest bg-cyan/10 border border-cyan/30 text-cyan">

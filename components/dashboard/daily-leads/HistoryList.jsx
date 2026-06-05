@@ -80,7 +80,7 @@ const PLATFORMS = [
 
 // ─── Post Detail Modal ────────────────────────────────────────────────────────
 
-function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete }) {
+function PostDetailModal({ post: initialPost, metrics, onClose, onMarkPosted, onDelete }) {
   // Debug initial post
   if (typeof window !== 'undefined') {
     console.error('[PostDetailModal] Opened with post:', {
@@ -387,6 +387,29 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
               </p>
             </div>
 
+            {/* Performance (when this post has engagement data) */}
+            {metrics && (
+              <div className="border-t border-subtle px-5 py-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp className="w-3.5 h-3.5 text-gray-600" />
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-600">Performance</p>
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "Impr.", value: metrics.impressions },
+                    { label: "Likes", value: metrics.likes },
+                    { label: "Comments", value: metrics.comments },
+                    { label: "Shares", value: metrics.shares },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-lg border border-subtle bg-charcoal px-2 py-2 text-center">
+                      <p className="text-sm font-bold tabular-nums text-white">{(value ?? 0).toLocaleString()}</p>
+                      <p className="mt-0.5 text-[9px] uppercase tracking-widest text-gray-600">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Danger zone */}
             <div className="border-t border-subtle px-5 py-4 shrink-0">
               <button
@@ -545,9 +568,13 @@ function HistoryRow({ post, onOpen, onDelete, onMarkPosted }) {
 
 // ─── HistoryList ──────────────────────────────────────────────────────────────
 
-export default function HistoryList({ posts: initialPosts, loading, onRefresh, onPostChanged }) {
+export default function HistoryList({ posts: initialPosts, loading, onRefresh, onPostChanged, analyticsPosts = [] }) {
   const [posts, setPosts]               = useState(initialPosts ?? []);
   const [selectedPost, setSelectedPost] = useState(null);
+
+  // Map published-post engagement (from /api/social/analytics) by our daily_post id.
+  const metricsByPostId = {};
+  (analyticsPosts || []).forEach((p) => { if (p.dailyPostId) metricsByPostId[p.dailyPostId] = p.metrics; });
 
   useEffect(() => { setPosts(initialPosts ?? []); }, [initialPosts]);
 
@@ -610,6 +637,7 @@ export default function HistoryList({ posts: initialPosts, loading, onRefresh, o
       {selectedPost && (
         <PostDetailModal
           post={selectedPost}
+          metrics={metricsByPostId[selectedPost.id]}
           onClose={() => setSelectedPost(null)}
           onMarkPosted={handleMarkPosted}
           onDelete={(id) => { handleDelete(id); setSelectedPost(null); }}
