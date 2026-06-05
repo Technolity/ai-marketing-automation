@@ -43,6 +43,7 @@ import {
     UserCheck,
     CloudOff,
     Hash,
+    Send,
 } from "lucide-react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { T as _T } from "@/components/admin/adminTheme";
@@ -158,6 +159,10 @@ export default function AdminFunnels() {
     const [currentSlotAssignment, setCurrentSlotAssignment] = useState(null);
     const [loadingSlotAssignment, setLoadingSlotAssignment] = useState(false);
 
+    // GHL push state (admin-initiated, on behalf of user)
+    const [pushingGhl, setPushingGhl] = useState(null); // null | 'all' | sectionId
+    const [ghlPushResult, setGhlPushResult] = useState(null); // { message, summary, error }
+
     const fetchFunnels = useCallback(async () => {
         if (!session) return;
         setLoading(true);
@@ -236,6 +241,8 @@ export default function AdminFunnels() {
         setHistoryFieldVersions([]);
         setHistoryAvailableFields([]);
         setSelectedHistoryVersion(null);
+        setGhlPushResult(null);
+        setPushingGhl(null);
         setShowVaultModal(true);
     };
 
@@ -508,6 +515,35 @@ export default function AdminFunnels() {
             setAssigningSlot(false);
         }
     }, [slotFunnel, currentSlotAssignment, fetchFunnels]);
+
+    // Push vault content to GHL on behalf of the funnel's user.
+    // sectionId = null → push all sections; string → push that section only.
+    const handleAdminPushToGHL = useCallback(async (sectionId = null) => {
+        if (!selectedFunnel) return;
+        const key = sectionId || 'all';
+        setPushingGhl(key);
+        setGhlPushResult(null);
+        try {
+            const body = sectionId ? { sectionIds: [sectionId] } : {};
+            const res = await fetchWithAuth(
+                `/api/admin/funnels/${selectedFunnel.id}/push-to-ghl`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                }
+            );
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Push failed');
+            setGhlPushResult({ type: 'success', message: data.message, summary: data.summary });
+            setToast({ message: data.message, type: 'success' });
+        } catch (error) {
+            setGhlPushResult({ type: 'error', message: error.message });
+            setToast({ message: `GHL push failed: ${error.message}`, type: 'error' });
+        } finally {
+            setPushingGhl(null);
+        }
+    }, [selectedFunnel]);
 
     const handleStartEdit = (item) => {
         setEditingItem(item.id);
@@ -954,12 +990,48 @@ export default function AdminFunnels() {
                                     </span>
                                 </p>
                             </div>
-                            <button onClick={() => setShowVaultModal(false)} style={{ padding: 6, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer" }}
-                                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.surface)}
-                                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
-                                <X className="w-5 h-5" style={{ color: T.secondary }} />
-                            </button>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <button
+                                    onClick={() => handleAdminPushToGHL(null)}
+                                    disabled={pushingGhl !== null}
+                                    title="Push all vault sections to GHL on behalf of this user"
+                                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 8, background: pushingGhl === 'all' ? "rgba(22,199,231,0.2)" : "rgba(22,199,231,0.1)", border: "1px solid rgba(22,199,231,0.35)", color: T.cyan, fontSize: 12, fontWeight: 600, cursor: pushingGhl !== null ? "not-allowed" : "pointer", opacity: pushingGhl !== null ? 0.6 : 1, transition: "all 0.15s" }}
+                                    onMouseEnter={(e) => { if (pushingGhl === null) e.currentTarget.style.background = "rgba(22,199,231,0.2)"; }}
+                                    onMouseLeave={(e) => { if (pushingGhl === null) e.currentTarget.style.background = "rgba(22,199,231,0.1)"; }}
+                                >
+                                    {pushingGhl === 'all' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                    {pushingGhl === 'all' ? "Pushing…" : "Push All to GHL"}
+                                </button>
+                                <button onClick={() => setShowVaultModal(false)} style={{ padding: 6, borderRadius: 8, background: "transparent", border: "none", cursor: "pointer" }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = T.surface)}
+                                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
+                                    <X className="w-5 h-5" style={{ color: T.secondary }} />
+                                </button>
+                            </div>
                         </div>
+
+                        {/* GHL push result banner */}
+                        {ghlPushResult && (
+                            <div style={{ padding: "10px 24px", borderBottom: `1px solid ${T.border}`, backgroundColor: ghlPushResult.type === 'success' ? "rgba(52,211,153,0.08)" : "rgba(248,113,113,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    {ghlPushResult.type === 'success'
+                                        ? <CheckCircle className="w-4 h-4 shrink-0" style={{ color: T.success }} />
+                                        : <XCircle className="w-4 h-4 shrink-0" style={{ color: T.danger }} />
+                                    }
+                                    <span style={{ fontSize: 13, color: ghlPushResult.type === 'success' ? T.success : T.danger, fontWeight: 500 }}>
+                                        {ghlPushResult.message}
+                                    </span>
+                                    {ghlPushResult.summary && (
+                                        <span style={{ fontSize: 11, color: T.muted }}>
+                                            · {ghlPushResult.summary.created} created · {ghlPushResult.summary.updated} updated · {ghlPushResult.summary.skipped} skipped · {ghlPushResult.summary.failed} failed · {ghlPushResult.summary.duration}
+                                        </span>
+                                    )}
+                                </div>
+                                <button onClick={() => setGhlPushResult(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+                                    <X className="w-3.5 h-3.5" style={{ color: T.muted }} />
+                                </button>
+                            </div>
+                        )}
 
                         {/* Modal Body */}
                         <div style={{ overflowY: "auto", flex: 1, padding: 24 }}>
@@ -1049,6 +1121,18 @@ export default function AdminFunnels() {
                                                                                         </SmallBtn>
                                                                                         <SmallBtn onClick={() => handleStartEdit(item)}>
                                                                                             <Edit3 className="w-3 h-3" /> Edit JSON
+                                                                                        </SmallBtn>
+                                                                                        <SmallBtn
+                                                                                            onClick={() => handleAdminPushToGHL(item.section_id)}
+                                                                                            disabled={pushingGhl !== null}
+                                                                                            color={T.cyan}
+                                                                                            colorBg="rgba(22,199,231,0.08)"
+                                                                                        >
+                                                                                            {pushingGhl === item.section_id
+                                                                                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                                                                : <Send className="w-3 h-3" />
+                                                                                            }
+                                                                                            {pushingGhl === item.section_id ? "Pushing…" : "Push to GHL"}
                                                                                         </SmallBtn>
                                                                                     </>
                                                                                 )}
