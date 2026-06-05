@@ -268,15 +268,15 @@ ${offer}
 ${story}
 ${userDescription ? `Creative direction: ${userDescription}` : ''}
 
-The image should feel like professional business content — book mockup, workflow diagram concept, results showcase, or process visual. NOT a free gift ad.
+Follow the creative direction above to decide WHAT the image shows. Vary the imagery from post to post — it can be a real photographic scene, the expert/person, a lifestyle moment, an object, a conceptual/editorial graphic, or an abstract brand visual. Do NOT default to a book or product mockup unless the direction explicitly calls for it.
 
 Return JSON only, no markdown:
 {
-  "headline": "ALL CAPS headline, 4-7 words, aspirational and punchy",
-  "subheadline": "Value-driven sentence, 10-15 words, title case",
+  "headline": "ALL CAPS headline, 3-5 words MAX, punchy (short so it renders cleanly on the image)",
+  "subheadline": "Value-driven sentence, 8-14 words, title case",
   "cta": "Engagement phrase, 2-4 words, ALL CAPS",
   "badge": "1-2 word label ALL CAPS (TIPS, RESULTS, SYSTEM, PROCESS, etc)",
-  "background_prompt": "Description for an AI image generator. Professional business visual matching ${niche} — workspace, book mockup, workflow concept, or results dashboard. Cinematic lighting, premium feel. ZERO text, ZERO words, ZERO letters anywhere in the image."
+  "background_prompt": "Vivid description of the SCENE/subject for THIS specific post, driven by the creative direction — describe concrete people, objects, and setting for the ${niche} space. Photoreal or polished graphic, cinematic lighting, premium feel. ZERO text, ZERO words, ZERO letters in the scene itself."
 }`;
 
   try {
@@ -343,6 +343,63 @@ async function fetchImageAsBase64(url) {
   } catch {
     return null;
   }
+}
+
+// ─── Social post prompt (varied imagery — photoreal scenes, people, graphics) ──
+// Used for general daily-content posts (NOT the free-gift/book mockup).
+
+function buildSocialPostPrompt(copy, ctx, styleTags, brief = '', refImageLabels = [], refinementFeedback = null, aspectRatio = '1024x1024') {
+  const accentColor    = ctx.brandAccent   || '#16C7E7';
+  const secondaryColor = ctx.brandSecondary || null;
+  const brandName      = ctx.funnelName || ctx.niche || '';
+  const niche          = ctx.niche || 'business';
+
+  const orientation =
+    aspectRatio === '1024x1792' ? 'vertical 4:5 portrait'
+    : aspectRatio === '1792x1024' ? 'horizontal 16:9 landscape'
+    : 'square 1:1';
+
+  const scene = copy.background_prompt
+    ? copy.background_prompt
+    : `A polished, on-brand visual for the ${niche} space matching this idea: ${brief || copy.subheadline}`;
+
+  const styleSpec = styleTags.length > 0
+    ? `Apply these visual style modifiers: ${styleTags.join(', ')}.`
+    : 'Visual style: modern, premium, editorial.';
+
+  const colorLine = secondaryColor
+    ? `Brand palette: ${accentColor} and ${secondaryColor}, used as tasteful accents (not the whole image).`
+    : `Brand accent color: ${accentColor}, used as a tasteful accent.`;
+
+  return `A scroll-stopping, professional SOCIAL MEDIA POST image, ${orientation}. Photorealistic where appropriate, otherwise a clean modern graphic. High detail, sharp focus, premium production value.
+
+WHAT TO SHOW (subject/scene for THIS post):
+${scene}
+
+CREATIVE DIRECTION: ${brief || 'Make it feel authentic, relevant and high-end for the target audience.'}
+
+COMPOSITION:
+- This is editorial social content — vary the look. Do NOT render a 3D book or product mockup unless the direction explicitly asks for it.
+- Leave clean negative space so a short headline can sit comfortably.
+- Realistic, flattering lighting and natural depth of field.
+- ${colorLine}
+- ${styleSpec}
+
+TEXT IN THE IMAGE:
+- Render ONLY this short headline, large, bold and perfectly legible: "${copy.headline}"
+- Do NOT add any other words, sentences, paragraphs, captions, watermarks or gibberish. Keep typography crisp and minimal. If you cannot render text cleanly, render NO text at all.
+
+BRAND: ${brandName ? `Subtly reflect the brand "${brandName}".` : 'Keep it clean and brand-neutral.'}
+
+STYLE: Authentic, premium, scroll-stopping, varied. Avoid stocky clichés and avoid the 3D book-cover look.${
+  refImageLabels.length > 0
+    ? `\n\nREFERENCE IMAGES ATTACHED — ${refImageLabels.length} provided. Use them as specified:\n${refImageLabels.map((label, i) => `- Image ${i + 1}: ${label}`).join('\n')}`
+    : ''
+}${
+  refinementFeedback
+    ? `\n\nREFINEMENT: The first reference image is the PREVIOUS VERSION. Keep what works, change ONLY: "${refinementFeedback}"`
+    : ''
+}`;
 }
 
 // ─── Nano Banana prompt (full book cover — AI renders text + visuals) ─────────
@@ -860,9 +917,9 @@ export async function POST(req) {
 
       // Vault images — fetched in a known order so labels match
       const vaultSlots = [
-        { url: vaultCtx.logoUrl,        label: 'Brand logo — render this exact logo on the book cover instead of plain text for the brand name (place it at the bottom of the cover, centered)' },
-        { url: vaultCtx.authorPhotoUrl, label: 'Author/expert headshot — do NOT place on the front cover; use for brand style reference only' },
-        { url: vaultCtx.freeGiftImageUrl, label: "The user's free gift / lead magnet cover image — use as the hero visual in the bottom third of the book cover" },
+        { url: vaultCtx.logoUrl,        label: 'The brand logo — use it for subtle, undistorted branding (small, e.g. a corner or lower edge). Do not stretch it.' },
+        { url: vaultCtx.authorPhotoUrl, label: "The expert/author's real photo — you MAY feature this person as the subject of the image when it fits the post; keep their likeness accurate." },
+        { url: vaultCtx.freeGiftImageUrl, label: "The free gift / product image — feature it as a hero object when the post is about the free gift or offer." },
       ];
       for (const slot of vaultSlots) {
         if (!slot.url) continue;
@@ -898,8 +955,11 @@ export async function POST(req) {
       let bgBuffer;
 
       if (isGemini) {
-        // Full book cover rendered by AI — no compositing needed
-        const imgPrompt = buildNanoBananaPrompt(copy, vaultCtx, styleTags, postType, isRefinement && previousImageUrl ? userDescription : null, refImageLabels);
+        // free_gift posts → book/guide mockup; everything else → varied social-post visual
+        const refineNote = isRefinement && previousImageUrl ? userDescription : null;
+        const imgPrompt = postType === 'free_gift'
+          ? buildNanoBananaPrompt(copy, vaultCtx, styleTags, postType, refineNote, refImageLabels)
+          : buildSocialPostPrompt(copy, vaultCtx, styleTags, effectiveDescription, refImageLabels, refineNote, requestedSize);
         const { buffer } = await generateWithGemini(imgPrompt, allRefImages);
         bgBuffer = buffer;
       } else if (isGptImage2) {

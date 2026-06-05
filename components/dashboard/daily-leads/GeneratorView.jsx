@@ -616,11 +616,19 @@ function TopicRow({ item, onApprove, onUndo, onImageGenerate, onImageFeedbackCha
       {/* Approved: generated image */}
       {approved && item.post !== null && (
         <div className="mt-2">
-          <img
-            src={item.post.image_url}
-            alt={`Post for day ${item.id}`}
-            className="w-full max-h-40 object-cover rounded-lg mt-2 border border-subtle"
-          />
+          <a
+            href={item.post.image_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mt-2"
+            title="Open full image in a new tab"
+          >
+            <img
+              src={item.post.image_url}
+              alt={`Post for day ${item.id}`}
+              className="w-full max-h-72 object-contain rounded-lg border border-subtle bg-surface cursor-zoom-in"
+            />
+          </a>
           {/* Image refine row (hidden once posted) */}
           {!item.posted && (
             <div className="flex gap-1.5 mt-2">
