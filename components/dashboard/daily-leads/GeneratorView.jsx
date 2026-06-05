@@ -10,6 +10,7 @@ import {
 } from "@/lib/icons";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { toast } from "sonner";
+import SocialPostModal from "@/components/social/SocialPostModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -539,8 +540,8 @@ function CaptionPanel({ post, quota, onMarkPosted, onRefine, onReset, onCaptionS
 
 // ─── TopicRow ─────────────────────────────────────────────────────────────────
 
-function TopicRow({ item, onApprove, onUndo, onFeedbackChange, onFeedbackSubmit, onImageGenerate, onImageFeedbackChange, onImageFeedbackSubmit }) {
-  const approved = item.status === "approved";
+function TopicRow({ item, onApprove, onUndo, onImageGenerate, onImageFeedbackChange, onImageFeedbackSubmit, onPost }) {
+  const approved = item.status === "approved" || item.posted;
 
   return (
     <div className={`rounded-lg border p-3 ${approved ? "border-cyan/20 bg-cyan/[0.03]" : "border-subtle bg-charcoal"}`}>
@@ -554,22 +555,41 @@ function TopicRow({ item, onApprove, onUndo, onFeedbackChange, onFeedbackSubmit,
           </span>
         )}
 
-        <span className="text-xs text-gray-300 flex-1 leading-snug">{item.topic}</span>
+        <div className="flex-1 min-w-0">
+          <span className="block truncate text-xs text-gray-300 leading-snug">{item.topic}</span>
+          {item.category && (
+            <span className="text-[9px] uppercase tracking-widest text-gray-600">{item.category}</span>
+          )}
+        </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {approved ? (
+          {item.posted ? (
+            <span className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold text-cyan border border-cyan/30">
+              <CheckCircle className="w-3 h-3" /> Posted
+            </span>
+          ) : approved ? (
             <>
-              <button
-                onClick={() => onImageGenerate(item.id)}
-                disabled={item.imageGenerating}
-                className="flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer disabled:opacity-40"
-              >
-                {item.imageGenerating ? (
-                  <><Loader2 className="w-3 h-3 animate-spin" /> Generating…</>
-                ) : (
-                  "Generate Image"
-                )}
-              </button>
+              {!item.post && (
+                <button
+                  onClick={() => onImageGenerate(item.id)}
+                  disabled={item.imageGenerating}
+                  className="flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer disabled:opacity-40"
+                >
+                  {item.imageGenerating ? (
+                    <><Loader2 className="w-3 h-3 animate-spin" /> Generating…</>
+                  ) : (
+                    "Generate Image"
+                  )}
+                </button>
+              )}
+              {item.post && (
+                <button
+                  onClick={() => onPost(item.id)}
+                  className="px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer"
+                >
+                  Post
+                </button>
+              )}
               <button
                 onClick={() => onUndo(item.id)}
                 className="px-2 py-1 rounded-md text-[10px] border border-subtle text-gray-500 hover:text-gray-300 cursor-pointer transition-colors"
@@ -578,42 +598,19 @@ function TopicRow({ item, onApprove, onUndo, onFeedbackChange, onFeedbackSubmit,
               </button>
             </>
           ) : (
-            <>
-              <button
-                onClick={() => onApprove(item.id)}
-                className="px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => onFeedbackChange(item.id, null)}
-                className="px-2 py-1 rounded-md text-[10px] border border-subtle text-gray-500 hover:text-gray-300 cursor-pointer transition-colors"
-              >
-                Feedback {item.feedbackOpen ? "▴" : "▾"}
-              </button>
-            </>
+            <button
+              onClick={() => onApprove(item.id)}
+              className="px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer"
+            >
+              Approve
+            </button>
           )}
         </div>
       </div>
 
-      {/* Pending: inline feedback textarea */}
-      {!approved && item.feedbackOpen && (
-        <div className="mt-2 space-y-1.5">
-          <textarea
-            value={item.feedback}
-            onChange={e => onFeedbackChange(item.id, e.target.value)}
-            rows={2}
-            placeholder="Describe what you'd like to change about this topic…"
-            className="bg-surface border border-subtle rounded-lg p-2 text-xs text-gray-300 w-full focus:outline-none focus:border-subtleAlt resize-none placeholder-gray-700"
-          />
-          <button
-            onClick={() => onFeedbackSubmit(item.id)}
-            disabled={!item.feedback.trim()}
-            className="px-3 py-1 rounded-md text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer disabled:opacity-40"
-          >
-            Regenerate Topic
-          </button>
-        </div>
+      {/* Caption preview */}
+      {item.caption && (
+        <p className="mt-2 line-clamp-2 whitespace-pre-line text-[10px] text-gray-500">{item.caption}</p>
       )}
 
       {/* Approved: generated image */}
@@ -624,34 +621,33 @@ function TopicRow({ item, onApprove, onUndo, onFeedbackChange, onFeedbackSubmit,
             alt={`Post for day ${item.id}`}
             className="w-full max-h-40 object-cover rounded-lg mt-2 border border-subtle"
           />
-          {item.post.caption && (
-            <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{item.post.caption}</p>
+          {/* Image refine row (hidden once posted) */}
+          {!item.posted && (
+            <div className="flex gap-1.5 mt-2">
+              <input
+                type="text"
+                value={item.imageFeedback}
+                onChange={e => onImageFeedbackChange(item.id, e.target.value)}
+                placeholder="Refine this image…"
+                className="flex-1 bg-surface border border-subtle rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-subtleAlt placeholder-gray-700"
+              />
+              <button
+                onClick={() => onImageFeedbackSubmit(item.id)}
+                disabled={!item.imageFeedback.trim() || item.imageGenerating}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+              >
+                {item.imageGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : "Regenerate"}
+              </button>
+              <a
+                href={item.post.image_url}
+                download={`day-${item.id}-post.png`}
+                className="flex items-center justify-center px-2 py-1.5 rounded-lg border border-subtle text-gray-500 hover:text-gray-300 hover:border-subtleAlt transition-colors cursor-pointer"
+                title="Download image"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </a>
+            </div>
           )}
-          {/* Image feedback row */}
-          <div className="flex gap-1.5 mt-2">
-            <input
-              type="text"
-              value={item.imageFeedback}
-              onChange={e => onImageFeedbackChange(item.id, e.target.value)}
-              placeholder="Refine this image…"
-              className="flex-1 bg-surface border border-subtle rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-subtleAlt placeholder-gray-700"
-            />
-            <button
-              onClick={() => onImageFeedbackSubmit(item.id)}
-              disabled={!item.imageFeedback.trim() || item.imageGenerating}
-              className="px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-cyan text-black hover:bg-white transition-colors cursor-pointer disabled:opacity-40 shrink-0"
-            >
-              {item.imageGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : "Regenerate"}
-            </button>
-            <a
-              href={item.post.image_url}
-              download={`day-${item.id}-post.png`}
-              className="flex items-center justify-center px-2 py-1.5 rounded-lg border border-subtle text-gray-500 hover:text-gray-300 hover:border-subtleAlt transition-colors cursor-pointer"
-              title="Download image"
-            >
-              <Download className="w-3.5 h-3.5" />
-            </a>
-          </div>
         </div>
       )}
     </div>
@@ -661,82 +657,103 @@ function TopicRow({ item, onApprove, onUndo, onFeedbackChange, onFeedbackSubmit,
 // ─── ThirtyDayCalendar ────────────────────────────────────────────────────────
 
 function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, referenceImages, userDescription, missingVault }) {
-  const [topics, setTopics]       = useState([]);
-  const [generating, setGenerating] = useState(false);
-  const [expandedId, setExpandedId] = useState(null); // reserved for future use
+  const [topics, setTopics]         = useState([]);
+  const [seeding, setSeeding]       = useState(false);
+  const [postItem, setPostItem]     = useState(null); // item being shared via SocialPostModal
 
-  void expandedId; // suppress unused-var lint
+  const approvedCount = topics.filter(t => t.status === "approved" || t.posted).length;
 
-  const approvedCount = topics.filter(t => t.status === "approved").length;
+  // Map a persisted calendar item (API shape) → local card shape.
+  const mapItem = (it) => ({
+    id: it.day_number,
+    itemId: it.id,
+    topic: it.angle || it.caption || `Day ${it.day_number}`,
+    caption: it.caption || "",
+    imageBrief: it.image_brief || it.angle || "",
+    category: it.category || "",
+    status: it.status === "idea" ? "pending" : "approved",
+    rawStatus: it.status,
+    post: it.image_url ? { id: it.daily_post_id, image_url: it.image_url, caption: it.caption } : null,
+    posted: it.status === "posted",
+    imageGenerating: false,
+    imageFeedback: "",
+  });
 
+  // Load any persisted calendar for this funnel.
+  useEffect(() => {
+    if (!funnelId) { setTopics([]); return; }
+    let cancelled = false;
+    fetchWithAuth(`/api/daily-leads/calendar?funnel_id=${funnelId}`)
+      .then(r => r.json())
+      .then(data => { if (!cancelled && data.items?.length) setTopics(data.items.map(mapItem)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [funnelId]);
+
+  const persistItem = async (itemId, updates) => {
+    if (!itemId) return;
+    try {
+      await fetchWithAuth("/api/daily-leads/calendar", {
+        method: "PATCH",
+        body: JSON.stringify({ item_id: itemId, ...updates }),
+      });
+    } catch { /* non-fatal — UI already updated optimistically */ }
+  };
+
+  // Seed the calendar from the curated template library (instant, no LLM).
+  const handleUseTemplates = async () => {
+    if (!vaultCtx || missingVault) return;
+    setSeeding(true);
+    try {
+      const res = await fetchWithAuth("/api/daily-leads/calendar", {
+        method: "POST",
+        body: JSON.stringify({ funnel_id: funnelId, source: "template", vault_context: vaultCtx, keyword: "GUIDE" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load templates");
+      setTopics((data.items || []).map(mapItem));
+      toast.success("30-day template calendar ready!");
+    } catch (err) {
+      toast.error(err.message || "Failed to load templates");
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  // Seed the calendar from AI-generated topics, then persist.
   const handleGenerateTopics = async () => {
     if (!vaultCtx || missingVault) return;
-    setGenerating(true);
+    setSeeding(true);
     try {
-      const res = await fetchWithAuth("/api/daily-leads/topics", {
+      const tRes = await fetchWithAuth("/api/daily-leads/topics", {
         method: "POST",
         body: JSON.stringify({ funnel_id: funnelId, vault_context: vaultCtx }),
       });
+      const tData = await tRes.json();
+      if (!tRes.ok) throw new Error(tData.error || "Failed to generate topics");
+      const res = await fetchWithAuth("/api/daily-leads/calendar", {
+        method: "POST",
+        body: JSON.stringify({ funnel_id: funnelId, source: "ai", topics: tData.topics }),
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate topics");
-      setTopics(
-        data.topics.map((t, i) => ({
-          id: i + 1,
-          topic: t,
-          status: "pending",
-          feedback: "",
-          feedbackOpen: false,
-          post: null,
-          imageGenerating: false,
-          imageFeedback: "",
-        }))
-      );
+      if (!res.ok) throw new Error(data.error || "Failed to save calendar");
+      setTopics((data.items || []).map(mapItem));
+      toast.success("30 AI topics ready!");
     } catch (err) {
       toast.error(err.message || "Topic generation failed");
     } finally {
-      setGenerating(false);
+      setSeeding(false);
     }
   };
 
   const handleApprove = (id) => {
-    setTopics(prev => prev.map(t => t.id === id ? { ...t, status: "approved", feedbackOpen: false } : t));
+    const it = topics.find(t => t.id === id);
+    setTopics(prev => prev.map(t => t.id === id ? { ...t, status: "approved" } : t));
+    if (it?.itemId && it.rawStatus === "idea") persistItem(it.itemId, { status: "approved" });
   };
 
   const handleUndo = (id) => {
     setTopics(prev => prev.map(t => t.id === id ? { ...t, status: "pending" } : t));
-  };
-
-  // value === null means toggle feedbackOpen; otherwise update feedback text
-  const handleFeedbackChange = (id, value) => {
-    setTopics(prev => prev.map(t => {
-      if (t.id !== id) return t;
-      if (value === null) return { ...t, feedbackOpen: !t.feedbackOpen, feedback: "" };
-      return { ...t, feedback: value };
-    }));
-  };
-
-  const handleFeedbackSubmit = async (id) => {
-    const item = topics.find(t => t.id === id);
-    if (!item || !item.feedback.trim()) return;
-    try {
-      const res = await fetchWithAuth("/api/daily-leads/topics", {
-        method: "POST",
-        body: JSON.stringify({
-          funnel_id: funnelId,
-          vault_context: vaultCtx,
-          feedback: item.feedback,
-          topic_index: item.id - 1,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to regenerate topic");
-      const newTopic = Array.isArray(data.topics) ? data.topics[0] : data.topic;
-      setTopics(prev => prev.map(t =>
-        t.id === id ? { ...t, topic: newTopic, feedback: "", feedbackOpen: false } : t
-      ));
-    } catch (err) {
-      toast.error(err.message || "Topic regeneration failed");
-    }
   };
 
   const handleImageGenerate = async (id) => {
@@ -744,6 +761,7 @@ function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, 
     if (!item) return;
     setTopics(prev => prev.map(t => t.id === id ? { ...t, imageGenerating: true } : t));
     try {
+      const brief = item.imageBrief || item.topic;
       const res = await fetchWithAuth("/api/daily-leads/generate", {
         method: "POST",
         body: JSON.stringify({
@@ -752,16 +770,15 @@ function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, 
           model,
           aspect_ratio: aspectRatio,
           style_tags: styleTags,
-          user_description: userDescription
-            ? `${userDescription}\n\nPost topic: ${item.topic}`
-            : `Post topic: ${item.topic}`,
-          keyword: "TIPS",
+          user_description: userDescription ? `${userDescription}\n\n${brief}` : brief,
+          keyword: "GUIDE",
           reference_images: referenceImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Image generation failed");
       setTopics(prev => prev.map(t => t.id === id ? { ...t, post: data.post, imageGenerating: false } : t));
+      persistItem(item.itemId, { image_url: data.post.image_url, daily_post_id: data.post.id, status: "image_generated" });
     } catch (err) {
       toast.error(err.message || "Image generation failed");
       setTopics(prev => prev.map(t => t.id === id ? { ...t, imageGenerating: false } : t));
@@ -786,7 +803,7 @@ function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, 
           aspect_ratio: aspectRatio,
           style_tags: styleTags,
           user_description: item.imageFeedback,
-          keyword: "TIPS",
+          keyword: "GUIDE",
           reference_images: referenceImages.map(({ name, mimeType, base64 }) => ({ name, mimeType, base64 })),
           is_refinement: true,
           previous_image_url: item.post.image_url,
@@ -797,10 +814,22 @@ function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, 
       setTopics(prev => prev.map(t =>
         t.id === id ? { ...t, post: data.post, imageGenerating: false, imageFeedback: "" } : t
       ));
+      persistItem(item.itemId, { image_url: data.post.image_url, daily_post_id: data.post.id });
     } catch (err) {
       toast.error(err.message || "Image regeneration failed");
       setTopics(prev => prev.map(t => t.id === id ? { ...t, imageGenerating: false } : t));
     }
+  };
+
+  const handlePost = (id) => {
+    const item = topics.find(t => t.id === id);
+    if (item?.post) setPostItem(item);
+  };
+
+  const handlePosted = (item) => {
+    setTopics(prev => prev.map(t => t.id === item.id ? { ...t, posted: true, status: "posted" } : t));
+    if (item.itemId) persistItem(item.itemId, { status: "posted" });
+    setPostItem(null);
   };
 
   return (
@@ -810,20 +839,26 @@ function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, 
         <div>
           <p className="text-sm font-semibold text-white">30-Day Content Calendar</p>
           <p className="text-[10px] text-gray-600 mt-0.5">
-            Generate topics for 30 days, approve each, then create images one by one.
+            Start from ready-made templates or generate with AI, then create images and post.
           </p>
         </div>
-        <button
-          onClick={handleGenerateTopics}
-          disabled={!vaultCtx || missingVault || generating}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan text-black text-xs font-semibold hover:bg-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-        >
-          {generating ? (
-            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating topics…</>
-          ) : (
-            <><Sparkles className="w-3.5 h-3.5" /> Generate 30 Topics</>
-          )}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleUseTemplates}
+            disabled={!vaultCtx || missingVault || seeding}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan text-black text-xs font-semibold hover:bg-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {seeding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+            Use ready-made templates
+          </button>
+          <button
+            onClick={handleGenerateTopics}
+            disabled={!vaultCtx || missingVault || seeding}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-subtle bg-charcoal text-gray-300 text-xs font-medium hover:text-white hover:border-subtleAlt transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Generate with AI
+          </button>
+        </div>
       </div>
 
       {/* Vault warning */}
@@ -847,32 +882,48 @@ function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, 
                 item={item}
                 onApprove={handleApprove}
                 onUndo={handleUndo}
-                onFeedbackChange={handleFeedbackChange}
-                onFeedbackSubmit={handleFeedbackSubmit}
                 onImageGenerate={handleImageGenerate}
                 onImageFeedbackChange={handleImageFeedbackChange}
                 onImageFeedbackSubmit={handleImageFeedbackSubmit}
+                onPost={handlePost}
               />
             ))}
           </div>
         </>
       )}
 
+      {/* Seeding state */}
+      {topics.length === 0 && seeding && (
+        <div className="flex flex-col items-center justify-center gap-3 py-16 rounded-2xl border-2 border-dashed border-subtle">
+          <Loader2 className="w-6 h-6 text-cyan animate-spin" />
+          <p className="text-sm font-medium text-gray-500">Building your 30-day calendar…</p>
+        </div>
+      )}
+
       {/* Empty state */}
-      {topics.length === 0 && !generating && (
+      {topics.length === 0 && !seeding && (
         <div className="flex flex-col items-center justify-center gap-3 py-16 rounded-2xl border-2 border-dashed border-subtle">
           <div className="w-11 h-11 rounded-xl border border-subtle bg-charcoal flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-gray-600" />
           </div>
           <div className="text-center px-8">
-            <p className="text-sm font-medium text-gray-500 mb-1">No topics yet</p>
-            <p className="text-xs text-gray-600 leading-relaxed max-w-[220px]">
+            <p className="text-sm font-medium text-gray-500 mb-1">No calendar yet</p>
+            <p className="text-xs text-gray-600 leading-relaxed max-w-[240px]">
               {!vaultCtx || missingVault
-                ? "Set up your Vault Free Gift section first, then generate 30 topics."
-                : "Click \"Generate 30 Topics\" to get started."}
+                ? "Set up your Vault Free Gift section first, then build your calendar."
+                : "Click \"Use ready-made templates\" for an instant 30-day plan, or generate with AI."}
             </p>
           </div>
         </div>
+      )}
+
+      {/* Share-to-social modal for a calendar day */}
+      {postItem?.post && (
+        <SocialPostModal
+          post={{ id: postItem.post.id, image_url: postItem.post.image_url, caption: postItem.caption || postItem.post.caption }}
+          onClose={() => setPostItem(null)}
+          onPosted={() => handlePosted(postItem)}
+        />
       )}
     </div>
   );
@@ -880,7 +931,7 @@ function ThirtyDayCalendar({ funnelId, vaultCtx, model, aspectRatio, styleTags, 
 
 // ─── Main GeneratorView ───────────────────────────────────────────────────────
 
-export default function GeneratorView({ funnels = [], onPostCreated, onPostChanged }) {
+export default function GeneratorView({ funnels = [], onPostCreated, onPostChanged, injectedBrief }) {
   const [generating, setGenerating]             = useState(false);
   const [stepIndex, setStepIndex]               = useState(0);
   const [post, setPost]                         = useState(null);
@@ -927,6 +978,15 @@ export default function GeneratorView({ funnels = [], onPostCreated, onPostChang
 
     return () => { cancelled = true; };
   }, [selectedFunnelId]);
+
+  // External brief injection (e.g. from "Today's suggestion" card)
+  useEffect(() => {
+    if (injectedBrief?.text) {
+      setUserDescription(injectedBrief.text);
+      setView("single");
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }
+  }, [injectedBrief?.ts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleStyle = (tag) =>
     setSelectedStyles(prev =>

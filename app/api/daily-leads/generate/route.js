@@ -122,6 +122,16 @@ async function getVaultContext(userId, funnelId = null) {
     media?.bio_author?.author_photo_url ||
     null;
 
+  // The free-gift image the user uploads lives in the Lead Magnet section
+  // (banner_image → funnel_banner_url). Prefer it; fall back to the media mockup.
+  const freeGiftImageUrl =
+    leadMagnet?.funnel_banner_url ||
+    leadMagnet?.banner_image?.funnel_banner_url ||
+    leadMagnet?.banner_image?.url ||
+    (typeof leadMagnet?.banner_image === 'string' ? leadMagnet.banner_image : null) ||
+    productImageUrl ||
+    null;
+
   // Brand colors from vault
   const colorPalette = colors?.colorPalette || null;
   const brandAccent = colorPalette?.primary || null;
@@ -157,6 +167,7 @@ async function getVaultContext(userId, funnelId = null) {
     niche,
     transformation,
     productImageUrl,
+    freeGiftImageUrl,
     logoUrl,
     authorPhotoUrl,
     brandAccent,
@@ -851,7 +862,7 @@ export async function POST(req) {
       const vaultSlots = [
         { url: vaultCtx.logoUrl,        label: 'Brand logo — render this exact logo on the book cover instead of plain text for the brand name (place it at the bottom of the cover, centered)' },
         { url: vaultCtx.authorPhotoUrl, label: 'Author/expert headshot — do NOT place on the front cover; use for brand style reference only' },
-        { url: vaultCtx.productImageUrl,label: 'Product or guide cover image — use as the hero visual in the bottom third of the book cover' },
+        { url: vaultCtx.freeGiftImageUrl, label: "The user's free gift / lead magnet cover image — use as the hero visual in the bottom third of the book cover" },
       ];
       for (const slot of vaultSlots) {
         if (!slot.url) continue;

@@ -88,19 +88,30 @@ export async function POST(req) {
       externalId: daily_post_id,
     });
 
-    // Mark daily post as posted if provided
+    const pfmPostId = result.data?.id || result.id || null;
+    const platformsPosted = platforms.filter(p => !notConnected.includes(p));
+
+    // Mark daily post as posted + record the Post for Me id so we can later
+    // pull engagement metrics for it.
     if (daily_post_id) {
-      await supabaseAdmin
+      const { error: updateError } = await supabaseAdmin
         .from('daily_posts')
-        .update({ status: 'posted', posted_at: new Date() })
-        .eq('id', daily_post_id)
-        .catch(err => console.error('[Social Post] Failed to mark post:', err.message));
+        .update({
+          status: 'posted',
+          pfm_post_id: pfmPostId,
+          published_platforms: platformsPosted,
+          published_at: new Date().toISOString(),
+        })
+        .eq('id', daily_post_id);
+      if (updateError) {
+        console.error('[Social Post] Failed to mark post:', updateError.message);
+      }
     }
 
     return Response.json({
       success: true,
-      post_id: result.data?.id || result.id,
-      platforms_posted: platforms.filter(p => !notConnected.includes(p)),
+      post_id: pfmPostId,
+      platforms_posted: platformsPosted,
       platforms_skipped: notConnected,
     });
   } catch (error) {

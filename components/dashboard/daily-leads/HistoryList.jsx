@@ -383,7 +383,7 @@ function PostDetailModal({ post: initialPost, onClose, onMarkPosted, onDelete })
                 Post to Social Media
               </button>
               <p className="text-[9px] text-gray-700 mt-2 leading-relaxed">
-                Connect your Buffer account to post directly to Twitter, Instagram, and Facebook.
+                Connect your social accounts to post directly to X, Instagram, and Facebook.
               </p>
             </div>
 

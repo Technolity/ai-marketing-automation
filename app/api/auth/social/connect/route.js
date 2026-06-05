@@ -27,7 +27,10 @@ export async function GET(req) {
       return new Response(`Invalid platform. Must be one of: ${validPlatforms.join(', ')}`, { status: 400 });
     }
 
-    const { url } = await generateAuthUrl(platform, workspaceId);
+    // Optional Instagram connection_type override: 'instagram' (default) or 'facebook'.
+    const connectionType = searchParams.get('connection_type') || undefined;
+
+    const { url } = await generateAuthUrl(platform, workspaceId, { connectionType });
 
     // Redirect user to PostForMe OAuth URL
     return new Response(null, {
@@ -36,6 +39,7 @@ export async function GET(req) {
     });
   } catch (error) {
     console.error('[Social Connect] Error:', error.message);
+    console.error('[Social Connect] PFM response body:', JSON.stringify(error.body));
     return new Response(null, {
       status: 302,
       headers: {

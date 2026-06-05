@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import GeneratorView from "@/components/dashboard/daily-leads/GeneratorView";
 import HistoryList from "@/components/dashboard/daily-leads/HistoryList";
 import SocialConnections from "@/components/social/SocialConnections";
+import TodaysSuggestion from "@/components/dashboard/daily-leads/TodaysSuggestion";
 
 export default function DailyLeadsPage() {
   const searchParams = useSearchParams();
@@ -16,6 +17,8 @@ export default function DailyLeadsPage() {
   const [funnels, setFunnels] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [socialConnected, setSocialConnected] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [pendingBrief, setPendingBrief] = useState(null);
 
   // Handle OAuth redirect result toasts
   useEffect(() => {
@@ -77,6 +80,20 @@ export default function DailyLeadsPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Social engagement analytics (only meaningful once accounts are connected).
+  const loadAnalytics = useCallback(async () => {
+    try {
+      const res = await fetchWithAuth("/api/social/analytics");
+      if (res.ok) setAnalytics(await res.json());
+    } catch (err) {
+      console.error("[DailyLeads Analytics]", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (socialConnected.length > 0) loadAnalytics();
+  }, [socialConnected, loadAnalytics]);
 
   const handlePostCreated = useCallback(
     (newPost, nextQuota) => {
@@ -195,11 +212,39 @@ export default function DailyLeadsPage() {
             ))}
           </div>
         </div>
+
+        {/* Social engagement strip — appears once accounts are connected */}
+        {analytics?.connectedCount > 0 && (
+          <div className="border-t border-white/5">
+            <div className="grid grid-cols-2 gap-1 bg-white/5 sm:grid-cols-4">
+              {[
+                { label: "Impressions", value: analytics.totals?.impressions, helper: "Across socials" },
+                { label: "Engagement", value: analytics.totals?.engagement, helper: "Likes + comments + shares" },
+                { label: "Likes", value: analytics.totals?.likes, helper: "All platforms" },
+                { label: "Comments", value: analytics.totals?.comments, helper: "All platforms" },
+              ].map(({ label, value, helper }) => (
+                <div key={label} className="bg-grayDark px-6 py-4">
+                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-gray-600">{label}</p>
+                  <p className="mt-1 text-xl font-black tracking-tighter tabular-nums text-white">
+                    {(value ?? 0).toLocaleString()}
+                  </p>
+                  <p className="mt-1 text-[9px] font-bold uppercase tracking-widest text-gray-700">{helper}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      <TodaysSuggestion
+        funnels={funnels}
+        onUseIdea={(brief) => setPendingBrief({ ...brief, ts: Date.now() })}
+      />
 
       <GeneratorView
         funnels={funnels}
         initialQuota={quota}
+        injectedBrief={pendingBrief}
         onPostCreated={handlePostCreated}
         onPostChanged={handlePostChanged}
       />
