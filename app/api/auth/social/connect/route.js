@@ -39,7 +39,6 @@ export async function GET(req) {
     });
   } catch (error) {
     console.error('[Social Connect] Error:', error.message);
-    console.error('[Social Connect] PFM response body:', JSON.stringify(error.body));
     return new Response(null, {
       status: 302,
       headers: {
