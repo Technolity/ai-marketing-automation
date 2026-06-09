@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { BookOpen, Users, Shield, PanelLeftClose, PanelLeftOpen, LayoutDashboard, X, ExternalLink } from "lucide-react";
+import { BookOpen, Users, Shield, PanelLeftClose, PanelLeftOpen, LayoutDashboard, X, ExternalLink, UserCog } from "lucide-react";
 import { SignedIn, UserButton, useUser } from "@clerk/nextjs";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import PlanBadge from "@/components/PlanBadge";
 import BugReportModal from "@/components/BugReportModal";
+import EditProfileModal from "@/components/EditProfileModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { GeistSans } from "geist/font/sans";
 
@@ -50,6 +51,7 @@ function SidebarBody({ collapsed, onToggle, onClose, isAdmin, loading, pathname,
   const [maxEngines, setMaxEngines] = useState(null);
   const [hasDeployedFunnel, setHasDeployedFunnel] = useState(false);
   const [builderLocationId, setBuilderLocationId] = useState("");
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   useEffect(() => {
     async function fetchEngineData() {
@@ -165,6 +167,24 @@ function SidebarBody({ collapsed, onToggle, onClose, isAdmin, loading, pathname,
         "border-t border-white/[0.06] flex-shrink-0",
         collapsed ? "p-3 flex flex-col items-center gap-3" : "p-4 flex flex-col gap-3"
       )}>
+        {/* Edit Profile — opens a modal (DB + Clerk sync via /api/profile/save) */}
+        <button
+          type="button"
+          onClick={() => setEditProfileOpen(true)}
+          title={collapsed ? "Edit Profile" : undefined}
+          className={cn(
+            "group flex w-full items-center gap-2.5 rounded-[12px] border border-transparent transition-all font-poppins text-[#8b8b93] hover:border-white/[0.07] hover:bg-white/[0.03] hover:text-white",
+            collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2.5"
+          )}
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-white/[0.07] bg-[#111213] text-[#8b8b93] transition-colors group-hover:text-white">
+            <UserCog className="h-3.5 w-3.5 shrink-0" />
+          </div>
+          {!collapsed && (
+            <span className="text-[13px] font-medium truncate">Edit Profile</span>
+          )}
+        </button>
+        <EditProfileModal open={editProfileOpen} onClose={() => setEditProfileOpen(false)} />
         <BugReportModal collapsed={collapsed} />
         <SignedIn>
           {!collapsed && (

@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
+import { clerkClient } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { createGHLSubAccount } from '@/lib/integrations/ghl';
 import { getAgencyToken, findLocationByEmail, mapLocationToUser } from '@/lib/ghl/locationUtils';
@@ -103,6 +104,19 @@ export async function POST(req) {
     }
 
     console.log(`[Profile Save] Profile updated successfully for user: ${email}`);
+    console.log(`[Profile Save] Fields updated for user ${userId}: first_name, last_name, business_name${businessName ? '' : ' (null)'}, address`);
+
+    // 5b. Sync first/last name to Clerk (auth source of truth).
+    // Non-fatal: a Clerk failure must not fail the profile save.
+    try {
+      await clerkClient.users.updateUser(userId, {
+        firstName: firstName,
+        lastName: lastName
+      });
+      console.log(`[Profile Save] Clerk name synced for user: ${userId}`);
+    } catch (clerkError) {
+      console.error('[Profile Save] Clerk name sync failed (non-fatal):', clerkError.message);
+    }
 
     // 6. Create GHL sub-account via OAuth (Only if not already created)
     // SaaS GUARD: Users who paid via GHL SaaS Configurator already have a location

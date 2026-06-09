@@ -58,6 +58,8 @@ export default function Onboarding() {
 
   const [loading, setLoading] = useState(false);
 
+  const [businessNameSkipped, setBusinessNameSkipped] = useState(false);
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -96,16 +98,29 @@ export default function Onboarding() {
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
+
+    // Validate: business name is required unless the user explicitly skipped it
+    if (!businessNameSkipped && !formData.businessName.trim()) {
+      toast.error("Please enter your legal business name, or check the box if you don't have one yet.");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // When skipped, persist null so downstream gates can detect "no business name"
+      const payload = {
+        ...formData,
+        businessName: businessNameSkipped ? null : formData.businessName.trim()
+      };
+
       // Call the API to save profile and trigger Pabbly
       const response = await fetch("/api/profile/save", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       const result = await response.json();
@@ -198,19 +213,36 @@ export default function Onboarding() {
                   </div>
                 </div>
 
-                {/* Business Name */}
+                {/* Legal Business Name */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Business Name</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">
+                    Legal Business Name {!businessNameSkipped && "*"}
+                  </label>
                   <div className="relative">
                     <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                     <input
                       type="text"
-                      value={formData.businessName}
+                      value={businessNameSkipped ? "" : formData.businessName}
                       onChange={(e) => updateField('businessName', e.target.value)}
-                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-3 text-white focus:border-cyan focus:outline-none transition-all"
+                      className="w-full bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl pl-12 pr-4 py-3 text-white focus:border-cyan focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       placeholder="Acme Corp"
+                      required={!businessNameSkipped}
+                      disabled={businessNameSkipped}
                     />
                   </div>
+                  <label className="mt-2 flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={businessNameSkipped}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setBusinessNameSkipped(checked);
+                        if (checked) updateField('businessName', "");
+                      }}
+                      className="h-4 w-4 rounded border-[#2a2a2d] bg-[#0e0e0f] text-cyan focus:ring-cyan accent-cyan"
+                    />
+                    I don&apos;t have a registered business name yet
+                  </label>
                 </div>
 
                 {/* Phone */}

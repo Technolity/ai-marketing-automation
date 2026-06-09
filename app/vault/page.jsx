@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from 'react-dom';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
 import WatchTutorialButton from '@/components/WatchTutorialButton';
+import EditProfileModal from '@/components/EditProfileModal';
 import { supabase } from '@/lib/supabase';
 
 import {
@@ -25,7 +26,7 @@ import {
     Sparkles, Edit3, ArrowRight, PartyPopper, ArrowLeft,
     ChevronDown, ChevronUp, Save, Image as ImageIcon, Video as VideoIcon, Plus, Trash2 as TrashIcon, ExternalLink,
     Upload, X, Info, FileImage, Rocket, AlertOctagon, Play, Palette, Layers,
-    Globe, Calendar, Link2
+    Globe, Calendar, Link2, Building2 as Building2Icon
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
@@ -632,6 +633,11 @@ export default function VaultPage() {
 
     // UX Enhancement States
     const [showPhase2Instructions, setShowPhase2Instructions] = useState(false);
+
+    // Business-name gate (Phase 2 entry). null = unknown/not yet checked.
+    const [hasBusinessName, setHasBusinessName] = useState(null);
+    const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+    const [bizGateChecking, setBizGateChecking] = useState(false);
     const [deploymentStep, setDeploymentStep] = useState(0); // 0 = not started, 1-3 = in progress
     const [emailSentOnDeploy, setEmailSentOnDeploy] = useState(false);
 
@@ -745,6 +751,93 @@ export default function VaultPage() {
         localStorage.setItem(storageKey, 'true');
         setShowPhase2Instructions(false);
     };
+
+    // ── Phase-2 business-name gate ──────────────────────────────────────────
+    // The current funnel id (Phase 2 operates on this funnel's content).
+    const activeFunnelId = searchParams.get('funnel_id') || dataSource?.id || null;
+
+    // Fire the fallback-replacement sweep on the current funnel (resilient).
+    const runBusinessNameSweep = useCallback(async (reason = 'manual') => {
+        if (!activeFunnelId) return;
+        try {
+            console.log('[biz-gate] running business-name sweep', { funnelId: activeFunnelId, reason });
+            const res = await fetchWithAuth('/api/os/replace-business-name', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ funnelId: activeFunnelId })
+            });
+            const result = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                console.warn('[biz-gate] sweep failed', result?.error || res.status);
+                return result;
+            }
+            console.log('[biz-gate] sweep complete', { totalReplacements: result?.totalReplacements });
+            if (result?.totalReplacements > 0 && reason === 'manual') {
+                toast.success(`Applied your business name to ${result.totalReplacements} place(s).`);
+            }
+            return result;
+        } catch (err) {
+            // Resilient: never crash the page on a sweep failure.
+            console.warn('[biz-gate] sweep error', err?.message);
+            return null;
+        }
+    }, [activeFunnelId]);
+
+    // Check whether the user has a business name set. Returns boolean.
+    const checkBusinessName = useCallback(async () => {
+        setBizGateChecking(true);
+        try {
+            const res = await fetch('/api/user/profile');
+            if (!res.ok) throw new Error('profile fetch failed');
+            const data = await res.json();
+            // Account for team members who inherit the owner's business name.
+            const name = (data?.business_name || data?.owner_business_name || '').trim();
+            const present = !!name;
+            setHasBusinessName(present);
+            return present;
+        } catch (err) {
+            console.warn('[biz-gate] business-name check error', err?.message);
+            // Fail-open: don't block Phase 2 on a transient profile error.
+            setHasBusinessName(true);
+            return true;
+        } finally {
+            setBizGateChecking(false);
+        }
+    }, []);
+
+    // When the user enters Phase 2 (assets tab) with a funnel selected, check
+    // the business name. If missing, render the blocking gate.
+    useEffect(() => {
+        if (activeTab === 'assets' && hasFunnelChoice) {
+            checkBusinessName().then((present) => {
+                if (!present) {
+                    console.log('[biz-gate] shown — no business name at Phase 2 entry');
+                }
+            });
+        }
+    }, [activeTab, hasFunnelChoice, checkBusinessName]);
+
+    // Re-check on the 'profile:updated' event dispatched by EditProfileModal.
+    // When a name is now present, clear the gate and sweep existing content.
+    useEffect(() => {
+        const onProfileUpdated = async () => {
+            const present = await checkBusinessName();
+            if (present) {
+                console.log('[biz-gate] cleared — business name set; sweeping existing content');
+                setShowEditProfileModal(false);
+                // Only sweep if this funnel already has generated content.
+                if (hasFunnelChoice) {
+                    runBusinessNameSweep('profile-updated');
+                }
+            }
+        };
+        window.addEventListener('profile:updated', onProfileUpdated);
+        return () => window.removeEventListener('profile:updated', onProfileUpdated);
+    }, [checkBusinessName, runBusinessNameSweep, hasFunnelChoice]);
+
+    // The gate is active only when we know the name is missing AND we're at the
+    // Phase 2 entry point (assets tab + funnel chosen).
+    const businessNameGateActive = activeTab === 'assets' && hasFunnelChoice && hasBusinessName === false;
 
     // Navigation handler for EmergencyHelpButton
     const handleEmergencyNavigate = (destination) => {
@@ -4001,8 +4094,45 @@ export default function VaultPage() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                {hasFunnelChoice ? (
+                                {businessNameGateActive ? (
+                                    <div className="text-center py-16 bg-[#111214] rounded-3xl border border-dashed border-amber-400/30">
+                                        <div className="w-16 h-16 mx-auto mb-6 relative bg-amber-400/5 rounded-2xl flex items-center justify-center border border-amber-400/30">
+                                            <AlertTriangle className="w-8 h-8 text-amber-400" />
+                                        </div>
+                                        <h2 className="text-2xl font-bold mb-3">Set up your business name first</h2>
+                                        <p className="text-gray-400 max-w-md mx-auto mb-8">
+                                            Before generating your funnel assets, add your legal business name so your
+                                            marketing copy uses it everywhere instead of a generic placeholder.
+                                        </p>
+                                        <button
+                                            onClick={() => setShowEditProfileModal(true)}
+                                            disabled={bizGateChecking}
+                                            className="px-8 py-4 bg-gradient-to-r from-cyan to-blue-600 text-white rounded-xl font-bold flex items-center gap-3 mx-auto hover:brightness-110 transition-all shadow-xl shadow-cyan/30 disabled:opacity-60"
+                                        >
+                                            {bizGateChecking ? (
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                            ) : (
+                                                <Building2Icon className="w-5 h-5" />
+                                            )}
+                                            Set Business Name
+                                            <ArrowRight className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                ) : hasFunnelChoice ? (
                                     <div className="grid gap-3">
+                                        {/* Manual: re-apply the business name to already-generated content */}
+                                        {hasBusinessName && (
+                                            <div className="flex justify-end">
+                                                <button
+                                                    onClick={() => runBusinessNameSweep('manual')}
+                                                    className="text-xs text-[#B2C0CD] hover:text-cyan flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.07] hover:border-cyan/30 transition-all"
+                                                    title="Replace any leftover 'your company'/'Your Business' placeholders with your business name"
+                                                >
+                                                    <RefreshCw className="w-3.5 h-3.5" />
+                                                    Apply business name to content
+                                                </button>
+                                            </div>
+                                        )}
                                         {PHASE_2_SECTIONS.map((section, index) => {
                                             const status = getSectionStatus(section.id, 2, approvedPhase2, index);
                                             return renderSection(section, status, index, 2);
@@ -4505,6 +4635,14 @@ export default function VaultPage() {
                 totalPhase2={PHASE_2_SECTIONS.length}
                 totalPhase3={PHASE_3_SECTIONS.length}
                 totalPhase4={PHASE_4_SECTIONS.length}
+            />
+
+            {/* Phase-2 business-name gate: collect the legal business name. On save,
+                EditProfileModal dispatches 'profile:updated' which clears the gate
+                and sweeps existing content (handled by the listener above). */}
+            <EditProfileModal
+                open={showEditProfileModal}
+                onClose={() => setShowEditProfileModal(false)}
             />
         </div>
     );
