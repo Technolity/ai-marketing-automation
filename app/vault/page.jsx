@@ -1527,7 +1527,13 @@ export default function VaultPage() {
             }
         }
 
-        // NOTE: Section expansion is manual only (no auto-open/close on approve)
+        // Auto-collapse the just-approved section so the user sees their progress
+        // and the next section without manually closing it. Phase 6C.
+        setExpandedSections(prev => {
+            const next = new Set(prev);
+            next.delete(sectionId);
+            return next;
+        });
 
         // Auto-push to GHL if funnel is already deployed and section is pushable
         const pushableSections = ['funnelCopy', 'emails', 'sms', 'media', 'appointmentReminders', 'colors'];

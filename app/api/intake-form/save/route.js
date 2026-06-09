@@ -1,6 +1,9 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { generateText } from '@/lib/ai/providerConfig';
+
+const PLACEHOLDER_FUNNEL_NAME = 'Untitled Marketing Engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +60,75 @@ export async function POST(req) {
         if (funnelError) {
             console.error('[IntakeFormSave] Funnel update failed:', funnelError);
             throw funnelError;
+        }
+
+        // =========================================================
+        // STEP 1.5: AI-name the Marketing Engine from the intake answers.
+        // Resilient by design: ANY failure keeps the placeholder name and
+        // must NOT block or 500 the intake save. We only overwrite the name
+        // if it still equals the placeholder (never clobber a user rename).
+        // =========================================================
+        try {
+            const { data: funnelRow, error: nameFetchError } = await supabaseAdmin
+                .from('user_funnels')
+                .select('funnel_name')
+                .eq('id', funnelId)
+                .eq('user_id', targetUserId)
+                .maybeSingle();
+
+            if (nameFetchError) throw nameFetchError;
+
+            const currentName = funnelRow?.funnel_name;
+
+            if (currentName === PLACEHOLDER_FUNNEL_NAME) {
+                // Build a compact, readable summary of the answers for the prompt.
+                const answersSummary = Object.entries(answers)
+                    .filter(([, value]) => value != null && String(value).trim() !== '')
+                    .map(([key, value]) => {
+                        const text = Array.isArray(value) ? value.join(', ') : String(value);
+                        return `${key}: ${text}`;
+                    })
+                    .join('\n')
+                    .slice(0, 6000);
+
+                const namingPrompt = `You are naming a marketing engine for a business based on their intake answers below.
+
+Return ONLY a concise, brandable name of 2-4 words. No quotes, no punctuation, no explanation, no prefix — just the name.
+
+Intake answers:
+${answersSummary}`;
+
+                const rawName = await generateText(namingPrompt, { temperature: 0.7, maxTokens: 30 });
+
+                // Sanitize: trim, strip surrounding/embedded quotes, collapse whitespace, cap length.
+                let generatedName = String(rawName || '')
+                    .replace(/["'`]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim()
+                    .slice(0, 60)
+                    .trim();
+
+                if (generatedName) {
+                    // Only overwrite if STILL the placeholder (guard against concurrent rename).
+                    const { error: nameUpdateError } = await supabaseAdmin
+                        .from('user_funnels')
+                        .update({ funnel_name: generatedName, updated_at: new Date().toISOString() })
+                        .eq('id', funnelId)
+                        .eq('user_id', targetUserId)
+                        .eq('funnel_name', PLACEHOLDER_FUNNEL_NAME);
+
+                    if (nameUpdateError) throw nameUpdateError;
+
+                    console.log('[engine-name] Generated marketing engine name', { funnelId, name: generatedName });
+                } else {
+                    console.warn('[engine-name] AI returned empty name; keeping placeholder', { funnelId });
+                }
+            } else {
+                console.log('[engine-name] Skipping AI naming; funnel already named', { funnelId, currentName });
+            }
+        } catch (nameError) {
+            // Never block the intake save on AI naming.
+            console.error('[engine-name] AI naming failed; keeping placeholder', { funnelId, error: nameError?.message || nameError });
         }
 
         // =========================================================

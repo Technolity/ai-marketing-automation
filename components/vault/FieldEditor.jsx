@@ -1044,7 +1044,7 @@ function FieldEditor({
                         <div className="relative group/info">
                             <Info className="w-3.5 h-3.5 text-gray-500 cursor-help hover:text-cyan transition-colors" />
                             <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-elevated border border-subtleAlt rounded-lg shadow-xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-50">
-                                <p className="text-xs text-gray-400 leading-relaxed">{field_metadata.hint.replace('📍 ', '')}</p>
+                                <p className="text-xs text-gray-400 leading-relaxed">{field_metadata.hint.replace(/^[\p{Extended_Pictographic}\u{1F000}-\u{1FAFF}←-⇿⌀-➿️‍\s]+/u, '')}</p>
                             </div>
                         </div>
                     )}

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { RefreshCw, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import FieldEditor from './FieldEditor';
 import FeedbackChatModal from '@/components/FeedbackChatModal';
@@ -24,10 +24,15 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
-    const [expandedGroup, setExpandedGroup] = useState(null);
+    // Independent per-group toggles (Set keyed by groupName) so collapsing one
+    // group never re-expands another. See Phase 6A.
+    const [expandedGroups, setExpandedGroups] = useState(() => new Set());
+    const didInitExpand = useRef(false);
 
     const sectionId = 'idealClient';
-    const predefinedFields = getFieldsForSection(sectionId);
+    // Memoized so the init effect doesn't re-run on every render (which used to
+    // snap the first group back open whenever a group was collapsed). Phase 6A.
+    const predefinedFields = useMemo(() => getFieldsForSection(sectionId), [sectionId]);
 
     // Fetch fields from database
     const fetchFields = useCallback(async () => {
@@ -73,14 +78,28 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
         setSectionApproved(isApproved);
     }, [isApproved]);
 
-    // Initial expansion
+    // Initial expansion: seed the FIRST group open exactly once on initial load.
+    // Guarded by a ref so collapsing groups never re-triggers it (Phase 6A).
     useEffect(() => {
-        if (fields.length > 0 && !expandedGroup) {
-            // Find the first group name
+        if (fields.length > 0 && !didInitExpand.current) {
+            didInitExpand.current = true;
             const firstGroup = predefinedFields[0]?.group || 'Other';
-            setExpandedGroup(firstGroup);
+            setExpandedGroups(new Set([firstGroup]));
         }
-    }, [fields, expandedGroup, predefinedFields]);
+    }, [fields, predefinedFields]);
+
+    // Toggle a single group's expanded state independently of all others.
+    const toggleGroup = useCallback((groupName) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(groupName)) {
+                next.delete(groupName);
+            } else {
+                next.add(groupName);
+            }
+            return next;
+        });
+    }, []);
 
     // Handle field save
     const handleFieldSave = async (field_id, value, result) => {
@@ -362,13 +381,13 @@ export default function IdealClientFields({ funnelId, onApprove, onRenderApprove
             <div className="space-y-4">
                 {orderedGroups.map((groupName) => {
                     const groupFields = groups[groupName];
-                    const isExpanded = expandedGroup === groupName;
+                    const isExpanded = expandedGroups.has(groupName);
 
                     return (
                         <div key={groupName} className="bg-[#18181b] border border-[#3a3a3d] rounded-xl overflow-hidden">
                             {/* Group Header */}
                             <button
-                                onClick={() => setExpandedGroup(isExpanded ? null : groupName)}
+                                onClick={() => toggleGroup(groupName)}
                                 className="w-full px-6 py-4 flex items-center justify-between bg-[#1a1a1d] hover:bg-[#1f1f22] transition-colors"
                             >
                                 <div className="flex items-center gap-3">

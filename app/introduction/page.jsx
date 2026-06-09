@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Play, Zap, Loader2, Building2, X } from "lucide-react";
+import { ArrowRight, Play, Zap, Loader2, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { toast } from "sonner";
@@ -12,8 +12,6 @@ export default function IntroductionPage() {
     const { session, authLoading } = useAuth();
     const [isLoading, setIsLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
-    const [showNameInput, setShowNameInput] = useState(false);
-    const [businessName, setBusinessName] = useState("");
     const [activeVideo, setActiveVideo] = useState(null);
     const [mainVideoPlaying, setMainVideoPlaying] = useState(false);
 
@@ -28,24 +26,16 @@ export default function IntroductionPage() {
         setIsLoading(false);
     }, [session, authLoading, router]);
 
-    const handleBeginSetup = () => {
-        setShowNameInput(true);
-    };
-
     const handleStartQuestionnaire = async () => {
-        if (!businessName.trim()) {
-            toast.error("Please name your business");
-            return;
-        }
-
         setIsCreating(true);
         try {
-            // Create the first business
+            // Create the Marketing Engine with a placeholder name.
+            // The AI will auto-name it from the 20-question intake on completion.
             const res = await fetchWithAuth('/api/user/funnels', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    name: businessName.trim(),
+                    name: 'Untitled Marketing Engine',
                     description: ''
                 })
             });
@@ -88,7 +78,7 @@ export default function IntroductionPage() {
     ];
 
     const steps = [
-        "Name your business",
+        "Watch the videos above",
         "Answer 20 quick questions",
         "Review your generated assets",
         "Launch your funnel"
@@ -228,79 +218,33 @@ export default function IntroductionPage() {
                 </motion.div>
 
                 {/* CTA Section */}
-                <AnimatePresence mode="wait">
-                    {!showNameInput ? (
-                        <motion.div
-                            key="begin-button"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ delay: 0.8, ease: "easeOut" }}
-                            className="text-center"
-                        >
-                            <motion.button
-                                onClick={handleBeginSetup}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                className="w-full bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-10 py-5 rounded-2xl font-bold text-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-cyan/30"
-                            >
-                                Begin Setup
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.8, ease: "easeOut" }}
+                    className="text-center"
+                >
+                    <motion.button
+                        onClick={handleStartQuestionnaire}
+                        disabled={isCreating}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                        className="w-full bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-10 py-5 rounded-2xl font-bold text-xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {isCreating ? (
+                            <>
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                                Creating...
+                            </>
+                        ) : (
+                            <>
+                                Watch above videos, then continue
                                 <ArrowRight className="w-6 h-6" />
-                            </motion.button>
-                        </motion.div>
-                    ) : (
-                        <motion.div
-                            key="name-input"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ ease: "easeOut" }}
-                            className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] p-6"
-                        >
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-10 h-10 bg-cyan/10 rounded-xl flex items-center justify-center">
-                                    <Building2 className="w-5 h-5 text-cyan" />
-                                </div>
-                                <div>
-                                    <h3 className="text-white font-bold">Name Your Business</h3>
-                                    <p className="text-gray-500 text-sm">This helps us personalize your content</p>
-                                </div>
-                            </div>
-
-                            <input
-                                type="text"
-                                value={businessName}
-                                onChange={(e) => setBusinessName(e.target.value)}
-                                placeholder="e.g. My Coaching Business"
-                                className="w-full px-4 py-4 bg-[#0e0e0f] border border-[#2a2a2d] rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-cyan transition-colors mb-4 text-lg"
-                                autoFocus
-                                onKeyPress={(e) => e.key === 'Enter' && handleStartQuestionnaire()}
-                            />
-
-                            <motion.button
-                                onClick={handleStartQuestionnaire}
-                                disabled={isCreating || !businessName.trim()}
-                                whileHover={{ scale: 1.01 }}
-                                whileTap={{ scale: 0.99 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                                className="w-full bg-gradient-to-r from-cyan to-blue-500 hover:brightness-110 text-black px-8 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {isCreating ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        Creating...
-                                    </>
-                                ) : (
-                                    <>
-                                        Start Questionnaire
-                                        <ArrowRight className="w-5 h-5" />
-                                    </>
-                                )}
-                            </motion.button>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                            </>
+                        )}
+                    </motion.button>
+                </motion.div>
             </motion.div>
         </div>
 

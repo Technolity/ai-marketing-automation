@@ -362,6 +362,42 @@ function deepParseJSON(content) {
     return content;
 }
 
+// ─── Flatten parsed content into readable reference text ──────────────────────
+// Used by the persistent reference panel (step 2) so the user can see the exact
+// field content they're refining while typing their prompt. Phase 6B.
+function contentToReferenceText(content, depth = 0) {
+    const parsed = deepParseJSON(content);
+    if (parsed === null || parsed === undefined || parsed === '') return '';
+    if (typeof parsed === 'string') return parsed;
+    if (typeof parsed === 'number' || typeof parsed === 'boolean') return String(parsed);
+    const indent = '  '.repeat(depth);
+    if (Array.isArray(parsed)) {
+        return parsed
+            .map((item) => {
+                const text = contentToReferenceText(item, depth + 1);
+                return text ? `${indent}• ${text.replace(/\n/g, `\n${indent}  `)}` : '';
+            })
+            .filter(Boolean)
+            .join('\n');
+    }
+    if (typeof parsed === 'object') {
+        return Object.entries(parsed)
+            .filter(([k]) => !k.startsWith('_'))
+            .map(([k, v]) => {
+                const text = contentToReferenceText(v, depth + 1);
+                if (!text) return '';
+                const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()).trim();
+                // Inline scalars, block-out nested structures.
+                return text.includes('\n')
+                    ? `${indent}${label}:\n${text}`
+                    : `${indent}${label}: ${text}`;
+            })
+            .filter(Boolean)
+            .join('\n');
+    }
+    return '';
+}
+
 // ─── Collect diff paths between two structures ────────────────────────────────
 function collectDiffPaths(before, after, path, diff) {
     if (before === after) return;
@@ -1024,6 +1060,32 @@ export default function FeedbackChatModal({
         return diff;
     }, [suggestedChanges, originalContent, currentContent, selectedSubSection, isFunnelCopy, funnelSubPage]);
 
+    // Readable text of the selected field content for the persistent reference
+    // panel shown during the chat (step 2). Phase 6B.
+    const referenceText = useMemo(
+        () => contentToReferenceText(originalContent),
+        [originalContent]
+    );
+
+    // ── Back to field selection (step 2 -> step 1) ────────────────────────────
+    // Returns to field selection WITHOUT closing the modal and clears the active
+    // field selection so the user can pick a different field. Phase 6B.
+    const handleBackToFields = () => {
+        setChatStep(1);
+        setSelectedSubSection(null);
+        setSelectedFields(new Set());
+        setSelectedParentField(null);
+        setSelectedChildField(null);
+        setSelectedBlueprintStep(null);
+        setIsHierarchicalSection(false);
+        setOriginalContent(null);
+        setSuggestedChanges(null);
+        setPreviousAlternatives([]);
+        setStreamingMessage(null);
+        const opener = CHAT_OPENERS[Math.floor(Math.random() * CHAT_OPENERS.length)];
+        setMessages([{ role: 'assistant', content: opener }]);
+    };
+
     // Scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -1516,6 +1578,16 @@ export default function FeedbackChatModal({
                             {/* Selected fields summary bar (step 2+) */}
                             {chatStep >= 2 && selectedSubSection && (
                                 <div className="px-4 py-2 bg-[#0A1018] border-b border-[#1E2A34] flex-shrink-0 flex items-center gap-2 flex-wrap">
+                                    {/* Back to field selection (Phase 6B) */}
+                                    {chatStep === 2 && (
+                                        <button
+                                            onClick={handleBackToFields}
+                                            className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#1E2A34] hover:bg-[#26323D] text-gray-300 hover:text-white transition-colors cursor-pointer"
+                                            title="Go back to field selection"
+                                        >
+                                            <ArrowLeft className="w-3 h-3" /> Back
+                                        </button>
+                                    )}
                                     <span className="text-[10px] text-gray-500 uppercase tracking-wider font-medium">Refining:</span>
                                     {selectedFields.size > 1
                                         ? [...selectedFields].map(fid => {
@@ -1532,6 +1604,24 @@ export default function FeedbackChatModal({
                                             {(SECTION_OPTIONS[sectionId] || []).find(o => o.id === selectedSubSection)?.label || selectedSubSection}
                                           </span>
                                     }
+                                </div>
+                            )}
+
+                            {/* Persistent reference content panel (step 2) — read-only,
+                                scrollable, so the user can reference the field content
+                                while typing their prompt. Phase 6B. */}
+                            {chatStep === 2 && referenceText && (
+                                <div className="px-4 pt-3 flex-shrink-0">
+                                    <div className="rounded-xl border border-[#1E2A34] bg-[#0A0F14] overflow-hidden">
+                                        <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1E2A34] bg-[#0D1217]">
+                                            <LayoutList className="w-3.5 h-3.5 text-cyan" />
+                                            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Current Content</span>
+                                            <span className="text-[10px] text-gray-600 ml-auto">read-only reference</span>
+                                        </div>
+                                        <div className="max-h-40 overflow-y-auto px-3 py-2.5">
+                                            <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">{referenceText}</p>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
