@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { BookOpen, Users, Shield, PanelLeftClose, PanelLeftOpen, LayoutDashboard, X, ExternalLink, UserCog } from "lucide-react";
+import { BookOpen, Users, Shield, PanelLeftClose, PanelLeftOpen, LayoutDashboard, X, ExternalLink, UserCog, PlayCircle } from "lucide-react";
 import { SignedIn, UserButton, useUser } from "@clerk/nextjs";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -155,7 +155,8 @@ function SidebarBody({ collapsed, onToggle, onClose, isAdmin, loading, pathname,
           </p>
         )}
         <NavItem href="/dashboard" icon={LayoutDashboard} label="Dashboard" collapsed={collapsed} active={pathname === "/dashboard"} onClick={onLinkClick} />
-        <NavItem href="/guide" icon={BookOpen} label="Guide" collapsed={collapsed} active={pathname.startsWith("/guide")} onClick={onLinkClick} />
+        <NavItem href="/guide" icon={BookOpen} label="Guide" collapsed={collapsed} active={pathname === "/guide" || pathname.startsWith("/guide/")} onClick={onLinkClick} />
+        <NavItem href="/guide-to-tedos" icon={PlayCircle} label="Guide to TedOS" collapsed={collapsed} active={pathname.startsWith("/guide-to-tedos")} onClick={onLinkClick} />
         <NavItem href="/team" icon={Users} label="Team" collapsed={collapsed} active={pathname.startsWith("/team")} onClick={onLinkClick} />
         {!loading && isAdmin && (
           <NavItem href="/admin/overview" icon={Shield} label="Admin" collapsed={collapsed} active={pathname.startsWith("/admin")} isAdmin onClick={onLinkClick} />

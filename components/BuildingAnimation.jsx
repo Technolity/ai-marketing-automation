@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, MailCheck } from 'lucide-react';
+
+/**
+ * CRM activation reminder shown during the builder animation.
+ * TODO(user): replace with the exact email-template copy/screenshot when provided.
+ * This is the single source of truth — swap the strings (and add `screenshotSrc`)
+ * once the activation email design lands.
+ */
+const CRM_ACTIVATION_NOTICE = {
+    title: 'Activate your CRM',
+    body: 'Check your inbox for a separate activation email and complete your CRM setup while we build your assets.',
+    // TODO(user): set this to the activation-email preview image path when provided
+    // (e.g. '/crm-activation-email-preview.png') to render the embedded screenshot below.
+    screenshotSrc: null,
+    screenshotAlt: 'CRM activation email preview',
+};
 
 /**
  * BuildingAnimation Component
@@ -119,6 +134,43 @@ const BuildingAnimation = ({
 
                     {/* Time Remaining Removed as per request */}
                 </div>
+
+
+                {/* 3b. PERSISTENT CRM ACTIVATION NOTICE */}
+                {/* Copy lives in CRM_ACTIVATION_NOTICE (top of file) — one-line swap when the email screenshot arrives. */}
+                <motion.div
+                    initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: prefersReducedMotion ? 0 : 0.4 }}
+                    role="status"
+                    aria-live="polite"
+                    className="w-full max-w-xl mx-auto mb-4 flex items-start gap-3.5 rounded-2xl border border-cyan/20 bg-cyan/[0.06] px-4 py-3.5 text-left shadow-[0_0_30px_rgba(6,182,212,0.06)] backdrop-blur-sm"
+                >
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan/30 bg-cyan/10 text-cyan">
+                        <MailCheck className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-cyan">
+                            {CRM_ACTIVATION_NOTICE.title}
+                        </p>
+                        <p className="mt-1 text-[13px] leading-relaxed text-white/70">
+                            {CRM_ACTIVATION_NOTICE.body}
+                        </p>
+
+                        {/* TODO(user): embedded activation-email screenshot/preview.
+                            Renders automatically once CRM_ACTIVATION_NOTICE.screenshotSrc is set. */}
+                        {CRM_ACTIVATION_NOTICE.screenshotSrc && (
+                            <div className="mt-3 overflow-hidden rounded-lg border border-cyan/15">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={CRM_ACTIVATION_NOTICE.screenshotSrc}
+                                    alt={CRM_ACTIVATION_NOTICE.screenshotAlt}
+                                    className="block w-full"
+                                />
+                            </div>
+                        )}
+                    </div>
+                </motion.div>
 
 
                 {/* 4. SLIM PROGRESS BAR (Spaced from bottom) */}
