@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 export async function POST(req) {
   try {
@@ -10,6 +11,9 @@ export async function POST(req) {
 
     const { workspaceId, error: workspaceError } = await resolveWorkspace(userId);
     if (workspaceError) return NextResponse.json({ error: workspaceError }, { status: 403 });
+
+    const rateResult = await checkRateLimit(req, `dl-remove-bg:${userId}`, 'strict');
+    if (!rateResult.success) return createRateLimitResponse();
 
     if (!process.env.REMOVE_BG_API_KEY) {
       return NextResponse.json({ error: 'Background removal is not configured.' }, { status: 503 });

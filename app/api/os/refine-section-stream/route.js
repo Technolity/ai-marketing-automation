@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 import { streamWithProvider, generateWithProvider } from '@/lib/ai/sharedAiUtils';
 import { parseJsonSafe } from '@/lib/utils/jsonParser';
 import { validateVaultContent, stripExtraFields, VAULT_SCHEMAS } from '@/lib/schemas/vaultSchemas';
@@ -711,6 +712,11 @@ export async function POST(req) {
             status: 401,
             headers: { 'Content-Type': 'application/json' }
         });
+    }
+
+    const rateResult = await checkRateLimit(req, `os-refine-stream:${userId}`, 'standard');
+    if (!rateResult.success) {
+        return createRateLimitResponse();
     }
 
     const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);

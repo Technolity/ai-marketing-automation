@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 import OpenAI from 'openai';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
@@ -15,6 +16,11 @@ export async function POST(req) {
         const { userId } = auth();
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const rateResult = await checkRateLimit(req, `os-images:${userId}`, 'strict');
+        if (!rateResult.success) {
+            return createRateLimitResponse();
         }
 
         const body = await req.json();

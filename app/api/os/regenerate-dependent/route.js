@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 // Import multi-provider AI config
 import { AI_PROVIDERS, getOpenAIClient } from '@/lib/ai/providerConfig';
@@ -162,6 +163,11 @@ export async function POST(req) {
             return NextResponse.json({ error: workspaceError }, { status: 403 });
         }
 
+        const rateResult = await checkRateLimit(req, `os-regen-dep:${userId}`, 'strict');
+        if (!rateResult.success) {
+            return createRateLimitResponse();
+        }
+
         const body = await req.json();
         const { sessionId, sections, sourceSection, sourceField, userFeedback, refinedChanges } = body;
 
@@ -271,14 +277,16 @@ async function processRegenerations(userId, sessionId, sections, context) {
         console.warn('[regenerate-dependent] Failed to fetch wizard_answers:', err?.message);
     }
 
-    // Fetch full_name and business_name from user_profiles for bio/funnelCopy generation
-    // IMPORTANT: Use targetUserId (workspace owner), not userId (Clerk auth ID)
-    // In admin/seat scenarios these can differ — we always want the workspace owner's profile
+    // Fetch full_name and business_name from user_profiles for bio/funnelCopy generation.
+    // NOTE: `userId` here is already the workspace owner — the POST handler passes
+    // targetUserId into this function. (Previously this referenced an undefined
+    // `targetUserId`, which threw a ReferenceError that the catch silently swallowed,
+    // so business_name was never injected and funnel copy fell back to "your company".)
     try {
         const { data: profileRow } = await supabaseAdmin
             .from('user_profiles')
             .select('full_name, business_name')
-            .eq('id', targetUserId)
+            .eq('id', userId)
             .maybeSingle();
         if (profileRow?.full_name) {
             baseData.fullName = profileRow.full_name;
@@ -298,56 +306,63 @@ async function processRegenerations(userId, sessionId, sections, context) {
         progress_percentage: 0
     });
 
-    const results = [];
+    // ── Hoist work that is identical for every section ────────────────────────
+    // buildCoreContext() only depends on sessionId, yet the old loop rebuilt it for
+    // every non-core section (each call makes ~15 DB round trips). Compute it ONCE.
+    // Same for the dependency refinement context, which is derived purely from the
+    // source change and was being rebuilt per section.
+    let sharedCoreContext = null;
+    const needsCoreContext = sections.some((s) => {
+        const cfg = SECTION_PROMPTS[s];
+        return cfg && cfg.key > 3;
+    });
+    if (needsCoreContext) {
+        try {
+            sharedCoreContext = await buildCoreContext(sessionId);
+        } catch (err) {
+            console.warn('[regenerate-dependent] buildCoreContext failed:', err?.message);
+        }
+    }
 
-    for (const sectionId of sections) {
+    const dependencyContext = buildDependencyRefinementContext(
+        sourceSection, sourceField, userFeedback, refinedChanges
+    );
+
+    const results = [];
+    let processedCount = 0;
+
+    // Regenerate a single section end-to-end (resolve deps → generate → save).
+    async function regenerateSection(sectionId) {
+        const sectionConfig = SECTION_PROMPTS[sectionId];
+        if (!sectionConfig) {
+            console.warn(`[regenerate-dependent] Unknown section: ${sectionId}`);
+            return { sectionId, status: 'skipped', reason: 'Unknown section' };
+        }
+
         try {
             console.log(`[regenerate-dependent] Regenerating: ${sectionId}`);
 
-            const sectionConfig = SECTION_PROMPTS[sectionId];
-            if (!sectionConfig) {
-                console.warn(`[regenerate-dependent] Unknown section: ${sectionId}`);
-                results.push({ sectionId, status: 'skipped', reason: 'Unknown section' });
-                continue;
-            }
-
-            // 1. Resolve dependencies for this section (get context data)
+            // Per-section dependencies (depend on the section key); merge the shared
+            // core context for non-core sections instead of rebuilding it.
             const depData = await resolveDependencies(sessionId, sectionConfig.key, baseData);
             const enrichedData = buildEnrichedData(baseData, depData);
-
-            // For prompts that depend on core context, inject it for non-core sections
-            if (sectionConfig.key > 3) {
-                const coreContext = await buildCoreContext(sessionId);
-                Object.assign(enrichedData, coreContext || {});
+            if (sectionConfig.key > 3 && sharedCoreContext) {
+                Object.assign(enrichedData, sharedCoreContext);
             }
 
-            console.log(`[regenerate-dependent] Enriched data keys for ${sectionId}:`, Object.keys(enrichedData));
-
-            // 2. Build the context-aware prompt with refinement info
-            const dependencyContext = buildDependencyRefinementContext(
-                sourceSection, sourceField, userFeedback, refinedChanges
-            );
-
-            // 3. Generate content based on section type
+            // Generate content based on section type
             let generatedContent;
-
             if (CHUNKED_SECTIONS[sectionId]) {
-                // Chunked section - generate in parts
-                generatedContent = await generateChunkedSection(
-                    sectionId, enrichedData, dependencyContext
-                );
+                generatedContent = await generateChunkedSection(sectionId, enrichedData, dependencyContext);
             } else {
-                // Single prompt section
-                generatedContent = await generateSingleSection(
-                    sectionId, sectionConfig, enrichedData, dependencyContext
-                );
+                generatedContent = await generateSingleSection(sectionId, sectionConfig, enrichedData, dependencyContext);
             }
 
             if (!generatedContent) {
                 throw new Error(`No content generated for ${sectionId}`);
             }
 
-            // 4. Save to vault_content
+            // Save to vault_content.
             // CRITICAL: vault_content.content is JSONB — must be an object, NOT a string.
             // Storing a string here causes double-serialization, breaking the frontend normalizer.
             let contentToSave = generatedContent;
@@ -355,12 +370,10 @@ async function processRegenerations(userId, sessionId, sections, context) {
                 try {
                     contentToSave = JSON.parse(contentToSave);
                 } catch {
-                    // If it's not valid JSON, wrap it
                     contentToSave = { raw: contentToSave };
                 }
             }
 
-            // FIX: Use section_id + user_id + is_current_version to match approvals query
             const { error: saveError } = await supabaseAdmin
                 .from('vault_content')
                 .update({
@@ -377,21 +390,22 @@ async function processRegenerations(userId, sessionId, sections, context) {
                 throw new Error(`Failed to save ${sectionId}: ${saveError.message}`);
             }
 
-            // 5. Save individual fields if applicable
+            // Save individual fields if applicable
             await saveFieldsFromContent(sessionId, sectionId, generatedContent, userId);
 
             console.log(`[regenerate-dependent] ✅ ${sectionId} completed`);
             await appendJobSection(jobId, 'sections_completed', sectionId);
-            const completedCount = results.filter(r => r.status === 'completed').length + 1;
-            const progress = Math.round((completedCount / sections.length) * 100);
-            await updateJob(jobId, { progress_percentage: progress, current_section: sectionId });
-            results.push({ sectionId, status: 'completed' });
+            processedCount += 1;
+            await updateJob(jobId, {
+                progress_percentage: Math.round((processedCount / sections.length) * 100),
+                current_section: sectionId,
+            });
+            return { sectionId, status: 'completed' };
 
         } catch (err) {
             console.error(`[regenerate-dependent] ❌ ${sectionId} failed:`, err.message);
 
-            // Mark section as generated (reset) so it doesn't stay in "generating"
-            // FIX: Use section_id + user_id + is_current_version
+            // Reset status so the section doesn't stay stuck in "generating"
             await supabaseAdmin
                 .from('vault_content')
                 .update({ status: 'generated' })
@@ -401,9 +415,33 @@ async function processRegenerations(userId, sessionId, sections, context) {
                 .eq('is_current_version', true);
 
             await appendJobSection(jobId, 'sections_failed', sectionId);
-            results.push({ sectionId, status: 'failed', error: err.message });
+            processedCount += 1;
+            await updateJob(jobId, {
+                progress_percentage: Math.round((processedCount / sections.length) * 100),
+                current_section: sectionId,
+            });
+            return { sectionId, status: 'failed', error: err.message };
         }
     }
+
+    // Run sections with bounded concurrency. Previously each dependent section was
+    // regenerated strictly one-after-another, so total time ≈ sum of every section.
+    // Processing a few at a time cuts wall-clock time roughly proportionally while
+    // staying well under provider rate limits. JS is single-threaded so the shared
+    // queue.shift() has no race.
+    const MAX_CONCURRENCY = 3;
+    const queue = [...sections];
+    const workers = Array.from(
+        { length: Math.min(MAX_CONCURRENCY, queue.length) },
+        async () => {
+            while (queue.length > 0) {
+                const sectionId = queue.shift();
+                if (sectionId === undefined) break;
+                results.push(await regenerateSection(sectionId));
+            }
+        }
+    );
+    await Promise.all(workers);
 
     const failedCount = results.filter(r => r.status === 'failed').length;
     await updateJob(jobId, {

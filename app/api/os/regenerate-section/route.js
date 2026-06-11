@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 // Import multi-provider AI config
 import { AI_PROVIDERS, getOpenAIClient, getClaudeClient, getGeminiClient } from '@/lib/ai/providerConfig';
@@ -88,6 +89,11 @@ export async function POST(req) {
         const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
         if (workspaceError) {
             return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
+        const rateResult = await checkRateLimit(req, `os-regen-section:${userId}`, 'strict');
+        if (!rateResult.success) {
+            return createRateLimitResponse();
         }
 
         const body = await req.json();
@@ -226,11 +232,18 @@ export async function POST(req) {
 
         // Fetch full_name from user_profiles and per-funnel schedule_link from user_funnels
         const [{ data: profileRow }, { data: funnelRow }] = await Promise.all([
-            supabaseAdmin.from('user_profiles').select('full_name').eq('id', targetUserId).maybeSingle(),
+            supabaseAdmin.from('user_profiles').select('full_name, business_name').eq('id', targetUserId).maybeSingle(),
             supabaseAdmin.from('user_funnels').select('schedule_link').eq('id', resolvedSessionId).eq('user_id', targetUserId).maybeSingle(),
         ]);
         if (profileRow?.full_name) {
             enrichedData.fullName = profileRow.full_name;
+        }
+        // Inject business_name so funnel copy regeneration uses the real company name
+        // instead of falling back to the "your company" placeholder.
+        if (profileRow?.business_name) {
+            enrichedData.businessName = profileRow.business_name;
+            enrichedData.business_name = profileRow.business_name;
+            console.log(`[Regenerate] Injected businessName from user_profiles: "${profileRow.business_name}"`);
         }
         const savedScheduleLink = funnelRow?.schedule_link || null;
 

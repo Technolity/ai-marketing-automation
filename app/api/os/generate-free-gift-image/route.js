@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 async function fetchLeadMagnetFields(funnelId) {
   const { data } = await supabaseAdmin
@@ -181,6 +182,9 @@ export async function POST(req) {
   try {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const rateResult = await checkRateLimit(req, `os-gift-image:${userId}`, 'strict');
+    if (!rateResult.success) return createRateLimitResponse();
 
     const { workspaceId, error: workspaceError } = await resolveWorkspace(userId);
     if (workspaceError) return NextResponse.json({ error: workspaceError }, { status: 403 });

@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { getOpenAIClient, getGeminiClient } from '@/lib/ai/providerConfig';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 import sharp from 'sharp';
 
 const DAILY_LIMIT = 10;
@@ -853,6 +854,9 @@ export async function POST(req) {
 
     const { workspaceId, error: workspaceError } = await resolveWorkspace(userId);
     if (workspaceError) return NextResponse.json({ error: workspaceError }, { status: 403 });
+
+    const rateResult = await checkRateLimit(req, `dl-generate:${userId}`, 'strict');
+    if (!rateResult.success) return createRateLimitResponse();
 
     const body = await req.json().catch(() => ({}));
     const keyword      = (body.keyword || 'GUIDE').toUpperCase().trim();

@@ -1,12 +1,24 @@
 // app/api/ai/generate/route.js
+import { auth } from '@clerk/nextjs';
 import { generateMockResults } from '@/lib/mockData';
 import { buildMarketingPrompt, buildSystemPrompt } from '@/lib/prompts';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
+    const { userId } = auth();
+    if (!userId) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateResult = await checkRateLimit(request, `ai-generate:${userId}`, 'strict');
+    if (!rateResult.success) {
+      return createRateLimitResponse();
+    }
+
     const formData = await request.json();
     
     if (!formData.businessName || !formData.productName) {

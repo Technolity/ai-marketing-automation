@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
+import { verifyAdmin } from '@/lib/adminAuth';
 import { ghlSchema } from '@/lib/ghl/schema';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 
@@ -15,6 +16,12 @@ export async function GET(req) {
         const { userId } = auth();
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Inspection endpoint accepts a raw access token — admin only
+        const isAdmin = await verifyAdmin(userId);
+        if (!isAdmin) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         const { searchParams } = new URL(req.url);

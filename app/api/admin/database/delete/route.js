@@ -44,7 +44,17 @@ export async function DELETE(req) {
         }
 
         // Protected tables that should not be deleted from
-        const protectedTables = ['user_profiles', 'admin_settings'];
+        const protectedTables = [
+            'user_profiles',
+            'admin_settings',
+            'ghl_tokens',
+            'ghl_agency_credentials',
+            'ghl_subaccounts',
+            'ghl_slot_custom_value_ids',
+            'funnel_slot_assignments',
+            'admin_logs',
+            'ghl_custom_values_log'
+        ];
         if (protectedTables.includes(table)) {
             adminLogger.warn(LOG_CATEGORIES.DATABASE, 'Attempted deletion from protected table', {
                 adminUserId: userId,

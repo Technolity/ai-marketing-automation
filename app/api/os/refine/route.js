@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 // Import multi-provider AI config
 import { AI_PROVIDERS, getOpenAIClient, getClaudeClient, getGeminiClient } from '@/lib/ai/providerConfig';
@@ -158,6 +159,11 @@ export async function POST(req) {
         const { userId } = auth();
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const rateResult = await checkRateLimit(req, `os-refine:${userId}`, 'standard');
+        if (!rateResult.success) {
+            return createRateLimitResponse();
         }
 
         const body = await req.json();

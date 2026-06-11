@@ -11,8 +11,6 @@ export default authMiddleware({
     "/sign-up",
     "/welcome",  // Clerk invitation landing — consumes __clerk_ticket pre-session (auto sign-in)
     "/api/webhooks(.*)",
-    "/api/rag(.*)",
-    "/api/admin/setup-pgvector",
     "/api/integrations/oauth/callback",
     "/api/integrations/oauth/debug",
     "/api/oauth/callback",

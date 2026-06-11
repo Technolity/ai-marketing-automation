@@ -5,6 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import { verifyAdmin } from '@/lib/adminAuth';
 import { extractMetadata } from '@/lib/rag/langchain-pipeline';
 
 
@@ -44,6 +45,13 @@ export async function POST(request) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+    const isAdmin = await verifyAdmin(userId);
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
       );
     }
 

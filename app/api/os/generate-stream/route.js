@@ -1,4 +1,5 @@
 import { auth } from '@clerk/nextjs';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { getPromptByKey } from '@/lib/prompts';
@@ -571,6 +572,11 @@ export async function POST(req) {
         });
     }
 
+    const rateResult = await checkRateLimit(req, `os-generate-stream:${userId}`, 'strict');
+    if (!rateResult.success) {
+        return createRateLimitResponse();
+    }
+
     const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
     if (workspaceError) {
         return new Response(JSON.stringify({ error: workspaceError }), {
@@ -648,8 +654,11 @@ export async function POST(req) {
             questionnaireData.fullName = userProfile.full_name;
             console.log(`[STREAM] Injected fullName from user_profiles: "${userProfile.full_name}"`);
         }
-        if (userProfile?.business_name && !questionnaireData.businessName) {
+        if (userProfile?.business_name) {
+            // Profile business_name is the source of truth for the company name — always
+            // inject it so funnel/bio copy never falls back to the "your company" placeholder.
             questionnaireData.businessName = userProfile.business_name;
+            questionnaireData.business_name = userProfile.business_name;
             console.log(`[STREAM] Injected businessName from user_profiles: "${userProfile.business_name}"`);
         }
     } catch (profileErr) {

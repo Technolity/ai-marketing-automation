@@ -8,6 +8,14 @@ import { Resend } from 'resend';
 
 export async function POST(req) {
   try {
+    // Internal server-to-server endpoint — require shared secret, fail closed
+    const internalSecret = process.env.INTERNAL_API_SECRET || process.env.CRON_SECRET;
+    const providedSecret = req.headers.get('x-internal-secret');
+    if (!internalSecret || providedSecret !== internalSecret) {
+      console.warn('[GHL Welcome Email] Rejected request without valid internal secret');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { to, firstName } = await req.json();
 
     if (!to || !firstName) {

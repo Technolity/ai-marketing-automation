@@ -22,9 +22,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@clerk/nextjs";
+import DOMPurify from "isomorphic-dompurify";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { getFieldsForSection } from "@/lib/vault/fieldStructures";
 import { calculateDependencyImpact } from "@/lib/vault/dependencyGraph";
+
+// Sanitize AI/vault HTML before rendering — blocks stored XSS via script/event handlers
+const sanitizeHtml = (html) => DOMPurify.sanitize(String(html ?? ""));
 
 // ─── Chat openers ────────────────────────────────────────────────────────────
 const CHAT_OPENERS = [
@@ -76,24 +80,44 @@ const SECTION_OPTIONS = {
         { id: 'ctaButtonText', label: 'CTA Button Text', group: 'Landing Page' },
     ],
     vsl: [
-        { id: 'step1_patternInterrupt', label: 'Pattern Interrupt', group: 'Step 1: Introduction' },
-        { id: 'step1_characterIntro', label: 'Character Introduction', group: 'Step 1: Introduction' },
-        { id: 'step1_problemStatement', label: 'Problem Statement', group: 'Step 1: Introduction' },
-        { id: 'step1_emotionalConnection', label: 'Emotional Connection', group: 'Step 1: Introduction' },
-        { id: 'step2_benefitLead', label: 'Benefit Lead', group: 'Step 2: Solution' },
-        { id: 'step2_uniqueSolution', label: 'Unique Solution', group: 'Step 2: Solution' },
-        { id: 'step2_benefitsHighlight', label: 'Benefits Highlight', group: 'Step 2: Solution' },
-        { id: 'step2_problemAgitation', label: 'Problem Agitation', group: 'Step 2: Solution' },
-        { id: 'step3_nightmareStory', label: 'Nightmare Story', group: 'Step 3: Proof' },
-        { id: 'step3_clientTestimonials', label: 'Client Testimonials', group: 'Step 3: Proof' },
-        { id: 'step3_dataPoints', label: 'Data Points', group: 'Step 3: Proof' },
-        { id: 'step5_intro', label: 'Value Tips Intro', group: 'Step 5: Value Tips' },
-        { id: 'step5_tips', label: '3 Actionable Tips', group: 'Step 5: Value Tips' },
-        { id: 'step5_transition', label: 'Transition to Offer', group: 'Step 5: Value Tips' },
-        { id: 'step7_recap', label: 'Recap', group: 'Step 7: CTA' },
-        { id: 'step7_primaryCTA', label: 'Primary CTA', group: 'Step 7: CTA' },
-        { id: 'step8_theClose', label: 'The Close', group: 'Step 8: Close' },
-        { id: 'step8_addressObjections', label: 'Address Objections', group: 'Step 8: Close' },
+        { id: 'step1_patternInterrupt', label: 'Pattern Interrupt', group: 'Step 1: The Hook' },
+        { id: 'step1_characterIntro', label: 'Character Intro', group: 'Step 1: The Hook' },
+        { id: 'step1_problemStatement', label: 'Problem Statement', group: 'Step 1: The Hook' },
+        { id: 'step1_emotionalConnection', label: 'Emotional Connection', group: 'Step 1: The Hook' },
+        { id: 'step2_benefitLead', label: 'Benefit Lead', group: 'Step 2: The Problem' },
+        { id: 'step2_uniqueSolution', label: 'Unique Solution', group: 'Step 2: The Problem' },
+        { id: 'step2_benefitsHighlight', label: 'Benefits Highlight', group: 'Step 2: The Problem' },
+        { id: 'step2_problemAgitation', label: 'Problem Agitation', group: 'Step 2: The Problem' },
+        { id: 'step3_nightmareStory', label: 'Nightmare Story', group: 'Step 3: The Epiphany' },
+        { id: 'step3_clientTestimonials', label: 'Client Testimonials', group: 'Step 3: The Epiphany' },
+        { id: 'step3_dataPoints', label: 'Data Points', group: 'Step 3: The Epiphany' },
+        { id: 'step3_expertEndorsements', label: 'Expert Endorsements', group: 'Step 3: The Epiphany' },
+        { id: 'step4_detailedDescription', label: 'Detailed Description', group: 'Step 4: The Solution' },
+        { id: 'step4_demonstration', label: 'Demonstration', group: 'Step 4: The Solution' },
+        { id: 'step4_psychologicalTriggers', label: 'Psychological Triggers', group: 'Step 4: The Solution' },
+        { id: 'step5_intro', label: 'Value Intro', group: 'Step 5: The Value' },
+        { id: 'step5_tips', label: '3 Core Tips', group: 'Step 5: The Value' },
+        { id: 'step5_transition', label: 'Transition', group: 'Step 5: The Value' },
+        { id: 'step6_directEngagement', label: 'Direct Engagement', group: 'Step 6: The Offer' },
+        { id: 'step6_urgencyCreation', label: 'Urgency Creation', group: 'Step 6: The Offer' },
+        { id: 'step6_clearOffer', label: 'Clear Offer', group: 'Step 6: The Offer' },
+        { id: 'step6_stepsToSuccess', label: 'Steps to Success', group: 'Step 6: The Offer' },
+        { id: 'step7_recap', label: 'Recap', group: 'Step 7: The Stack' },
+        { id: 'step7_primaryCTA', label: 'Primary CTA', group: 'Step 7: The Stack' },
+        { id: 'step7_offerFeaturesAndPrice', label: 'Features & Price', group: 'Step 7: The Stack' },
+        { id: 'step7_bonuses', label: 'Bonuses', group: 'Step 7: The Stack' },
+        { id: 'step7_secondaryCTA', label: 'Secondary CTA', group: 'Step 7: The Stack' },
+        { id: 'step7_guarantee', label: 'Guarantee', group: 'Step 7: The Stack' },
+        { id: 'step8_theClose', label: 'The Close', group: 'Step 8: The Close' },
+        { id: 'step8_addressObjections', label: 'Address Objections', group: 'Step 8: The Close' },
+        { id: 'step8_reiterateValue', label: 'Reiterate Value', group: 'Step 8: The Close' },
+        { id: 'step9_followUpStrategy', label: 'Follow-Up Strategy', group: 'Step 9: The Future' },
+        { id: 'step9_finalPersuasion', label: 'Final Persuasion', group: 'Step 9: The Future' },
+        { id: 'step10_hardClose', label: 'Hard Close', group: 'Step 10: Final Push' },
+        { id: 'step10_handleObjectionsAgain', label: 'Objection Handler', group: 'Step 10: Final Push' },
+        { id: 'step10_scarcityClose', label: 'Scarcity Close', group: 'Step 10: Final Push' },
+        { id: 'step10_inspirationClose', label: 'Inspiration Close', group: 'Step 10: Final Push' },
+        { id: 'step10_speedUpAction', label: 'Speed Up Action', group: 'Step 10: Final Push' },
     ],
     facebookAds: [
         { id: 'shortAd1Headline', label: 'Short Ad #1: Headline', group: 'Short Ad 1' },
@@ -118,6 +142,10 @@ const SECTION_OPTIONS = {
         { id: 'insightOne', label: 'Insight One', group: 'Insights' },
         { id: 'insightTwo', label: 'Insight Two', group: 'Insights' },
         { id: 'insightThree', label: 'Insight Three', group: 'Insights' },
+        { id: 'microCommitment', label: 'Micro-Commitment Moment', group: 'Closing Sequence' },
+        { id: 'futurePace', label: 'Future Pace the Outcome', group: 'Closing Sequence' },
+        { id: 'objectionHandling', label: 'Objection Handling', group: 'Closing Sequence' },
+        { id: 'riskReversal', label: 'Risk Reversal + Call Expectations', group: 'Closing Sequence' },
         { id: 'finalCTA', label: 'Final CTA', group: 'Close' },
     ],
     emails: [
@@ -133,6 +161,9 @@ const SECTION_OPTIONS = {
         { id: 'email8c', label: 'Day 8 EVE: Last Chance', group: 'Week 2 Push' },
         { id: 'email9', label: 'Day 9: Mindset/Strategy', group: 'Week 2' },
         { id: 'email10', label: 'Day 10: Common Mistakes', group: 'Week 2' },
+        { id: 'email11', label: 'Day 11: Hidden Obstacles', group: 'Week 2' },
+        { id: 'email12', label: 'Day 12: Behind the Scenes', group: 'Week 2' },
+        { id: 'email13', label: 'Day 13: Results Timeline', group: 'Week 2' },
         { id: 'email14', label: 'Day 14: Simplify', group: 'Week 2' },
         { id: 'email15a', label: 'Day 15 AM: Final Day', group: 'Final Push' },
         { id: 'email15b', label: 'Day 15 PM: FAQ/Objections', group: 'Final Push' },
@@ -167,11 +198,13 @@ const SECTION_OPTIONS = {
     ],
     appointmentReminders: [
         { id: 'preCallTips', label: 'Pre-Call Tips', group: 'Email' },
-        { id: 'confirmation', label: 'Confirmation Email', group: 'Email' },
-        { id: 'reminder24Hour', label: '24-Hour Reminder', group: 'Email' },
+        { id: 'confirmationEmail', label: 'Confirmation (Immediately)', group: 'Email' },
+        { id: 'reminder48Hours', label: '48-Hour Reminder', group: 'Email' },
+        { id: 'reminder24Hours', label: '24-Hour Reminder', group: 'Email' },
         { id: 'reminder1Hour', label: '1-Hour Reminder', group: 'Email' },
+        { id: 'reminder10Minutes', label: '10-Minute Reminder', group: 'Email' },
         { id: 'startingNow', label: 'Starting Now', group: 'Email' },
-        { id: 'noShowFollowup', label: 'No-Show Follow-up', group: 'Email' },
+        { id: 'noShowFollowUp', label: 'No-Show Follow-up', group: 'Email' },
         { id: 'smsReminders', label: 'SMS Reminders', group: 'SMS' },
     ],
     bio: [
@@ -180,8 +213,6 @@ const SECTION_OPTIONS = {
         { id: 'speakerBio', label: 'Speaker Bio (150 words)', group: 'Bios' },
         { id: 'oneLiner', label: 'One-Liner', group: 'Quick Lines' },
         { id: 'keyAchievements', label: 'Key Achievements', group: 'Quick Lines' },
-        { id: 'socialMediaVersions', label: 'Social Media Versions', group: 'Social' },
-        { id: 'personalTouch', label: 'Personal Touch', group: 'Social' },
     ],
     colors: [
         { id: 'primary', label: 'Primary Color', group: 'Color Palette' },
@@ -499,7 +530,7 @@ function ContentPreviewRenderer({ content, className = '', highlightMap, basePat
     const getOrderedEntries = (obj, path = '') => getOrderedKeys(obj, path).map(key => [key, obj[key]]);
 
     if (typeof parsed === 'string' && isHtmlContent(parsed)) {
-        return <div className={`prose prose-invert prose-sm max-w-none ${className}`} style={{ fontSize: '0.8125rem', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: parsed }} />;
+        return <div className={`prose prose-invert prose-sm max-w-none ${className}`} style={{ fontSize: '0.8125rem', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsed) }} />;
     }
 
     if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
@@ -524,7 +555,7 @@ function ContentPreviewRenderer({ content, className = '', highlightMap, basePat
                                         <div key={sk} className={hasHighlight(`${fieldPath}.${sk}`) ? 'rounded-md bg-cyan/10 p-2' : ''}>
                                             <span className="text-xs text-gray-500 font-medium">{sk.charAt(0).toUpperCase() + sk.slice(1)}:</span>
                                             {typeof sv === 'string' && isHtmlContent(sv)
-                                                ? <div className="mt-1 prose prose-invert prose-sm max-w-none" style={{ fontSize: '0.75rem' }} dangerouslySetInnerHTML={{ __html: sv }} />
+                                                ? <div className="mt-1 prose prose-invert prose-sm max-w-none" style={{ fontSize: '0.75rem' }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(sv) }} />
                                                 : <p className="text-xs text-gray-300 mt-0.5">{String(sv)}</p>
                                             }
                                         </div>
@@ -536,7 +567,7 @@ function ContentPreviewRenderer({ content, className = '', highlightMap, basePat
                             return (
                                 <div key={key} className={isHighlighted ? 'rounded-md bg-cyan/10 p-2' : ''}>
                                     <span className="text-xs text-gray-500 font-medium">{label}:</span>
-                                    <div className="mt-1 prose prose-invert prose-sm max-w-none" style={{ fontSize: '0.75rem' }} dangerouslySetInnerHTML={{ __html: value }} />
+                                    <div className="mt-1 prose prose-invert prose-sm max-w-none" style={{ fontSize: '0.75rem' }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(value) }} />
                                 </div>
                             );
                         }
@@ -628,7 +659,7 @@ function FilteredDiffPanel({ before, after, highlightMap, sectionId, selectedFie
         const parsed = deepParseJSON(val);
         if (typeof parsed === 'string') {
             if (isHtmlContent(parsed)) {
-                return <div className="prose prose-invert prose-xs max-w-none text-xs" dangerouslySetInnerHTML={{ __html: parsed }} />;
+                return <div className="prose prose-invert prose-xs max-w-none text-xs" dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsed) }} />;
             }
             return <p className="text-xs leading-relaxed whitespace-pre-wrap text-gray-300">{parsed}</p>;
         }
@@ -921,7 +952,7 @@ function FieldValueDisplay({ value }) {
     const parsed = deepParseJSON(value);
     if (typeof parsed === 'string') {
         if (isHtmlContent(parsed)) {
-            return <div className="prose prose-invert prose-xs max-w-none text-xs leading-relaxed" dangerouslySetInnerHTML={{ __html: parsed }} />;
+            return <div className="prose prose-invert prose-xs max-w-none text-xs leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHtml(parsed) }} />;
         }
         return <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{parsed}</p>;
     }

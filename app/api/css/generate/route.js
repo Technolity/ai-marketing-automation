@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { generateCustomCSS, saveGeneratedCSS, getSessionCSS } from '@/lib/css/cssGenerator';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,11 @@ export async function POST(req) {
     const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateResult = await checkRateLimit(req, `css-generate:${userId}`, 'strict');
+    if (!rateResult.success) {
+      return createRateLimitResponse();
     }
 
     const { sessionId } = await req.json();

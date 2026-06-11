@@ -6,8 +6,10 @@
  */
 
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 
 export const dynamic = 'force-dynamic';
@@ -30,6 +32,16 @@ async function generateEmbedding(text) {
 
 export async function POST(request) {
   try {
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateResult = await checkRateLimit(request, `rag:${userId}`, 'strict');
+    if (!rateResult.success) {
+      return createRateLimitResponse();
+    }
+
     const {
       query,
       matchThreshold = 0.7,
@@ -103,6 +115,11 @@ export async function POST(request) {
 // GET endpoint to check knowledge base stats
 export async function GET() {
   try {
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Get total count
     const { count, error: countError } = await supabase
       .from('ted_knowledge_base')

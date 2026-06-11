@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { generateAllFunnelImages, generateSingleImage, generateImagePrompts } from '@/lib/images/imageGenerator';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,11 @@ export async function POST(req) {
     const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateResult = await checkRateLimit(req, `img-generate:${userId}`, 'strict');
+    if (!rateResult.success) {
+      return createRateLimitResponse();
     }
 
     const { sessionId, imageTypes } = await req.json();

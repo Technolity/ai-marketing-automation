@@ -1,4 +1,5 @@
 import { auth } from '@clerk/nextjs';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { resolveWorkspace } from '@/lib/workspaceHelper';
 import { getPromptByKey } from '@/lib/prompts';
@@ -31,6 +32,11 @@ export async function POST(req) {
     const { userId } = auth();
     if (!userId) {
         return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rateResult = await checkRateLimit(req, `os-funnel-copy:${userId}`, 'strict');
+    if (!rateResult.success) {
+        return createRateLimitResponse();
     }
 
     const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
@@ -214,11 +220,13 @@ async function generateFunnelCopyInBackground(jobId, funnelId, targetUserId) {
         }
 
         // Fetch user profile for business_name
+        // NOTE: user_profiles PK is `id` (the Clerk user id) — querying by `user_id`
+        // silently returns null, which made every funnel copy fall back to "your company".
         const { data: userProfile } = await supabaseAdmin
             .from('user_profiles')
             .select('business_name')
-            .eq('user_id', targetUserId)
-            .single();
+            .eq('id', targetUserId)
+            .maybeSingle();
 
         const profileBusinessName = userProfile?.business_name || null;
         console.log('[FunnelCopy] Fetched profile business name:', profileBusinessName);

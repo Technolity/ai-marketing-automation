@@ -26,6 +26,9 @@ import {
     HelpCircle,
     ArrowUpRight,
     ShieldCheck,
+    Shield,
+    PlayCircle,
+    UserCog,
     Menu,
     PanelLeftClose,
     PanelLeftOpen,
@@ -40,6 +43,7 @@ import LivePerformancePanel from "@/components/dashboard/LivePerformancePanel";
 import VaultReviewPanel from "@/components/dashboard/VaultReviewPanel";
 import { cn } from "@/lib/utils";
 import BugReportModal from "@/components/BugReportModal";
+import EditProfileModal from "@/components/EditProfileModal";
 import PlanBadge from "@/components/PlanBadge";
 
 const TOTAL_APPROVAL_SECTIONS = 16;
@@ -236,6 +240,7 @@ export default function Dashboard() {
     const [isSavingName, setIsSavingName] = useState(false);
     const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [editProfileOpen, setEditProfileOpen] = useState(false);
     const [subscriptionTier, setSubscriptionTier] = useState("free");
     const editInputRef = useRef(null);
     const sidebarPreferenceLoadedRef = useRef(false);
@@ -560,12 +565,18 @@ export default function Dashboard() {
                         />
                     ))}
 
+                    <SidebarNavButton active={false} icon={PlayCircle} label="Guide to TedOS" href="/guide-to-tedos" collapsed={collapsed} />
+                    <SidebarNavButton active={false} icon={Users} label="Team" href="/team" collapsed={collapsed} />
                     <SidebarNavButton active={false} icon={HelpCircle} label="Help & Support" href="/guide" collapsed={collapsed} />
+                    {isAdmin && (
+                        <SidebarNavButton active={false} icon={Shield} label="Admin" href="/admin/overview" collapsed={collapsed} />
+                    )}
                 </nav>
 
                 <div className={cn("mt-auto border-t border-white/[0.07] pt-5", collapsed ? "px-0" : "px-2")}>
                     {collapsed ? (
                         <div className="space-y-2.5">
+                            <SidebarNavButton active={false} icon={UserCog} label="Edit Profile" collapsed={true} onClick={() => setEditProfileOpen(true)} />
                             <BugReportModal collapsed={true} />
                             <div className="flex justify-center">
                                 <PlanBadge />
@@ -598,7 +609,10 @@ export default function Dashboard() {
                         </div>
                     ) : (
                         <>
-                            <BugReportModal />
+                            <SidebarNavButton active={false} icon={UserCog} label="Edit Profile" collapsed={false} onClick={() => setEditProfileOpen(true)} />
+                            <div className="mt-3.5">
+                                <BugReportModal />
+                            </div>
                             <div className="mt-3.5">
                                 <PlanBadge />
                             </div>
@@ -865,6 +879,8 @@ export default function Dashboard() {
 
     return (
         <div className={cn(GeistSans.className, "min-h-screen bg-[#0a0a0b] text-[#f0f0f2] selection:bg-cyan/20 selection:text-cyan")}>
+            {/* Edit Profile modal — single shared instance for both desktop & mobile sidebars */}
+            <EditProfileModal open={editProfileOpen} onClose={() => setEditProfileOpen(false)} />
             <AnimatePresence>
                 {isMobileNavOpen && (
                     <>

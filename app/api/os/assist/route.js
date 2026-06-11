@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from '@clerk/nextjs';
 import { generateWithProvider } from '@/lib/ai/sharedAiUtils';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 // Note: Using generateWithProvider from sharedAiUtils for timeout handling and provider fallback
 
@@ -9,6 +10,11 @@ export async function POST(req) {
         const { userId } = auth();
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const rateResult = await checkRateLimit(req, `os-assist:${userId}`, 'standard');
+        if (!rateResult.success) {
+            return createRateLimitResponse();
         }
 
         const { fieldLabel, sectionTitle, userContext, userInput, fieldName } = await req.json();

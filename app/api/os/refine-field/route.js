@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { ChatOpenAI } from '@langchain/openai';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +20,11 @@ export async function POST(req) {
             status: 401,
             headers: { 'Content-Type': 'application/json' }
         });
+    }
+
+    const rateResult = await checkRateLimit(req, `os-refine-field:${userId}`, 'standard');
+    if (!rateResult.success) {
+        return createRateLimitResponse();
     }
 
     let body;

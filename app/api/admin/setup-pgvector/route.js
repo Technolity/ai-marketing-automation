@@ -5,6 +5,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs';
+import { verifyAdmin } from '@/lib/adminAuth';
 
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +18,15 @@ const supabase = createClient(
 
 export async function GET(request) {
   try {
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const isAdmin = await verifyAdmin(userId);
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     console.log('🚀 Setting up pgvector...');
 
     // Step 1: Enable pgvector extension

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { auth } from '@clerk/nextjs';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 // Import shared AI utilities (centralized and optimized)
 import { generateWithProvider, retryWithBackoff, categorizeError } from '@/lib/ai/sharedAiUtils';
@@ -443,6 +444,12 @@ export async function POST(req) {
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const rateResult = await checkRateLimit(req, `os-generate:${userId}`, 'strict');
+    if (!rateResult.success) {
+      return createRateLimitResponse();
+    }
+
     const user = { id: userId };
 
     const { step, data, completedSteps } = await req.json();

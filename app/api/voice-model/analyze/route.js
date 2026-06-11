@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { AI_PROVIDERS, getOpenAIClient } from '@/lib/ai/providerConfig';
+import { checkRateLimit, createRateLimitResponse } from '@/lib/security/rateLimit';
 
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,11 @@ export async function POST(req) {
         const { userId } = auth();
         if (!userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const rateResult = await checkRateLimit(req, `voice-analyze:${userId}`, 'strict');
+        if (!rateResult.success) {
+            return createRateLimitResponse();
         }
 
         const body = await req.json();

@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
+import { verifyAdmin } from '@/lib/adminAuth';
 import { supabase as supabaseAdmin } from '@/lib/supabaseServiceRole';
 import { mapSessionToCustomValues } from '@/lib/ghl/customValueMapper';
 
@@ -27,6 +28,11 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Debug endpoint — admin only
+        const isAdmin = await verifyAdmin(userId);
+        if (!isAdmin) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
 
         const body = await req.json();
         const { action, sessionId, locationId, accessToken, key, value, customValues: overrideValues } = body;

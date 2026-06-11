@@ -19,11 +19,11 @@ const supabase = createClient(
 
 export async function GET(req) {
     try {
-        // Verify cron secret (optional but recommended)
+        // Verify cron secret — fail closed if CRON_SECRET is not configured
         const authHeader = req.headers.get('authorization');
         const cronSecret = process.env.CRON_SECRET;
 
-        if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+        if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
             console.log('[GHL Cron] Unauthorized cron request');
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
