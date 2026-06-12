@@ -988,7 +988,14 @@ export async function POST(req) {
             mediaFromFields,
             userProfile,
             colorPaletteFromFields,
-            defaultMediaValues: DEFAULT_MEDIA_VALUES,
+            // IMPORTANT: do NOT inject DEFAULT_MEDIA_VALUES here.
+            // Passing the TMB/TedOS placeholders made every deploy overwrite the
+            // customer's real, previously-pushed images with defaults whenever a
+            // media field wasn't loaded that run — the "reverts to default image"
+            // bug (Hoang Wellness / Lawrence Aquino opt-in pages). When a real
+            // value is absent, the key is simply skipped and the existing GHL
+            // value is preserved. Mirrors the safe admin push path.
+            defaultMediaValues: {},
             slotIndex,
         });
         const normalizedSlotKeys = new Set(Object.keys(normalizedSlotValues));
@@ -1067,11 +1074,16 @@ export async function POST(req) {
         log('[Deploy] Processing media with STRICT MAPPING...');
         const mediaLibraryContent = vaultContent.mediaLibrary || vaultContent.media || {};
 
-        // Start with defaults, then override with vault content, then with uploaded fields
-        // This ensures we always have a value for critical media fields
+        // Use ONLY real media (vault content + uploaded fields).
+        // DEFAULT_MEDIA_VALUES is intentionally NOT spread in here: pushing the
+        // TMB/TedOS placeholder URLs on every deploy was overwriting the
+        // customer's real images whenever a field wasn't loaded this run, causing
+        // funnels to "revert to the default image." When a media key has no real
+        // value, `if (!val) continue` below skips it and the existing GHL value
+        // (the customer's real image, or the template's own placeholder) is left
+        // untouched.
         const combinedMedia = {
-            ...DEFAULT_MEDIA_VALUES,  // Fallback defaults
-            ...mediaLibraryContent,   // Vault content overrides
+            ...mediaLibraryContent,   // Vault content
             ...mediaFromFields        // Uploaded fields take priority
         };
 
@@ -1091,11 +1103,13 @@ export async function POST(req) {
             // Logo — slot-prefixed (04_logo_image for slot 4, etc.; '' for slot 3 = 'logo_image')
             [basePrefix + 'logo_image']: combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
 
-            // Bio/Author Photo
-            [`${p}vsl_bio_image`]: combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
+            // Bio/Author Photo — `profile_photo` is the LIVE vault field_id; rest are legacy aliases
+            [`${p}vsl_bio_image`]: combinedMedia.profile_photo || combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
 
-            // Product Mockup
-            [`${p}optin_mockup_image`]: combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
+            // Free Gift / Opt-in Mockup — `banner_image` is the LIVE vault field_id
+            // (product_mockup is legacy). Reading banner_image first fixes the
+            // "free gift image reverts to default" bug.
+            [`${p}optin_mockup_image`]: combinedMedia.banner_image || combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
 
             // VSL Video (convert YouTube watch URLs to embed format)
             [`${p}vsl_video_link`]: toEmbedUrl(combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video),

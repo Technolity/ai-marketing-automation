@@ -100,6 +100,39 @@ describe('buildSlotDeployCustomValues', () => {
     });
   });
 
+  it('maps the live `banner_image` field to the opt-in mockup image (free gift revert regression)', () => {
+    const values = buildSlotDeployCustomValues({
+      mediaFromFields: { banner_image: 'https://cdn.example.com/free-gift.png' },
+      slotIndex: 3,
+    });
+    expect(values['03_optin_mockup_image']).toBe('https://cdn.example.com/free-gift.png');
+  });
+
+  it('still maps the legacy `product_mockup` field, but `banner_image` wins when both exist', () => {
+    const legacyOnly = buildSlotDeployCustomValues({
+      mediaFromFields: { product_mockup: 'https://cdn.example.com/legacy.png' },
+      slotIndex: 3,
+    });
+    expect(legacyOnly['03_optin_mockup_image']).toBe('https://cdn.example.com/legacy.png');
+
+    const both = buildSlotDeployCustomValues({
+      mediaFromFields: {
+        banner_image: 'https://cdn.example.com/free-gift.png',
+        product_mockup: 'https://cdn.example.com/legacy.png',
+      },
+      slotIndex: 3,
+    });
+    expect(both['03_optin_mockup_image']).toBe('https://cdn.example.com/free-gift.png');
+  });
+
+  it('maps the live `profile_photo` field to the bio image', () => {
+    const values = buildSlotDeployCustomValues({
+      mediaFromFields: { profile_photo: 'https://cdn.example.com/headshot.png' },
+      slotIndex: 3,
+    });
+    expect(values['03_vsl_bio_image']).toBe('https://cdn.example.com/headshot.png');
+  });
+
   it('uses the requested slot prefix for all non-default slots', () => {
     const values = buildSlotDeployCustomValues({
       vaultContent: sampleVaultContent,

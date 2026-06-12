@@ -136,19 +136,24 @@ export async function POST(req) {
             });
         }
 
-        // Build media content map (use defaults for missing fields)
-        const mediaContent = { ...DEFAULT_MEDIA_VALUES }; // Start with defaults
+        // Build media content map from REAL uploaded values ONLY.
+        // DEFAULT_MEDIA_VALUES is intentionally NOT used to seed this map.
+        // Seeding with the TMB/TedOS placeholders caused this route to push a
+        // default over the customer's real image whenever a media field wasn't
+        // present in the vault this run — the "reverts to default image" bug.
+        // Missing fields are now simply not pushed, so the existing GHL value
+        // (the customer's real image) is preserved.
+        const mediaContent = {};
 
-        // Override with actual uploaded values
         if (mediaFields && mediaFields.length > 0) {
             mediaFields.forEach(field => {
                 if (field.field_value && field.field_value.trim()) {
                     mediaContent[field.field_id] = field.field_value;
                 }
             });
-            console.log('[PushMedia] Media fields from vault:', mediaFields.length, '- merged with defaults');
+            console.log('[PushMedia] Media fields from vault:', mediaFields.length, '- real values only (no defaults)');
         } else {
-            console.log('[PushMedia] No media fields in vault - using ALL defaults');
+            console.log('[PushMedia] No media fields in vault - nothing to push (existing GHL values left untouched)');
         }
 
         const mediaMap = {
