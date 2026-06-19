@@ -2245,14 +2245,25 @@ export default function VaultPage() {
         const currentSectionContent = vaultData[feedbackSection.id] || {};
         console.log('[Vault] Current content keys:', Object.keys(currentSectionContent));
 
-        // COLORS FIX: the colors section persists as ONE `colorPalette` object, but the
-        // feedback modal targets individual slots (primary/secondary/tertiary/reasoning).
-        // A naive sub-section save writes to a non-existent field_id (e.g. `primary`),
-        // leaving the real `colorPalette` row stale — so the UI and push-colors keep the
-        // OLD color. Merge the changed slot(s) into the CURRENT palette and route it
-        // through the working full-field path so it saves to field_id `colorPalette`.
-        if (feedbackSection.id === 'colors' && subSection && subSection !== 'all') {
-            const COLOR_SLOTS = ['primary', 'secondary', 'tertiary', 'reasoning'];
+        // COLORS FIX: the colors section persists as ONE `colorPalette` object
+        // ({ primary, secondary, tertiary, reasoning }), but two problems break refines:
+        //   1. The modal targets individual slots — a naive sub-section save writes to a
+        //      non-existent field_id (e.g. `primary`), leaving the real `colorPalette` row
+        //      stale, so the UI and push-colors keep the OLD color.
+        //   2. The AI returns colors in inconsistent shapes — nested ({primary..}) or flat
+        //      ({primaryColor.., accentColor..}), sometimes wrapped in `colorPalette`. The
+        //      3rd color often comes back as `accentColor`/`accent`, not `tertiary`, so it
+        //      gets dropped entirely.
+        // Resolve every canonical slot from its known aliases, merge onto the CURRENT
+        // palette (so untouched slots survive a single-slot refine), and route through the
+        // working full-field path so it saves to field_id `colorPalette`.
+        if (feedbackSection.id === 'colors') {
+            const COLOR_ALIASES = {
+                primary:   ['primary', 'primaryColor'],
+                secondary: ['secondary', 'secondaryColor'],
+                tertiary:  ['tertiary', 'accentColor', 'accent'],
+                reasoning: ['reasoning'],
+            };
 
             // Base = the existing palette (parse if it was stored as a JSON string)
             let basePalette = currentSectionContent?.colorPalette;
@@ -2261,26 +2272,27 @@ export default function VaultPage() {
             }
             if (!basePalette || typeof basePalette !== 'object') basePalette = {};
 
-            // The AI may return the slot unwrapped ({ primary: {...} }) or wrapped
-            // ({ colorPalette: { primary: {...} } }) — normalise both.
             const incoming = (refinedContent && typeof refinedContent === 'object')
                 ? (refinedContent.colorPalette || refinedContent)
                 : {};
 
             const merged = { ...basePalette };
             let mergedAny = false;
-            for (const slot of COLOR_SLOTS) {
-                if (incoming && typeof incoming === 'object' && incoming[slot] !== undefined) {
-                    merged[slot] = incoming[slot];
-                    mergedAny = true;
+            for (const [slot, aliases] of Object.entries(COLOR_ALIASES)) {
+                for (const alias of aliases) {
+                    if (incoming && typeof incoming === 'object' && incoming[alias] !== undefined && incoming[alias] !== null) {
+                        merged[slot] = incoming[alias];
+                        mergedAny = true;
+                        break;
+                    }
                 }
             }
-            // Fallback: AI returned the bare value for the targeted slot
-            if (!mergedAny && COLOR_SLOTS.includes(subSection)) {
+            // Fallback: AI returned the bare value for a single targeted slot
+            if (!mergedAny && subSection && COLOR_ALIASES[subSection]) {
                 merged[subSection] = incoming?.[subSection] ?? incoming;
             }
 
-            console.log('[Vault] Colors slot refine — merged palette slots:', Object.keys(merged));
+            console.log('[Vault] Colors refine — canonical palette slots:', Object.keys(merged));
             refinedContent = { colorPalette: merged };
             subSection = 'all'; // route through the full-`colorPalette` save path
         }
