@@ -179,7 +179,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
     };
 
     // Handle field save (both uploads and manual URL entry)
-    const handleFieldSave = async (field_id, value) => {
+    const handleFieldSave = async (field_id, value, opts = {}) => {
         try {
             const response = await fetch('/api/os/vault-field', {
                 method: 'PATCH',
@@ -188,7 +188,9 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                     funnel_id: funnelId,
                     section_id: sectionId,
                     field_id: field_id,
-                    field_value: value
+                    field_value: value,
+                    // Intentional clears (red ✕) must bypass the media blank-overwrite guard
+                    allow_empty: opts.allowEmpty === true
                 })
             });
 
@@ -440,7 +442,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                                     unoptimized
                                 />
                                 <button
-                                    onClick={() => handleFieldSave(fieldDef.field_id, '')}
+                                    onClick={() => handleFieldSave(fieldDef.field_id, '', { allowEmpty: true })}
                                     className="absolute top-2 right-2 bg-red-500/90 hover:bg-red-500 text-white p-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
                                     <X className="w-4 h-4" />
@@ -459,7 +461,7 @@ export default function MediaFields({ funnelId, onApprove, onUnapprove, isApprov
                                         {currentValue}
                                     </a>
                                     <button
-                                        onClick={() => handleFieldSave(fieldDef.field_id, '')}
+                                        onClick={() => handleFieldSave(fieldDef.field_id, '', { allowEmpty: true })}
                                         className="bg-red-500/90 hover:bg-red-500 text-white p-2 rounded-lg flex-shrink-0"
                                     >
                                         <X className="w-4 h-4" />
