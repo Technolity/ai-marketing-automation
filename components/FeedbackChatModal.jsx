@@ -393,6 +393,34 @@ function deepParseJSON(content) {
     return content;
 }
 
+// ─── Colors canonicalizer ─────────────────────────────────────────────────────
+// Colors travel through the app in two clashing shapes: nested
+// { primary, secondary, tertiary } and flat { primaryColor, secondaryColor,
+// accentColor, ... } (and sometimes wrapped in `colorPalette`). The 3rd color is
+// `tertiary` in one world and `accentColor`/`accent` in the other. Map any known
+// alias onto the canonical { primary, secondary, tertiary, reasoning } so the diff
+// shows all three cards and never silently drops the accent color.
+function canonicalizeColors(raw) {
+    const parsed = deepParseJSON(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return parsed;
+    const src = (parsed.colorPalette && typeof parsed.colorPalette === 'object') ? parsed.colorPalette : parsed;
+    const pick = (...keys) => {
+        for (const k of keys) if (src[k] !== undefined && src[k] !== null) return src[k];
+        return undefined;
+    };
+    const out = {};
+    const primary = pick('primary', 'primaryColor');
+    const secondary = pick('secondary', 'secondaryColor');
+    const tertiary = pick('tertiary', 'accentColor', 'accent');
+    const reasoning = pick('reasoning');
+    if (primary !== undefined) out.primary = primary;
+    if (secondary !== undefined) out.secondary = secondary;
+    if (tertiary !== undefined) out.tertiary = tertiary;
+    if (reasoning !== undefined) out.reasoning = reasoning;
+    // If nothing matched a canonical slot, return the original so we never blank the diff.
+    return Object.keys(out).length ? out : parsed;
+}
+
 // ─── Flatten parsed content into readable reference text ──────────────────────
 // Used by the persistent reference panel (step 2) so the user can see the exact
 // field content they're refining while typing their prompt. Phase 6B.
@@ -612,8 +640,10 @@ function FilteredDiffPanel({ before, after, highlightMap, sectionId, selectedFie
     };
 
     // Normalise funnelCopy wrapper then auto-unwrap section wrappers
-    const normBefore = autoUnwrap((sectionId === 'funnelCopy' && beforeParsed?.funnelCopy) ? beforeParsed.funnelCopy : beforeParsed);
-    const normAfter  = autoUnwrap((sectionId === 'funnelCopy' && afterParsed?.funnelCopy)  ? afterParsed.funnelCopy  : afterParsed);
+    // Colors get canonicalized (accentColor → tertiary, etc.) so all three cards render
+    const canon = (v) => (sectionId === 'colors' ? canonicalizeColors(v) : v);
+    const normBefore = canon(autoUnwrap((sectionId === 'funnelCopy' && beforeParsed?.funnelCopy) ? beforeParsed.funnelCopy : beforeParsed));
+    const normAfter  = canon(autoUnwrap((sectionId === 'funnelCopy' && afterParsed?.funnelCopy)  ? afterParsed.funnelCopy  : afterParsed));
 
     // Determine which fields to show
     const fieldsToShow = useMemo(() => {
@@ -1084,12 +1114,14 @@ export default function FeedbackChatModal({
             return new Set([selectedSubSection]);
         }
         const diff = new Set();
-        const before = deepParseJSON(originalContent || currentContent);
-        const after = deepParseJSON(suggestedChanges);
+        let before = deepParseJSON(originalContent || currentContent);
+        let after = deepParseJSON(suggestedChanges);
+        // Canonicalize colors so the diff keys on primary/secondary/tertiary (not accentColor)
+        if (sectionId === 'colors') { before = canonicalizeColors(before); after = canonicalizeColors(after); }
         collectDiffPaths(before, after, '', diff);
         if (diff.size === 0) diff.add('__all__');
         return diff;
-    }, [suggestedChanges, originalContent, currentContent, selectedSubSection, isFunnelCopy, funnelSubPage]);
+    }, [suggestedChanges, originalContent, currentContent, selectedSubSection, isFunnelCopy, funnelSubPage, sectionId]);
 
     // Readable text of the selected field content for the persistent reference
     // panel shown during the chat (step 2). Phase 6B.
