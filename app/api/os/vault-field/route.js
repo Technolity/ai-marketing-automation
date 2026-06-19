@@ -438,6 +438,34 @@ export async function PATCH(req) {
         // in a single transaction with row-level locking to prevent race conditions.
         console.log('[VaultField PATCH] Calling atomic upsert RPC:', { field_id: actualFieldId, isNested: isNestedField });
 
+        // ─── NON-DESTRUCTIVE MEDIA GUARD ─────────────────────
+        // A stale section / reconcile write can overwrite an uploaded media image with
+        // an empty string, wiping the customer's real image right before a push. Observed
+        // on a live funnel: banner_image flipped real → "" → real, and push-media ran
+        // while it was "", so the funnel showed the default placeholder. Media fields are
+        // image/video URLs — a blank is never an intentional value here — so refuse to
+        // replace a real value with an empty one (the existing image is preserved).
+        if (section_id === 'media' && currentField && currentField.field_value !== undefined) {
+            const isBlank = (v) => {
+                if (v == null) return true;
+                let s = typeof v === 'string' ? v : JSON.stringify(v);
+                try { const p = JSON.parse(s); if (typeof p === 'string') s = p; } catch (e) { /* not JSON */ }
+                return String(s).trim() === '';
+            };
+            if (isBlank(actualFieldValue) && !isBlank(currentField.field_value)) {
+                console.warn('[VaultField PATCH] Blocked blank overwrite of media field:', actualFieldId, '— kept existing image');
+                return new Response(JSON.stringify({
+                    success: true,
+                    skipped: true,
+                    message: 'Blank media value ignored — existing image preserved',
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+        }
+        // ─────────────────────────────────────────────────────
+
         // ─── SKIP UNCHANGED FIELDS ───────────────────────────
         // Prevent unnecessary version bumps if the value hasn't changed.
         if (currentField && currentField.field_value !== undefined) {
