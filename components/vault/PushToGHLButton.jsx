@@ -52,7 +52,7 @@ export default function PushToGHLButton({
             if (response.ok && result.success) {
                 setPushSuccess(true);
                 toast.success(`✅ ${getSectionLabel(section)} pushed to Builder!`, {
-                    description: `${result.pushed} values updated`,
+                    description: result.message || `${result.updated ?? 0} values updated`,
                 });
 
                 // Reset success state after 3 seconds

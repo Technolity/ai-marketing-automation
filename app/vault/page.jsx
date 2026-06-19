@@ -2193,7 +2193,7 @@ export default function VaultPage() {
 
         // FeedbackChatModal passes { refinedContent, subSection }
         let refinedContent = saveData?.refinedContent || saveData;
-        const subSection = saveData?.subSection;
+        let subSection = saveData?.subSection;
         const funnelId = searchParams.get('funnel_id');
 
         console.log('[Vault] ========== FEEDBACK SAVE START ==========');
@@ -2244,6 +2244,46 @@ export default function VaultPage() {
         // Get current content for this section
         const currentSectionContent = vaultData[feedbackSection.id] || {};
         console.log('[Vault] Current content keys:', Object.keys(currentSectionContent));
+
+        // COLORS FIX: the colors section persists as ONE `colorPalette` object, but the
+        // feedback modal targets individual slots (primary/secondary/tertiary/reasoning).
+        // A naive sub-section save writes to a non-existent field_id (e.g. `primary`),
+        // leaving the real `colorPalette` row stale — so the UI and push-colors keep the
+        // OLD color. Merge the changed slot(s) into the CURRENT palette and route it
+        // through the working full-field path so it saves to field_id `colorPalette`.
+        if (feedbackSection.id === 'colors' && subSection && subSection !== 'all') {
+            const COLOR_SLOTS = ['primary', 'secondary', 'tertiary', 'reasoning'];
+
+            // Base = the existing palette (parse if it was stored as a JSON string)
+            let basePalette = currentSectionContent?.colorPalette;
+            if (typeof basePalette === 'string') {
+                try { basePalette = JSON.parse(basePalette); } catch { basePalette = {}; }
+            }
+            if (!basePalette || typeof basePalette !== 'object') basePalette = {};
+
+            // The AI may return the slot unwrapped ({ primary: {...} }) or wrapped
+            // ({ colorPalette: { primary: {...} } }) — normalise both.
+            const incoming = (refinedContent && typeof refinedContent === 'object')
+                ? (refinedContent.colorPalette || refinedContent)
+                : {};
+
+            const merged = { ...basePalette };
+            let mergedAny = false;
+            for (const slot of COLOR_SLOTS) {
+                if (incoming && typeof incoming === 'object' && incoming[slot] !== undefined) {
+                    merged[slot] = incoming[slot];
+                    mergedAny = true;
+                }
+            }
+            // Fallback: AI returned the bare value for the targeted slot
+            if (!mergedAny && COLOR_SLOTS.includes(subSection)) {
+                merged[subSection] = incoming?.[subSection] ?? incoming;
+            }
+
+            console.log('[Vault] Colors slot refine — merged palette slots:', Object.keys(merged));
+            refinedContent = { colorPalette: merged };
+            subSection = 'all'; // route through the full-`colorPalette` save path
+        }
 
         // For full section updates (subSection === 'all' or undefined), flatten AI response
         // to extract individual fields from wrappers like `idealClientSnapshot`
