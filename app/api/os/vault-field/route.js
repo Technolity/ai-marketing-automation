@@ -267,7 +267,8 @@ export async function PATCH(req) {
         funnel_id,
         section_id,
         field_id,
-        field_value: rawFieldValue
+        field_value: rawFieldValue,
+        allow_empty: allowEmpty = false
     } = body;
 
     // Auto-extract URL from embed code if user pasted full HTML (e.g. <iframe src="...">)
@@ -443,9 +444,10 @@ export async function PATCH(req) {
         // an empty string, wiping the customer's real image right before a push. Observed
         // on a live funnel: banner_image flipped real → "" → real, and push-media ran
         // while it was "", so the funnel showed the default placeholder. Media fields are
-        // image/video URLs — a blank is never an intentional value here — so refuse to
-        // replace a real value with an empty one (the existing image is preserved).
-        if (section_id === 'media' && currentField && currentField.field_value !== undefined) {
+        // image/video URLs, so an UNFLAGGED blank is treated as a stale clobber and
+        // refused. An INTENTIONAL clear (the red ✕ button) sends `allow_empty: true`,
+        // which bypasses this guard so the user can genuinely delete a media value.
+        if (section_id === 'media' && !allowEmpty && currentField && currentField.field_value !== undefined) {
             const isBlank = (v) => {
                 if (v == null) return true;
                 let s = typeof v === 'string' ? v : JSON.stringify(v);
