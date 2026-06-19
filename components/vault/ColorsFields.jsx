@@ -482,7 +482,11 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
 
             {parsedColors.length > 0 ? (
                 <div className="space-y-4">
-                    <p className="text-sm text-gray-400">Click any color to edit — drag the picker to any shade</p>
+                    <p className="text-sm text-gray-400">
+                        {isApproved
+                            ? 'Colors are locked while this section is approved. Unapprove the section to edit.'
+                            : 'Click any color to edit — drag the picker to any shade'}
+                    </p>
 
                     <div className="flex flex-wrap gap-8">
                         {parsedColors.map((color, index) => (
@@ -491,10 +495,11 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                                 ref={el => { groupRefs.current[index] = { current: el }; }}
                                 className="relative flex flex-col items-center gap-2"
                             >
-                                {/* Swatch button */}
+                                {/* Swatch button — locked while the section is approved */}
                                 <button
-                                    onClick={() => setEditingIndex(prev => prev === index ? null : index)}
-                                    className="group relative w-20 h-20 rounded-2xl border-2 transition-all duration-200 focus:outline-none"
+                                    onClick={() => { if (isApproved) return; setEditingIndex(prev => prev === index ? null : index); }}
+                                    disabled={isApproved}
+                                    className={`group relative w-20 h-20 rounded-2xl border-2 transition-all duration-200 focus:outline-none ${isApproved ? 'cursor-not-allowed' : ''}`}
                                     style={{
                                         backgroundColor: color.hex,
                                         borderColor: editingIndex === index ? '#16C7E7' : 'rgba(255,255,255,0.15)',
@@ -502,7 +507,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                                             ? `0 0 0 3px rgba(22,199,231,0.25), 0 6px 24px ${color.hex}66`
                                             : `0 4px 16px ${color.hex}44`,
                                     }}
-                                    title="Click to edit color"
+                                    title={isApproved ? 'Unapprove this section to edit colors' : 'Click to edit color'}
                                 >
                                     <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                                         <Palette className="w-5 h-5 text-white opacity-0 group-hover:opacity-80 transition-opacity drop-shadow" />
@@ -517,7 +522,7 @@ export default function ColorsFields({ content, sectionId, funnelId, onSave, isA
                                 </span>
 
                                 {/* Picker — rendered inside the group div so groupRef contains it */}
-                                {editingIndex === index && (
+                                {editingIndex === index && !isApproved && (
                                     <ColorPickerPopup
                                         hex={color.hex}
                                         onChangeHex={(hex) => handlePickerChange(index, hex)}

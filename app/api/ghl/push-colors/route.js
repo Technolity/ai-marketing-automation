@@ -198,10 +198,28 @@ export async function POST(req) {
         console.log('[PushColors] ========== END MAPPING ==========');
 
         if (customValues.length === 0) {
+            // All keys matched existing Builder values and were identical → nothing
+            // to push. That is a successful no-op, NOT a failure. Only treat it as an
+            // error when nothing matched at all (the custom values genuinely missing).
+            if (unchangedCount > 0) {
+                console.log('[PushColors] All colors already match Builder — nothing to push (no-op success)');
+                return Response.json({
+                    success: true,
+                    updated: 0,
+                    unchanged: unchangedCount,
+                    skipped: notFoundKeys.length,
+                    failed: 0,
+                    errors: [],
+                    notFoundKeys,
+                    colors: { primary, secondary, tertiary },
+                    message: 'Your colors are already up to date in Builder — nothing to push.'
+                });
+            }
+
             return Response.json({
                 error: 'No color custom values found in Builder',
                 notFoundKeys,
-                hint: 'Make sure primary_color, secondary_color, and tertiary_color exist in your Builder account. If they already exist and match but no changes were needed, you can safely ignore this.'
+                hint: 'Make sure primary_color, secondary_color, and tertiary_color exist in your Builder account.'
             }, { status: 400 });
         }
 
