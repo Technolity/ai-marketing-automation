@@ -31,7 +31,7 @@ import { appointmentRemindersPrompt } from '@/lib/prompts/appointmentReminders';
 // Import Chunk Prompts & Mergers
 import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
 import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
-import { smsChunk1Prompt, smsChunk2Prompt } from '@/lib/prompts/smsChunks';
+import { smsChunk1Prompt, smsChunk2Prompt, smsChunk3Prompt } from '@/lib/prompts/smsChunks';
 import { mergeSmsChunks, validateMergedSms } from '@/lib/prompts/smsMerger';
 import { setterChunk1Prompt, setterChunk2Prompt } from '@/lib/prompts/setterScriptChunks';
 import { mergeSetterChunks, validateMergedSetter } from '@/lib/prompts/setterScriptMerger';
@@ -103,7 +103,7 @@ const CHUNKED_SECTIONS = {
         timeout: 180000, // 3 min — large context
     },
     sms: {
-        chunks: [smsChunk1Prompt, smsChunk2Prompt],
+        chunks: [smsChunk1Prompt, smsChunk2Prompt, smsChunk3Prompt],
         merger: mergeSmsChunks,
         validator: validateMergedSms,
         systemPrompt: 'You are TED-OS SMS Engine. Return ONLY valid JSON.' + NO_MARKDOWN,

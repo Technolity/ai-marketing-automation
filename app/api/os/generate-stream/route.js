@@ -9,7 +9,7 @@ import { hashContent, fetchCurrentContent } from '@/lib/vault/contentHash';
 import { resolveDependencies, buildEnrichedData, buildCoreContext, formatContextForPrompt } from '@/lib/vault/dependencyResolver';
 import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
 import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
-import { smsChunk1Prompt, smsChunk2Prompt } from '@/lib/prompts/smsChunks';
+import { smsChunk1Prompt, smsChunk2Prompt, smsChunk3Prompt } from '@/lib/prompts/smsChunks';
 import { mergeSmsChunks, validateMergedSms } from '@/lib/prompts/smsMerger';
 import { setterChunk1Prompt, setterChunk2Prompt } from '@/lib/prompts/setterScriptChunks';
 import { mergeSetterChunks, validateMergedSetter } from '@/lib/prompts/setterScriptMerger';
@@ -237,10 +237,10 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
             const chunkTimeout = 30000; // 30s per chunk for SMS is plenty
             const chunkMaxTokens = 2000;
 
-            rawPrompt = `[CHUNKED GENERATION - 2 parallel chunks]\nChunk 1: SMS 1-5\nChunk 2: SMS 6-7b + No-Shows`;
+            rawPrompt = `[CHUNKED GENERATION - 3 parallel chunks]\nChunk 1: SMS 1-5\nChunk 2: SMS 6-7b + No-Shows\nChunk 3: SMS 8a-15c (Days 8-15)`;
 
             try {
-                const [chunk1Result, chunk2Result] = await Promise.all([
+                const [chunk1Result, chunk2Result, chunk3Result] = await Promise.all([
                     retryWithBackoff(async () => {
                         const raw = await generateWithProvider(
                             "You are TED-OS SMS Engine. Return ONLY valid JSON. No markdown formatting — plain text only.",
@@ -256,11 +256,19 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                             { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
                         );
                         return parseJsonSafe(raw);
+                    }),
+                    retryWithBackoff(async () => {
+                        const raw = await generateWithProvider(
+                            "You are TED-OS SMS Engine. Return ONLY valid JSON. No markdown formatting — plain text only.",
+                            smsChunk3Prompt(smsData),
+                            { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }
+                        );
+                        return parseJsonSafe(raw);
                     })
                 ]);
 
-                // Merge chunks
-                const mergedContent = mergeSmsChunks(chunk1Result, chunk2Result);
+                // Merge chunks (Days 1-7 + No-Shows + Days 8-15)
+                const mergedContent = mergeSmsChunks(chunk1Result, chunk2Result, chunk3Result);
 
                 // Validate
                 const validation = validateMergedSms(mergedContent);
@@ -268,7 +276,7 @@ async function generateSection(key, data, funnelId, userId, targetUserId, sendEv
                     console.warn('[GenerateStream] SMS merge has issues:', validation);
                 }
 
-                console.log(`[GenerateStream] SMS chunking completed successfully (${validation.smsCount || 0}/10 SMS)`);
+                console.log(`[GenerateStream] SMS chunking completed successfully (${validation.smsCount || 0}/22 SMS)`);
                 logger.step(`generate_chunks_${sectionId}`, 'completed', {
                     smsCount: validation.smsCount
                 });

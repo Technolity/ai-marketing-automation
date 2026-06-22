@@ -32,7 +32,7 @@ import { shortVslPrompt } from '@/lib/prompts/shortVsl';
 // Import Chunk Prompts & Mergers
 import { emailChunk1Prompt, emailChunk2Prompt, emailChunk3Prompt, emailChunk4Prompt } from '@/lib/prompts/emailChunks';
 import { mergeEmailChunks, validateMergedEmails } from '@/lib/prompts/emailMerger';
-import { smsChunk1Prompt, smsChunk2Prompt } from '@/lib/prompts/smsChunks';
+import { smsChunk1Prompt, smsChunk2Prompt, smsChunk3Prompt } from '@/lib/prompts/smsChunks';
 import { mergeSmsChunks, validateMergedSms } from '@/lib/prompts/smsMerger';
 import { setterChunk1Prompt, setterChunk2Prompt } from '@/lib/prompts/setterScriptChunks';
 import { mergeSetterChunks, validateMergedSetter } from '@/lib/prompts/setterScriptMerger';
@@ -332,12 +332,13 @@ export async function POST(req) {
                 leadMagnetTitle: enrichedData.freeGiftName || enrichedData.leadMagnetTitle || '[Free Gift Name]'
             };
 
-            const [c1, c2] = await Promise.all([
+            const [c1, c2, c3] = await Promise.all([
                 retryWithBackoff(() => generateWithProvider("You are TED-OS SMS Engine. Return ONLY valid JSON.", smsChunk1Prompt(smsData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe)),
-                retryWithBackoff(() => generateWithProvider("You are TED-OS SMS Engine. Return ONLY valid JSON.", smsChunk2Prompt(smsData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe))
+                retryWithBackoff(() => generateWithProvider("You are TED-OS SMS Engine. Return ONLY valid JSON.", smsChunk2Prompt(smsData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe)),
+                retryWithBackoff(() => generateWithProvider("You are TED-OS SMS Engine. Return ONLY valid JSON.", smsChunk3Prompt(smsData), { jsonMode: true, maxTokens: chunkMaxTokens, timeout: chunkTimeout }).then(parseJsonSafe))
             ]);
 
-            parsedContent = mergeSmsChunks(c1, c2);
+            parsedContent = mergeSmsChunks(c1, c2, c3);
 
         } else if (key === 17) { // Setter Script (Key 17)
             console.log('[Regenerate] Using CHUNKED generation for Setter Script');
