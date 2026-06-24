@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Sparkles, Zap } from "@/lib/icons";
+import { Check, Zap } from "@/lib/icons";
 import { SectionLabel } from "./SectionLabel";
 
 const PLANS = [
@@ -199,15 +199,6 @@ function PlanCard({ plan, yearly, isInner = false }) {
 
   return (
     <div className="p-8" style={cardStyle}>
-      {/* Diamond icon on featured */}
-      {isInner && (
-        <div className="flex justify-center mb-5">
-          <div className="w-9 h-9 rotate-45 flex items-center justify-center" style={{ background: "rgba(0,229,255,0.1)", border: "1px solid rgba(0,229,255,0.3)" }}>
-            <Sparkles className="w-4 h-4 text-[#00E5FF] -rotate-45" />
-          </div>
-        </div>
-      )}
-
       {/* Activation badge */}
       <div className="flex justify-start mb-3">
         <span
@@ -222,7 +213,7 @@ function PlanCard({ plan, yearly, isInner = false }) {
       <h3 className={`font-poppins font-medium text-lg mb-1 ${isInner ? "text-[#00E5FF]" : "text-[#F4F7FF]"}`}>
         {plan.name}
       </h3>
-      <p className="text-[#94A3B8] font-poppins text-sm mb-6 leading-relaxed">{plan.desc}</p>
+      <p className="text-[#94A3B8] font-poppins text-sm mb-6 leading-relaxed lg:min-h-[2.85rem]">{plan.desc}</p>
 
       {/* Price */}
       <div className="mb-6">
@@ -233,7 +224,7 @@ function PlanCard({ plan, yearly, isInner = false }) {
 
         {/* Yearly billing total */}
         {yearly && (
-          <p className="text-[#4a5a6a] font-poppins text-xs mt-1">
+          <p className="text-[#94A3B8] font-poppins text-xs mt-1">
             {plan.total_y} billed annually
           </p>
         )}
