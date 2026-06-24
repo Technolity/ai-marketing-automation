@@ -31,7 +31,7 @@ const PLANS = [
   },
   {
     name: "Growth",
-    price_m: "$647",
+    price_m: "$697",
     price_y: "$627",
     total_y: "$7,527",
     setup_fee: "$5,000",
@@ -51,27 +51,28 @@ const PLANS = [
       activation_y: "https://link.fastpaydirect.com/payment-link/6a19e93503b17c94f5713994",
     },
   },
-  {
-    name: "Scale",
-    price_m: "$997",
-    price_y: "$897",
-    total_y: "$10,767",
-    setup_fee: "$2,500",
-    desc: "For agencies building for multiple clients at scale.",
-    features: [
-      "All Growth features included",
-      "Unlimited Business Builds",
-      "Up to 10 team members in workspace",
-    ],
-    cta: "Contact Sales",
-    featured: false,
-    links: {
-      standard_m: "https://link.fastpaydirect.com/payment-link/69a9b3d470f9d56b9a26d150",
-      activation_m: "https://link.fastpaydirect.com/payment-link/69b025c984b2d75a9a65881f",
-      standard_y: "https://link.fastpaydirect.com/payment-link/69a9b3dd2211b7922b02c41d",
-      activation_y: "https://link.fastpaydirect.com/payment-link/69b2d4f98e8f54b631536b69",
-    },
-  },
+  // Scale plan hidden — not offered currently. Keep data intact to re-enable later.
+  // {
+  //   name: "Scale",
+  //   price_m: "$997",
+  //   price_y: "$897",
+  //   total_y: "$10,767",
+  //   setup_fee: "$2,500",
+  //   desc: "For agencies building for multiple clients at scale.",
+  //   features: [
+  //     "All Growth features included",
+  //     "Unlimited Business Builds",
+  //     "Up to 10 team members in workspace",
+  //   ],
+  //   cta: "Contact Sales",
+  //   featured: false,
+  //   links: {
+  //     standard_m: "https://link.fastpaydirect.com/payment-link/69a9b3d470f9d56b9a26d150",
+  //     activation_m: "https://link.fastpaydirect.com/payment-link/69b025c984b2d75a9a65881f",
+  //     standard_y: "https://link.fastpaydirect.com/payment-link/69a9b3dd2211b7922b02c41d",
+  //     activation_y: "https://link.fastpaydirect.com/payment-link/69b2d4f98e8f54b631536b69",
+  //   },
+  // },
 ];
 
 const container = { hidden: {}, visible: { transition: { staggerChildren: 0.12 } } };
@@ -91,7 +92,7 @@ export default function PricingSection() {
       {/* Perspective grid floor */}
       <div className="perspective-grid absolute inset-x-0 bottom-0 h-[320px] pointer-events-none opacity-70" />
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-8 relative z-10">
+      <div className="max-w-4xl mx-auto px-4 sm:px-8 relative z-10">
 
         <motion.div
           initial={{ opacity: 0, y: 24 }}
@@ -155,7 +156,7 @@ export default function PricingSection() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.05 }}
-          className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch"
+          className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch"
         >
           {PLANS.map((plan) => (
             <motion.div
