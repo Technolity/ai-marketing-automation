@@ -184,6 +184,14 @@ export async function PATCH(req) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Resolve workspace so team members (extra seats) act on the OWNER's funnels,
+        // mirroring GET. Without this, a seat's raw userId never matches the owner's
+        // funnel row and the funnel-type choice (which unlocks Phase 2) is rejected.
+        const { workspaceId: targetUserId, error: workspaceError } = await resolveWorkspace(userId);
+        if (workspaceError) {
+            return NextResponse.json({ error: workspaceError }, { status: 403 });
+        }
+
         const { funnelId, funnelType, name } = await req.json();
 
         if (!funnelId) {
@@ -194,12 +202,12 @@ export async function PATCH(req) {
             return NextResponse.json({ error: 'At least one field to update is required (funnelType or name)' }, { status: 400 });
         }
 
-        // Verify ownership
+        // Verify access within the resolved workspace (owner or their active team members)
         const { data: funnel, error: verifyError } = await supabaseAdmin
             .from('user_funnels')
             .select('id, user_id')
             .eq('id', funnelId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .single();
 
         if (verifyError || !funnel) {
@@ -220,7 +228,7 @@ export async function PATCH(req) {
             .from('user_funnels')
             .update(updatePayload)
             .eq('id', funnelId)
-            .eq('user_id', userId)
+            .eq('user_id', targetUserId)
             .select()
             .single();
 
