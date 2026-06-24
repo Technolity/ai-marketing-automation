@@ -162,10 +162,10 @@ export default function PricingSection() {
             <motion.div
               key={plan.name}
               variants={cardAnim}
-              className={plan.featured ? "lg:scale-[1.04] z-10" : ""}
+              className={`h-full ${plan.featured ? "z-10" : ""}`}
             >
               {plan.featured ? (
-                <div className="p-px rounded-2xl" style={{ background: "linear-gradient(135deg, rgba(0,229,255,0.6), rgba(0,229,255,0.2), rgba(0,229,255,0.6))" }}>
+                <div className="p-px rounded-2xl h-full" style={{ background: "linear-gradient(135deg, rgba(0,229,255,0.6), rgba(0,229,255,0.2), rgba(0,229,255,0.6))" }}>
                   <PlanCard plan={plan} yearly={yearly} isInner />
                 </div>
               ) : (
@@ -198,7 +198,7 @@ function PlanCard({ plan, yearly, isInner = false }) {
     };
 
   return (
-    <div className="p-8" style={cardStyle}>
+    <div className="p-8 h-full flex flex-col" style={cardStyle}>
       {/* Activation badge */}
       <div className="flex justify-start mb-3">
         <span
