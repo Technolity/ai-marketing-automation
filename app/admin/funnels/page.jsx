@@ -395,6 +395,35 @@ export default function AdminFunnels() {
         }
     }, [filterUserId, statusFilter, debouncedSearch]);
 
+    // Download a polished, client-facing document (all sections, print-to-PDF) for one funnel
+    const handleExportDoc = useCallback(async (singleFunnelId) => {
+        setExporting(true);
+        try {
+            const response = await fetchWithAuth(`/api/admin/funnels/export-doc?funnelId=${encodeURIComponent(singleFunnelId)}`);
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || "Document export failed");
+            }
+            const blob = await response.blob();
+            const contentDisposition = response.headers.get("Content-Disposition") || "";
+            const fileNameMatch = contentDisposition.match(/filename="(.+?)"/);
+            const fileName = fileNameMatch ? fileNameMatch[1] : "content.html";
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            setToast({ message: "Document downloaded — open it and Print → Save as PDF", type: "success" });
+        } catch (error) {
+            setToast({ message: `Document export failed: ${error.message}`, type: "error" });
+        } finally {
+            setExporting(false);
+        }
+    }, []);
+
     const openTransferModal = useCallback((funnel) => {
         setTransferFunnel(funnel);
         setTransferSearch("");
@@ -710,6 +739,9 @@ export default function AdminFunnels() {
                         <ActionBtn title="Export funnel data (JSON)" hoverColor="rgba(52,211,153,0.15)" onClick={() => handleExport("json", row.original.id)} disabled={exporting}>
                             <Download className="w-4 h-4" style={{ color: T.secondary }} />
                         </ActionBtn>
+                        <ActionBtn title="Download client document — all sections, print-to-PDF" hoverColor="rgba(14,124,134,0.18)" onClick={() => handleExportDoc(row.original.id)} disabled={exporting}>
+                            <FileText className="w-4 h-4" style={{ color: T.secondary }} />
+                        </ActionBtn>
                         <ActionBtn title="Transfer funnel to another user" hoverColor="rgba(251,146,60,0.15)" onClick={() => openTransferModal(row.original)}>
                             <ArrowRightLeft className="w-4 h-4" style={{ color: T.secondary }} />
                         </ActionBtn>
@@ -736,7 +768,7 @@ export default function AdminFunnels() {
                 ),
             },
         ],
-        [handleFunnelAction, handleExport, exporting, openTransferModal, openSlotModal]
+        [handleFunnelAction, handleExport, handleExportDoc, exporting, openTransferModal, openSlotModal]
     );
 
     const table = useReactTable({
