@@ -59,6 +59,9 @@ graphify-out/
 
 # system files
 nul
+coded-funnel-preview.*.html
+booking-funnel-preview.*.html
+scripts/_sample-out.html
 supabase/.temp/
 app/api/os/refine-section/implementation_plan.md.resolved
 screenshots/

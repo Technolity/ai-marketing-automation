@@ -38,6 +38,17 @@ const FUNNEL_TYPES = [
         locked: false
     },
     {
+        // NEW coded/baked engine — admin-only while we test end-to-end.
+        id: 'booking',
+        title: 'Appointment Booking Funnel (v2 · Coded)',
+        icon: Video,
+        description: 'New coded design — premium animated pages baked from your content.',
+        bestFor: ['coaches', 'consultants', 'agencies'],
+        features: ['Appointment Booking Page', 'Calendar Page', 'Thank You Page'],
+        locked: false,
+        adminOnly: true
+    },
+    {
         id: 'free-book',
         title: 'Free Book Funnel',
         icon: BookOpen,
@@ -90,6 +101,14 @@ export default function FunnelRecommendationPage() {
     const [showAlternatives, setShowAlternatives] = useState(false);
     const [funnelId, setFunnelId] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
+
+    // Probe admin status via an admin-gated endpoint so admin-only funnel types can show.
+    useEffect(() => {
+        (async () => {
+            try { const r = await fetchWithAuth('/api/admin/coded-funnel-test'); setIsAdmin(r.ok); } catch { setIsAdmin(false); }
+        })();
+    }, []);
 
     useEffect(() => {
         if (authLoading) return;
@@ -195,7 +214,7 @@ export default function FunnelRecommendationPage() {
 
     // VSL Funnel is always the recommended one
     const vslFunnel = FUNNEL_TYPES.find(f => f.id === 'vsl');
-    const otherFunnels = FUNNEL_TYPES.filter(f => f.id !== 'vsl');
+    const otherFunnels = FUNNEL_TYPES.filter(f => f.id !== 'vsl' && (!f.adminOnly || isAdmin));
 
     return (
         <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8">
