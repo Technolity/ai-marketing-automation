@@ -156,12 +156,15 @@ export async function POST(req) {
             console.log('[PushMedia] No media fields in vault - nothing to push (existing GHL values left untouched)');
         }
 
-        const mediaMap = {
-            ...MEDIA_MAP,
-            bio_author: '03_vsl_bio_image',
-            product_mockup: '03_optin_mockup_image',
-            main_vsl: '03_vsl_video_link',
-        };
+        // Collapse legacy alias field_ids into the LIVE vault field_ids so each GHL custom
+        // value has ONE source (live wins; legacy only fills a gap for old funnels). Kills the
+        // "stale product_mockup written last clobbers fresh banner_image" bug + same for video.
+        if (!mediaContent.banner_image && mediaContent.product_mockup) mediaContent.banner_image = mediaContent.product_mockup;
+        if (!mediaContent.vsl_video && mediaContent.main_vsl) mediaContent.vsl_video = mediaContent.main_vsl;
+        if (!mediaContent.profile_photo && mediaContent.bio_author) mediaContent.profile_photo = mediaContent.bio_author;
+
+        // SINGLE mapping per GHL key — no duplicate legacy aliases pointing at the same key.
+        const mediaMap = { ...MEDIA_MAP };
 
         // Build custom values using current vault media field names plus legacy aliases
         const customValues = [];

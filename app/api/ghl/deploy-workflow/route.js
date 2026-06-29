@@ -1111,8 +1111,9 @@ export async function POST(req) {
             // "free gift image reverts to default" bug.
             [`${p}optin_mockup_image`]: combinedMedia.banner_image || combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
 
-            // VSL Video (convert YouTube watch URLs to embed format)
-            [`${p}vsl_video_link`]: toEmbedUrl(combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video),
+            // Appointment Booking Video — `vsl_video` is the LIVE field_id (main_vsl is legacy).
+            // Live first fixes "booking video disappeared" (convert watch URLs to embed).
+            [`${p}vsl_video_link`]: toEmbedUrl(combinedMedia.vsl_video || combinedMedia.main_vsl || combinedMedia.vslVideo),
 
             // Thank You Video (convert YouTube watch URLs to embed format)
             [`${p}thankyou_page_video_link`]: toEmbedUrl(combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video),

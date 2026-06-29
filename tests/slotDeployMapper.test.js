@@ -207,3 +207,41 @@ describe('buildSlotDeployCustomValues', () => {
     expect(values).not.toHaveProperty('05_optin_sms_11');
   });
 });
+
+describe('media field precedence — live vault field_id wins over legacy alias', () => {
+  const build = (media, slotIndex = 4) =>
+    buildSlotDeployCustomValues({ vaultContent: { media }, slotIndex });
+
+  it('optin mockup: live banner_image wins over stale product_mockup', () => {
+    const values = build({ banner_image: 'https://img/new.png', product_mockup: 'https://img/old.png' });
+    expect(values['04_optin_mockup_image']).toBe('https://img/new.png');
+  });
+
+  it('optin mockup: legacy product_mockup still maps when banner_image absent', () => {
+    const values = build({ product_mockup: 'https://img/legacy.png' });
+    expect(values['04_optin_mockup_image']).toBe('https://img/legacy.png');
+  });
+
+  it('booking video: live vsl_video wins over stale main_vsl (embedded)', () => {
+    const values = build({
+      vsl_video: 'https://www.youtube.com/watch?v=NEW123',
+      main_vsl: 'https://www.youtube.com/watch?v=OLD999',
+    });
+    expect(values['04_vsl_video_link']).toBe('https://www.youtube.com/embed/NEW123');
+  });
+
+  it('booking video: legacy main_vsl still maps when vsl_video absent', () => {
+    const values = build({ main_vsl: 'https://www.youtube.com/watch?v=OLD999' });
+    expect(values['04_vsl_video_link']).toBe('https://www.youtube.com/embed/OLD999');
+  });
+
+  it('bio image: live profile_photo wins over legacy bio_author', () => {
+    const values = build({ profile_photo: 'https://img/me.png', bio_author: 'https://img/old-bio.png' });
+    expect(values['04_vsl_bio_image']).toBe('https://img/me.png');
+  });
+
+  it('thank you video maps from live thankyou_video', () => {
+    const values = build({ thankyou_video: 'https://www.youtube.com/watch?v=TY42' });
+    expect(values['04_thankyou_page_video_link']).toBe('https://www.youtube.com/embed/TY42');
+  });
+});
