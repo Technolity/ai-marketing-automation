@@ -1091,14 +1091,16 @@ export async function POST(req) {
             // Logo — slot-prefixed (04_logo_image for slot 4, etc.; '' for slot 3 = 'logo_image')
             [basePrefix + 'logo_image']: combinedMedia.logo || combinedMedia.logoUrl || combinedMedia.logo_url,
 
-            // Bio/Author Photo
-            [`${p}vsl_bio_image`]: combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
+            // Bio/Author Photo — `profile_photo` is the LIVE field_id (bio_author is legacy)
+            [`${p}vsl_bio_image`]: combinedMedia.profile_photo || combinedMedia.bio_author || combinedMedia.bioPhoto || combinedMedia.bio_photo,
 
-            // Product Mockup
-            [`${p}optin_mockup_image`]: combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
+            // Free Gift / Opt-in Mockup — `banner_image` is the LIVE field_id; product_mockup
+            // is legacy. Live first fixes "free gift image reverts to old picture".
+            [`${p}optin_mockup_image`]: combinedMedia.banner_image || combinedMedia.product_mockup || combinedMedia.mockup || combinedMedia.mockupImage,
 
-            // VSL Video (convert YouTube watch URLs to embed format)
-            [`${p}vsl_video_link`]: toEmbedUrl(combinedMedia.main_vsl || combinedMedia.vslVideo || combinedMedia.vsl_video),
+            // Appointment Booking Video — `vsl_video` is the LIVE field_id (main_vsl is legacy).
+            // Live first fixes "booking video disappeared" (convert watch URLs to embed).
+            [`${p}vsl_video_link`]: toEmbedUrl(combinedMedia.vsl_video || combinedMedia.main_vsl || combinedMedia.vslVideo),
 
             // Thank You Video (convert YouTube watch URLs to embed format)
             [`${p}thankyou_page_video_link`]: toEmbedUrl(combinedMedia.thankyou_video || combinedMedia.thankYouVideo || combinedMedia.thank_you_video),

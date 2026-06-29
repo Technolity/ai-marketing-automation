@@ -136,27 +136,33 @@ export async function POST(req) {
             });
         }
 
-        // Build media content map (use defaults for missing fields)
-        const mediaContent = { ...DEFAULT_MEDIA_VALUES }; // Start with defaults
+        // Build media content map from REAL uploaded values ONLY.
+        // DEFAULT_MEDIA_VALUES is intentionally NOT used to seed this map — seeding with the
+        // TMB/TedOS placeholders pushed a default over the customer's real image whenever a
+        // field wasn't present this run (the "reverts to default image" bug). Missing fields
+        // are simply not pushed, so the existing GHL value (the real image) is preserved.
+        const mediaContent = {};
 
-        // Override with actual uploaded values
         if (mediaFields && mediaFields.length > 0) {
             mediaFields.forEach(field => {
                 if (field.field_value && field.field_value.trim()) {
                     mediaContent[field.field_id] = field.field_value;
                 }
             });
-            console.log('[PushMedia] Media fields from vault:', mediaFields.length, '- merged with defaults');
+            console.log('[PushMedia] Media fields from vault:', mediaFields.length, '- real values only (no defaults)');
         } else {
-            console.log('[PushMedia] No media fields in vault - using ALL defaults');
+            console.log('[PushMedia] No media fields in vault - nothing to push (existing GHL values left untouched)');
         }
 
-        const mediaMap = {
-            ...MEDIA_MAP,
-            bio_author: '03_vsl_bio_image',
-            product_mockup: '03_optin_mockup_image',
-            main_vsl: '03_vsl_video_link',
-        };
+        // Collapse legacy alias field_ids into the LIVE vault field_ids so each GHL custom
+        // value has ONE source (live wins; legacy only fills a gap for old funnels). Kills the
+        // "stale product_mockup written last clobbers fresh banner_image" bug + same for video.
+        if (!mediaContent.banner_image && mediaContent.product_mockup) mediaContent.banner_image = mediaContent.product_mockup;
+        if (!mediaContent.vsl_video && mediaContent.main_vsl) mediaContent.vsl_video = mediaContent.main_vsl;
+        if (!mediaContent.profile_photo && mediaContent.bio_author) mediaContent.profile_photo = mediaContent.bio_author;
+
+        // SINGLE mapping per GHL key — no duplicate legacy aliases pointing at the same key.
+        const mediaMap = { ...MEDIA_MAP };
 
         // Build custom values using current vault media field names plus legacy aliases
         const customValues = [];
