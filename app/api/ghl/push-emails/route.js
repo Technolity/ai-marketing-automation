@@ -255,6 +255,38 @@ export async function POST(req) {
             }
         }
 
+        // Free Gift Email — the Day-1 delivery email (email1) ALSO feeds the
+        // dedicated free_gift_email_* custom values, IN ADDITION to optin_email_1.
+        // Historically these were populated by the old deploy-workflow email loop
+        // (email1 -> free_gift_email_*); when email pushing moved to this route they
+        // were dropped, leaving free_gift_email_subject/body stale on every funnel.
+        // free_gift_email_* are 'base' keys with no preheader slot, so push subject + body only.
+        const freeGiftSource = deployEmailSequence.email1;
+        if (freeGiftSource) {
+            if (freeGiftSource.subject && validateEmailContent(freeGiftSource.subject, 'subject')) {
+                const ghlKey = transformKey('free_gift_email_subject', slotPrefix, basePrefix);
+                itemsToPush.push({
+                    vaultKey: 'email1',
+                    contentType: 'subject',
+                    raw: freeGiftSource.subject,
+                    polishType: 'headline',
+                    ghlKey,
+                    match: findExistingId(existingMap, ghlKey),
+                });
+            }
+            if (freeGiftSource.body && validateEmailContent(freeGiftSource.body, 'body')) {
+                const ghlKey = transformKey('free_gift_email_body', slotPrefix, basePrefix);
+                itemsToPush.push({
+                    vaultKey: 'email1',
+                    contentType: 'body',
+                    raw: freeGiftSource.body,
+                    polishType: 'email',
+                    ghlKey,
+                    match: findExistingId(existingMap, ghlKey),
+                });
+            }
+        }
+
         console.log('[PushEmails] Prepared', itemsToPush.length, 'items to push');
 
         // Process in concurrent batches (polish + push together)
