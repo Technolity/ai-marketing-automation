@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { renderLandingSegments, VSL_EMBED_KEY } from '@/lib/funnelTemplates/booking-v1/landingPage';
+import { renderLandingSegments, VSL_EMBED_KEY, DEFAULT_CALENDAR_PATH, calendarPathForSlot } from '@/lib/funnelTemplates/booking-v1/landingPage';
 import { assembleSegments } from '@/lib/funnelTemplates/segments';
 
 const doc = (data) => assembleSegments(renderLandingSegments(data));
@@ -98,6 +98,21 @@ describe('renderLandingSegments (v2 editorial)', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&#123;&#123;');
+  });
+
+  it('CTAs redirect to the calendar via a BAKED relative path (no merge tag — GHL is single-pass)', () => {
+    const html = doc();
+    expect(html).not.toContain('href="#book"');           // dead in-page anchor gone
+    expect(html).toContain(`href="${DEFAULT_CALENDAR_PATH}"`); // baked literal default (slot 1)
+    expect(html).not.toContain('data-cv');                 // no nested custom-value override (it can never resolve)
+    expect(html).not.toContain('{{custom_values.appt_calendar_url}}');
+  });
+
+  it('bakes the slot-derived calendar path when supplied (slot N → /calendarN)', () => {
+    expect(calendarPathForSlot(1)).toBe('/calendar');
+    expect(calendarPathForSlot(2)).toBe('/calendar2');
+    expect(calendarPathForSlot(10)).toBe('/calendar10');
+    expect(doc({ calendarPath: '/calendar3' })).toContain('href="/calendar3"');
   });
 
   it('writes a browsable preview file to the repo root', () => {

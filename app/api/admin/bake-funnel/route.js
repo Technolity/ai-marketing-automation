@@ -20,6 +20,7 @@ import { minifySegments, byteLength, assembleSegments, isCssSegment } from '@/li
 import { minifyHtml } from '@/lib/funnelTemplates/escape';
 import { funnelCopyToRenderData } from '@/lib/funnelTemplates/booking-v1/funnelCopyMapper';
 import { getFunnelConfig } from '@/lib/funnelTemplates/funnelTypeRegistry';
+import { bulkCreateCustomValues } from '@/lib/integrations/ghl';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -98,12 +99,17 @@ async function bakeFunnel(funnelId) {
   const design = cfg.design || 'booking-v1';
   const pageKeys = cfg.engine === 'baked' ? cfg.pages : ['landing', 'calendar', 'thankYou'];
 
+  // name → minified HTML/CSS for every segment across all pages. This is the exact
+  // payload pushed to GHL (each name matches a custom value created via create-values).
+  const customValues = {};
+
   const pages = pageKeys.map((page) => {
     const data = funnelCopyToRenderData(page, { funnelCopy, media, colorPalette, businessName });
     const segments = minifySegments(renderCodedSegments(design, page, data), minifyHtml);
     const sized = segments.map((s) => ({ name: s.name, bytes: byteLength(s.html), kind: isCssSegment(s.name) ? 'css' : 'html', html: s.html }));
     // The CSS segment goes to GHL's CSS field; the HTML chunks concat in a custom-code element.
     const htmlNames = sized.filter((s) => s.kind === 'html').map((s) => s.name);
+    for (const s of sized) customValues[s.name] = s.html;
     return {
       page,
       segments: sized.map(({ name, bytes, kind }) => ({ name, bytes, kind })),
@@ -123,6 +129,7 @@ async function bakeFunnel(funnelId) {
     brand: resolvedBrand,
     colorsFound,
     pages,
+    customValues, // internal-only; stripped from the response unless used for a push
   };
 }
 
@@ -130,9 +137,27 @@ export async function POST(req) {
   try {
     const gate = await requireAdmin();
     if (gate.error) return NextResponse.json({ error: gate.error }, { status: gate.status });
-    const { funnelId } = await req.json();
+    const { funnelId, locationId } = await req.json();
     const result = await bakeFunnel(funnelId);
     if (result.error) return NextResponse.json({ error: result.error }, { status: result.status });
+
+    // When a locationId is supplied, push the baked segments into GHL. Each name was
+    // already created as a placeholder, so bulkCreateCustomValues UPDATES it in place.
+    if (locationId && typeof locationId === 'string' && locationId.trim()) {
+      const pushRes = await bulkCreateCustomValues(locationId.trim(), result.customValues);
+      result.push = {
+        locationId: locationId.trim(),
+        success: pushRes.success,
+        created: pushRes.created || 0,
+        updated: pushRes.updated || 0,
+        failed: pushRes.failed || 0,
+        total: pushRes.total || 0,
+        error: pushRes.error || null,
+        failedKeys: (pushRes.results || []).filter((r) => !r.success).map((r) => ({ key: r.key, error: r.error })),
+      };
+    }
+
+    delete result.customValues; // internal — never ship the raw HTML blobs to the client
     return NextResponse.json(result);
   } catch (err) {
     console.error('[BakeFunnel] Error:', err);

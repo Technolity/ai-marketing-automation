@@ -55,6 +55,8 @@ export default function GHLTestValuesPage() {
     const [bfFunnelId, setBfFunnelId] = useState('');
     const [bfResult, setBfResult] = useState(null);
     const [bfBusy, setBfBusy] = useState(false);
+    const [bfLocationId, setBfLocationId] = useState('');
+    const [bfPushBusy, setBfPushBusy] = useState(false);
     const bfBake = async () => {
         setBfBusy(true); setBfResult(null); setError(null);
         try {
@@ -70,6 +72,24 @@ export default function GHLTestValuesPage() {
             setError(err.message);
         } finally {
             setBfBusy(false);
+        }
+    };
+    // Bake AND push: same endpoint, but a locationId triggers the GHL upsert of every segment.
+    const bfPush = async () => {
+        setBfPushBusy(true); setError(null);
+        try {
+            const res = await fetch('/api/admin/bake-funnel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ funnelId: bfFunnelId.trim(), locationId: bfLocationId.trim() }),
+            });
+            const data = await res.json();
+            setBfResult(data);
+            if (data.error) setError(data.error);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setBfPushBusy(false);
         }
     };
 
@@ -486,7 +506,8 @@ export default function GHLTestValuesPage() {
                     <h2 className="text-xl font-semibold mb-1">Bake Real Funnel — Booking v2 (admin)</h2>
                     <p className="text-gray-400 text-sm mb-4">
                         Reads a funnel&apos;s real vault content (funnel copy + media + brand colors) and bakes the coded
-                        booking pages from it. Read-only — no database writes, no GHL push.
+                        booking pages from it. Bake = preview only (no writes). Push = upsert every segment into the
+                        location&apos;s custom values (create the placeholders first via GHL Custom Values).
                     </p>
                     <label className="text-sm text-gray-400 block mb-3">
                         Funnel ID <span className="text-gray-600">(from the vault URL ?funnel_id=…)</span>
@@ -495,10 +516,37 @@ export default function GHLTestValuesPage() {
                             placeholder="e.g. 1a2b3c4d-…"
                             className="w-full mt-1 bg-gray-900 border border-gray-700 rounded-lg p-2 text-white font-mono text-sm" />
                     </label>
-                    <button onClick={bfBake} disabled={bfBusy || !bfFunnelId.trim()}
-                        className="px-6 py-3 bg-cyan-700 hover:bg-cyan-600 disabled:bg-gray-600 rounded-lg font-medium mb-4">
-                        {bfBusy ? 'Baking…' : 'Bake from Vault'}
-                    </button>
+                    <label className="text-sm text-gray-400 block mb-3">
+                        GHL Location ID <span className="text-gray-600">(required only for Push)</span>
+                        <input type="text" value={bfLocationId}
+                            onChange={(e) => setBfLocationId(e.target.value)}
+                            placeholder="e.g. AbCdEfGhIjKlMnOpQrSt"
+                            className="w-full mt-1 bg-gray-900 border border-gray-700 rounded-lg p-2 text-white font-mono text-sm" />
+                    </label>
+                    <div className="flex items-center gap-3 mb-4 flex-wrap">
+                        <button onClick={bfBake} disabled={bfBusy || bfPushBusy || !bfFunnelId.trim()}
+                            className="px-6 py-3 bg-cyan-700 hover:bg-cyan-600 disabled:bg-gray-600 rounded-lg font-medium">
+                            {bfBusy ? 'Baking…' : 'Bake from Vault'}
+                        </button>
+                        <button onClick={bfPush} disabled={bfBusy || bfPushBusy || !bfFunnelId.trim() || !bfLocationId.trim()}
+                            className="px-6 py-3 bg-green-700 hover:bg-green-600 disabled:bg-gray-600 rounded-lg font-medium"
+                            title={!bfLocationId.trim() ? 'Enter a Location ID to push' : 'Bake and push every segment into GHL custom values'}>
+                            {bfPushBusy ? 'Pushing…' : 'Bake + Push to GHL'}
+                        </button>
+                    </div>
+
+                    {bfResult && bfResult.push && (
+                        <div className={`mb-4 rounded-lg border p-3 text-sm ${bfResult.push.failed > 0 ? 'border-amber-600/40 bg-amber-900/20 text-amber-200' : 'border-green-600/40 bg-green-900/20 text-green-200'}`}>
+                            {bfResult.push.failed > 0 ? '⚠' : '✓'} Pushed to <code>{bfResult.push.locationId}</code> ·
+                            {' '}created <b>{bfResult.push.created}</b> · updated <b>{bfResult.push.updated}</b> · failed <b>{bfResult.push.failed}</b> / {bfResult.push.total}
+                            {bfResult.push.error && <span className="block text-red-300 mt-1">{bfResult.push.error}</span>}
+                            {bfResult.push.failedKeys?.length > 0 && (
+                                <ul className="mt-1 font-mono text-xs text-red-300">
+                                    {bfResult.push.failedKeys.map((f) => (<li key={f.key}>{f.key}: {f.error}</li>))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
 
                     {bfResult && bfResult.success && (
                         <div className="space-y-6">

@@ -875,6 +875,113 @@ function DefaultColorsPanel({ mode, selectedUser, activeLocationId }) {
     );
 }
 
+// ── Baked Booking Funnel Panel ───────────────────────────────────────────────
+
+const BAKE_PAGE_LABEL = { landing: "Landing", calendar: "Calendar", thankYou: "Thank You" };
+
+function BakedFunnelPanel({ locationId }) {
+    const [grouped, setGrouped] = useState([]);
+    const [total, setTotal] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [result, setResult] = useState(null);
+
+    // Fetch the key list from the server so what we SHOW always matches what the
+    // bake produces (the names are derived from the renderers, never hardcoded here).
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        fetchWithAuth("/api/admin/bake-funnel/create-values?funnelType=booking")
+            .then((r) => r.json())
+            .then((d) => {
+                if (cancelled) return;
+                if (d.grouped) setGrouped(d.grouped);
+                if (typeof d.total === "number") setTotal(d.total);
+            })
+            .catch(console.error)
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const handleCreate = async () => {
+        if (creating || !locationId) return;
+        setCreating(true);
+        setResult(null);
+        try {
+            const res = await fetchWithAuth("/api/admin/bake-funnel/create-values", {
+                method: "POST",
+                body: JSON.stringify({ locationId, funnelType: "booking" }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Create failed");
+            setResult(data);
+            toast.success(`Booking funnel: ${data.created} created, ${data.updated} updated`);
+        } catch (err) {
+            toast.error(err.message || "Create failed");
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    return (
+        <div className="bg-[#1b1b1d] rounded-2xl border border-[#2a2a2d] overflow-hidden">
+            <div className="px-5 py-4 border-b border-[#2a2a2d] flex items-center gap-3">
+                <Layers className="w-4 h-4 text-cyan" />
+                <div>
+                    <span className="text-sm font-semibold text-white">
+                        Baked Booking Funnel — Custom Values
+                    </span>
+                    <span className="ml-3 text-xs text-gray-500">
+                        {loading ? "Loading…" : `${total} values · 3-step funnel (landing → calendar → thank you)`}
+                    </span>
+                </div>
+            </div>
+            <div className="p-5 space-y-4">
+                {/* Per-page breakdown: which value goes into GHL's CSS editor vs the code element */}
+                <div className="space-y-3">
+                    {grouped.map((g) => (
+                        <div key={g.page} className="rounded-xl border border-[#2a2a2d] bg-[#0e0e0f] p-3">
+                            <p className="text-xs font-semibold text-white mb-2">
+                                {BAKE_PAGE_LABEL[g.page] || g.page}
+                            </p>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                <div className="flex-1">
+                                    <p className="text-[10px] uppercase tracking-wider text-purple-300 mb-1">
+                                        → CSS editor
+                                    </p>
+                                    {g.css.map((k) => (
+                                        <code key={k} className="block text-xs font-mono text-gray-300">{k}</code>
+                                    ))}
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-[10px] uppercase tracking-wider text-blue-300 mb-1">
+                                        → code element ({g.html.length})
+                                    </p>
+                                    {g.html.map((k) => (
+                                        <code key={k} className="block text-xs font-mono text-gray-300">{k}</code>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <button
+                    onClick={handleCreate}
+                    disabled={creating || !locationId}
+                    title={locationId ? "Create all booking funnel custom values in this location" : "Select a location first"}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 text-sm font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    {creating ? "Creating…" : `Create ${total || ""} custom values`}
+                </button>
+
+                <CreateResult result={result} onDismiss={() => setResult(null)} />
+            </div>
+        </div>
+    );
+}
+
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default function AdminGHLCustomValues() {
@@ -1415,6 +1522,11 @@ export default function AdminGHLCustomValues() {
                             mode={mode}
                             selectedUser={selectedUser}
                             activeLocationId={activeLocationId}
+                        />
+
+                        {/* Baked booking funnel — one-click create its custom values */}
+                        <BakedFunnelPanel
+                            locationId={mode === "direct" ? activeLocationId : slotData?.location_id}
                         />
 
                         {/* No GHL subaccount warning */}
