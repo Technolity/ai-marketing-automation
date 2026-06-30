@@ -56,14 +56,16 @@ export default function GHLTestValuesPage() {
     const [bfResult, setBfResult] = useState(null);
     const [bfBusy, setBfBusy] = useState(false);
     const [bfLocationId, setBfLocationId] = useState('');
+    const [bfSlot, setBfSlot] = useState('');
     const [bfPushBusy, setBfPushBusy] = useState(false);
+    const bfSlotNum = () => (bfSlot.trim() ? Number(bfSlot.trim()) : undefined);
     const bfBake = async () => {
         setBfBusy(true); setBfResult(null); setError(null);
         try {
             const res = await fetch('/api/admin/bake-funnel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnelId: bfFunnelId.trim() }),
+                body: JSON.stringify({ funnelId: bfFunnelId.trim(), slot: bfSlotNum() }),
             });
             const data = await res.json();
             setBfResult(data);
@@ -81,7 +83,7 @@ export default function GHLTestValuesPage() {
             const res = await fetch('/api/admin/bake-funnel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ funnelId: bfFunnelId.trim(), locationId: bfLocationId.trim() }),
+                body: JSON.stringify({ funnelId: bfFunnelId.trim(), locationId: bfLocationId.trim(), slot: bfSlotNum() }),
             });
             const data = await res.json();
             setBfResult(data);
@@ -522,6 +524,13 @@ export default function GHLTestValuesPage() {
                             onChange={(e) => setBfLocationId(e.target.value)}
                             placeholder="e.g. AbCdEfGhIjKlMnOpQrSt"
                             className="w-full mt-1 bg-gray-900 border border-gray-700 rounded-lg p-2 text-white font-mono text-sm" />
+                    </label>
+                    <label className="text-sm text-gray-400 block mb-3">
+                        Slot # <span className="text-gray-600">(blank = un-prefixed test bake · N = {`{NN}_abfv2_`} keys + /calendar{`{N}`} path)</span>
+                        <input type="number" min="1" max="99" value={bfSlot}
+                            onChange={(e) => setBfSlot(e.target.value)}
+                            placeholder="e.g. 1"
+                            className="w-32 mt-1 block bg-gray-900 border border-gray-700 rounded-lg p-2 text-white font-mono text-sm" />
                     </label>
                     <div className="flex items-center gap-3 mb-4 flex-wrap">
                         <button onClick={bfBake} disabled={bfBusy || bfPushBusy || !bfFunnelId.trim()}

@@ -65,6 +65,7 @@ import EmailsFields from "@/components/vault/EmailsFields";
 import SmsFields from "@/components/vault/SmsFields";
 import FacebookAdsFields from "@/components/vault/FacebookAdsFields";
 import FunnelCopyFields from "@/components/vault/FunnelCopyFields";
+import { shouldHideOptin } from "@/lib/funnelTemplates/funnelTypeRegistry";
 import BioFields from "@/components/vault/BioFields";
 import AppointmentRemindersFields from "@/components/vault/AppointmentRemindersFields";
 import MediaFields from "@/components/vault/MediaFields";
@@ -3843,6 +3844,7 @@ export default function VaultPage() {
                                                 content={vaultData[section.id]}
                                                 sectionId={section.id}
                                                 funnelId={funnelId}
+                                                hideOptin={shouldHideOptin(dataSource?.selected_funnel_type)}
                                                 isApproved={status === 'approved'}
                                                 onApprove={(sectionId) => handleApprove(sectionId, phase)}
                                                 onUnapprove={handleUnapprove}

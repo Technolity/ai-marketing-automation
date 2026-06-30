@@ -59,6 +59,7 @@ graphify-out/
 
 # system files
 nul
+ruvector.db
 coded-funnel-preview.*.html
 booking-funnel-preview.*.html
 scripts/_sample-out.html

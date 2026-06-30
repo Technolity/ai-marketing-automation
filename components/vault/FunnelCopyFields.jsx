@@ -8,14 +8,15 @@ import { getFieldsForSection } from '@/lib/vault/fieldStructures';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { toast } from 'sonner';
 
-export default function FunnelCopyFields({ funnelId, onUnapprove, isApproved, refreshTrigger }) {
+export default function FunnelCopyFields({ funnelId, onUnapprove, isApproved, refreshTrigger, hideOptin }) {
     const [fields, setFields] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [sectionApproved, setSectionApproved] = useState(false);
     const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
     const [selectedField, setSelectedField] = useState(null);
     const [selectedFieldValue, setSelectedFieldValue] = useState(null);
-    const [activeTab, setActiveTab] = useState('optin'); // optin, sales, calendar, thankyou
+    // Booking (baked) funnel has no opt-in page → default to the booking page and hide the tab.
+    const [activeTab, setActiveTab] = useState(hideOptin ? 'sales' : 'optin'); // optin, sales, calendar, thankyou
     const [businessName, setBusinessName] = useState('');
 
     const sectionId = 'funnelCopy';
@@ -426,7 +427,7 @@ export default function FunnelCopyFields({ funnelId, onUnapprove, isApproved, re
         { id: 'sales', label: 'Appointment Booking Page', icon: FileText },
         { id: 'calendar', label: 'Calendar Page', icon: FileText },
         { id: 'thankyou', label: 'Thank You Page', icon: FileText }
-    ];
+    ].filter((t) => !(hideOptin && t.id === 'optin'));
 
     return (
         <>

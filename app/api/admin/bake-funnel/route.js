@@ -21,6 +21,7 @@ import { minifyHtml } from '@/lib/funnelTemplates/escape';
 import { funnelCopyToRenderData } from '@/lib/funnelTemplates/booking-v1/funnelCopyMapper';
 import { getFunnelConfig } from '@/lib/funnelTemplates/funnelTypeRegistry';
 import { bulkCreateCustomValues } from '@/lib/integrations/ghl';
+import { calendarPathForSlot } from '@/lib/funnelTemplates/booking-v1/landingPage';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -48,8 +49,14 @@ function groupFields(rows) {
 }
 
 /** Read a funnel's vault + bake all its pages. Returns { error,status } on failure. */
-async function bakeFunnel(funnelId) {
+async function bakeFunnel(funnelId, { slot } = {}) {
   if (!funnelId) return { error: 'funnelId is required', status: 400 };
+
+  // Slot N → keys prefixed `{NN}_abfv2_` (matching getAbfv2SlotKeys) and the calendar path
+  // auto-derived (slot 1 → /calendar, slot N → /calendarN). No slot = un-prefixed test bake.
+  const slotN = slot ? Number(slot) : null;
+  const keyPrefix = slotN ? String(slotN).padStart(2, '0') + '_abfv2_' : '';
+  const calendarPath = slotN ? calendarPathForSlot(slotN) : undefined;
 
   const { data: funnel } = await supabaseAdmin
     .from('user_funnels')
@@ -104,18 +111,20 @@ async function bakeFunnel(funnelId) {
   const customValues = {};
 
   const pages = pageKeys.map((page) => {
-    const data = funnelCopyToRenderData(page, { funnelCopy, media, colorPalette, businessName });
+    const data = funnelCopyToRenderData(page, { funnelCopy, media, colorPalette, businessName, calendarPath });
     const segments = minifySegments(renderCodedSegments(design, page, data), minifyHtml);
+    // Keep original names in `sized` for assembleSegments + CSS detection; the GHL-facing
+    // key (custom value name / merge tag) gets the slot prefix.
     const sized = segments.map((s) => ({ name: s.name, bytes: byteLength(s.html), kind: isCssSegment(s.name) ? 'css' : 'html', html: s.html }));
     // The CSS segment goes to GHL's CSS field; the HTML chunks concat in a custom-code element.
-    const htmlNames = sized.filter((s) => s.kind === 'html').map((s) => s.name);
-    for (const s of sized) customValues[s.name] = s.html;
+    const htmlKeys = sized.filter((s) => s.kind === 'html').map((s) => keyPrefix + s.name);
+    for (const s of sized) customValues[keyPrefix + s.name] = s.html;
     return {
       page,
-      segments: sized.map(({ name, bytes, kind }) => ({ name, bytes, kind })),
+      segments: sized.map(({ name, bytes, kind }) => ({ name: keyPrefix + name, bytes, kind })),
       assembledHtml: assembleSegments(sized),
       totalBytes: sized.reduce((sum, s) => sum + s.bytes, 0),
-      mergeTagString: htmlNames.map((n) => `{{custom_values.${n}}}`).join(''),
+      mergeTagString: htmlKeys.map((n) => `{{custom_values.${n}}}`).join(''),
     };
   });
 
@@ -137,9 +146,10 @@ export async function POST(req) {
   try {
     const gate = await requireAdmin();
     if (gate.error) return NextResponse.json({ error: gate.error }, { status: gate.status });
-    const { funnelId, locationId } = await req.json();
-    const result = await bakeFunnel(funnelId);
+    const { funnelId, locationId, slot } = await req.json();
+    const result = await bakeFunnel(funnelId, { slot });
     if (result.error) return NextResponse.json({ error: result.error }, { status: result.status });
+    result.slot = slot ? Number(slot) : null;
 
     // When a locationId is supplied, push the baked segments into GHL. Each name was
     // already created as a placeholder, so bulkCreateCustomValues UPDATES it in place.

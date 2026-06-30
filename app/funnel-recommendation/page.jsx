@@ -38,7 +38,7 @@ const FUNNEL_TYPES = [
         locked: false
     },
     {
-        // NEW coded/baked engine — admin-only while we test end-to-end.
+        // NEW coded/baked engine — available to Growth/Scale tiers (and admins).
         id: 'booking',
         title: 'Appointment Booking Funnel (v2 · Coded)',
         icon: Video,
@@ -46,7 +46,7 @@ const FUNNEL_TYPES = [
         bestFor: ['coaches', 'consultants', 'agencies'],
         features: ['Appointment Booking Page', 'Calendar Page', 'Thank You Page'],
         locked: false,
-        adminOnly: true
+        tierGate: ['growth', 'scale']
     },
     {
         id: 'free-book',
@@ -102,6 +102,7 @@ export default function FunnelRecommendationPage() {
     const [funnelId, setFunnelId] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [tier, setTier] = useState(null);
 
     // Probe admin status via an admin-gated endpoint so admin-only funnel types can show.
     useEffect(() => {
@@ -109,6 +110,20 @@ export default function FunnelRecommendationPage() {
             try { const r = await fetchWithAuth('/api/admin/coded-funnel-test'); setIsAdmin(r.ok); } catch { setIsAdmin(false); }
         })();
     }, []);
+
+    // Read the user's subscription tier so tier-gated funnel types (booking v2) can show.
+    useEffect(() => {
+        (async () => {
+            try {
+                const r = await fetchWithAuth('/api/user/tier');
+                const d = await r.json();
+                setTier(d?.tier || null);
+            } catch { setTier(null); }
+        })();
+    }, []);
+
+    // A funnel type is selectable if it's not tier-gated, or the user's tier matches, or they're admin.
+    const canSelectType = (f) => !f.tierGate || isAdmin || f.tierGate.includes(tier);
 
     useEffect(() => {
         if (authLoading) return;
@@ -214,7 +229,7 @@ export default function FunnelRecommendationPage() {
 
     // VSL Funnel is always the recommended one
     const vslFunnel = FUNNEL_TYPES.find(f => f.id === 'vsl');
-    const otherFunnels = FUNNEL_TYPES.filter(f => f.id !== 'vsl' && (!f.adminOnly || isAdmin));
+    const otherFunnels = FUNNEL_TYPES.filter(f => f.id !== 'vsl' && !f.locked && canSelectType(f));
 
     return (
         <div className="min-h-screen bg-[#0e0e0f] text-white p-4 sm:p-6 lg:p-8">
@@ -290,6 +305,52 @@ export default function FunnelRecommendationPage() {
                     </motion.div>
 
 
+
+                    {/* Selectable alternative funnels (tier-gated, e.g. Booking v2 for Growth/Scale) */}
+                    {otherFunnels.map((f) => {
+                        const Icon = f.icon || Video;
+                        const selected = selectedFunnel?.id === f.id;
+                        return (
+                            <motion.div
+                                key={f.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                onClick={() => handleSelectFunnel(f)}
+                                className={`p-6 rounded-2xl border-2 mb-6 cursor-pointer transition-all ${selected
+                                    ? 'bg-cyan/10 border-cyan shadow-xl shadow-cyan/20'
+                                    : 'bg-[#1b1b1d] border-[#2a2a2d] hover:border-cyan/50'
+                                    }`}
+                            >
+                                <div className="flex items-start gap-6">
+                                    <div className="w-14 h-14 rounded-2xl bg-cyan/20 flex items-center justify-center flex-shrink-0">
+                                        <Icon className="w-7 h-7 text-cyan" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                            <h2 className="text-2xl font-bold">{f.title}</h2>
+                                            {f.tierGate && (
+                                                <span className="px-3 py-1 bg-purple-500/20 text-purple-300 text-xs font-bold rounded-full flex items-center gap-1 uppercase">
+                                                    <Zap className="w-3 h-3" /> {f.tierGate.join(' / ')}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-gray-400 mb-4">{f.description}</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {f.features.map((feature, idx) => (
+                                                <span key={idx} className="px-3 py-1.5 bg-[#2a2a2d] text-gray-300 text-sm rounded-lg flex items-center gap-2">
+                                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                                    {feature}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {selected && (
+                                        <CheckCircle className="w-8 h-8 text-cyan flex-shrink-0" />
+                                    )}
+                                </div>
+                            </motion.div>
+                        );
+                    })}
 
                     {/* Continue Button */}
                     <motion.div

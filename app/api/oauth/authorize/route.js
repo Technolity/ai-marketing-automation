@@ -51,10 +51,12 @@ export async function GET(req) {
             'users.write',
             'users.readonly',
             'contacts.readonly',
+            'contacts.write',
             'opportunities.readonly',
 
             // --- Calendars ---
             'calendars.readonly',
+            'calendars.write',
             'calendars/events.readonly',
             'calendars/events.write',
             'calendars/groups.readonly',

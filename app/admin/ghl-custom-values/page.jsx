@@ -882,26 +882,31 @@ const BAKE_PAGE_LABEL = { landing: "Landing", calendar: "Calendar", thankYou: "T
 function BakedFunnelPanel({ locationId }) {
     const [grouped, setGrouped] = useState([]);
     const [total, setTotal] = useState(0);
+    const [counts, setCounts] = useState(null);
+    const [slot, setSlot] = useState("");
     const [loading, setLoading] = useState(false);
     const [creating, setCreating] = useState(false);
     const [result, setResult] = useState(null);
 
     // Fetch the key list from the server so what we SHOW always matches what the
     // bake produces (the names are derived from the renderers, never hardcoded here).
+    // Re-fetches when the slot changes: blank → 11 baked test keys; N → full 117-key set.
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
-        fetchWithAuth("/api/admin/bake-funnel/create-values?funnelType=booking")
+        const q = slot.trim() ? `&slot=${Number(slot.trim())}` : "";
+        fetchWithAuth(`/api/admin/bake-funnel/create-values?funnelType=booking${q}`)
             .then((r) => r.json())
             .then((d) => {
                 if (cancelled) return;
-                if (d.grouped) setGrouped(d.grouped);
+                setGrouped(d.grouped || []);
+                setCounts(d.counts || null);
                 if (typeof d.total === "number") setTotal(d.total);
             })
             .catch(console.error)
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
-    }, []);
+    }, [slot]);
 
     const handleCreate = async () => {
         if (creating || !locationId) return;
@@ -910,7 +915,7 @@ function BakedFunnelPanel({ locationId }) {
         try {
             const res = await fetchWithAuth("/api/admin/bake-funnel/create-values", {
                 method: "POST",
-                body: JSON.stringify({ locationId, funnelType: "booking" }),
+                body: JSON.stringify({ locationId, funnelType: "booking", slot: slot.trim() ? Number(slot.trim()) : undefined }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Create failed");
@@ -932,11 +937,29 @@ function BakedFunnelPanel({ locationId }) {
                         Baked Booking Funnel — Custom Values
                     </span>
                     <span className="ml-3 text-xs text-gray-500">
-                        {loading ? "Loading…" : `${total} values · 3-step funnel (landing → calendar → thank you)`}
+                        {loading ? "Loading…" : slot.trim()
+                            ? `${total} values · slot ${Number(slot.trim())} · {NN}_abfv2_ prefixed`
+                            : `${total} baked values · un-prefixed test`}
                     </span>
                 </div>
             </div>
             <div className="p-5 space-y-4">
+                {/* Slot selector — blank = 11 baked un-prefixed; N = full 117-key {NN}_abfv2_ set */}
+                <label className="block text-xs font-semibold text-gray-400">
+                    Slot # <span className="text-gray-600">(blank = 11 baked test keys · N = full 117-key abfv2 set)</span>
+                    <input type="number" min="1" max="99" value={slot}
+                        onChange={(e) => setSlot(e.target.value)}
+                        placeholder="e.g. 1"
+                        className="w-28 mt-1 block bg-[#0e0e0f] border border-[#2a2a2d] rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-cyan" />
+                </label>
+
+                {counts && slot.trim() && (
+                    <div className="text-xs text-gray-400">
+                        Slot {Number(slot.trim())}: <b className="text-white">{counts.total}</b> values —{" "}
+                        {counts.funnelHtml} baked · {counts.emails} emails · {counts.sms} sms · {counts.appointmentReminders} reminders · {counts.company} company
+                    </div>
+                )}
+
                 {/* Per-page breakdown: which value goes into GHL's CSS editor vs the code element */}
                 <div className="space-y-3">
                     {grouped.map((g) => (
