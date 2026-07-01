@@ -2166,8 +2166,10 @@ export default function VaultPage() {
                 setShowSaveModal(false);
                 setSessionName('');
 
-                // Update dataSource to the newly saved session
-                setDataSource({ type: 'loaded', name: data.session.session_name, id: data.session.id });
+                // Update dataSource to the newly saved session — MERGE so source fields
+                // (selected_funnel_type, etc.) survive; a bare replace dropped them and
+                // broke funnel-type branching (e.g. the booking optin-tab hide).
+                setDataSource(prev => ({ ...prev, type: 'loaded', name: data.session.session_name, id: data.session.id }));
 
                 // Update URL to include the new session ID
                 const currentPhase = activeTab === 'assets' ? '2'
