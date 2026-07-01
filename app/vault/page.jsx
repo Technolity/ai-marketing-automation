@@ -1935,14 +1935,18 @@ export default function VaultPage() {
     const handleAutoAssignAndDeploy = async () => {
         const funnelId = dataSource?.id || searchParams.get('funnel_id');
         if (!funnelId) { toast.error('No funnel ID found'); return; }
+        // Booking (baked) funnels use their own 1-based slot pool + endpoint; vsl unchanged.
+        const isBooking = dataSource?.selected_funnel_type === 'booking';
+        const availUrl = isBooking ? '/api/ghl/booking-slots' : '/api/ghl/available-slots';
+        const assignUrl = isBooking ? '/api/ghl/booking-slots' : '/api/ghl/funnel-slot';
         try {
             if (!funnelSlotAssignment) {
-                const res = await fetchWithAuth(`/api/ghl/available-slots?funnel_id=${funnelId}`);
+                const res = await fetchWithAuth(`${availUrl}?funnel_id=${funnelId}`);
                 if (!res.ok) { toast.error('Failed to check available slots'); return; }
                 const data = await res.json();
                 const lowestAvailable = [...(data.available_for_assignment || [])].sort((a, b) => a - b)[0];
                 if (!lowestAvailable) { toast.error('No available slots. Please upgrade your plan.'); return; }
-                const assignRes = await fetchWithAuth('/api/ghl/funnel-slot', {
+                const assignRes = await fetchWithAuth(assignUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ funnel_id: funnelId, slot_index: lowestAvailable }),
@@ -2022,7 +2026,10 @@ export default function VaultPage() {
             console.log('[Vault] Step 2: Deploying funnel assets to Builder...');
             await new Promise(resolve => setTimeout(resolve, 400)); // Brief pause for step visibility
 
-            const res = await fetchWithAuth('/api/ghl/deploy-workflow', {
+            // Booking (baked) funnels deploy via bake+push to {NN}_abfv2_ values; vsl unchanged.
+            const isBooking = dataSource?.selected_funnel_type === 'booking';
+            const deployUrl = isBooking ? '/api/ghl/deploy-booking' : '/api/ghl/deploy-workflow';
+            const res = await fetchWithAuth(deployUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ funnelId })
